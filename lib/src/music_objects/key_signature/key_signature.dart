@@ -296,6 +296,14 @@ class KeySignatureRenderer implements MusicalSymbolRenderer {
         keySignature.keySignature.color,
       );
     }
+
+    // draw bounding box outline
+    final paint = Paint()
+      ..color = Colors.red
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+
+    canvas.drawRect(renderArea, paint);
   }
 
   @override

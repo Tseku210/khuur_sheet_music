@@ -19,3 +19,5 @@ export 'src/music_objects/notes/single_note/note.dart' show Note;
 // export 'src/music_objects/notes/stem_direction.dart' show StemDirection;
 export 'src/music_objects/rest/rest.dart' show Rest;
 export 'src/music_objects/rest/rest_type.dart' show RestType;
+export 'src/music_objects/time_signature/time_signature.dart'
+    show TimeSignature;

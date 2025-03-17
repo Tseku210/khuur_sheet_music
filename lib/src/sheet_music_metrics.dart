@@ -6,6 +6,7 @@ import 'package:simple_sheet_music/src/measure/measure_metrics.dart';
 
 import 'package:simple_sheet_music/src/music_objects/clef/clef_type.dart';
 import 'package:simple_sheet_music/src/music_objects/key_signature/keysignature_type.dart';
+import 'package:simple_sheet_music/src/music_objects/time_signature/time_signature_type.dart';
 import 'package:simple_sheet_music/src/musical_context.dart';
 import 'package:simple_sheet_music/src/staff/staff_metrics.dart';
 
@@ -15,6 +16,7 @@ class SheetMusicMetrics {
     this.measures,
     this.initialClefType,
     this.initialKeySignatureType,
+    this.initialTimeSignatureType,
     this.metadata,
     this.paths,
   );
@@ -69,6 +71,7 @@ class SheetMusicMetrics {
   final List<Measure> measures;
   final ClefType initialClefType;
   final KeySignatureType initialKeySignatureType;
+  final TimeSignatureType initialTimeSignatureType;
   final GlyphMetadata metadata;
   final GlyphPaths paths;
 

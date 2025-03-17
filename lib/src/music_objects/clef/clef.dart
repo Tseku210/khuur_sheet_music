@@ -11,7 +11,6 @@ import 'package:simple_sheet_music/src/sheet_music_layout.dart';
 
 /// Represents a musical clef symbol.
 class Clef implements MusicalSymbol {
-
   const Clef.treble({
     this.margin = const EdgeInsets.all(10),
     this.color = Colors.black,
@@ -131,6 +130,14 @@ class ClefRenderer implements MusicalSymbolRenderer {
   void render(Canvas canvas) {
     final p = Paint()..color = clef.color;
     canvas.drawPath(renderPath, p);
+
+    // draw bounding box outline
+    final paint = Paint()
+      ..color = Colors.red
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+
+    canvas.drawRect(renderArea, paint);
   }
 
   @override
