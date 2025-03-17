@@ -8,7 +8,6 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -29,25 +28,26 @@ class SimpleSheetMusicDemo extends StatefulWidget {
 }
 
 class SimpleSheetMusicDemoState extends State {
-  late final Measure measure1;
-  late final Measure measure2;
-  late final Measure measure3;
-
   @override
-  void initState() {
-    measure1 = Measure([
+  Widget build(BuildContext context) {
+    final sheetMusicSize = MediaQuery.of(context).size;
+    final width = sheetMusicSize.width;
+    final height = sheetMusicSize.height / 2;
+
+    Measure measure1 = Measure([
       const Clef.treble(),
+      const TimeSignature.twoFour(),
       const KeySignature.dMajor(),
       const ChordNote([
         ChordNotePart(Pitch.b4),
-        ChordNotePart(Pitch.g5, accidental: Accidental.sharp),
+        ChordNotePart(Pitch.g5),
+        ChordNotePart(Pitch.a4),
       ]),
       const Rest(RestType.quarter),
-      const Note(Pitch.a4,
-          noteDuration: NoteDuration.sixteenth, accidental: Accidental.flat),
+      const Note(Pitch.a4, noteDuration: NoteDuration.quarter),
       const Rest(RestType.sixteenth),
     ]);
-    measure2 = Measure([
+    Measure measure2 = Measure([
       const ChordNote([
         ChordNotePart(Pitch.c4),
         ChordNotePart(Pitch.c5),
@@ -55,9 +55,10 @@ class SimpleSheetMusicDemoState extends State {
       const Note(Pitch.a4,
           noteDuration: NoteDuration.sixteenth, accidental: Accidental.flat)
     ]);
-    measure3 = Measure(
+    Measure measure3 = Measure(
       [
         const Clef.bass(),
+        const TimeSignature.fourFour(),
         const KeySignature.cMinor(),
         const ChordNote(
           [
@@ -71,14 +72,6 @@ class SimpleSheetMusicDemoState extends State {
       ],
       isNewLine: true,
     );
-    super.initState();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final sheetMusicSize = MediaQuery.of(context).size;
-    final width = sheetMusicSize.width;
-    final height = sheetMusicSize.height / 2;
     return Scaffold(
         appBar: AppBar(title: const Text('Simple Sheet Music')),
         body: Center(

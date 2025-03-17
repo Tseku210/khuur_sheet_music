@@ -7,6 +7,7 @@ import 'package:simple_sheet_music/src/glyph_metadata.dart';
 import 'package:simple_sheet_music/src/glyph_path.dart';
 import 'package:simple_sheet_music/src/measure/measure.dart';
 import 'package:simple_sheet_music/src/music_objects/clef/clef_type.dart';
+import 'package:simple_sheet_music/src/music_objects/time_signature/time_signature_type.dart';
 import 'package:simple_sheet_music/src/sheet_music_metrics.dart';
 import 'package:simple_sheet_music/src/sheet_music_renderer.dart';
 import 'package:xml/xml.dart';
@@ -29,6 +30,7 @@ class SimpleSheetMusic extends StatefulWidget {
     required this.measures,
     this.initialClefType = ClefType.treble,
     this.initialKeySignatureType = KeySignatureType.cMajor,
+    this.initialTimeSignatureType = TimeSignatureType.twoFour,
     this.height = 400.0,
     this.width = 400.0,
     this.lineColor = Colors.black54,
@@ -50,8 +52,11 @@ class SimpleSheetMusic extends StatefulWidget {
   /// The initial clef  for the sheet music.
   final ClefType initialClefType;
 
-  // / The initial keySignature for the sheet music.
+  /// The initial keySignature for the sheet music.
   final KeySignatureType initialKeySignatureType;
+
+  /// The initial timeSignature for the sheet music.
+  final TimeSignatureType initialTimeSignatureType;
 
   /// A callback function that is called when a music object is tapped.
   // final OnTapMusicObjectCallback? onTap;
@@ -101,6 +106,7 @@ class SimpleSheetMusicState extends State<SimpleSheetMusic> {
           widget.measures,
           widget.initialClefType,
           widget.initialKeySignatureType,
+          widget.initialTimeSignatureType,
           metadata,
           glyphPath,
         );
