@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:simple_sheet_music/src/constants.dart';
 import 'package:simple_sheet_music/src/glyph_metadata.dart';
 import 'package:simple_sheet_music/src/glyph_path.dart';
+import 'package:simple_sheet_music/src/mixin/debug_render_mixin.dart';
 import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol.dart';
 import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol_metrics.dart';
 import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol_renderer.dart';
@@ -110,7 +111,9 @@ class TimeSignatureMetrics implements MusicalSymbolMetrics {
 }
 
 // renders time signature on the sheet music
-class TimeSignatureRenderer implements MusicalSymbolRenderer {
+class TimeSignatureRenderer
+    with DebugRenderMixin
+    implements MusicalSymbolRenderer {
   const TimeSignatureRenderer(
     this.timeSignature,
     this.layout, {
@@ -158,5 +161,9 @@ class TimeSignatureRenderer implements MusicalSymbolRenderer {
     canvas
       ..drawPath(numeratorRenderPath, p)
       ..drawPath(denominatorRenderPath, p);
+
+    if (layout.debug) {
+      renderBoundingBox(canvas, renderArea);
+    }
   }
 }

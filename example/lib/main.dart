@@ -83,6 +83,7 @@ class SimpleSheetMusicDemoState extends State {
             child: SimpleSheetMusic(
               height: height,
               width: width,
+              debug: true,
               measures: [measure1, measure2, measure3],
             ),
           ),

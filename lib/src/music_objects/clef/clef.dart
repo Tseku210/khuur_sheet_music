@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:simple_sheet_music/src/constants.dart';
 import 'package:simple_sheet_music/src/glyph_metadata.dart';
 import 'package:simple_sheet_music/src/glyph_path.dart';
+import 'package:simple_sheet_music/src/mixin/debug_render_mixin.dart';
 import 'package:simple_sheet_music/src/music_objects/clef/clef_type.dart';
 import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol.dart';
 import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol_metrics.dart';
@@ -114,7 +115,7 @@ class ClefMetrics implements MusicalSymbolMetrics {
 }
 
 /// Renders the clef symbol.
-class ClefRenderer implements MusicalSymbolRenderer {
+class ClefRenderer with DebugRenderMixin implements MusicalSymbolRenderer {
   const ClefRenderer(
     this.clef,
     this.layout, {
@@ -130,6 +131,10 @@ class ClefRenderer implements MusicalSymbolRenderer {
   void render(Canvas canvas) {
     final p = Paint()..color = clef.color;
     canvas.drawPath(renderPath, p);
+
+    if (layout.debug) {
+      renderBoundingBox(canvas, renderArea);
+    }
   }
 
   @override

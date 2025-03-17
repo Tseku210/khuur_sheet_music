@@ -11,6 +11,7 @@ class SheetMusicLayout {
     this.lineColor, {
     required this.widgetHeight,
     required this.widgetWidth,
+    this.debug = false,
   });
 
   /// The height of the widget.
@@ -24,6 +25,9 @@ class SheetMusicLayout {
 
   /// The color of the lines in the sheet music.
   final Color lineColor;
+
+  /// Whether to render outline around music objects.
+  final bool debug;
 
   /// The maximum width of a staff.
   double get _maximumStaffWidth => metrics.maximumStaffWidth;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:simple_sheet_music/src/constants.dart';
 import 'package:simple_sheet_music/src/glyph_metadata.dart';
 import 'package:simple_sheet_music/src/glyph_path.dart';
+import 'package:simple_sheet_music/src/mixin/debug_render_mixin.dart';
 import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol.dart';
 import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol_metrics.dart';
 import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol_renderer.dart';
@@ -90,7 +91,7 @@ class RestMetrics implements MusicalSymbolMetrics {
 }
 
 /// Renders a rest in sheet music.
-class RestRenderer implements MusicalSymbolRenderer {
+class RestRenderer with DebugRenderMixin implements MusicalSymbolRenderer {
   const RestRenderer(
     this.restMetrics,
     this.layout, {
@@ -113,8 +114,13 @@ class RestRenderer implements MusicalSymbolRenderer {
   }
 
   @override
-  void render(Canvas canvas) =>
-      canvas.drawPath(renderPath, Paint()..color = restMetrics.rest.color);
+  void render(Canvas canvas) {
+    canvas.drawPath(renderPath, Paint()..color = restMetrics.rest.color);
+
+    if (layout.debug) {
+      renderBoundingBox(canvas, renderArea);
+    }
+  }
 
   Path get renderPath => restMetrics.path.shift(renderOffset);
 

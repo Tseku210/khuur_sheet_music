@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:simple_sheet_music/src/extension/list_extension.dart';
 import 'package:simple_sheet_music/src/glyph_metadata.dart';
 import 'package:simple_sheet_music/src/glyph_path.dart';
+import 'package:simple_sheet_music/src/mixin/debug_render_mixin.dart';
 import 'package:simple_sheet_music/src/music_objects/clef/clef_type.dart';
 import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol.dart';
 import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol_metrics.dart';
@@ -322,7 +323,7 @@ class NoteMetrics implements MusicalSymbolMetrics {
 }
 
 /// A class that renders a musical note symbol.
-class NoteRenderer implements MusicalSymbolRenderer {
+class NoteRenderer with DebugRenderMixin implements MusicalSymbolRenderer {
   const NoteRenderer(
     this.note,
     this.layout, {
@@ -348,6 +349,10 @@ class NoteRenderer implements MusicalSymbolRenderer {
     _renderAccidental(canvas);
     _renderStem(canvas);
     _renderLegerLine(canvas);
+
+    if (layout.debug) {
+      renderBoundingBox(canvas, _renderArea);
+    }
   }
 
   void _renderNoteHead(Canvas canvas) {
