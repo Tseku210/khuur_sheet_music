@@ -29,16 +29,16 @@ class SheetMusicMetrics {
       return _measuresMetricsesCache!;
     }
     final result = <MeasureMetrics>[];
-    var context = MusicalContext(initialClefType, initialKeySignatureType);
-    for (final measure in measures) {
-      final symbols = measure.setContext(
-        context,
+    final context = MusicalContext(initialClefType, initialKeySignatureType);
+    for (var i = 0; i < measures.length; i++) {
+      final measure = measures[i];
+      final isLastMeasure = i == measures.length - 1;
+      final measureMetrics = MeasureMetrics(
+        measure.setContext(context, metadata, paths),
         metadata,
-        paths,
+        isNewLine: measure.isNewLine,
+        isLastMeasure: isLastMeasure,
       );
-      context = measure.updateContext(context);
-      final measureMetrics =
-          MeasureMetrics(symbols, metadata, isNewLine: measure.isNewLine);
       result.add(measureMetrics);
     }
 

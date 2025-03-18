@@ -3,6 +3,7 @@ import 'package:simple_sheet_music/src/constants.dart';
 import 'package:simple_sheet_music/src/extension/list_extension.dart';
 import 'package:simple_sheet_music/src/glyph_metadata.dart';
 import 'package:simple_sheet_music/src/glyph_path.dart';
+import 'package:simple_sheet_music/src/mixin/debug_render_mixin.dart';
 import 'package:simple_sheet_music/src/music_objects/clef/clef_type.dart';
 import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol.dart';
 import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol_metrics.dart';
@@ -436,7 +437,7 @@ class ChordNoteMetrics implements MusicalSymbolMetrics {
       );
 }
 
-class ChordNoteRenderer implements MusicalSymbolRenderer {
+class ChordNoteRenderer with DebugRenderMixin implements MusicalSymbolRenderer {
   const ChordNoteRenderer(
     this.note,
     this.layout, {
@@ -458,6 +459,10 @@ class ChordNoteRenderer implements MusicalSymbolRenderer {
     _renderAccidentals(canvas);
     _renderStem(canvas);
     _renderLegerLine(canvas);
+
+    if (layout.debug) {
+      renderBoundingBox(canvas, _renderArea);
+    }
   }
 
   void _renderNoteHead(Canvas canvas) {
@@ -471,7 +476,7 @@ class ChordNoteRenderer implements MusicalSymbolRenderer {
     }
   }
 
-  Rect get _renderArea => throw UnimplementedError();
+  Rect get _renderArea => note._bbox.shift(_renderOffset);
 
   void _renderAccidentals(Canvas canvas) {
     for (final accidental in note.accidentalMetricses) {

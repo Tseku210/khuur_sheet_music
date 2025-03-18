@@ -33,8 +33,9 @@ class SimpleSheetMusic extends StatefulWidget {
     this.initialTimeSignatureType = TimeSignatureType.twoFour,
     this.height = 400.0,
     this.width = 400.0,
-    this.lineColor = Colors.black54,
+    this.lineColor = Colors.black,
     this.fontType = FontType.bravura,
+    this.debug = false,
   });
 
   /// The list of measures to be displayed.
@@ -62,6 +63,9 @@ class SimpleSheetMusic extends StatefulWidget {
   // final OnTapMusicObjectCallback? onTap;
 
   final Color lineColor;
+
+  /// Whether to render outline boxes around music objects
+  final bool debug;
 
   @override
   SimpleSheetMusicState createState() => SimpleSheetMusicState();
@@ -115,6 +119,7 @@ class SimpleSheetMusicState extends State<SimpleSheetMusic> {
           widget.lineColor,
           widgetWidth: widget.width,
           widgetHeight: widget.height,
+          debug: widget.debug,
         );
         return CustomPaint(
           size: targetSize,

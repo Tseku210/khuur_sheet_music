@@ -4,6 +4,7 @@ import 'package:simple_sheet_music/src/constants.dart';
 import 'package:simple_sheet_music/src/extension/list_extension.dart';
 import 'package:simple_sheet_music/src/glyph_metadata.dart';
 import 'package:simple_sheet_music/src/glyph_path.dart';
+import 'package:simple_sheet_music/src/mixin/debug_render_mixin.dart';
 import 'package:simple_sheet_music/src/music_objects/clef/clef_type.dart';
 import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol.dart';
 import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol_metrics.dart';
@@ -265,6 +266,7 @@ class KeySignatureMetrics implements MusicalSymbolMetrics {
       KeySignatureRenderer(
         keySignatureParts,
         this,
+        layout,
         symbolX: symbolX,
         staffLineCenterY: staffLineCenterY,
       );
@@ -273,10 +275,13 @@ class KeySignatureMetrics implements MusicalSymbolMetrics {
   EdgeInsets get margin => keySignature.margin;
 }
 
-class KeySignatureRenderer implements MusicalSymbolRenderer {
+class KeySignatureRenderer
+    with DebugRenderMixin
+    implements MusicalSymbolRenderer {
   const KeySignatureRenderer(
     this.keySignatureParts,
-    this.keySignature, {
+    this.keySignature,
+    this.layout, {
     required this.symbolX,
     required this.staffLineCenterY,
   });
@@ -286,6 +291,7 @@ class KeySignatureRenderer implements MusicalSymbolRenderer {
 
   final List<KeySignaturePart> keySignatureParts;
   final KeySignatureMetrics keySignature;
+  final SheetMusicLayout layout;
 
   @override
   void render(Canvas canvas) {
@@ -295,6 +301,10 @@ class KeySignatureRenderer implements MusicalSymbolRenderer {
         renderOffset,
         keySignature.keySignature.color,
       );
+
+      if (layout.debug) {
+        renderBoundingBox(canvas, part.bbox.shift(renderOffset));
+      }
     }
 
     // draw bounding box outline
