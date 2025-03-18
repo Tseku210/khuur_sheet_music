@@ -20,6 +20,7 @@ class MeasureMetrics {
     this.musicalSymbolsMetricses,
     this.metadata, {
     required this.isNewLine,
+    this.isLastMeasure = false,
   });
 
   /// The list of [MusicalSymbolMetrics] representing the metrics of each musical
@@ -31,6 +32,9 @@ class MeasureMetrics {
 
   /// Indicates whether a line break should occur in this measure.
   final bool isNewLine;
+
+  /// Indicates whether this measure is the last measure in the sheet music.
+  final bool isLastMeasure;
 
   /// Gets the total width of all the musical symbols in the measure.
   double get objectsWidth =>
