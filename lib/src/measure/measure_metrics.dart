@@ -75,10 +75,13 @@ class MeasureMetrics {
   /// The [measureInitialX] parameter is the x-coordinate of the measure's origin.
   ///
   /// The [staffLineCenterY] parameter is the y-coordinate of the center of the staff lines.
+  ///
+  /// The [symbolPositionCallback] parameter is a callback for registering symbol positions.
   MeasureRenderer renderer(
     SheetMusicLayout layout, {
     required double measureInitialX,
     required double staffLineCenterY,
+    SymbolPositionCallback? symbolPositionCallback,
   }) =>
       MeasureRenderer(
         _symbolRenderers(
@@ -90,6 +93,7 @@ class MeasureMetrics {
         layout,
         measureOriginX: measureInitialX,
         staffLineCenterY: staffLineCenterY,
+        symbolPositionCallback: symbolPositionCallback,
       );
 
   List<MusicalSymbolRenderer> _symbolRenderers(

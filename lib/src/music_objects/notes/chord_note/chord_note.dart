@@ -21,26 +21,20 @@ import 'package:simple_sheet_music/src/musical_context.dart';
 import 'package:simple_sheet_music/src/sheet_music_layout.dart';
 
 /// Represents a chord note in sheet music.
-class ChordNote implements MusicalSymbol {
-  const ChordNote(
+class ChordNote extends MusicalSymbol {
+  ChordNote(
     this.noteParts, {
     this.noteDuration = NoteDuration.quarter,
-    this.margin = const EdgeInsets.all(10),
-    this.color = Colors.black,
+    super.color,
+    super.margin,
     this.stemDirection,
   });
-
-  @override
-  final EdgeInsets margin;
 
   /// The stem direction of the chord note.
   final StemDirection? stemDirection;
 
   /// The list of chord note parts that make up the chord note.
   final List<ChordNotePart> noteParts;
-
-  @override
-  final Color color;
 
   /// The duration of the chord note.
   final NoteDuration noteDuration;
@@ -50,6 +44,9 @@ class ChordNote implements MusicalSymbol {
 
   /// The key used to retrieve the path for the note head.
   String get noteHeadPathKey => noteHeadType.pathKey;
+
+  @override
+  double get duration => noteDuration.duration;
 
   @override
   MusicalSymbolMetrics setContext(
@@ -434,6 +431,7 @@ class ChordNoteMetrics implements MusicalSymbolMetrics {
         layout,
         staffLineCenterY: staffLineCenterY,
         symbolX: symbolX,
+        musicalSymbol: note,
       );
 }
 
@@ -443,14 +441,22 @@ class ChordNoteRenderer with DebugRenderMixin implements MusicalSymbolRenderer {
     this.layout, {
     required this.staffLineCenterY,
     required this.symbolX,
+    required this.musicalSymbol,
   });
+
   final double staffLineCenterY;
   final double symbolX;
   final ChordNoteMetrics note;
   final SheetMusicLayout layout;
 
   @override
+  final MusicalSymbol musicalSymbol;
+
+  @override
   bool isHit(Offset position) => _renderArea.contains(position);
+
+  @override
+  Rect getBounds() => _renderArea;
 
   @override
   void render(Canvas canvas) {

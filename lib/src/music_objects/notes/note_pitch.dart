@@ -57,6 +57,12 @@ enum Pitch {
 
   final int position;
 
+  /// Returns the MIDI note number for this pitch.
+  /// 
+  /// MIDI note numbers range from 0 to 127, with middle C (C4) being 60.
+  /// A0 (the lowest note on a piano) is 21, and C8 is 108.
+  int get midiNoteNumber => position + 21;
+
   /// Returns the pitch that is `n` positions higher than the current pitch.
   Pitch get up => upN(1);
 

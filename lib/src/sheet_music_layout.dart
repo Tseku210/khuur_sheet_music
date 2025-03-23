@@ -1,8 +1,12 @@
 import 'dart:math';
 
 import 'package:flutter/material.dart';
+import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol.dart';
 import 'package:simple_sheet_music/src/sheet_music_metrics.dart';
 import 'package:simple_sheet_music/src/staff/staff_renderer.dart';
+
+/// Callback for registering symbol positions
+typedef SymbolPositionCallback = void Function(MusicalSymbol symbol, Rect bounds);
 
 /// Represents the layout of the sheet music.
 class SheetMusicLayout {
@@ -11,6 +15,7 @@ class SheetMusicLayout {
     this.lineColor, {
     required this.widgetHeight,
     required this.widgetWidth,
+    this.symbolPositionCallback,
     this.debug = false,
   });
 
@@ -28,6 +33,9 @@ class SheetMusicLayout {
 
   /// Whether to render outline around music objects.
   final bool debug;
+  
+  /// Callback for registering the position of symbols
+  final SymbolPositionCallback? symbolPositionCallback;
 
   /// The maximum width of a staff.
   double get _maximumStaffWidth => metrics.maximumStaffWidth;
@@ -65,6 +73,7 @@ class SheetMusicLayout {
         this,
         staffLineCenterY: currentY,
         leftPadding: _leftPaddingOnCanvas,
+        symbolPositionCallback: symbolPositionCallback,
       );
       currentY += staffMetrics.lowerHeight;
       return staffRenderer;

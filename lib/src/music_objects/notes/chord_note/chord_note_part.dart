@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:flutter/material.dart';
 
 import 'package:simple_sheet_music/src/music_objects/notes/accidental.dart';
 import 'package:simple_sheet_music/src/music_objects/notes/note_pitch.dart';
@@ -10,11 +11,22 @@ class ChordNotePart {
   /// The pitch of the chord note part.
   final Pitch pitch;
 
-  /// The accidental of the chord note part, if any.
+  /// The accidental of the chord note part (if any).
   final Accidental? accidental;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ChordNotePart &&
+          runtimeType == other.runtimeType &&
+          pitch == other.pitch &&
+          accidental == other.accidental;
+
+  @override
+  int get hashCode => pitch.hashCode ^ accidental.hashCode;
 }
 
-/// Represents the metrics of a chord note head, including the note head path and the associated chord note part.
+/// Represents the metrics (size and position) of a [ChordNotePart].
 class ChordNoteHeadMetrics {
   const ChordNoteHeadMetrics(this.noteHeadPath, this.part);
 

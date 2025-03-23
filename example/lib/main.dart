@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:simple_sheet_music/simple_sheet_music.dart';
+import 'midi_example.dart';
 
 void main() {
   runApp(const MyApp());
@@ -11,12 +12,49 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-        title: 'Flutter Demo',
+        title: 'Simple Sheet Music Demo',
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
           useMaterial3: true,
         ),
-        home: const SimpleSheetMusicDemo());
+        home: const HomeScreen());
+  }
+}
+
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Simple Sheet Music')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const SimpleSheetMusicDemo()));
+              },
+              child: const Text('Basic Example'),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const MidiExamplePage()));
+              },
+              child: const Text('MIDI Example'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -27,7 +65,7 @@ class SimpleSheetMusicDemo extends StatefulWidget {
   State<StatefulWidget> createState() => SimpleSheetMusicDemoState();
 }
 
-class SimpleSheetMusicDemoState extends State {
+class SimpleSheetMusicDemoState extends State<SimpleSheetMusicDemo> {
   @override
   Widget build(BuildContext context) {
     final sheetMusicSize = MediaQuery.of(context).size;
@@ -35,39 +73,39 @@ class SimpleSheetMusicDemoState extends State {
     final height = sheetMusicSize.height / 2;
 
     Measure measure1 = Measure([
-      const Clef.treble(),
-      const TimeSignature.twoFour(),
-      const KeySignature.dMajor(),
-      const ChordNote([
-        ChordNotePart(Pitch.b4),
-        ChordNotePart(Pitch.g5),
-        ChordNotePart(Pitch.a4),
+      Clef.treble(),
+      TimeSignature.twoFour(),
+      KeySignature.dMajor(),
+      ChordNote([
+        const ChordNotePart(Pitch.b4),
+        const ChordNotePart(Pitch.g5),
+        const ChordNotePart(Pitch.a4),
       ]),
-      const Rest(RestType.quarter),
-      const Note(Pitch.a4, noteDuration: NoteDuration.quarter),
-      const Rest(RestType.sixteenth),
+      Rest(RestType.quarter),
+      Note(Pitch.a4, noteDuration: NoteDuration.quarter),
+      Rest(RestType.sixteenth),
     ]);
     Measure measure2 = Measure([
-      const ChordNote([
-        ChordNotePart(Pitch.c4),
-        ChordNotePart(Pitch.c5),
+      ChordNote([
+        const ChordNotePart(Pitch.c4),
+        const ChordNotePart(Pitch.c5),
       ], noteDuration: NoteDuration.sixteenth),
-      const Note(Pitch.a4,
+      Note(Pitch.a4,
           noteDuration: NoteDuration.sixteenth, accidental: Accidental.flat)
     ]);
     Measure measure3 = Measure(
       [
-        const Clef.bass(),
-        const TimeSignature.fourFour(),
-        const KeySignature.cMinor(),
-        const ChordNote(
+        Clef.bass(),
+        TimeSignature.fourFour(),
+        KeySignature.cMinor(),
+        ChordNote(
           [
-            ChordNotePart(Pitch.c2),
-            ChordNotePart(Pitch.c3),
+            const ChordNotePart(Pitch.c2),
+            const ChordNotePart(Pitch.c3),
           ],
         ),
-        const Rest(RestType.quarter),
-        const Note(Pitch.a3,
+        Rest(RestType.quarter),
+        Note(Pitch.a3,
             noteDuration: NoteDuration.whole, accidental: Accidental.flat),
       ],
       isNewLine: true,
@@ -84,6 +122,17 @@ class SimpleSheetMusicDemoState extends State {
               height: height,
               width: width,
               debug: true,
+              onTap: (symbol, position) {
+                // Handle the tapped symbol
+                print(
+                    'Tapped symbol: ${symbol is Clef ? symbol.id : symbol.runtimeType}');
+                print('At position: $position');
+
+                // You can now:
+                // 1. Store the selected symbol
+                // 2. Show a menu for actions (remove, move up/down)
+                // 3. Update the measures list to reflect changes
+              },
               measures: [measure1, measure2, measure3],
             ),
           ),

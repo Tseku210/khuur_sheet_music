@@ -3,7 +3,7 @@ import 'package:simple_sheet_music/src/music_objects/clef/clef_type.dart';
 import 'package:simple_sheet_music/src/music_objects/notes/note_pitch.dart';
 
 void main() {
-  test('ClefType.treble should return the correct position on center', () {
+  test('ClefType.treble should return the correct MIDI note number on center', () {
     // Arrange
     const clefType = ClefType.treble;
     // Act
@@ -11,7 +11,7 @@ void main() {
     // Assert
     expect(positionOnCenter, Pitch.b4.position);
   });
-  test('ClefType.alto should return the correct position on center', () {
+  test('ClefType.alto should return the correct MIDI note number on center', () {
     // Arrange
     const clefType = ClefType.alto;
     // Act
@@ -19,7 +19,7 @@ void main() {
     // Assert
     expect(positionOnCenter, Pitch.c4.position);
   });
-  test('ClefType.tenor should return the correct position on center', () {
+  test('ClefType.tenor should return the correct MIDI note number on center', () {
     // Arrange
     const clefType = ClefType.tenor;
     // Act
@@ -27,7 +27,7 @@ void main() {
     // Assert
     expect(positionOnCenter, Pitch.a3.position);
   });
-  test('ClefType.bass should return the correct position on center', () {
+  test('ClefType.bass should return the correct MIDI note number on center', () {
     // Arrange
     const clefType = ClefType.bass;
     // Act

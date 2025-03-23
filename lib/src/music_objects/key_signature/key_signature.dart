@@ -13,164 +13,162 @@ import 'package:simple_sheet_music/src/music_objects/key_signature/keysignature_
 import 'package:simple_sheet_music/src/musical_context.dart';
 import 'package:simple_sheet_music/src/sheet_music_layout.dart';
 
-class KeySignature implements MusicalSymbol {
-  const KeySignature.cMajor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+/// Represents a key signature in sheet music.
+class KeySignature extends MusicalSymbol {
+  KeySignature.cMajor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.cMajor;
 
-  const KeySignature.aMinor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.aMinor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.aMinor;
 
-  const KeySignature.gMajor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.gMajor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.gMajor;
 
-  const KeySignature.eMinor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.eMinor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.eMinor;
 
-  const KeySignature.dMajor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.dMajor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.dMajor;
 
-  const KeySignature.bMinor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.bMinor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.bMinor;
 
-  const KeySignature.aMajor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.aMajor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.aMajor;
 
-  const KeySignature.fSharpMinor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.fSharpMinor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.fSharpMinor;
 
-  const KeySignature.eMajor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.eMajor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.eMajor;
 
-  const KeySignature.cSharpMinor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.cSharpMinor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.cSharpMinor;
 
-  const KeySignature.bMajor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.bMajor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.bMajor;
 
-  const KeySignature.gSharpMinor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.gSharpMinor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.gSharpMinor;
 
-  const KeySignature.fSharpMajor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.fSharpMajor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.fSharpMajor;
 
-  const KeySignature.dSharpMinor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.dSharpMinor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.dSharpMinor;
 
-  const KeySignature.cSharpMajor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.cSharpMajor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.cSharpMajor;
 
-  const KeySignature.aSharpMinor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.aSharpMinor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.aSharpMinor;
 
-  const KeySignature.fMajor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.fMajor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.fMajor;
 
-  const KeySignature.dMinor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.dMinor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.dMinor;
 
-  const KeySignature.bFlatMajor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.bFlatMajor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.bFlatMajor;
 
-  const KeySignature.gMinor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.gMinor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.gMinor;
 
-  const KeySignature.eFlatMajor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.eFlatMajor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.eFlatMajor;
 
-  const KeySignature.cMinor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.cMinor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.cMinor;
 
-  const KeySignature.aFlatMajor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.aFlatMajor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.aFlatMajor;
 
-  const KeySignature.fMinor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.fMinor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.fMinor;
 
-  const KeySignature.dFlatMajor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.dFlatMajor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.dFlatMajor;
 
-  const KeySignature.bFlatMinor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.bFlatMinor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.bFlatMinor;
 
-  const KeySignature.gFlatMajor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.gFlatMajor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.gFlatMajor;
 
-  const KeySignature.eFlatMinor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.eFlatMinor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.eFlatMinor;
 
-  const KeySignature.cFlatMajor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.cFlatMajor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.cFlatMajor;
 
-  const KeySignature.aFlatMinor({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  KeySignature.aFlatMinor({
+    super.color,
+    super.margin,
   }) : keySignatureType = KeySignatureType.aFlatMinor;
 
   final KeySignatureType keySignatureType;
 
   @override
-  final Color color;
-
-  @override
-  final EdgeInsets margin;
+  double get duration => 0;
 
   @override
   MusicalSymbolMetrics setContext(
@@ -269,6 +267,7 @@ class KeySignatureMetrics implements MusicalSymbolMetrics {
         layout,
         symbolX: symbolX,
         staffLineCenterY: staffLineCenterY,
+        musicalSymbol: keySignature,
       );
 
   @override
@@ -284,7 +283,9 @@ class KeySignatureRenderer
     this.layout, {
     required this.symbolX,
     required this.staffLineCenterY,
+    required this.musicalSymbol,
   });
+
   final double staffLineCenterY;
   final double symbolX;
   Offset get renderOffset => Offset(symbolX, staffLineCenterY);
@@ -292,6 +293,9 @@ class KeySignatureRenderer
   final List<KeySignaturePart> keySignatureParts;
   final KeySignatureMetrics keySignature;
   final SheetMusicLayout layout;
+
+  @override
+  final MusicalSymbol musicalSymbol;
 
   @override
   void render(Canvas canvas) {
@@ -308,18 +312,23 @@ class KeySignatureRenderer
     }
 
     // draw bounding box outline
-    final paint = Paint()
-      ..color = Colors.red
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
+    if (layout.debug) {
+      final paint = Paint()
+        ..color = Colors.red
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2;
 
-    canvas.drawRect(renderArea, paint);
+      canvas.drawRect(renderArea, paint);
+    }
   }
 
   @override
   bool isHit(Offset position) {
-    throw UnimplementedError();
+    return renderArea.contains(position);
   }
+
+  @override
+  Rect getBounds() => renderArea;
 
   Rect get renderArea => keySignature.overallBbox.shift(renderOffset);
 }

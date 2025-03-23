@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simple_sheet_music/src/music_objects/clef/clef_type.dart';
 import 'package:simple_sheet_music/src/music_objects/key_signature/keysignature_type.dart';
+import 'package:simple_sheet_music/src/music_objects/time_signature/time_signature_type.dart';
 import 'package:simple_sheet_music/src/sheet_music_metrics.dart';
 
 import 'mock/mocks.dart';
@@ -17,6 +18,7 @@ void main() {
       measures,
       ClefType.treble,
       KeySignatureType.cMajor,
+      TimeSignatureType.fourFour,
       MockGlyphMetadata(),
       MockGlyphPath(),
     );
@@ -41,6 +43,7 @@ void main() {
       measures,
       ClefType.treble,
       KeySignatureType.cMajor,
+      TimeSignatureType.fourFour,
       MockGlyphMetadata(),
       MockGlyphPath(),
     );
@@ -66,6 +69,7 @@ void main() {
       measures,
       ClefType.treble,
       KeySignatureType.cMajor,
+      TimeSignatureType.fourFour,
       MockGlyphMetadata(),
       MockGlyphPath(),
     );

@@ -3,23 +3,28 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:simple_sheet_music/src/constants.dart';
 import 'package:simple_sheet_music/src/measure/measure_metrics.dart';
+import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol.dart';
 import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol_renderer.dart';
 import 'package:simple_sheet_music/src/sheet_music_layout.dart';
 
 /// The renderer for a measure in sheet music.
 class MeasureRenderer {
-  const MeasureRenderer(
+  MeasureRenderer(
     this.symbolRenderers,
     this.measureMetrics,
     this.layout, {
     required this.measureOriginX,
     required this.staffLineCenterY,
+    this.symbolPositionCallback,
   });
 
   final List<MusicalSymbolRenderer> symbolRenderers;
   final MeasureMetrics measureMetrics;
   final double measureOriginX;
   final double staffLineCenterY;
+  
+  /// Callback to register the position of a symbol
+  SymbolPositionCallback? symbolPositionCallback;
 
   /// Performs a hit test at the given [position] and returns the corresponding [MusicalSymbolRenderer].
   ///
@@ -38,6 +43,12 @@ class MeasureRenderer {
     _renderStaffLine(canvas);
 
     for (final symbol in symbolRenderers) {
+      // Register the position of the symbol
+      if (symbolPositionCallback != null) {
+        symbolPositionCallback!(symbol.musicalSymbol, symbol.getBounds());
+      }
+      
+      // Render the symbol
       symbol.render(canvas);
     }
 
@@ -111,8 +122,7 @@ class MeasureRenderer {
   }
 
   /// Dynamic spacing for barline padding
-  double get _barlineSpacing =>
-      measureMetrics.isLastMeasure ? measureMetrics.staffLineThickness * 3 : 0;
+  double get _barlineSpacing => measureMetrics.staffLineThickness * 2;
 
   /// Dynamic start and end Y positions for barlines
   double get _barlineStartY => staffLineCenterY - 2 * Constants.staffSpace;

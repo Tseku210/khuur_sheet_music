@@ -18,8 +18,9 @@ class SheetMusicMetrics {
     this.initialKeySignatureType,
     this.initialTimeSignatureType,
     this.metadata,
-    this.paths,
-  );
+    this.paths, {
+    this.tempo = 120, // FIX: i don't know if tempo is necessary.
+  });
 
   List<MeasureMetrics>? _measuresMetricsesCache;
 
@@ -74,6 +75,7 @@ class SheetMusicMetrics {
   final TimeSignatureType initialTimeSignatureType;
   final GlyphMetadata metadata;
   final GlyphPaths paths;
+  final int tempo;
 
   /// Gets the staff with the maximum width in the sheet music.
   StaffMetrics get _maximumWidthStaff {

@@ -38,6 +38,7 @@ class StaffMetrics {
     SheetMusicLayout layout, {
     required double staffLineCenterY,
     required double leftPadding,
+    SymbolPositionCallback? symbolPositionCallback,
   }) {
     var currentX = leftPadding;
     final measureRendereres = <MeasureRenderer>[];
@@ -46,11 +47,15 @@ class StaffMetrics {
         layout,
         measureInitialX: currentX,
         staffLineCenterY: staffLineCenterY,
+        symbolPositionCallback: symbolPositionCallback,
       );
       currentX += m.width;
       measureRendereres.add(m);
     }
 
-    return StaffRenderer(measureRendereres);
+    return StaffRenderer(
+      measureRendereres,
+      symbolPositionCallback: symbolPositionCallback,
+    );
   }
 }

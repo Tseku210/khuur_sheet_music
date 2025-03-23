@@ -11,25 +11,22 @@ import 'package:simple_sheet_music/src/musical_context.dart';
 import 'package:simple_sheet_music/src/sheet_music_layout.dart';
 
 /// This class is not used in the library. It was implemented for future reference.
-class Barline implements MusicalSymbol {
-  const Barline.single({
-    this.margin = const EdgeInsets.all(10),
-    this.color = Colors.black,
+class Barline extends MusicalSymbol {
+  Barline.single({
+    super.color,
+    super.margin,
   }) : barlineType = BarlineType.single;
 
-  const Barline.double({
-    this.margin = const EdgeInsets.all(10),
-    this.color = Colors.black,
+  Barline.double({
+    super.color,
+    super.margin,
   }) : barlineType = BarlineType.double;
 
   /// The type of the barline.
   final BarlineType barlineType;
 
   @override
-  final Color color;
-
-  @override
-  final EdgeInsets margin;
+  double get duration => 0;
 
   @override
   MusicalSymbolMetrics setContext(
@@ -85,6 +82,7 @@ class BarlineMetrics implements MusicalSymbolMetrics {
       layout,
       staffLineCenterY: staffLineCenterY,
       symbolX: symbolX,
+      musicalSymbol: barline,
     );
   }
 }
@@ -95,12 +93,16 @@ class BarlineRenderer with DebugRenderMixin implements MusicalSymbolRenderer {
     this.layout, {
     required this.staffLineCenterY,
     required this.symbolX,
+    required this.musicalSymbol,
   });
 
   final BarlineMetrics barline;
   final SheetMusicLayout layout;
   final double staffLineCenterY;
   final double symbolX;
+
+  @override
+  final MusicalSymbol musicalSymbol;
 
   Offset get renderOffset => Offset(symbolX, staffLineCenterY) + marginOffset;
 
@@ -113,7 +115,10 @@ class BarlineRenderer with DebugRenderMixin implements MusicalSymbolRenderer {
   double get endY => staffLineCenterY + barline.lowerHeight;
 
   @override
-  bool isHit(Offset position) => throw UnimplementedError();
+  bool isHit(Offset position) => renderArea.contains(position);
+
+  @override
+  Rect getBounds() => renderArea;
 
   @override
   void render(Canvas canvas) {

@@ -4,37 +4,44 @@ import 'package:simple_sheet_music/src/music_objects/notes/notehead_type.dart';
 /// Enum representing the duration of a musical note.
 enum NoteDuration {
   /// Whole note duration.
-  whole(hasStem: false, hasFlag: false),
+  whole(hasStem: false, hasFlag: false, duration: 4),
 
   /// Half note duration.
-  half(hasFlag: false),
+  half(hasFlag: false, duration: 2),
 
   /// Quarter note duration.
-  quarter(hasFlag: false),
+  quarter(hasFlag: false, duration: 1),
 
   /// Eighth note duration.
-  eighth,
+  eighth(duration: 0.5),
 
   /// Sixteenth note duration.
-  sixteenth,
+  sixteenth(duration: 0.25),
 
   /// Thirty-second note duration.
-  thirtySecond,
+  thirtySecond(duration: 0.125),
 
   /// Sixty-fourth note duration.
-  sixtyFourth,
+  sixtyFourth(duration: 0.0625),
 
   /// Hundred twenty-eighth note duration.
-  hundredsTwentyEighth;
+  hundredsTwentyEighth(duration: 0.03125);
 
   /// Constructs a NoteDuration with the given parameters.
-  const NoteDuration({this.hasStem = true, this.hasFlag = true});
+  const NoteDuration({
+    this.hasStem = true,
+    this.hasFlag = true,
+    required this.duration,
+  });
 
   /// Whether the note duration has a stem.
   final bool hasStem;
 
   /// Whether the note duration has a flag.
   final bool hasFlag;
+
+  /// The duration of the note in beats (where a quarter note is 1.0 beats).
+  final double duration;
 
   /// Returns the corresponding NoteHeadType for the note duration.
   NoteHeadType get noteHeadType {

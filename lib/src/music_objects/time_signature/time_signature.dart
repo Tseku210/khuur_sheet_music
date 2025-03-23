@@ -11,29 +11,62 @@ import 'package:simple_sheet_music/src/sheet_music_layout.dart';
 
 import 'time_signature_type.dart';
 
-class TimeSignature implements MusicalSymbol {
-  const TimeSignature.twoFour({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+/// Represents a time signature in sheet music.
+class TimeSignature extends MusicalSymbol {
+  TimeSignature.twoFour({
+    super.color,
+    super.margin,
   }) : timeSignatureType = TimeSignatureType.twoFour;
 
-  const TimeSignature.threeFour({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  TimeSignature.twoTwo({
+    super.color,
+    super.margin,
+  }) : timeSignatureType = TimeSignatureType.twoTwo;
+
+  TimeSignature.threeFour({
+    super.color,
+    super.margin,
   }) : timeSignatureType = TimeSignatureType.threeFour;
 
-  const TimeSignature.fourFour({
-    this.color = Colors.black,
-    this.margin = const EdgeInsets.all(10),
+  TimeSignature.threeEight({
+    super.color,
+    super.margin,
+  }) : timeSignatureType = TimeSignatureType.threeEight;
+
+  TimeSignature.fourFour({
+    super.color,
+    super.margin,
   }) : timeSignatureType = TimeSignatureType.fourFour;
+
+  TimeSignature.fourTwo({
+    super.color,
+    super.margin,
+  }) : timeSignatureType = TimeSignatureType.fourTwo;
+
+  TimeSignature.fiveFour({
+    super.color,
+    super.margin,
+  }) : timeSignatureType = TimeSignatureType.fiveFour;
+
+  TimeSignature.sixEight({
+    super.color,
+    super.margin,
+  }) : timeSignatureType = TimeSignatureType.sixEight;
+
+  TimeSignature.sevenEight({
+    super.color,
+    super.margin,
+  }) : timeSignatureType = TimeSignatureType.sevenEight;
+
+  TimeSignature.nineEight({
+    super.color,
+    super.margin,
+  }) : timeSignatureType = TimeSignatureType.nineEight;
 
   final TimeSignatureType timeSignatureType;
 
   @override
-  final Color color;
-
-  @override
-  final EdgeInsets margin;
+  double get duration => 0;
 
   @override
   MusicalSymbolMetrics setContext(
@@ -107,6 +140,7 @@ class TimeSignatureMetrics implements MusicalSymbolMetrics {
         layout,
         staffLineCenterY: staffLineCenterY,
         symbolX: symbolX,
+        musicalSymbol: timeSignature,
       );
 }
 
@@ -119,12 +153,16 @@ class TimeSignatureRenderer
     this.layout, {
     required this.staffLineCenterY,
     required this.symbolX,
+    required this.musicalSymbol,
   });
 
   final double staffLineCenterY;
   final double symbolX;
   final TimeSignatureMetrics timeSignature;
   final SheetMusicLayout layout;
+
+  @override
+  final MusicalSymbol musicalSymbol;
 
   Offset get numeratorRenderOffset =>
       Offset(
@@ -150,6 +188,9 @@ class TimeSignatureRenderer
 
   Path get denominatorRenderPath =>
       timeSignature.denominatorPath.shift(denominatorRenderOffset);
+
+  @override
+  Rect getBounds() => renderArea;
 
   @override
   bool isHit(Offset position) => renderArea.contains(position);

@@ -11,35 +11,32 @@ import 'package:simple_sheet_music/src/musical_context.dart';
 import 'package:simple_sheet_music/src/sheet_music_layout.dart';
 
 /// Represents a musical clef symbol.
-class Clef implements MusicalSymbol {
-  const Clef.treble({
-    this.margin = const EdgeInsets.all(10),
-    this.color = Colors.black,
+class Clef extends MusicalSymbol {
+  Clef.treble({
+    super.color,
+    super.margin,
   }) : clefType = ClefType.treble;
 
-  const Clef.alto({
-    this.margin = const EdgeInsets.all(10),
-    this.color = Colors.black,
+  Clef.alto({
+    super.color,
+    super.margin,
   }) : clefType = ClefType.alto;
 
-  const Clef.tenor({
-    this.margin = const EdgeInsets.all(10),
-    this.color = Colors.black,
+  Clef.tenor({
+    super.color,
+    super.margin,
   }) : clefType = ClefType.tenor;
 
-  const Clef.bass({
-    this.margin = const EdgeInsets.all(10),
-    this.color = Colors.black,
+  Clef.bass({
+    super.color,
+    super.margin,
   }) : clefType = ClefType.bass;
 
   /// The type of the clef.
   final ClefType clefType;
 
   @override
-  final Color color;
-
-  @override
-  final EdgeInsets margin;
+  double get duration => 0;
 
   @override
   MusicalSymbolMetrics setContext(
@@ -108,6 +105,7 @@ class ClefMetrics implements MusicalSymbolMetrics {
         layout,
         symbolX: symbolX,
         staffLineCenterY: staffLineCenterY,
+        musicalSymbol: clef,
       );
 
   @override
@@ -116,16 +114,23 @@ class ClefMetrics implements MusicalSymbolMetrics {
 
 /// Renders the clef symbol.
 class ClefRenderer with DebugRenderMixin implements MusicalSymbolRenderer {
-  const ClefRenderer(
+  ClefRenderer(
     this.clef,
     this.layout, {
     required this.symbolX,
     required this.staffLineCenterY,
+    required this.musicalSymbol,
   });
 
   final ClefMetrics clef;
   final double symbolX;
   final double staffLineCenterY;
+
+  @override
+  final MusicalSymbol musicalSymbol;
+
+  @override
+  Rect getBounds() => renderArea;
 
   @override
   void render(Canvas canvas) {

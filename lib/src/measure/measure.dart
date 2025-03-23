@@ -2,14 +2,15 @@ import 'dart:core';
 
 import 'package:simple_sheet_music/src/glyph_metadata.dart';
 import 'package:simple_sheet_music/src/glyph_path.dart';
+import 'package:simple_sheet_music/src/measure/measure_utils.dart';
 import 'package:simple_sheet_music/src/music_objects/clef/clef.dart';
 import 'package:simple_sheet_music/src/music_objects/clef/clef_type.dart';
 import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol.dart';
 import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol_metrics.dart';
 import 'package:simple_sheet_music/src/music_objects/key_signature/key_signature.dart';
+import 'package:simple_sheet_music/src/music_objects/key_signature/keysignature_type.dart';
+import 'package:simple_sheet_music/src/music_objects/time_signature/time_signature.dart';
 import 'package:simple_sheet_music/src/musical_context.dart';
-
-import '../music_objects/key_signature/keysignature_type.dart';
 
 /// Represents a measure in sheet music.
 class Measure {
@@ -74,4 +75,29 @@ class Measure {
         clefType: lastClefType,
         keySignatureType: lastKeySignatureType,
       );
+
+  /// Validates the measure against the given time signature.
+  bool validate(TimeSignature timeSignature) {
+    return validateMeasureDuration(this, timeSignature);
+  }
+
+  /// Returns a list of validation errors for the measure.
+  List<String> getValidationErrors(TimeSignature timeSignature) {
+    return getMeasureValidationErrors(this, timeSignature);
+  }
+
+  /// Calculates the real-time duration of this measure in seconds based on tempo.
+  double getDurationInSeconds(TimeSignature timeSignature, int tempo) {
+    return calculateMeasureDurationInSeconds(timeSignature.timeSignatureType, tempo);
+  }
+  
+  /// Calculates the real-time duration of a specific musical symbol in seconds based on tempo.
+  /// 
+  /// For example, in 4/4 time at 120 BPM:
+  /// - A quarter note (1.0 beats) = 0.5 seconds
+  /// - A half note (2.0 beats) = 1.0 seconds
+  /// - A whole note (4.0 beats) = 2.0 seconds
+  double getSymbolDurationInSeconds(MusicalSymbol symbol, int tempo) {
+    return calculateSymbolDurationInSeconds(symbol, tempo);
+  }
 }

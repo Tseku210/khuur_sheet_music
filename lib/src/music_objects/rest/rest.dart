@@ -11,20 +11,17 @@ import 'package:simple_sheet_music/src/musical_context.dart';
 import 'package:simple_sheet_music/src/sheet_music_layout.dart';
 
 /// Represents a rest in sheet music.
-class Rest implements MusicalSymbol {
-  const Rest(
+class Rest extends MusicalSymbol {
+  Rest(
     this.restType, {
-    this.margin = const EdgeInsets.all(10),
-    this.color = Colors.black,
+    super.color,
+    super.margin,
   });
 
-  @override
-  final Color color;
-
-  @override
-  final EdgeInsets margin;
-
   final RestType restType;
+
+  @override
+  double get duration => restType.duration;
 
   @override
   MusicalSymbolMetrics setContext(
@@ -84,6 +81,7 @@ class RestMetrics implements MusicalSymbolMetrics {
         layout,
         staffLineCenterY: staffLineCenterY,
         symbolX: symbolX,
+        musicalSymbol: rest,
       );
 
   @override
@@ -97,6 +95,7 @@ class RestRenderer with DebugRenderMixin implements MusicalSymbolRenderer {
     this.layout, {
     required this.staffLineCenterY,
     required this.symbolX,
+    required this.musicalSymbol,
   });
 
   final double staffLineCenterY;
@@ -104,13 +103,16 @@ class RestRenderer with DebugRenderMixin implements MusicalSymbolRenderer {
   final RestMetrics restMetrics;
   final SheetMusicLayout layout;
 
+  @override
+  final MusicalSymbol musicalSymbol;
+
   Offset get renderOffset => Offset(symbolX, staffLineCenterY) + marginOffset;
   Offset get marginOffset =>
       Offset(restMetrics.leftMargin, 0) / layout.canvasScale;
 
   @override
   bool isHit(Offset position) {
-    throw UnimplementedError();
+    return renderArea.contains(position);
   }
 
   @override
@@ -121,6 +123,9 @@ class RestRenderer with DebugRenderMixin implements MusicalSymbolRenderer {
       renderBoundingBox(canvas, renderArea);
     }
   }
+
+  @override
+  Rect getBounds() => renderArea;
 
   Path get renderPath => restMetrics.path.shift(renderOffset);
 

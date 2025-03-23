@@ -1,19 +1,26 @@
 enum TimeSignatureType {
-  twoFour(_timeSigTwoPathKey, _timeSigFourPathKey),
-  twoTwo(_timeSigTwoPathKey, _timeSigTwoPathKey),
-  threeFour(_timeSigThreePathKey, _timeSigFourPathKey),
-  threeEight(_timeSigThreePathKey, _timeSigEightPathKey),
-  fourFour(_timeSigFourPathKey, _timeSigFourPathKey),
-  fourTwo(_timeSigFourPathKey, _timeSigTwoPathKey),
-  fiveFour(_timeSigFivePathKey, _timeSigFourPathKey),
-  sixEight(_timeSigSixPathKey, _timeSigEightPathKey),
-  sevenEight(_timeSigSevenPathKey, _timeSigEightPathKey),
-  nineEight(_timeSigNinePathKey, _timeSigEightPathKey);
+  twoFour(_timeSigTwoPathKey, _timeSigFourPathKey, 2, 4),
+  twoTwo(_timeSigTwoPathKey, _timeSigTwoPathKey, 2, 2),
+  threeFour(_timeSigThreePathKey, _timeSigFourPathKey, 3, 4),
+  threeEight(_timeSigThreePathKey, _timeSigEightPathKey, 3, 8),
+  fourFour(_timeSigFourPathKey, _timeSigFourPathKey, 4, 4),
+  fourTwo(_timeSigFourPathKey, _timeSigTwoPathKey, 4, 2),
+  fiveFour(_timeSigFivePathKey, _timeSigFourPathKey, 5, 4),
+  sixEight(_timeSigSixPathKey, _timeSigEightPathKey, 6, 8),
+  sevenEight(_timeSigSevenPathKey, _timeSigEightPathKey, 7, 8),
+  nineEight(_timeSigNinePathKey, _timeSigEightPathKey, 9, 8);
 
-  const TimeSignatureType(this.numeratorPathKey, this.denominatorPathKey);
+  const TimeSignatureType(
+    this.numeratorPathKey,
+    this.denominatorPathKey,
+    this.beats,
+    this.beatUnit,
+  );
 
   final String numeratorPathKey;
   final String denominatorPathKey;
+  final int beats;
+  final int beatUnit;
 
   // static const _timeSigZeroPathKey = 'uniE080';
   // static const _timeSigOnePathKey = 'uniE081';

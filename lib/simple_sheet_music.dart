@@ -7,7 +7,15 @@ library simple_sheet_music;
 export '/src/font_types.dart' show FontType;
 export '/src/measure/measure.dart' show Measure;
 export '/src/music_objects/clef/clef.dart' show Clef;
-export '/src/simple_sheet_music.dart' show SimpleSheetMusic;
+export '/src/simple_sheet_music.dart'
+    show SimpleSheetMusic, SimpleSheetMusicState;
+export 'src/font_types.dart';
+export 'src/glyph_metadata.dart';
+export 'src/glyph_path.dart';
+export 'src/measure/measure_metrics.dart';
+export 'src/midi/midi_player.dart' show MidiPlayer, MidiPlayerStatus;
+export 'src/midi/soundfont_types.dart';
+export 'src/music_objects/clef/clef_type.dart';
 export 'src/music_objects/key_signature/key_signature.dart' show KeySignature;
 export 'src/music_objects/notes/accidental.dart' show Accidental;
 export 'src/music_objects/notes/chord_note/chord_note.dart' show ChordNote;
@@ -21,3 +29,5 @@ export 'src/music_objects/rest/rest.dart' show Rest;
 export 'src/music_objects/rest/rest_type.dart' show RestType;
 export 'src/music_objects/time_signature/time_signature.dart'
     show TimeSignature;
+export 'src/music_objects/time_signature/time_signature_type.dart'
+    show TimeSignatureType;

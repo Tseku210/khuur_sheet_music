@@ -19,24 +19,15 @@ import 'package:simple_sheet_music/src/musical_context.dart';
 import 'package:simple_sheet_music/src/sheet_music_layout.dart';
 
 /// Represents a musical note.
-class Note implements MusicalSymbol {
-  const Note(
+class Note extends MusicalSymbol {
+  Note(
     this.pitch, {
     this.noteDuration = NoteDuration.quarter,
     this.accidental,
-    this.margin = const EdgeInsets.all(10),
-    this.color = Colors.black,
+    super.color,
+    super.margin,
     // this.stemDirection,
   });
-
-  @override
-  final EdgeInsets margin;
-
-  // /// The direction of the note stem.
-  // final StemDirection? stemDirection;
-
-  @override
-  final Color color;
 
   /// The pitch of the note.
   final Pitch pitch;
@@ -49,6 +40,9 @@ class Note implements MusicalSymbol {
 
   /// The type of note head based on the note duration.
   NoteHeadType get noteHeadType => noteDuration.noteHeadType;
+
+  @override
+  double get duration => noteDuration.duration;
 
   @override
   MusicalSymbolMetrics setContext(
@@ -138,6 +132,7 @@ class NoteMetrics implements MusicalSymbolMetrics {
         layout,
         staffLineCenterY: staffLineCenterY,
         symbolX: symbolX,
+        musicalSymbol: note,
       );
 
   @override
@@ -329,6 +324,7 @@ class NoteRenderer with DebugRenderMixin implements MusicalSymbolRenderer {
     this.layout, {
     required this.staffLineCenterY,
     required this.symbolX,
+    required this.musicalSymbol,
   });
 
   final SheetMusicLayout layout;
@@ -336,11 +332,17 @@ class NoteRenderer with DebugRenderMixin implements MusicalSymbolRenderer {
   final double symbolX;
   final NoteMetrics note;
 
+  @override
+  final MusicalSymbol musicalSymbol;
+
   /// Returns the scale of the canvas.
   double get canvasScale => layout.canvasScale;
 
   @override
   bool isHit(Offset position) => _renderArea.contains(position);
+
+  @override
+  Rect getBounds() => _renderArea;
 
   @override
   void render(Canvas canvas) {
