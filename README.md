@@ -8,12 +8,29 @@ For information about how to write a good package README, see the guide for
 For general information about developing packages, see the Dart guide for
 [creating packages](https://dart.dev/guides/libraries/create-library-packages)
 and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/developing-packages). 
+[developing packages and plugins](https://flutter.dev/developing-packages-and-plugins). 
 -->
 
-The `simple_sheet_music` library provides a simple way to display sheet music in Flutter applications.
-It contains classes for rendering staves, measures, clefs, notes and other notation objects.
+This repository is part of the [Khuur](https://github.com/Tseku210/khuur_app) project, a Flutter application for learning and playing the Mongolian horse fiddle instrument (morin khuur). It extends the [simple_sheet_music](https://github.com/tomoyu719/simple_sheet_music) library with MIDI playback capabilities and missing music sheet logic. It adds support for playing sheet music through MIDI output.
 
 <p align="center">
-    <img src="https://github.com/tomoyu719/simple_sheet_music/assets/29626818/33364f6a-63ae-4b41-9c98-46998fe3c702" width="30%" style="display: block; margin: 0 auto;">
+    <img src="midi-example.png" width="30%" style="display: block; margin: 0 auto;">
 </p>
+
+## Acknowledgments
+
+This library is an extension of the excellent [simple_sheet_music](https://github.com/tomoyu719/simple_sheet_music) repository developed by [@tomoyu719](https://github.com/tomoyu719). The original repository provides the core music rendering logic and sheet music display functionality.
+
+This library is being developed as part of the [Khuur](https://github.com/Tseku210/khuur_app) project, a Flutter application for learning and playing the Mongolian horse fiddle instrument (morin khuur).
+
+## Features
+
+- Sheet music rendering with support for:
+  - Staves and measures
+  - Clefs (treble, alto, tenor, bass)
+  - Notes and rests
+  - Time signatures
+  - Key signatures
+- MIDI playback support
+- Real-time music playback
+- Customizable soundfont support
