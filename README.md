@@ -22,7 +22,7 @@ This repository is part of the [Khuur](https://github.com/Tseku210/khuur_app) pr
 
 ## Acknowledgments
 
-This library is an extension of the excellent [simple_sheet_music](https://github.com/tomoyu719/simple_sheet_music) repository developed by [@tomoyu719](https://github.com/tomoyu719). The original repository provides the core music rendering logic and sheet music display functionality.
+This library is inspired by the excellent [simple_sheet_music](https://github.com/tomoyu719/simple_sheet_music) repository developed by [@tomoyu719](https://github.com/tomoyu719). The original repository provides the core music rendering foundation.
 
 This library is being developed as part of the [Khuur](https://github.com/Tseku210/khuur_app) project, a Flutter application for learning and playing the Mongolian horse fiddle instrument (morin khuur).
 
