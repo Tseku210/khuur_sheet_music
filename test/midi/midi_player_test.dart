@@ -1,5 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_midi_pro/flutter_midi_pro_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
@@ -10,12 +13,16 @@ import 'package:simple_sheet_music/src/music_objects/key_signature/keysignature_
 class FakeMidiPlatform extends FlutterMidiProPlatform
     with MockPlatformInterfaceMixin {
   final events = <String>[];
+  final loaded = <List<int>>[];
 
   @override
   Future<void> init(int sampleRate, int bufferSize, int polyphony) async {}
 
   @override
-  Future<int> loadSoundfont(String path, int bank, int program) async => 7;
+  Future<int> loadSoundfont(String path, int bank, int program) async {
+    loaded.add(File(path).readAsBytesSync());
+    return 7;
+  }
 
   @override
   Future<void> playNote(int channel, int key, int velocity, int sfId) async =>
@@ -47,9 +54,12 @@ class FakePathProvider extends PathProviderPlatform
 void main() {
   late FakeMidiPlatform midi;
   late Directory tmp;
+  late SoundFont soundFont;
 
   setUp(() {
     tmp = Directory.systemTemp.createTempSync('midi_player_test');
+    final sf2 = File('${tmp.path}/piano.sf2')..writeAsBytesSync([1, 2, 3]);
+    soundFont = FileSoundFont(sf2.path);
     midi = FakeMidiPlatform();
     FlutterMidiProPlatform.instance = midi;
     PathProviderPlatform.instance = FakePathProvider(tmp);
@@ -61,7 +71,7 @@ void main() {
       (tester) async {
     const c4 = 60;
     const d4 = 62;
-    final player = MidiPlayer();
+    final player = MidiPlayer(soundFont: soundFont);
     await tester.runAsync(player.initialize);
     player
       ..loadMeasures([
@@ -86,7 +96,10 @@ void main() {
   testWidgets(
       'plays the key signature and accidentals, not the bare staff line',
       (tester) async {
-    final player = MidiPlayer(initialKeySignatureType: KeySignatureType.gMajor);
+    final player = MidiPlayer(
+      soundFont: soundFont,
+      initialKeySignatureType: KeySignatureType.gMajor,
+    );
     await tester.runAsync(player.initialize);
     player
       ..loadMeasures([
@@ -96,6 +109,35 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     player.pause();
     expect(midi.events, ['on 66 sf7', 'off 66 sf7', 'on 70 sf7', 'off 70 sf7']);
+    player.dispose();
+  });
+
+  testWidgets('loads a file SoundFont from its path', (tester) async {
+    final player = MidiPlayer(soundFont: soundFont);
+    await tester.runAsync(player.initialize);
+    expect(midi.loaded, [
+      [1, 2, 3],
+    ]);
+    player.dispose();
+  });
+
+  testWidgets('loads an asset SoundFont by its app asset key', (tester) async {
+    tester.binding.defaultBinaryMessenger.setMockMessageHandler(
+      'flutter/assets',
+      (message) async => utf8.decode(message!.buffer.asUint8List()) ==
+              'assets/soundfonts/piano.sf2'
+          ? ByteData.sublistView(Uint8List.fromList([4, 5, 6]))
+          : null,
+    );
+    addTearDown(() => tester.binding.defaultBinaryMessenger
+        .setMockMessageHandler('flutter/assets', null));
+    final player = MidiPlayer(
+      soundFont: const AssetSoundFont('assets/soundfonts/piano.sf2'),
+    );
+    await tester.runAsync(player.initialize);
+    expect(midi.loaded, [
+      [4, 5, 6],
+    ]);
     player.dispose();
   });
 }

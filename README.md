@@ -38,6 +38,21 @@ This library is being developed as part of the [Khuur](https://github.com/Tseku2
 - Real-time music playback
 - Customizable soundfont support
 
+## MIDI playback
+
+The package does not bundle a SoundFont. To turn on playback, pass one to `SimpleSheetMusic`. Declare an `.sf2` file in your app's `pubspec.yaml` and pass its asset key:
+
+```dart
+SimpleSheetMusic(
+  measures: measures,
+  soundFont: const AssetSoundFont('assets/soundfonts/piano.sf2'),
+)
+```
+
+To load a SoundFont your app downloaded at runtime, use `FileSoundFont('/absolute/path.sf2')`. Playback uses bank 0, program 0. When `soundFont` is null, playback is off. MIDI works on Android, iOS and macOS.
+
+The example app ships a 2.2 MB piano, `example/assets/soundfonts/piano.sf2`. It is the Acoustic Grand Piano preset from [GeneralUser GS](https://www.schristiancollins.com/generaluser.php) v2.0.3, extracted with `example/tool/extract_sf2_preset.dart`. Its license is in `example/assets/soundfonts/GeneralUser-GS-LICENSE.txt`.
+
 ## License
 
 MIT License

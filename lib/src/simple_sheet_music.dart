@@ -32,9 +32,7 @@ class SimpleSheetMusic extends StatefulWidget {
     this.lineColor = Colors.black,
     this.fontType = FontType.bravura,
     this.tempo = 120,
-    this.enableMidi = false,
-    this.soundFontType = SoundFontType.touhou,
-    this.customSoundFontPath,
+    this.soundFont,
     this.highlightColor = Colors.red,
     this.debug = false,
     this.onTap,
@@ -65,15 +63,8 @@ class SimpleSheetMusic extends StatefulWidget {
   /// This affects timing and playback speed.
   final int tempo;
 
-  /// Whether to enable MIDI playback.
-  final bool enableMidi;
-
-  /// The type of soundfont to use for MIDI playback.
-  final SoundFontType soundFontType;
-
-  /// Optional custom path to a soundfont file for MIDI playback.
-  /// If provided, this will override the soundFontType.
-  final String? customSoundFontPath;
+  /// The SoundFont for MIDI playback. Playback is off when this is null.
+  final SoundFont? soundFont;
 
   /// The color to use for highlighting the current note.
   final Color highlightColor;
@@ -104,16 +95,10 @@ class SimpleSheetMusicState extends State<SimpleSheetMusic>
   FontType get fontType => widget.fontType;
 
   @override
-  bool get enableMidi => widget.enableMidi;
-
-  @override
   int get tempo => widget.tempo;
 
   @override
-  SoundFontType get soundFontType => widget.soundFontType;
-
-  @override
-  String? get customSoundFontPath => widget.customSoundFontPath;
+  SoundFont? get soundFont => widget.soundFont;
 
   @override
   Color get highlightColor => widget.highlightColor;
