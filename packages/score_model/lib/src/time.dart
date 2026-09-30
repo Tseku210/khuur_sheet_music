@@ -331,6 +331,9 @@ final class Tempo {
   const Tempo(this.bpm, {this.beat = NoteValue.quarter})
     : assert(bpm > 0, 'tempo is positive');
 
+  /// The tempo of music before its first tempo mark.
+  static const unmarked = Tempo(100);
+
   final double bpm;
   final NoteValue beat;
 

@@ -201,6 +201,19 @@ Implemented in Phase D, unit 1. The deviations below were accepted during implem
 - **Internal helpers.** `spelling.dart` holds `BeatGrid` and `spellOnGrid`. `voice_walk.dart` holds `timedEvents`, the tuplet-scaled walk that `lookup`, `locate`, `eventAt` and the lane writer share. `empty_bar.dart` builds the empty bars used by `Score.blank` and by appending at the end of the score. None of them are exported.
 - **Lint.** `avoid_unused_constructor_parameters` is back on, since the factories it flagged are implemented.
 
+### Unit 2: tap to enter a note or chord
+
+Implemented in Phase D, unit 2. It covers access patterns 1 and 2 through `Score.contextAt`, `Score.pitchForStaffStep`, `KeySignature.transpose`, `Score.spannersTouching`, `AddToChord`, `EditSession.placeCursor` and `EditSession.moveCursor`. The deviations below have not yet been reviewed by the project owner.
+
+- **The percussion clef reads like treble.** The sketch anchored G4 on the percussion clef's own line, which is the middle line, so a percussion staff read a third low. The clef now marks B4 there, and the bottom line is E4 as on a treble staff. This was a bug in the sketch.
+- **A percussion tap ignores key, 8va and transposition.** `pitchForStaffStep` returns the natural position on the staff, which is what `Instrument.drums` maps. The pseudocode applied the key signature, which in D major would turn the F4 position into F♯4 and miss the drum map.
+- **`Tempo.unmarked`.** Music before its first tempo mark plays at 100 quarter notes per minute. `contextAt` falls back to it, and `Score.blank` uses it as its default. Playback needs the same fallback.
+- **An octave line covers its anchors inclusively.** A point is under the line from its first anchor through its last, compared by bar position and then offset. A tap later inside the last covered event is outside, because the new note would start after the line's last anchor.
+- **`AddToChord` ties when any note of the chord is tied.** The sketch said the event's first note. The lowest note is an arbitrary choice, and "the chord continues into the next event" is what the tie means. The next event is found with `eventAt`, in the same bar or at the start of the next.
+- **A measure rest becomes chords that fill the bar.** It has no value to keep, so the bar length is spelled with `Meter.spell` and the pieces are tied. The first keeps the rest's id and articulations. A 5/4 bar gives a whole note tied to a quarter.
+- **Cursor moves.** Event moves stop at every event onset in the cursor's voice and at every bar start. That makes voices two to four, which can start with a gap or be absent, step bar by bar like voice one. `previousMeasure` goes to the start of the current bar before the previous one. Staff moves skip hidden parts. Every move leaves the cursor in place when there is nowhere to go.
+- **`placeCursor` rejects points outside the score.** It throws `ArgumentError` for an unknown staff or bar, an offset outside `[0, length]`, and the end of the last bar, which has no next bar to snap to.
+
 ## Open questions and risks
 
 - Does Maestro push later notes forward when you enter into a full bar? If users expect insert mode, is an `InsertTime` edit batched with `EnterNote` enough? It would have to ripple every voice on the staff together, because a one-voice ripple desyncs the others.
@@ -211,10 +224,11 @@ Implemented in Phase D, unit 1. The deviations below were accepted during implem
 - Which Mongolian-specific marks are missing? The morin khuur set (fingering 0 to 4, string index, up-bow, down-bow, the ornament enum) is a guess. The Figma file is still unread, because access failed on the account's View-only seat.
 - Do gradual tempo changes (rit., accel.) and manual system breaks belong in v1? Neither is modeled.
 - Should hidden parts play? The sketch says yes.
+- Should a tap read accidentals earlier in the bar, as MuseScore does? `pitchForStaffStep` reads only the key signature, so after an F♯ in C major a tap on the F line enters F natural, which then prints a natural sign. Revisit when `measureView` resolves accidentals.
 
 ## Next implementation step
 
-Unit 1 (note and rest entry) is done. Next, make access patterns 1 and 2 work end to end from a staff tap. That means `Score.contextAt`, `Score.pitchForStaffStep`, `AddToChord` in `_pointEdit`, and `placeCursor` and `moveCursor`. After that come `measureView` and `changesSince`, which the layout engine needs.
+Units 1 and 2 (note entry, tap to enter, chords and cursor moves) are done. Next come `measureView` and `changesSince`, which the layout engine needs, with `Meter.beamBreaks` and `StaffView.writtenPitch` behind them.
 
 ## Access pattern traces
 
@@ -268,4 +282,6 @@ Unit 1 (note and rest entry) is done. Next, make access patterns 1 and 2 work en
   - `spell_test.dart` has 18 tests. They cover beat offsets for simple, compound and additive meters, and spelling of notes and rests in 4/4, 6/8, 12/8 and 7/8. A sweep over every 1/32 span of 4/4, 3/4, 6/8 and 7/8 checks that each spelling sums to its span. A 1/12 span is an error.
   - `note_entry_test.dart` has 30 tests. They cover `Score.blank` ids, the session start, overwriting rests and notes (cut heads keep ids, tails become rests), split-and-tie and refusal at the barline, appended bars, clearing and keeping ties into the entry point, voice two gaps, writes inside, over and partly over a triplet, `EnterRest`, stale and outside points, undo and redo, id monotonicity, `lookup`, `locate` and `eventAt`, and revalidation after `SetKey`.
   - Five mutations of the lane writer were each caught by the test written for that behavior. The mutations were dropping the tie fix, not merging gaps, respelling entered values, not appending the cursor's bar, and untying head pieces.
+- Unit 2 adds 33 tests in `tap_to_note_test.dart`, for 81 in all, and all pass. They cover written keys with enharmonic respelling, clef, key, meter, tempo and octave lines from `contextAt`, and taps through every clef family, key, clef change, 8va and 8vb, a B♭ clarinet and a drum staff. `AddToChord` is covered on chords, rests, measure rests in 4/4, 3/4 and 5/4, tuplet members, voice two, ties in and out, duplicates and stale references. The cursor tests cover snapping, rejection, and every `CursorMove` including tuplets, gaps and a hidden part.
+  - Six mutations were each caught by the test written for that behavior. The mutations were counting another staff's octave line, taking a later tempo mark, dropping enharmonic respelling, adding a pitch the chord has, tying without checking the next event, and visiting hidden staves.
 - Synthesis review caught two pseudocode bugs, which are fixed. `changesSince` marked a bar dirty whenever its predecessor was marked, which would have cascaded one edit to the last bar. It now tests the set of identity-changed columns. The `keepBars` branch used the scope's end before computing it.

@@ -105,16 +105,104 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
 /// that event, and walk back up. Touches exactly one column, except
 /// [SetPitch] on a tie chain and [SetTie], which may touch the next column.
 _Result _pointEdit(Score score, Edit edit, _Ids ids) {
-  // TODO: per case:
-  //   AddToChord: rest → ChordEvent(same id, rest's value, [new Note]);
-  //     chord → insert Note in pitch order; no-op if pitch present.
-  //   RemoveNote: last head → RestEvent(same id, value).
-  //   SetPitch: follow the tie chain forward (next event, same voice, maybe
-  //     next bar) and backward, changing every linked head.
-  //   AddGrace, SetTie, SetArticulation, SetOrnament, SetBowing (chords
-  //     only; refuse InvalidValue on a rest), SetFingering, SetString (validate
-  //     index against instrument.strings), SetAccidental, SetLyric.
-  throw UnimplementedError();
+  switch (edit) {
+    case AddToChord(:final event, :final pitch):
+      return _addToChord(score, event, pitch, ids);
+    default:
+      // TODO: per case:
+      //   RemoveNote: last head → RestEvent(same id, value).
+      //   SetPitch: follow the tie chain forward (next event, same voice,
+      //     maybe next bar) and backward, changing every linked head.
+      //   AddGrace, SetTie, SetArticulation, SetOrnament, SetBowing (chords
+      //     only; refuse InvalidValue on a rest), SetFingering, SetString
+      //     (validate index against instrument.strings), SetAccidental,
+      //     SetLyric.
+      throw UnimplementedError();
+  }
+}
+
+/// Adds [pitch] to the event [ref] names, which keeps its id. A rest
+/// becomes a chord of its value, and a measure rest becomes chords that
+/// fill the bar, tied.
+_Result _addToChord(Score score, EventRef ref, Pitch pitch, _Ids ids) {
+  final timed = score.lookup(ref) ?? (throw _Refuse(StaleReference(ref)));
+  final column = score.column(timed.ref.measure);
+  final staff = column.staff(timed.ref.staff);
+  final items = staff.voice(timed.voice)!.items;
+  List<VoiceItem> replacing(Event event) => [
+    for (final item in items)
+      item is Content ? _replaceEvent(item, event) : item,
+  ];
+  final List<VoiceItem> written;
+  switch (timed.event) {
+    case ChordEvent(:final notes) when notes.any((n) => n.pitch == pitch):
+      return _Result(score);
+    case final ChordEvent chord:
+      final note = Note(
+        id: ids.note(),
+        pitch: pitch,
+        tie: chord.notes.any((n) => n.tie) && _nextHolds(score, timed, pitch),
+      );
+      final above = chord.notes.indexWhere((n) => n.pitch.compareTo(pitch) > 0);
+      written = replacing(
+        chord.copyWith(
+          notes: chord.notes.insertAt(
+            above == -1 ? chord.notes.length : above,
+            note,
+          ),
+        ),
+      );
+    case RestEvent(:final id, :final value, :final articulations):
+      written = replacing(
+        ChordEvent(
+          id: id,
+          value: value,
+          articulations: articulations,
+          notes: Seq([Note(id: ids.note(), pitch: pitch)]),
+        ),
+      );
+    case MeasureRest(:final id, :final span, :final articulations):
+      final values = column.meter.spell(Moment.zero, span, rest: false);
+      written = [
+        for (final (k, value) in values.indexed)
+          ChordEvent(
+            id: k == 0 ? id : ids.event(),
+            value: value,
+            articulations: k == 0 ? articulations : const {},
+            notes: Seq([
+              Note(id: ids.note(), pitch: pitch, tie: k < values.length - 1),
+            ]),
+          ),
+      ];
+  }
+  return _Result(
+    score.copyWith(
+      measures: score.measures.replaceAt(
+        score.indexOf(column.id),
+        column.withStaff(
+          staff.withVoice(Voice(slot: timed.voice, items: Seq(written))),
+        ),
+      ),
+    ),
+  );
+}
+
+/// Whether the event after [timed] in its voice, later in the bar or at the
+/// start of the next, is a chord holding [pitch].
+bool _nextHolds(Score score, TimedEvent timed, Pitch pitch) {
+  final end = _normalize(
+    score,
+    ScorePoint(timed.ref.measure, timed.onset + timed.duration),
+  );
+  if (end == null) {
+    return false;
+  }
+  final next = score
+      .eventAt(
+        VoicePoint(staff: timed.ref.staff, voice: timed.voice, at: end),
+      )
+      ?.event;
+  return next is ChordEvent && next.notes.any((n) => n.pitch == pitch);
 }
 
 _Result _rhythm(Score score, Edit edit, _Ids ids) {

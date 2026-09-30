@@ -182,9 +182,104 @@ final class EditSession {
 
   /// Moves the cursor. Snaps [at] into the bar (an offset equal to the bar
   /// length becomes offset 0 of the next bar). Not an undo step.
-  EditSession placeCursor(VoicePoint at) => throw UnimplementedError();
+  ///
+  /// Throws [ArgumentError] when [at] names a staff or bar the score does
+  /// not have or lies outside its bar. The end of the last bar is outside,
+  /// because no bar follows it.
+  EditSession placeCursor(VoicePoint at) {
+    final point = at.at;
+    final inside =
+        score.staves.any((staff) => staff.id == at.staff) &&
+        score.contains(point.measure) &&
+        !point.offset.isNegative &&
+        point.offset <= Moment.zero + score.column(point.measure).length;
+    final snapped = inside ? _normalize(score, point) : null;
+    if (snapped == null) {
+      throw ArgumentError.value(at, 'at', 'not a cursor position in the score');
+    }
+    return _withCursor(
+      VoicePoint(staff: at.staff, voice: at.voice, at: snapped),
+    );
+  }
 
-  EditSession moveCursor(CursorMove move) => throw UnimplementedError();
+  /// Moves the cursor by [move], or leaves it where it is when there is
+  /// nowhere to go. Event moves stop at every event onset in the cursor's
+  /// voice and at every bar start. Staff moves skip hidden parts and keep
+  /// the time and voice. Not an undo step.
+  EditSession moveCursor(CursorMove move) {
+    final bar = score.indexOf(cursor.at.measure);
+    final offset = cursor.at.offset;
+    final last = score.measures.length - 1;
+    switch (move) {
+      case CursorMove.nextEvent:
+        final stop = _stops(bar).where((s) => s > offset).firstOrNull;
+        if (stop != null) {
+          return _cursorAt(bar, stop);
+        }
+        return bar < last ? _cursorAt(bar + 1, Moment.zero) : this;
+      case CursorMove.previousEvent:
+        final stop = _stops(bar).where((s) => s < offset).lastOrNull;
+        if (stop != null) {
+          return _cursorAt(bar, stop);
+        }
+        return bar > 0 ? _cursorAt(bar - 1, _stops(bar - 1).last) : this;
+      case CursorMove.nextMeasure:
+        return bar < last ? _cursorAt(bar + 1, Moment.zero) : this;
+      case CursorMove.previousMeasure:
+        if (offset.isPositive) {
+          return _cursorAt(bar, Moment.zero);
+        }
+        return bar > 0 ? _cursorAt(bar - 1, Moment.zero) : this;
+      case CursorMove.staffUp || CursorMove.staffDown:
+        final visible = [
+          for (final part in score.parts)
+            if (!part.hidden) ...part.staves,
+        ];
+        final from = visible.indexWhere((staff) => staff.id == cursor.staff);
+        final to = from + (move == CursorMove.staffUp ? -1 : 1);
+        if (from == -1 || to < 0 || to == visible.length) {
+          return this;
+        }
+        return _withCursor(
+          VoicePoint(staff: visible[to].id, voice: cursor.voice, at: cursor.at),
+        );
+    }
+  }
+
+  /// Where event moves stop in bar [bar]: its start, then every event onset
+  /// in the cursor's voice.
+  List<Moment> _stops(int bar) {
+    final column = score.measures[bar];
+    final voice = column.staff(cursor.staff).voice(cursor.voice);
+    return [
+      Moment.zero,
+      if (voice != null)
+        for (final timed in timedEvents(
+          voice,
+          measure: column.id,
+          staff: cursor.staff,
+        ))
+          if (timed.onset.isPositive) timed.onset,
+    ];
+  }
+
+  EditSession _cursorAt(int bar, Moment offset) => _withCursor(
+    VoicePoint(
+      staff: cursor.staff,
+      voice: cursor.voice,
+      at: ScorePoint(score.measures[bar].id, offset),
+    ),
+  );
+
+  EditSession _withCursor(VoicePoint cursor) => EditSession._(
+    score,
+    cursor,
+    selection,
+    _past,
+    _future,
+    _nextId,
+    _historyLimit,
+  );
 
   /// Not an undo step. A stale selection is dropped on the next edit.
   EditSession select(Selection selection) => EditSession._(
@@ -206,6 +301,19 @@ final class EditSession {
   /// inside the range come along with offsets relative to the clip start.
   /// It can be pasted into any score.
   Clip? copy() => throw UnimplementedError();
+}
+
+/// [point] with the end of its bar spelled as offset 0 of the next bar.
+/// Null for the end of the last bar. [point]'s offset is at most its bar's
+/// length.
+ScorePoint? _normalize(Score score, ScorePoint point) {
+  final index = score.indexOf(point.measure);
+  if (point.offset < Moment.zero + score.measures[index].length) {
+    return point;
+  }
+  return index + 1 < score.measures.length
+      ? ScorePoint(score.measures[index + 1].id, Moment.zero)
+      : null;
 }
 
 /// Every id in [score], for seeding the counter.

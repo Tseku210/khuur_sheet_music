@@ -3,50 +3,6 @@ import 'package:test/test.dart';
 
 import 'support.dart';
 
-Length len(int numerator, int denominator) =>
-    Length(Fraction(numerator, denominator));
-
-EditSession blank({int bars = 2, Meter meter = Meter.fourFour}) =>
-    EditSession.start(
-      Score.blank(parts: const [morinKhuur], measureCount: bars, meter: meter),
-    );
-
-EditOutcome enter(
-  EditSession session,
-  VoicePoint at, {
-  Pitch? pitch,
-  NoteValue value = NoteValue.quarter,
-  Overfill overfill = Overfill.splitAndTie,
-}) => session.run(
-  EnterNote(at: at, pitch: pitch ?? f4, value: value, overfill: overfill),
-);
-
-EditSession enterAt(
-  EditSession session,
-  int barIndex,
-  Moment offset, {
-  Pitch? pitch,
-  NoteValue value = NoteValue.quarter,
-  VoiceSlot voice = VoiceSlot.one,
-}) => applied(
-  enter(
-    session,
-    point(session.score, barIndex, offset, voice: voice),
-    pitch: pitch,
-    value: value,
-  ),
-);
-
-ChordEvent chord(int id, Pitch pitch, NoteValue value, {bool tie = false}) =>
-    ChordEvent(
-      id: EventId(id),
-      value: value,
-      notes: Seq([Note(id: NoteId(id + 50), pitch: pitch, tie: tie)]),
-    );
-
-Event firstEvent(Score score, int barIndex) =>
-    voiceOf(score, barIndex).items.first as Event;
-
 void main() {
   group('Score.blank', () {
     test('numbers ids in document order and fills bars with measure rests', () {

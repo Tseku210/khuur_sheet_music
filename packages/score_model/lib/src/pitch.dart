@@ -229,8 +229,24 @@ final class KeySignature {
 
   /// The key a part reads when its instrument sounds [interval] away from
   /// written pitch. B♭ clarinet (sounds a major second lower) in concert
-  /// C reads D.
-  KeySignature transpose(Interval interval) => throw UnimplementedError();
+  /// C reads D. A key past seven sharps or flats is respelled
+  /// enharmonically, so concert C♯ on that clarinet reads E♭, not D♯.
+  KeySignature transpose(Interval interval) {
+    // Where C major's written tonic sits on the circle of fifths is how far
+    // every key moves.
+    final tonic = const Pitch(Step.c, 4).transpose(-interval);
+    final shift =
+        _sharpOrder.indexOf(tonic.step) -
+        1 +
+        7 * (tonic.alter.quarterTones ~/ 2);
+    var written = fifths + shift;
+    if (written > 7) {
+      written -= 12;
+    } else if (written < -7) {
+      written += 12;
+    }
+    return KeySignature(written, mode);
+  }
 
   @override
   bool operator ==(Object other) =>
@@ -276,12 +292,14 @@ enum Clef {
   final int octave;
 
   /// Diatonic number of the pitch on the clef's own line. G clef marks G4,
-  /// F clef F3, C clef C4. Percussion reads like treble.
+  /// F clef F3, C clef C4. The percussion clef sits on the middle line and
+  /// the staff reads like treble, so it marks B4.
   int get _anchor =>
       switch (sign) {
-        ClefSign.g || ClefSign.percussion => const Pitch(Step.g, 4).diatonic,
+        ClefSign.g => const Pitch(Step.g, 4).diatonic,
         ClefSign.f => const Pitch(Step.f, 3).diatonic,
         ClefSign.c => const Pitch(Step.c, 4).diatonic,
+        ClefSign.percussion => const Pitch(Step.b, 4).diatonic,
       } +
       octave * 7;
 

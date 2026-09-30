@@ -48,7 +48,7 @@ final class Score {
     int measureCount = 16,
     Meter meter = Meter.fourFour,
     KeySignature key = KeySignature.cMajor,
-    Tempo tempo = const Tempo(100),
+    Tempo tempo = Tempo.unmarked,
   }) {
     var next = 1;
     final built = <Part>[];
@@ -221,11 +221,42 @@ final class Score {
 
   /// Everything in effect at a point on a staff.
   ScoreContext contextAt(StaffId staff, ScorePoint at) {
-    // TODO: clef, key and meter are read straight from the column and the
-    // staff measure (they are stored per bar). Tempo walks back through
-    // columns' `tempos` to the nearest mark at or before [at]. Octave shift
-    // scans `spanners` for an OctaveLine on [staff] covering [at].
-    throw UnimplementedError();
+    final index = indexOf(at.measure);
+    final column = measures[index];
+    final octaveLine = spannersTouching(at.measure)
+        .where((s) => s.staff == staff && _within(s.first, at, s.last))
+        .map((s) => s.kind)
+        .whereType<OctaveLine>()
+        .firstOrNull;
+    return ScoreContext(
+      clef: column.staff(staff).clefAt(at.offset),
+      key: column.key,
+      writtenKey: column.key.transpose(partOf(staff).instrument.transposition),
+      meter: column.meter,
+      tempo: _tempoAt(index, at.offset),
+      octaveShift: octaveLine?.shift.octaves ?? 0,
+    );
+  }
+
+  /// The last tempo mark at or before [offset] of bar [index].
+  Tempo _tempoAt(int index, Moment offset) {
+    for (var i = index; i >= 0; i--) {
+      final mark = measures[i].tempos
+          .where((mark) => i < index || mark.offset <= offset)
+          .lastOrNull;
+      if (mark != null) {
+        return mark.tempo;
+      }
+    }
+    return Tempo.unmarked;
+  }
+
+  bool _within(ScorePoint first, ScorePoint at, ScorePoint last) =>
+      _compare(first, at) <= 0 && _compare(at, last) <= 0;
+
+  int _compare(ScorePoint a, ScorePoint b) {
+    final byBar = indexOf(a.measure).compareTo(indexOf(b.measure));
+    return byBar != 0 ? byBar : a.offset.compareTo(b.offset);
   }
 
   /// The concert pitch a tap at [staffStep] means at [at] on [staff]: the
@@ -233,18 +264,23 @@ final class Score {
   /// alteration, an 8va line in effect shifts it, and the part's instrument
   /// transposition turns written into concert pitch.
   ///
-  /// On a percussion staff the result is the display position that
-  /// `Instrument.drums` maps to a sound.
+  /// On a percussion staff the result is the natural display position,
+  /// which `Instrument.drums` maps to a sound.
   Pitch pitchForStaffStep(StaffId staff, ScorePoint at, int staffStep) {
-    // TODO:
-    //   ctx = contextAt(staff, at)
-    //   natural = ctx.clef.naturalAt(staffStep)
-    //   written = Pitch(natural.step, natural.octave,
-    //                   ctx.writtenKey.alterFor(natural.step))
-    //   return written
-    //       .transpose(Interval.octave * ctx.octaveShift)   // 8va sounds up
-    //       .transpose(partOf(staff).instrument.transposition)
-    throw UnimplementedError();
+    final context = contextAt(staff, at);
+    final natural = context.clef.naturalAt(staffStep);
+    final instrument = partOf(staff).instrument;
+    if (instrument.isPercussion) {
+      return natural;
+    }
+    final written = Pitch(
+      natural.step,
+      natural.octave,
+      context.writtenKey.alterFor(natural.step),
+    );
+    return written.transpose(
+      Interval.octave * context.octaveShift + instrument.transposition,
+    );
   }
 
   /// Everything layout needs to draw bar [id]. Cost is proportional to the
@@ -287,8 +323,13 @@ final class Score {
 
   /// Spanners with at least one point inside bar [id]. Linear in the
   /// spanner count (hundreds in a large score).
-  Iterable<Spanner> spannersTouching(MeasureId id) =>
-      throw UnimplementedError();
+  Iterable<Spanner> spannersTouching(MeasureId id) {
+    final index = indexOf(id);
+    return spanners.where(
+      (s) =>
+          indexOf(s.first.measure) <= index && index <= indexOf(s.last.measure),
+    );
+  }
 }
 
 final class ScoreMeta {

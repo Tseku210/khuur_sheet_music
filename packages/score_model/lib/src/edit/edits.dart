@@ -103,9 +103,9 @@ enum Overfill {
 
 /// Adds [pitch] to [event] (access pattern 2). A single note becomes a
 /// chord; a rest becomes a note of the rest's value. Adding a pitch the
-/// chord already has is a no-op (idempotent). If the event's first note is
-/// tied into the next event, the new note is tied too when the next event
-/// has the same pitch.
+/// chord already has is a no-op (idempotent). If the chord is tied into
+/// the next event, the new note is tied too when the next event has the
+/// same pitch.
 final class AddToChord extends Edit {
   const AddToChord({required this.event, required this.pitch});
 
