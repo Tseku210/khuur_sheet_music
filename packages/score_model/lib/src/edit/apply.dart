@@ -97,7 +97,7 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
     ),
     Transpose(:final selection, :final by) => _transpose(score, selection, by),
     AddPart() || RemovePart() || SetPartHidden() => _parts(score, edit, ids),
-    Batch(:final edits) => _batch(score, edits, ids, session),
+    Batch(:final edits) => _batch(edits, ids, session),
   };
 }
 
@@ -835,8 +835,8 @@ _Result _transpose(Score score, Selection selection, Transposition by) {
 
 _Result _parts(Score score, Edit edit, _Ids ids) => throw UnimplementedError();
 
-_Result _batch(Score score, List<Edit> edits, _Ids ids, EditSession session) {
-  // TODO: fold _apply over edits, threading the score and the same _Ids.
-  // A _Refuse from any edit propagates, so the batch is all or nothing.
-  throw UnimplementedError();
+/// A refusal escapes the fold, so the batch is all or nothing.
+_Result _batch(List<Edit> edits, _Ids ids, EditSession session) {
+  final end = edits.fold(session, (now, edit) => now._advance(edit, ids));
+  return _Result(end.score, cursor: end.cursor, selection: end.selection);
 }

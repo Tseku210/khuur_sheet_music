@@ -310,6 +310,15 @@ Implemented in Phase D, unit 9. It covers `SetDirections`, `AddSpanner` and `Rem
 - **Mark edits refuse instead of throwing.** A bar, staff or spanner that is gone is `StaleReference`, a point outside its bar is `OutsideMeasure`, and spanner ends out of order are `InvalidValue`. The key, clef and tempo edits share the same two checks.
 - **The `changesSince` sweep adds and removes spanners through edits.** It no longer mints ids of its own, so the counter that counted down from -1 in unit 4 is gone.
 
+### Unit 10: batches
+
+Implemented in Phase D, unit 10. It covers `Batch`. The deviations below have not yet been reviewed by the project owner.
+
+- **A batch is its edits run one by one, then kept as one undo step.** The sketch threaded only the score and the id counter through the edits. Each edit now also sees the cursor and selection the edit before it left, because `SetMeter` moves the cursor with the music and would otherwise move a stale one. The batch ends with the last edit's cursor and selection.
+- **`run` and `Batch` share one step.** `EditSession._advance` applies an edit and revalidates the cursor and selection without touching history. `run` adds the history entry, and `Batch` folds `_advance` over its edits, so a batch cannot drift from its edits run singly.
+- **An edit in a batch cannot name what an earlier one created.** Ids are minted while the batch runs, so a batch cannot insert a bar and then fill it. A batch groups edits whose targets exist before it runs. Paste and tuplet entry create and fill in one edit, so they do not need one.
+- **A batch that undoes itself still takes an undo step.** A no-op is detected by identity, so a batch that enters a note and then a rest over it leaves a new score object with the same content.
+
 ### Scope: a general library
 
 Accepted by the project owner on 2026-09-30. `simple_sheet_music` is an open-source library, so the model stays general. The Khuur composer is its first consumer, and its designs are direction for that app, not requirements for the library.
@@ -321,7 +330,7 @@ Accepted by the project owner on 2026-09-30. `simple_sheet_music` is an open-sou
 
 ## Open questions and risks
 
-Each question is filed under the point it must be answered by. An answer that changes a stored type gets more expensive with every layer built on it, and once the save format is released it also means migrating other people's saved scores. An answer that changes one function's behaviour, or only adds a value, stays cheap. The deviations under units 1 to 9 that the project owner has not reviewed are behaviour too, so they can be reviewed any time before the release.
+Each question is filed under the point it must be answered by. An answer that changes a stored type gets more expensive with every layer built on it, and once the save format is released it also means migrating other people's saved scores. An answer that changes one function's behaviour, or only adds a value, stays cheap. The deviations under units 1 to 10 that the project owner has not reviewed are behaviour too, so they can be reviewed any time before the release.
 
 **Before the layout engine starts.** These decide how layout is built.
 
@@ -348,7 +357,7 @@ Each question is filed under the point it must be answered by. An answer that ch
 
 ## Next implementation step
 
-Units 1 to 9 (note entry, tap to enter, chords, cursor moves, the measure view, change tracking, the point edits, the bar edits, meter changes, key, clef and tempo, and the marks) are done. The model now answers everything layout reads, so the Flutter layout engine can start against `measureView` and `changesSince`. On the model side the rest of `apply.dart` comes next: `Batch`, then `SetValue` and `EnterTuplet`, `Erase`, copy and paste, `Transpose`, and the part edits. The `changesSince` sweep drives every edit that exists except `SetDirections` and `SetTempoMarks`, whose marks the measure view does not carry. It still hides parts by hand until the part edits land. Stubs left are 6 in `apply.dart`, 6 in `playback.dart`, 2 each in `json.dart` and `musicxml.dart`, and 1 each in `lane_writer.dart` and `session.dart`.
+Units 1 to 10 (note entry, tap to enter, chords, cursor moves, the measure view, change tracking, the point edits, the bar edits, meter changes, key, clef and tempo, the marks, and batches) are done. The model now answers everything layout reads, so the Flutter layout engine can start against `measureView` and `changesSince`. On the model side the rest of `apply.dart` comes next: `SetValue` and `EnterTuplet`, `Erase`, copy and paste, `Transpose`, and the part edits. The `changesSince` sweep drives every edit that exists except `SetDirections` and `SetTempoMarks`, whose marks the measure view does not carry. It still hides parts by hand until the part edits land. Stubs left are 5 in `apply.dart`, 6 in `playback.dart`, 2 each in `json.dart` and `musicxml.dart`, and 1 each in `lane_writer.dart` and `session.dart`.
 
 ## Access pattern traces
 
@@ -420,4 +429,6 @@ Units 1 to 9 (note entry, tap to enter, chords, cursor moves, the measure view, 
   - Twenty-three mutations were each caught. The first run caught 18. Four survivors got tests: the run's ending clef not updated after a bar, the clef in effect not tracked while dropping changes, `ClefChange` compared by identity, and the metronome flag ignored. One only broke compilation and was rewritten. It then survived too, because the two equal tempo marks in its test were both `const` and so the same object. One is now built at run time.
 - Unit 9 adds 14 tests in `marks_test.dart`, for 274 in all, and all pass. They cover directions sorted with ties kept in order, one staff of one bar, equal directions, a change in each field of each direction kind, each refusal, a new spanner's id, kind, staff and ends, the voice rule for both families, one-event lines against one-event slurs and glissandi, ends out of order, each spanner refusal, removing the middle of three spanners, a stale spanner, and a delete that leaves a hairpin on one event and drops a slur. That last test failed with `Bad state: No element` before the move rule took the kind into account.
   - Thirty-two mutations were each caught. The first run caught 31. The survivor removed the first spanner whatever the id, which passed because the test removed the first. The test now removes the middle one of three.
+- Unit 10 adds 6 tests in `batch_test.dart`, for 280 in all, and all pass. They cover each edit seeing the score the one before it left, one undo step under the batch's label, the score, cursor and selection matching the same edits run one by one with a `SetMeter` that moves the cursor, ids minted once across the batch and after it, a refusal of the whole batch, and no undo step for an empty or idempotent batch. Each failed with the stub's `UnimplementedError` before the fold existed.
+  - Six mutations were each caught on the first run. They ran every edit on the first score, gave each edit the first cursor and selection, gave each edit a fresh id counter, skipped a refused edit, and dropped the final cursor, the final selection or both.
 - Synthesis review caught two pseudocode bugs, which are fixed. `changesSince` marked a bar dirty whenever its predecessor was marked, which would have cascaded one edit to the last bar. It now tests the set of identity-changed columns, a rule unit 4 replaced with neighbour identity. The `keepBars` branch used the scope's end before computing it.

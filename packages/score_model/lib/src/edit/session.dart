@@ -100,22 +100,18 @@ final class EditSession {
   /// stack is cleared by any edit that changes the score.
   EditOutcome run(Edit edit) {
     final ids = _Ids(_nextId);
-    final _Result result;
+    final EditSession next;
     try {
-      result = _apply(score, edit, ids, this);
+      next = _advance(edit, ids);
     } on _Refuse catch (refusal) {
       return Refused(this, refusal.reason);
     }
-    final cursor =
-        result.cursor ?? _revalidateCursor(this.cursor, score, result.score);
-    final selection =
-        result.selection ?? _revalidateSelection(this.selection, result.score);
-    if (identical(result.score, score)) {
+    if (identical(next.score, score)) {
       return Applied(
         EditSession._(
           score,
-          cursor,
-          selection,
+          next.cursor,
+          next.selection,
           _past,
           _future,
           ids.next,
@@ -124,21 +120,36 @@ final class EditSession {
       );
     }
     var past = _past.append(
-      _Snapshot(score.copyWith(), this.cursor, this.selection, edit.label),
+      _Snapshot(score.copyWith(), cursor, selection, edit.label),
     );
     if (past.length > _historyLimit) {
       past = past.removeAt(0);
     }
     return Applied(
       EditSession._(
-        result.score,
-        cursor,
-        selection,
+        next.score,
+        next.cursor,
+        next.selection,
         past,
         const Seq.empty(),
         ids.next,
         _historyLimit,
       ),
+    );
+  }
+
+  /// This session with [edit] applied to its score, cursor and selection,
+  /// and its history untouched. Throws [_Refuse].
+  EditSession _advance(Edit edit, _Ids ids) {
+    final result = _apply(score, edit, ids, this);
+    return EditSession._(
+      result.score,
+      result.cursor ?? _revalidateCursor(cursor, score, result.score),
+      result.selection ?? _revalidateSelection(selection, result.score),
+      _past,
+      _future,
+      _nextId,
+      _historyLimit,
     );
   }
 

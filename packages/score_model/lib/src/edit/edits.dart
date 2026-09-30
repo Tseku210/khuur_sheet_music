@@ -647,8 +647,12 @@ final class SetPartHidden extends Edit {
 
 // --- Grouping ---------------------------------------------------------------
 
-/// Runs [edits] in order as one undo step. All or nothing: if any edit is
+/// Runs [edits] in order as one undo step. Each edit sees the score, cursor
+/// and selection the one before it left. All or nothing: if any edit is
 /// refused, the batch is refused and the score is unchanged.
+///
+/// Ids are minted as the batch runs, so an edit cannot name a bar, event or
+/// spanner that an earlier edit in the same batch created.
 final class Batch extends Edit {
   const Batch(this.edits, {this.label = 'Edit'});
 
