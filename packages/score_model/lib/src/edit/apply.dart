@@ -88,6 +88,9 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
     SetVolta() ||
     SetNavigation() ||
     SetRehearsal() ||
+    SetBreak() ||
+    SetKeyDisplay() ||
+    SetMeterDisplay() ||
     SetBarLength() => _bars(score, edit, ids),
     Paste(:final clip, :final at, :final overfill) => _paste(
       score,

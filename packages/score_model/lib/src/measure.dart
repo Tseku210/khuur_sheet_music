@@ -39,6 +39,9 @@ final class MeasureColumn {
     this.navigation = const Seq.empty(),
     this.rehearsal,
     this.tempos = const Seq.empty(),
+    this.breakBefore,
+    this.keyDisplay = SignatureDisplay.auto,
+    this.meterDisplay = SignatureDisplay.auto,
   }) {
     final capacity = length;
     final end = Moment.zero + capacity;
@@ -105,6 +108,16 @@ final class MeasureColumn {
   /// One per staff of the score, in system order. `Score` checks the order.
   final Seq<StaffMeasure> staves;
 
+  /// A break before this bar, so that it starts a new system or page. Null
+  /// lets layout choose. The first bar starts both anyway.
+  final LayoutBreak? breakBefore;
+
+  /// How the key signature prints at the start of this bar.
+  final SignatureDisplay keyDisplay;
+
+  /// How the time signature prints at the start of this bar.
+  final SignatureDisplay meterDisplay;
+
   /// Capacity every voice must fill.
   Length get length => irregularLength ?? meter.length;
 
@@ -133,6 +146,9 @@ final class MeasureColumn {
     String? Function()? rehearsal,
     Seq<TempoMark>? tempos,
     Seq<StaffMeasure>? staves,
+    LayoutBreak? Function()? breakBefore,
+    SignatureDisplay? keyDisplay,
+    SignatureDisplay? meterDisplay,
   }) => MeasureColumn(
     id: id,
     meter: meter ?? this.meter,
@@ -148,6 +164,9 @@ final class MeasureColumn {
     navigation: navigation ?? this.navigation,
     rehearsal: rehearsal == null ? this.rehearsal : rehearsal(),
     tempos: tempos ?? this.tempos,
+    breakBefore: breakBefore == null ? this.breakBefore : breakBefore(),
+    keyDisplay: keyDisplay ?? this.keyDisplay,
+    meterDisplay: meterDisplay ?? this.meterDisplay,
   );
 
   /// Returns a column with [staff] replaced. The single step every note edit
@@ -286,6 +305,29 @@ final class ClefChange {
 }
 
 enum Barline { regular, doubleBar, finalBar, dashed, dotted, heavy, invisible }
+
+/// A break that layout must make before a bar.
+enum LayoutBreak {
+  /// The bar starts a new system.
+  system,
+
+  /// The bar starts a new page, and so a new system.
+  page,
+}
+
+/// How a bar prints its key or time signature where the composer overrides
+/// layout's default.
+enum SignatureDisplay {
+  /// Printed where it changes. When the change starts a system, a courtesy
+  /// signature prints at the end of the system before.
+  auto,
+
+  /// Printed here even where it hasn't changed, as at a new section.
+  restated,
+
+  /// Printed where it changes, with no courtesy signature before it.
+  noCourtesy,
+}
 
 final class RepeatEnd {
   const RepeatEnd({this.times = 2})

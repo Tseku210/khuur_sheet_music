@@ -304,8 +304,9 @@ class LayoutCache {
       _measures[id] = _layoutMeasure(score.measureView(id));
     }
     if (changes.reflow) {
-      // Measure order or a width changed: re-run line breaking over the
-      // cached measure widths. No measure is laid out again for this.
+      // Measure order, the parts or a break changed: re-run line breaking
+      // over the cached measure widths, starting a new system at each
+      // `column.breakBefore`. No measure is laid out again for this.
     }
     _laidOut = score;
   }
@@ -313,11 +314,13 @@ class LayoutCache {
   MeasureLayout _layoutMeasure(MeasureView view) {
     final out = <String>[];
     final column = view.column;
-    if (view.meterChanged) {
+    if (view.printsMeter) {
       out.add('time ${column.meter}');
     }
     if (view.keyChanged) {
       out.add('key ${column.key} (was ${view.previousKey})');
+    } else if (view.printsKey) {
+      out.add('key ${column.key} restated');
     }
     if (column.repeatStart) {
       out.add('|:');

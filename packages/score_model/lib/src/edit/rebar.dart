@@ -212,6 +212,12 @@ _Section _rebar(
     return placed.$1 < count ? placed : null;
   }
 
+  // A break or signature display stays where its bar's start is a barline.
+  final opening = {
+    for (final (i, column) in old.indexed)
+      if (place(i, Moment.zero) case (final k, final offset) when offset.isZero)
+        k: column,
+  };
   final tempos = [for (var k = 0; k < count; k++) <TempoMark>[]];
   for (final (i, column) in old.indexed) {
     for (final tempo in column.tempos) {
@@ -288,6 +294,9 @@ _Section _rebar(
         repeatEnd: k == count - 1 ? last.repeatEnd : null,
         tempos: Seq(tempos[k]),
         staves: Seq([for (final bars in staves) bars[k]]),
+        breakBefore: opening[k]?.breakBefore,
+        keyDisplay: opening[k]?.keyDisplay ?? SignatureDisplay.auto,
+        meterDisplay: opening[k]?.meterDisplay ?? SignatureDisplay.auto,
       ),
   ], next);
 }

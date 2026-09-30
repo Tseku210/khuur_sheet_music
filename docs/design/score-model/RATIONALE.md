@@ -74,6 +74,7 @@ Score
 ├─ measures: Seq<MeasureColumn>     the global, ordered list of bars
 │   └─ MeasureColumn  id · meter · key · irregularLength · barline · repeatStart
 │      │              repeatEnd · volta · navigation · rehearsal · tempos
+│      │              breakBefore · keyDisplay · meterDisplay
 │      └─ staves: Seq<StaffMeasure>   staff · clef (at bar start) · clefChanges · directions
 │          └─ voices: Seq<Voice>        slot one..four
 │              └─ items: Seq<VoiceItem> = Gap | Content
@@ -109,7 +110,7 @@ Encoded in types:
 
 The constructors check bar fill, tuplet fill, no gaps in voice one, voice slot order, and clef-change and tempo offsets. Only the boundary (`scoreFromJson`) checks staff order per column, unique IDs across the whole score, and spanner anchors. Debug asserts cover those elsewhere.
 
-The sketch deliberately leaves out insert-mode ripple, polymeter (one meter per column), beams or tuplets across a barline, mid-bar key changes, cross-staff beaming, and stored restated signatures.
+The sketch deliberately leaves out insert-mode ripple, polymeter (one meter per column), beams or tuplets across a barline, mid-bar key changes and cross-staff beaming. It left out restated signatures too, which unit 19 added as a display on the bar.
 
 Interface depth. Layout sees two calls (`measureView`, `changesSince`) plus the read-only domain types. Playback sees `compile` and three query methods on the script. The editor sees `EditSession` plus edit data. Everything hard sits behind those surfaces. That covers overwrite, split, tie, re-bar, propagation, accidental rules, beaming, repeat unrolling and identity-keyed caching. The domain types are public because layout has to read events, notes and bar facts. They expose fields and `copyWith`, and no editing algorithms.
 
@@ -158,7 +159,7 @@ C3 also carries machinery the rest of the design would have to trust. It has a h
 - We accept storing meter, key and clef in every bar, with propagation logic in three edits, in exchange for O(1) context, local validation and per-bar caches that capture everything a bar depends on.
 - We accept rigid bars. Entry overwrites and never pushes music forward, and a re-barring meter change rewrites every bar up to the next meter change. In exchange, no bar in any score can be invalid, and no edit ripples across the whole score.
 - We accept that re-barring never deletes bars (surplus bars stay, filled with rests) in exchange for never silently removing a composer's container.
-- We accept that a redundant restated signature can't be represented (a 3/4 printed again where 3/4 already holds) in exchange for deriving what a change is rather than storing it.
+- We derive what a change is rather than storing it. A restated signature (a 3/4 printed again where 3/4 already holds) is a display on the bar, added in unit 19, so it can't disagree with the bar's meter or key.
 - We accept an O(spanners) scan per `measureView` in exchange for having no spanner index to maintain. With hundreds of spanners this costs microseconds.
 - We accept a lazy event-to-measure index, built only when a hinted lookup misses, in exchange for O(1) resolution in the common case and no index to maintain on every edit.
 - We accept snapshot undo in exchange for undo that can't be wrong. No edit needs a hand-written inverse, which matters most for re-barring.
@@ -440,6 +441,18 @@ Implemented in Phase D, unit 18, from the owner's decision of 2026-10-01 below. 
 - **`ScoreContext.tempo` stays the last tempo mark written.** A tempo line changes only what playback hears, so a metronome display reads the written tempo.
 - **Removing the part a tempo line is written on removes the line**, like its other spanners, while tempo marks stay with their bars. This is filed as an open question below.
 
+### Unit 19: breaks and signature display
+
+Implemented in Phase D, unit 19, from the owner's decision of 2026-10-01 below. It covers `LayoutBreak`, `SignatureDisplay`, the column's `breakBefore`, `keyDisplay` and `meterDisplay`, the edits `SetBreak`, `SetKeyDisplay` and `SetMeterDisplay`, and the view's `printsMeter`, `printsKey`, `meterCourtesy` and `keyCourtesy`. The deviations below have not yet been reviewed by the project owner.
+
+- **They are fields of the bar.** Two shapes were weighed. A score-level list of breaks and restatements, as MuseScore keeps layout breaks as elements, would need its own cleanup when bars go, its own move rules and its own comparison in `changesSince`. The bar already carries its meter and key, and every edit, re-bar and change check already handles it, so three fields cost nothing more. A bar's layout never depends on another bar's fields beyond the neighbour that `changesSince` already marks.
+- **A break is before its bar.** The bar starts a new system, or a new page and so a new system. MusicXML's `new-system` and `new-page` sit on the bar that starts the line, so import and export map it directly. The page break is there for that reason, and a layout without pages treats it as a system break. A break on the first bar changes nothing.
+- **Each signature has one display.** `SignatureDisplay.auto` prints it where it changes, with a courtesy signature at the end of the system before when the change starts a system. `restated` prints it even where it hasn't changed. `noCourtesy` prints it where it changes, without the courtesy. Restating and turning off the courtesy never apply to the same bar, since one needs the signature unchanged and the other changed, so one value holds both.
+- **The display stays with the bar when keys or meters change around it.** A courtesy turned off applies again whenever that bar changes key, and a display that doesn't apply to its bar prints nothing.
+- **The view resolves what prints.** `meterChanged` and `keyChanged` now mean only that the value differs from the previous bar's. `printsMeter` and `printsKey` add a restatement, and layout still prints the key at the start of every system. `meterCourtesy` and `keyCourtesy` hold on a change after the first bar that doesn't turn it off. A restated signature is printed, so its bar never folds into a multi-measure rest, and a run of rests ends before a break.
+- **A break changes line breaking.** `changesSince` sets `reflow` when a surviving bar's `breakBefore` changes, so layout runs line breaking again. A display change relays out the bar like any other column change.
+- **Re-barring keeps a break or display where its bar's start is still a barline.** Halving the meter keeps every one of them, and 4/4 to 3/4 keeps one at beat 12 and drops those at beats 4 and 8. Keeping bars and a meter of the same length keep them all. Bars inserted carry none, and a deleted bar's go with it.
+
 ### Scope: a general library
 
 Accepted by the project owner on 2026-09-30. `simple_sheet_music` is an open-source library, so the model stays general. The Khuur composer is its first consumer, and its designs are direction for that app, not requirements for the library.
@@ -484,7 +497,7 @@ Each question is filed under the point it must be answered by. An answer that ch
 
 ## Next implementation step
 
-Units 1 to 18 (note entry, tap to enter, chords, cursor moves, the measure view, change tracking, the point edits, the bar edits, meter changes, key, clef and tempo, the marks, batches, values and tuplets, erase, copy and paste, transpose, the part edits, playback, drum notes and gradual tempo) are done. The model now answers everything layout reads, so the Flutter layout engine can start against `measureView` and `changesSince`. Every edit in `apply.dart` is implemented. The `changesSince` sweep drives note entry, voltas, keys, clefs, spanners, inserted and deleted bars, bar lengths, meters, range erases, pastes, range transposes, and adding, removing, hiding and showing parts. Playback is done. It covers the play order, timing, notes, ties, channels, dynamics, hairpins, articulations, fermatas, grace notes, ornaments, tremolos, trill lines and tempo lines. 2 stubs each remain in `io/json.dart` and `io/musicxml.dart`. The owner's answers of 2026-10-01 set the order. System breaks and restated signatures change stored types, so they come next. The JSON codec follows, then MusicXML.
+Units 1 to 19 (note entry, tap to enter, chords, cursor moves, the measure view, change tracking, the point edits, the bar edits, meter changes, key, clef and tempo, the marks, batches, values and tuplets, erase, copy and paste, transpose, the part edits, playback, drum notes, gradual tempo, and breaks and signature display) are done. The model now answers everything layout reads, so the Flutter layout engine can start against `measureView` and `changesSince`. Every edit in `apply.dart` is implemented. The `changesSince` sweep drives note entry, voltas, keys, clefs, spanners, inserted and deleted bars, bar lengths, meters, range erases, pastes, range transposes, breaks, signature displays, and adding, removing, hiding and showing parts. Playback is done. It covers the play order, timing, notes, ties, channels, dynamics, hairpins, articulations, fermatas, grace notes, ornaments, tremolos, trill lines and tempo lines. 2 stubs each remain in `io/json.dart` and `io/musicxml.dart`. The owner's answers of 2026-10-01 set the order, and every stored type they changed is in. The JSON codec comes next, then MusicXML.
 
 ## Access pattern traces
 
@@ -498,7 +511,7 @@ Units 1 to 18 (note entry, tap to enter, chords, cursor moves, the measure view,
 
 **5. Lay out one measure.** `score.measureView(id)` returns the following.
 - `column` gives meter, key, barline, repeats, volta, navigation and tempo, read directly.
-- `meterChanged` and `keyChanged` come from comparing with the previous column, along with `previousKey` for cancellation naturals.
+- `meterChanged` and `keyChanged` come from comparing with the previous column, along with `previousKey` for cancellation naturals. `printsMeter` and `printsKey` add the bar's restated signatures, and `meterCourtesy` and `keyCourtesy` say whether a change that starts a system gets a courtesy signature.
 - Each visible staff gets a `StaffView` with the stored `clef`, `clefChanged`, `writtenKey` and its `VoiceView`s. Each `VoiceView` has `events` (a `TimedEvent` with a `Moment` onset and a `Length` duration, computed by walking items with tuplet scaling), `beams` (from `Meter.beamBreaks` plus each event's `BeamMode`) and `tuplets`.
 - `accidentals` are resolved per staff across voices. Tie arrivals come from the previous bar's `Note.tie` flags.
 - `ties` and `tiedIn` include ties that cross the barline.
@@ -580,4 +593,6 @@ Units 1 to 18 (note entry, tap to enter, chords, cursor moves, the measure view,
   - Twenty-five mutations were each caught. The first run caught 23. Both survivors were in the split that keeps a drum, which the barline test could not see because it entered a snare, the drum the mutation substituted, and made no middle piece. The test now enters a bass drum off the beat. Planning the mutations found `_addToChord` checking the tone that every branch's new head already checks, and that check was deleted.
 - Unit 18 adds 9 tests to `playback_test.dart`, for 472 in all, and all pass. They cover a rit. and an accel. reaching their factor at the end of their last event and holding it, a line ending mid-bar after crossing a barline, a tempo mark at a line's end and one inside it as the arrival, a later line taking over, a line on a muted part's second staff playing for every part, a fermata under a line, a reused compiler hearing a new line, and the positive factor. The first six failed with every bar at a steady 4 seconds, as `Actual: [(0.0, 4.0), (4.0, 8.0)]`. The fermata test then found the clock adding each step's seconds twice, with `[0.0, 1.068, 4.603, 6.061]`. The full run found steady time drifting in floating point, which `_Steady` fixed.
   - Twenty-two of 23 mutations were caught. The first run caught 17, and two of its mutations matched no code and were rewritten. The survivor stops scanning for tempo turns at a piece that starts at the bar's end rather than after it, and such a piece has no turn inside the bar. No test ended a ramp mid-bar, or ended one mid-bar after crossing a barline, or put a tempo mark exactly at a line's end, and two tests now do.
+- Unit 19 adds 10 tests in `breaks_test.dart`, for 482 in all, and all pass. They cover setting and clearing a break and both displays on one bar with undo, no change when set again, stale bars, the undo labels, what prints where a signature changes or is restated, courtesies on and off for each signature with none on the first bar or an unchanged one, multi-measure rests, `reflow` for a new or changed break and not for a display, breaks and displays staying on their bars through inserts and deletes, and re-barring to half the length, to 3/4, keeping bars and a meter of the same length. The `changesSince` sweep now sets random breaks and displays and expects `reflow` when a break changes. Every behaviour test failed first with the `UnimplementedError` of the edits or view getters. Two fixtures were wrong. One set a meter with `copyWith`, which left a measure rest the wrong length, and now runs `SetMeter`. The other re-barred empty bars, which never grow, and now re-bars quarter notes.
+  - Twenty-seven mutations were each caught. The first run caught 25, and one of its mutations matched no code and was rewritten. The survivor turned off no meter courtesy, because no test had a meter change with its courtesy off, so the courtesy test now has one.
 - Synthesis review caught two pseudocode bugs, which are fixed. `changesSince` marked a bar dirty whenever its predecessor was marked, which would have cascaded one edit to the last bar. It now tests the set of identity-changed columns, a rule unit 4 replaced with neighbour identity. The `keepBars` branch used the scope's end before computing it.

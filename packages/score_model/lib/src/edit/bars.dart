@@ -68,6 +68,30 @@ _Result _bars(Score score, Edit edit, _Ids ids) {
             ? c
             : c.copyWith(rehearsal: () => rehearsal),
       );
+    case SetBreak(:final measure, :final layoutBreak):
+      return _changeBars(
+        score,
+        measure,
+        measure,
+        (c) => c.breakBefore == layoutBreak
+            ? c
+            : c.copyWith(breakBefore: () => layoutBreak),
+      );
+    case SetKeyDisplay(:final measure, :final display):
+      return _changeBars(
+        score,
+        measure,
+        measure,
+        (c) => c.keyDisplay == display ? c : c.copyWith(keyDisplay: display),
+      );
+    case SetMeterDisplay(:final measure, :final display):
+      return _changeBars(
+        score,
+        measure,
+        measure,
+        (c) =>
+            c.meterDisplay == display ? c : c.copyWith(meterDisplay: display),
+      );
     default:
       throw StateError('not a bar edit: $edit');
   }

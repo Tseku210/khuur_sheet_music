@@ -54,6 +54,10 @@ bool drawsDifferently(Score before, Score after, MeasureId id) {
 String _describe(MeasureView view) => [
   view.meterChanged,
   view.keyChanged,
+  view.printsMeter,
+  view.printsKey,
+  view.meterCourtesy,
+  view.keyCourtesy,
   _key(view.previousKey),
   view.voltaStarts,
   view.voltaEnds,
@@ -90,6 +94,10 @@ String _describe(MeasureView view) => [
 (int, KeyMode)? _key(KeySignature? key) =>
     key == null ? null : (key.fifths, key.mode);
 
+String breaks(Score score) => [
+  for (final column in score.measures) column.breakBefore,
+].join(',');
+
 T pick<T>(Random random, List<T> options) =>
     options[random.nextInt(options.length)];
 
@@ -101,12 +109,12 @@ Score edited(Score score, Edit edit) =>
 
 /// One random edit of the kinds a composer makes: note entry (the common
 /// case), voltas, keys, clefs, spanners, inserted and deleted bars, bar
-/// lengths, meters, erased, pasted and transposed ranges, and adding,
-/// removing, hiding and showing parts.
+/// lengths, meters, erased, pasted and transposed ranges, breaks, signature
+/// displays, and adding, removing, hiding and showing parts.
 Score randomEdit(Score score, Random random) {
   final bar = random.nextInt(score.measures.length);
   final id = score.measures[bar].id;
-  switch (random.nextInt(14)) {
+  switch (random.nextInt(15)) {
     case 0 || 1 || 2:
       return edited(
         score,
@@ -268,6 +276,12 @@ Score randomEdit(Score score, Random random) {
           ]),
         ),
       );
+    case 13:
+      return edited(score, switch (random.nextInt(3)) {
+        0 => SetBreak(id, pick(random, [null, ...LayoutBreak.values])),
+        1 => SetKeyDisplay(id, pick(random, SignatureDisplay.values)),
+        _ => SetMeterDisplay(id, pick(random, SignatureDisplay.values)),
+      });
     default:
       final part = score.parts[random.nextInt(score.parts.length)];
       return edited(score, switch (random.nextInt(3)) {
@@ -440,7 +454,8 @@ void main() {
           expect(
             changes.reflow,
             !identical(before.parts, score.parts) ||
-                beforeIds.join(',') != afterIds.join(','),
+                beforeIds.join(',') != afterIds.join(',') ||
+                breaks(before) != breaks(score),
             reason: where,
           );
           for (final id in afterIds) {

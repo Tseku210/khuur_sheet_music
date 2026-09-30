@@ -336,6 +336,9 @@ final class Score {
         return everything;
       }
       lastSurvivor = j;
+      if (column.breakBefore != previous.measures[j].breakBefore) {
+        reflow = true;
+      }
       if (!identical(column, previous.measures[j]) ||
           !identical(_columnAt(i - 1), previous._columnAt(j - 1)) ||
           !identical(_columnAt(i + 1), previous._columnAt(j + 1))) {

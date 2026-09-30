@@ -34,10 +34,10 @@ final class MeasureView {
   /// Zero-based position in the score.
   final int index;
 
-  /// Print a time signature at the start of this bar.
+  /// The meter differs from the previous bar's, or this is the first bar.
   final bool meterChanged;
 
-  /// Print a key signature at the start of this bar.
+  /// The key differs from the previous bar's, or this is the first bar.
   final bool keyChanged;
 
   /// The key being cancelled, for naturals on a key change. Null at the
@@ -53,15 +53,41 @@ final class MeasureView {
   /// Pieces of spanners that touch this bar.
   final List<SpannerSegment> spanners;
 
+  /// Print a time signature at the start of this bar, because the meter
+  /// changes here or the bar restates it.
+  bool get printsMeter =>
+      meterChanged || column.meterDisplay == SignatureDisplay.restated;
+
+  /// Print a key signature at the start of this bar, because the key
+  /// changes here or the bar restates it. Layout also prints one at the
+  /// start of every system.
+  bool get printsKey =>
+      keyChanged || column.keyDisplay == SignatureDisplay.restated;
+
+  /// When this bar starts a system, print a courtesy time signature at the
+  /// end of the system before.
+  bool get meterCourtesy =>
+      index > 0 &&
+      meterChanged &&
+      column.meterDisplay != SignatureDisplay.noCourtesy;
+
+  /// When this bar starts a system, print a courtesy key signature at the
+  /// end of the system before.
+  bool get keyCourtesy =>
+      index > 0 &&
+      keyChanged &&
+      column.keyDisplay != SignatureDisplay.noCourtesy;
+
   /// Layout may fold a run of these bars into a multi-measure rest. Every
   /// voice of every visible staff is a single [MeasureRest], and nothing is
   /// printed in or around the bar: no spanner, direction, clef, key or meter
   /// change, tempo, rehearsal mark, repeat, volta, navigation mark or
   /// special barline. Conservative: a mark that would not actually break the
-  /// rest still does.
+  /// rest still does. A run also ends before a bar with a
+  /// [MeasureColumn.breakBefore].
   bool get isRestOnly =>
-      !meterChanged &&
-      !keyChanged &&
+      !printsMeter &&
+      !printsKey &&
       spanners.isEmpty &&
       column.irregularLength == null &&
       column.barline == Barline.regular &&
@@ -284,9 +310,10 @@ final class ScoreChanges {
   /// Measures that no longer exist.
   final Set<MeasureId> removed;
 
-  /// The sequence of measures changed (insert, delete, re-bar) or the parts
-  /// changed. Line breaking must run again over cached measure widths, and
-  /// bar numbers may have moved.
+  /// The sequence of measures changed (insert, delete, re-bar), the parts
+  /// changed or a bar's [MeasureColumn.breakBefore] changed. Line breaking
+  /// must run again over cached measure widths, and bar numbers may have
+  /// moved.
   final bool reflow;
 
   bool get isEmpty => relayout.isEmpty && removed.isEmpty && !reflow;

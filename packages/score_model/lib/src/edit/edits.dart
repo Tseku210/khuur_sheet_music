@@ -593,6 +593,44 @@ final class SetBarLength extends Edit {
   String get label => 'Pickup measure';
 }
 
+/// Makes [measure] start a new system or page, or lets layout choose
+/// (null). Idempotent.
+final class SetBreak extends Edit {
+  const SetBreak(this.measure, this.layoutBreak);
+
+  final MeasureId measure;
+  final LayoutBreak? layoutBreak;
+
+  @override
+  String get label =>
+      layoutBreak == LayoutBreak.page ? 'Page break' : 'System break';
+}
+
+/// Sets how [measure] prints its key signature. The display stays with the
+/// bar when keys change around it, so a courtesy turned off applies again
+/// whenever the key changes there. Idempotent.
+final class SetKeyDisplay extends Edit {
+  const SetKeyDisplay(this.measure, this.display);
+
+  final MeasureId measure;
+  final SignatureDisplay display;
+
+  @override
+  String get label => 'Key signature display';
+}
+
+/// Sets how [measure] prints its time signature, as [SetKeyDisplay] does
+/// for the key. Idempotent.
+final class SetMeterDisplay extends Edit {
+  const SetMeterDisplay(this.measure, this.display);
+
+  final MeasureId measure;
+  final SignatureDisplay display;
+
+  @override
+  String get label => 'Time signature display';
+}
+
 // --- Clipboard and bulk -----------------------------------------------------
 
 /// Replaces the music from [at] for the clip's length with [clip], on the
