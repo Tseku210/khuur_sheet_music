@@ -494,7 +494,9 @@ enum Dynamic {
 
   Dynamic(this.velocity);
 
-  /// Default MIDI velocity. Accents (sf, sfz, fp, rfz) affect one event;
-  /// the others set the level until the next dynamic.
+  /// Default MIDI velocity. sf, sfz and rfz strike the chords at their time
+  /// and leave the level alone, fp strikes them and then sets p, and the
+  /// others set the level until the next dynamic. A dynamic on any staff of
+  /// a part applies to the whole part.
   final int velocity;
 }

@@ -102,6 +102,69 @@ ChordEvent drum(int id, String position, [NoteHead head = NoteHead.normal]) =>
       ]),
     );
 
+/// A score of [bars] bars of four C4 quarters on the first staff, with ids
+/// 10 × bar + beat, both 1-based.
+Score beats(int bars, {List<PartTemplate> parts = const [morinKhuur]}) {
+  var score = blankScore(parts: parts, bars: bars);
+  for (var i = 0; i < bars; i++) {
+    score = fill(score, i, [
+      for (var beat = 1; beat <= 4; beat++) quarters(10 * (i + 1) + beat, 'C4'),
+    ]);
+  }
+  return score;
+}
+
+/// [score] with [marks] as the dynamics of one staff in bar [bar], counted
+/// from 0.
+Score withDynamics(
+  Score score,
+  int bar,
+  Map<Moment, Dynamic> marks, {
+  int staff = 0,
+}) => changeBar(
+  score,
+  bar,
+  (column) => column.withStaff(
+    column.staves[staff].copyWith(
+      directions: Seq([
+        for (final MapEntry(key: offset, value: level) in marks.entries)
+          DynamicMark(offset, level),
+      ]),
+    ),
+  ),
+);
+
+Score withHairpin(
+  Score score,
+  ScorePoint first,
+  ScorePoint last, {
+  bool crescendo = true,
+}) => score.copyWith(
+  spanners: Seq([
+    ...score.spanners,
+    Spanner(
+      id: SpannerId(800 + score.spanners.length),
+      kind: Hairpin(crescendo: crescendo),
+      staff: score.staves.first.id,
+      first: first,
+      last: last,
+    ),
+  ]),
+);
+
+List<int> velocities(PlaybackScript script) => [
+  for (final note in script.notesBetween(0, double.infinity)) note.velocity,
+];
+
+/// Each source event id with the velocity it strikes at.
+Map<int, int> loudness(PlaybackScript script) => {
+  for (final note in script.notesBetween(0, double.infinity))
+    note.source.id.value: note.velocity,
+};
+
+ChordEvent withMarks(ChordEvent chord, Set<Articulation> marks) =>
+    chord.copyWith(articulations: marks);
+
 const kit = PartTemplate(
   name: 'Kit',
   instrument: Instrument(
@@ -664,6 +727,248 @@ void main() {
       expect(sources(script, 2.4), [6]);
       expect(sources(script, 4.8), isEmpty);
       expect(sources(compiled(score), 0.3), [1, 5]);
+    });
+  });
+
+  group('expression', () {
+    test("a dynamic sets its part's level from its time to the next", () {
+      var score = beats(2, parts: const [piano, clarinet]);
+      score = fill(score, 0, [wholes(31, 'C3')], staff: 1);
+      score = fill(score, 1, [wholes(32, 'C3')], staff: 1);
+      score = fill(score, 0, [wholes(41, 'D4')], staff: 2);
+      score = fill(score, 1, [wholes(42, 'D4')], staff: 2);
+      score = withDynamics(score, 0, {at(1, 2): Dynamic.p});
+      score = withDynamics(score, 1, {at(3, 4): Dynamic.pp});
+      score = withDynamics(score, 1, {at(1, 4): Dynamic.ff}, staff: 1);
+
+      expect(loudness(compiled(score)), {
+        11: 64,
+        31: 64,
+        41: 64,
+        12: 64,
+        13: 42,
+        14: 42,
+        21: 42,
+        32: 42,
+        42: 64,
+        22: 96,
+        23: 96,
+        24: 31,
+      });
+    });
+
+    test('a bar starts at the level written before it, not played', () {
+      var score = changeBar(beats(2), 1, repeatEnd());
+      score = withDynamics(score, 1, {Moment.zero: Dynamic.ff});
+
+      expect(velocities(compiled(score)), [
+        ...[64, 64, 64, 64, 96, 96, 96, 96],
+        ...[64, 64, 64, 64, 96, 96, 96, 96],
+      ]);
+    });
+
+    test('sf, sfz and rfz strike one chord, and fp strikes f and leaves p', () {
+      var score = beats(2);
+      score = withDynamics(score, 0, {
+        Moment.zero: Dynamic.sfz,
+        at(1, 2): Dynamic.fp,
+      });
+      score = withDynamics(score, 1, {
+        Moment.zero: Dynamic.sf,
+        at(1, 2): Dynamic.rfz,
+      });
+
+      expect(velocities(compiled(score)), [110, 64, 80, 42, 100, 42, 100, 42]);
+    });
+
+    test('a hairpin ramps from its start to the dynamic after it', () {
+      var score = beats(2);
+      score = withDynamics(score, 0, {Moment.zero: Dynamic.p});
+      score = withDynamics(score, 1, {Moment.zero: Dynamic.f});
+      score = withHairpin(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(3, 4)),
+      );
+
+      expect(velocities(compiled(score)), [42, 52, 61, 71, 80, 80, 80, 80]);
+    });
+
+    test('a hairpin reaches a dynamic on its last chord', () {
+      var score = beats(2);
+      score = withDynamics(score, 0, {
+        Moment.zero: Dynamic.p,
+        at(3, 4): Dynamic.f,
+      });
+      score = withHairpin(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(3, 4)),
+      );
+
+      expect(velocities(compiled(score)), [42, 55, 67, 80, 80, 80, 80, 80]);
+    });
+
+    test('a hairpin with no dynamic at its end moves one level', () {
+      var score = withDynamics(beats(3), 2, {at(1, 2): Dynamic.ff});
+      score = withHairpin(
+        score,
+        pointAt(score, 1, Moment.zero),
+        pointAt(score, 1, Moment.zero),
+      );
+      score = withHairpin(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(3, 4)),
+        crescendo: false,
+      );
+
+      expect(velocities(compiled(score)), [
+        ...[64, 61, 59, 56],
+        ...[53, 64, 64, 64],
+        ...[64, 64, 96, 96],
+      ]);
+    });
+
+    test('a hairpin stays within pppp and ffff', () {
+      var score = withDynamics(beats(2), 0, {Moment.zero: Dynamic.ffff});
+      score = withDynamics(score, 1, {Moment.zero: Dynamic.pppp});
+      score = withHairpin(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, Moment.zero),
+      );
+      score = withHairpin(
+        score,
+        pointAt(score, 1, Moment.zero),
+        pointAt(score, 1, Moment.zero),
+        crescendo: false,
+      );
+
+      expect(velocities(compiled(score)), [127, 127, 127, 127, 12, 12, 12, 12]);
+    });
+
+    test('the later of two overlapping hairpins wins', () {
+      var score = beats(2);
+      score = withHairpin(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 1, at(3, 4)),
+      );
+      score = withHairpin(
+        score,
+        pointAt(score, 1, Moment.zero),
+        pointAt(score, 1, at(3, 4)),
+        crescendo: false,
+      );
+
+      expect(velocities(compiled(score)), [64, 66, 68, 70, 64, 61, 59, 56]);
+    });
+
+    test('a compiler plays a hairpin added since its last compile', () {
+      final compiler = PlaybackCompiler();
+      var score = beats(1, parts: const [morinKhuur, clarinet]);
+      score = fill(score, 0, [
+        rest(4, NoteValue.quarter),
+        halves(5, 'D4'),
+        rest(6, NoteValue.quarter),
+      ], staff: 1);
+      compiler.compile(score);
+      score = withHairpin(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(3, 4)),
+      );
+
+      expect(loudness(compiler.compile(score)), {
+        11: 64,
+        12: 68,
+        5: 64,
+        13: 72,
+        14: 76,
+      });
+    });
+
+    test('accent and marcato strike harder, up to 127', () {
+      var score = blankScore();
+      score = fill(score, 0, [
+        withMarks(quarters(1, 'C4'), {Articulation.accent}),
+        withMarks(quarters(2, 'C4'), {Articulation.marcato}),
+        quarters(3, 'C4'),
+        withMarks(quarters(4, 'C4'), {
+          Articulation.accent,
+          Articulation.marcato,
+        }),
+      ]);
+      score = fill(score, 1, [
+        withMarks(quarters(5, 'C4'), {Articulation.accent}),
+        withMarks(quarters(6, 'C4'), {Articulation.marcato}),
+        rest(7, NoteValue.half),
+      ]);
+      score = withDynamics(score, 1, {Moment.zero: Dynamic.ff});
+
+      expect(velocities(compiled(score)), [80, 96, 64, 120, 120, 127]);
+    });
+
+    test('articulations set how long the last note of a chain sounds', () {
+      var score = blankScore();
+      score = fill(score, 0, [
+        withMarks(quarters(1, 'C4'), {Articulation.staccato}),
+        withMarks(quarters(2, 'D4'), {Articulation.staccatissimo}),
+        withMarks(quarters(3, 'E4'), {Articulation.tenuto}),
+        withMarks(quarters(4, 'F4'), {
+          Articulation.staccato,
+          Articulation.tenuto,
+        }),
+      ]);
+      score = fill(score, 1, [
+        withMarks(halves(5, 'G4', tie: true), {Articulation.tenuto}),
+        withMarks(quarters(6, 'G4'), {
+          Articulation.staccato,
+          Articulation.accent,
+        }),
+        quarters(7, 'A4'),
+      ]);
+      final script = compiled(score);
+
+      expect(notes(script), [
+        (0.0, 0.3, 60, 0, 1),
+        (0.6, 0.15, 62, 0, 2),
+        (1.2, 0.6, 64, 0, 3),
+        (1.8, 0.45, 65, 0, 4),
+        (2.4, 1.5, 67, 0, 5),
+        (4.2, 0.54, 69, 0, 7),
+      ]);
+      expect(loudness(script)[5], 64);
+    });
+
+    test('a fermata holds its event twice as long in every part', () {
+      var score = blankScore(parts: const [morinKhuur, clarinet]);
+      score = fill(score, 0, [
+        withMarks(quarters(1, 'C4'), {Articulation.fermata}),
+        quarters(2, 'D4'),
+        halves(3, 'E4'),
+      ]);
+      score = fill(score, 0, [halves(4, 'C4'), halves(5, 'D4')], staff: 1);
+      score = fill(score, 1, [
+        const RestEvent(
+          id: EventId(6),
+          value: NoteValue.whole,
+          articulations: {Articulation.fermata},
+        ),
+      ]);
+      final muted = PlaybackOptions(muted: {score.parts.first.id});
+
+      expect(timings(score), [(0.0, 3.0), (3.0, 7.8)]);
+      expect(timings(score, muted), [(0.0, 3.0), (3.0, 7.8)]);
+      expect(notes(compiled(score)), [
+        (0.0, 1.08, 60, 0, 1),
+        (0.0, 1.62, 60, 1, 4),
+        (1.2, 0.54, 62, 0, 2),
+        (1.8, 1.08, 64, 0, 3),
+        (1.8, 1.08, 62, 1, 5),
+      ]);
+      expect(sources(compiled(score), 1), [1, 4]);
     });
   });
 
