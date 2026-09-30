@@ -1,79 +1,37 @@
 part of 'session.dart';
 
-/// Music to write into a lane, before it is cut to bars.
-sealed class _Piece {
-  const _Piece();
-}
-
-/// A chord of [pitches], lowest first, or a rest when [pitches] is empty.
-final class _Entry extends _Piece {
-  const _Entry(this.pitches, this.value);
-
-  const _Entry.rest(this.value) : pitches = const [];
-
-  final List<Pitch> pitches;
-  final NoteValue value;
-
-  /// One event of [value] with fresh ids. [tied] ties every note into the
-  /// next event.
-  Event written(NoteValue value, _Ids ids, {required bool tied}) =>
-      pitches.isEmpty
-      ? RestEvent(id: ids.event(), value: value)
-      : ChordEvent(
-          id: ids.event(),
-          value: value,
-          notes: Seq([
-            for (final pitch in pitches)
-              Note(id: ids.note(), pitch: pitch, tie: tied),
-          ]),
-        );
-}
-
-/// A clip item, already re-minted. Used by `_paste`.
-final class _Copied extends _Piece {
-  const _Copied(this.item);
-
-  final Content item;
-}
-
 final class _LaneWrite {
-  const _LaneWrite(this.score, this.end, this.first);
+  const _LaneWrite(this.score, this.end, this.first, this.last);
 
   final Score score;
 
-  /// Where the written music ends, normalized to offset 0 of the next bar
-  /// when it ends on a barline.
+  /// Where the written music ends: offset 0 of the next bar when it ends on
+  /// a barline, or the end of the last bar when it ends the score.
   final VoicePoint end;
 
-  /// The first event written, for the selection.
-  final EventRef? first;
-
-  _Result asResult() => _Result(
-    score,
-    cursor: end,
-    selection: first == null ? null : Selection.event(first!),
-  );
+  /// The first and last events written.
+  final EventRef first;
+  final EventRef last;
 }
 
-/// Writes [pieces] into one voice lane from [at], overwriting whatever
+/// Writes [music] into one voice lane from [at], overwriting whatever
 /// sounded there. The single implementation of the overwrite and overfill
-/// policies: note entry, rest entry, lengthening, and paste all go through
-/// it, so they cannot disagree about barlines.
+/// policies: note, rest and tuplet entry, value changes and paste all go
+/// through it, so they cannot disagree about barlines.
 ///
-/// A piece that starts inside a tuplet is written in the innermost tuplet
+/// An item that starts inside a tuplet is written in the innermost tuplet
 /// that holds its start, at its value in that tuplet's time, and must end
-/// inside it. Otherwise a piece that fits in its bar is written as entered,
-/// and one that runs past the barline is split into tied values spelled by
-/// the meter of each bar it reaches.
+/// inside it. Otherwise a tuplet must fit in its bar, an event that fits is
+/// written as it is, and one that runs past the barline is split into tied
+/// values spelled by the meter of each bar it reaches (see [_piece]).
 ///
 /// Touches only the bars the written span covers (usually one, two when a
-/// note crosses the barline), the bar before when a tie into [at] is
-/// cleared, and bars appended at the end of the score. A write that ends
-/// at the end of the score appends one empty bar for the cursor.
+/// note crosses the barline) and bars appended for music that runs past
+/// the end of the score.
 _LaneWrite _overwrite(
   Score score,
   VoicePoint at,
-  List<_Piece> pieces,
+  List<Content> music,
   _Ids ids,
   Overfill overfill,
 ) {
@@ -82,8 +40,7 @@ _LaneWrite _overwrite(
     throw _Refuse(StaleReference(at));
   }
   final lane = _Lane(score, at.staff, at.voice, ids);
-  final start = score.indexOf(at.at.measure);
-  var i = start;
+  var i = score.indexOf(at.at.measure);
   var o = at.at.offset;
   if (o.isNegative || o >= lane.end(i)) {
     throw _Refuse(OutsideMeasure(at.at));
@@ -99,84 +56,165 @@ _LaneWrite _overwrite(
   }
 
   EventRef? first;
-  for (final piece in pieces) {
-    final entry = switch (piece) {
-      _Entry() => piece,
-      // TODO(paste): write the copied item; a copied tuplet never splits.
-      _Copied() => throw UnimplementedError(),
+  EventRef? last;
+  void placed(Iterable<Content> parts) {
+    final written = {
+      for (final part in parts)
+        for (final event in _eventsIn(part)) event.id,
     };
+    final timed = lane.events(i).where((e) => written.contains(e.event.id));
+    first ??= timed.first.ref;
+    last = timed.last.ref;
+    o = timed.last.onset + timed.last.duration;
+  }
+
+  void write(List<Content> parts, Length span) {
+    lane.write(
+      i,
+      _replaceSpan(
+        lane.items(i),
+        o,
+        span,
+        parts,
+        BeatGrid.meter(lane.columns[i].meter),
+        ids,
+        gaps: at.voice != VoiceSlot.one,
+      ),
+    );
+    placed(parts);
+  }
+
+  for (final item in music) {
+    crossBarline();
+    final column = lane.columns[i];
     final items = lane.items(i);
-    final inside = _tupletAt(items, o);
-    if (inside != null) {
-      final column = lane.columns[i];
-      final event = entry.written(entry.value, ids, tied: false);
+    if (_tupletAt(items, o) case final inside?) {
       lane.write(
         i,
         items.replaceAt(
           inside.index,
-          _writeInTuplet(inside.tuplet, inside.at, event, ids, column.id),
+          _writeInTuplet(inside.tuplet, inside.at, item, ids, column.id),
         ),
       );
-      final timed = lane.events(i).firstWhere((e) => e.event.id == event.id);
-      first ??= timed.ref;
-      o = timed.onset + timed.duration;
-      crossBarline();
-    } else {
-      var remaining = entry.value.length;
-      while (remaining.isPositive) {
-        final column = lane.columns[i];
-        final room = o.until(lane.end(i));
-        if (remaining > room && overfill == Overfill.refuse) {
-          throw _Refuse(WouldCrossBarline(column.id, remaining - room));
-        }
-        final take = remaining < room ? remaining : room;
-        remaining -= take;
-        final values = take == entry.value.length
-            ? [entry.value]
-            : column.meter.spell(o, take, rest: entry.pitches.isEmpty);
-        final parts = [
-          for (final (k, value) in values.indexed)
-            entry.written(
-              value,
-              ids,
-              tied: remaining.isPositive || k < values.length - 1,
-            ),
-        ];
-        lane.write(
-          i,
-          _replaceSpan(
-            lane.items(i),
-            o,
-            take,
-            parts,
-            BeatGrid.meter(column.meter),
-            ids,
-            gaps: at.voice != VoiceSlot.one,
-          ),
-        );
-        first ??= EventRef(
-          measure: column.id,
-          staff: at.staff,
-          id: parts[0].id,
-        );
-        o += take;
-        crossBarline();
-      }
+      placed([item]);
+      continue;
     }
-  }
-  if (pieces case [_Entry(:final pitches), ...]) {
-    lane.untieInto(start, at.at.offset, pitches.toSet());
+    switch (item) {
+      case Tuplet(:final id, :final span):
+        if (o + span > lane.end(i)) {
+          throw _Refuse(WouldSplitTuplet(id, column.id));
+        }
+        write([item], span);
+      case Event():
+        final value = switch (item) {
+          ChordEvent(:final value) || RestEvent(:final value) => value,
+          MeasureRest() => throw StateError('a measure rest is never written'),
+        };
+        var remaining = item.span;
+        var opens = true;
+        while (remaining.isPositive) {
+          crossBarline();
+          final room = o.until(lane.end(i));
+          if (remaining > room && overfill == Overfill.refuse) {
+            throw _Refuse(
+              WouldCrossBarline(lane.columns[i].id, remaining - room),
+            );
+          }
+          final take = remaining < room ? remaining : room;
+          remaining -= take;
+          final values = take == item.span
+              ? [value]
+              : lane.columns[i].meter.spell(
+                  o,
+                  take,
+                  rest: item is! ChordEvent,
+                );
+          write([
+            for (final (k, v) in values.indexed)
+              _piece(
+                item,
+                v,
+                ids,
+                first: opens && k == 0,
+                tied: remaining.isPositive || k < values.length - 1,
+              ),
+          ], take);
+          opens = false;
+        }
+    }
   }
   return _LaneWrite(
     score.copyWith(measures: Seq(lane.columns)),
     VoicePoint(
       staff: at.staff,
       voice: at.voice,
-      at: ScorePoint(lane.columns[i].id, o),
+      at: o == lane.end(i) && i + 1 < lane.columns.length
+          ? ScorePoint(lane.columns[i + 1].id, Moment.zero)
+          : ScorePoint(lane.columns[i].id, o),
     ),
-    first,
+    first!,
+    last!,
   );
 }
+
+/// Enters [event] at [at] as new music. A tie into [at] keeps only the
+/// pitches [event] starts with, [event] is selected, and the cursor moves
+/// past it, into a new bar when it ends the score.
+_Result _enter(
+  Score score,
+  VoicePoint at,
+  Event event,
+  _Ids ids,
+  Overfill overfill,
+) {
+  final write = _overwrite(score, at, [event], ids, overfill);
+  var entered = _untieInto(write.score, at, _pitches(event), ids);
+  var end = write.end;
+  final bar = entered.column(end.at.measure);
+  if (end.at.offset == Moment.zero + bar.length) {
+    final added = _barAfter(bar, ids);
+    entered = entered.copyWith(measures: entered.measures.append(added));
+    end = VoicePoint(
+      staff: end.staff,
+      voice: end.voice,
+      at: ScorePoint(added.id, Moment.zero),
+    );
+  }
+  return _Result(entered, cursor: end, selection: Selection.event(write.first));
+}
+
+/// [score] with the tie into [at] cleared on every note whose pitch is not
+/// in [kept], for new music written at [at].
+Score _untieInto(Score score, VoicePoint at, Set<Pitch> kept, _Ids ids) {
+  final lane = _Lane(score, at.staff, at.voice, ids)
+    ..untieInto(score.indexOf(at.at.measure), at.at.offset, kept);
+  return score.copyWith(measures: Seq(lane.columns));
+}
+
+Set<Pitch> _pitches(Event event) => switch (event) {
+  ChordEvent(:final notes) => {for (final note in notes) note.pitch},
+  _ => const {},
+};
+
+Iterable<Event> _eventsIn(Content item) sync* {
+  switch (item) {
+    case Event():
+      yield item;
+    case Tuplet(:final members):
+      for (final member in members) {
+        yield* _eventsIn(member);
+      }
+  }
+}
+
+/// An empty bar after [last], with its meter, key and closing clefs.
+MeasureColumn _barAfter(MeasureColumn last, _Ids ids) => emptyBar(
+  id: ids.measure(),
+  meter: last.meter,
+  key: last.key,
+  clefs: [for (final s in last.staves) (s.staff, s.clefAtEnd)],
+  restId: ids.event,
+);
 
 /// The columns of a score while one voice lane of one staff is written.
 /// Columns the write does not reach stay the same objects.
@@ -212,19 +250,7 @@ final class _Lane {
     );
   }
 
-  /// Appends an empty bar with the last bar's meter, key and closing clefs.
-  void appendBar() {
-    final last = columns.last;
-    columns.add(
-      emptyBar(
-        id: ids.measure(),
-        meter: last.meter,
-        key: last.key,
-        clefs: [for (final s in last.staves) (s.staff, s.clefAtEnd)],
-        restId: ids.event,
-      ),
-    );
-  }
+  void appendBar() => columns.add(_barAfter(columns.last, ids));
 
   /// A tie from the event that ends at [offset] of bar [i] (or at the end
   /// of the bar before, for offset 0) now leads into new music. Clears it on
@@ -242,12 +268,7 @@ final class _Lane {
         !before.notes.any((n) => n.tie && !kept.contains(n.pitch))) {
       return;
     }
-    final untied = before.copyWith(
-      notes: Seq([
-        for (final note in before.notes)
-          kept.contains(note.pitch) ? note : note.copyWith(tie: false),
-      ]),
-    );
+    final untied = _untied(before, (note) => !kept.contains(note.pitch));
     write(bar, [
       for (final item in items(bar))
         item is Content ? _replaceEvent(item, untied) : item,
@@ -279,12 +300,12 @@ final class _Lane {
   return null;
 }
 
-/// Writes [event] at [at] (in [tuplet]'s written time) into the innermost
-/// tuplet that holds [at]. Refused when [event] would run past its end.
+/// Writes [item] at [at] (in [tuplet]'s written time) into the innermost
+/// tuplet that holds [at]. Refused when [item] would run past its end.
 Tuplet _writeInTuplet(
   Tuplet tuplet,
   Moment at,
-  Event event,
+  Content item,
   _Ids ids,
   MeasureId measure,
 ) {
@@ -294,19 +315,19 @@ Tuplet _writeInTuplet(
       tuplet,
       tuplet.members.replaceAt(
         nested.index,
-        _writeInTuplet(nested.tuplet, nested.at, event, ids, measure),
+        _writeInTuplet(nested.tuplet, nested.at, item, ids, measure),
       ),
     );
   }
   final written = tuplet.unit.length * Fraction(tuplet.ratio.actual);
-  if (at + event.span > Moment.zero + written) {
+  if (at + item.span > Moment.zero + written) {
     throw _Refuse(WouldSplitTuplet(tuplet.id, measure));
   }
   final items = _replaceSpan(
     tuplet.members,
     at,
-    event.span,
-    [event],
+    item.span,
+    [item],
     BeatGrid.single(written),
     ids,
     gaps: false,
@@ -405,49 +426,61 @@ List<VoiceItem> _head(
       return [Gap(span)];
     case Tuplet():
       return _rests(grid, start, span, ids);
-    case ChordEvent():
-      return _pieces(item, spellOnGrid(grid, start, span, rest: false), ids);
     case Event():
-      return _restPieces(item, spellOnGrid(grid, start, span, rest: true), ids);
+      return _split(
+        item,
+        spellOnGrid(grid, start, span, rest: item is! ChordEvent),
+        ids,
+      );
   }
 }
 
-/// [chord] written as tied [values]. The first piece keeps the chord's ids
-/// and marks, and the last keeps its ties.
-List<ChordEvent> _pieces(ChordEvent chord, List<NoteValue> values, _Ids ids) {
-  bool tied(Note note, int piece) => piece < values.length - 1 || note.tie;
-  return [
-    chord.copyWith(
-      value: values.first,
-      notes: Seq([for (final n in chord.notes) n.copyWith(tie: tied(n, 0))]),
-    ),
-    for (final (k, value) in values.indexed.skip(1))
-      ChordEvent(
-        id: ids.event(),
-        value: value,
-        notes: Seq([
-          for (final n in chord.notes)
-            Note(id: ids.note(), pitch: n.pitch, head: n.head, tie: tied(n, k)),
-        ]),
-      ),
-  ];
-}
+/// [event] written as tied [values]. The first piece keeps its ids and
+/// marks, and the last keeps its ties.
+List<Event> _split(Event event, List<NoteValue> values, _Ids ids) => [
+  for (final (k, value) in values.indexed)
+    _piece(event, value, ids, first: k == 0, tied: k < values.length - 1),
+];
 
-/// [rest] written as rests of [values]. The first keeps its id and marks,
-/// and every piece of a hidden rest stays hidden.
-List<RestEvent> _restPieces(Event rest, List<NoteValue> values, _Ids ids) {
-  final hidden = rest is RestEvent && rest.hidden;
-  return [
-    RestEvent(
-      id: rest.id,
-      value: values.first,
-      articulations: rest.articulations,
-      hidden: hidden,
-    ),
-    for (final value in values.skip(1))
-      RestEvent(id: ids.event(), value: value, hidden: hidden),
-  ];
-}
+/// One piece of [event], of [value]. The [first] piece keeps [event]'s ids
+/// and marks, and the others get fresh ids. A chord's notes are tied on when
+/// [tied], and otherwise keep their own ties. Every piece of a hidden rest
+/// stays hidden.
+Event _piece(
+  Event event,
+  NoteValue value,
+  _Ids ids, {
+  required bool first,
+  required bool tied,
+}) => switch (event) {
+  ChordEvent(:final notes) when first => event.copyWith(
+    value: value,
+    notes: Seq([for (final n in notes) n.copyWith(tie: tied || n.tie)]),
+  ),
+  ChordEvent(:final notes) => ChordEvent(
+    id: ids.event(),
+    value: value,
+    notes: Seq([
+      for (final n in notes)
+        Note(id: ids.note(), pitch: n.pitch, head: n.head, tie: tied || n.tie),
+    ]),
+  ),
+  _ => RestEvent(
+    id: first ? event.id : ids.event(),
+    value: value,
+    articulations: first ? event.articulations : const {},
+    hidden: event is RestEvent && event.hidden,
+  ),
+};
+
+/// [chord] with the ties of the notes that [clears] removed.
+ChordEvent _untied(ChordEvent chord, bool Function(Note note) clears) =>
+    chord.copyWith(
+      notes: Seq([
+        for (final note in chord.notes)
+          clears(note) ? note.copyWith(tie: false) : note,
+      ]),
+    );
 
 List<RestEvent> _rests(BeatGrid grid, Moment at, Length span, _Ids ids) => [
   for (final value in spellOnGrid(grid, at, span, rest: true))

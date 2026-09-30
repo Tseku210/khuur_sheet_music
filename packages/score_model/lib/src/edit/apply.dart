@@ -43,23 +43,24 @@ final class _Result {
 /// column list with one `Seq.replaceRange`. Untouched columns are shared.
 _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
   return switch (edit) {
-    EnterNote(:final at, :final pitch, :final value, :final overfill) =>
-      _overwrite(
-        score,
-        at,
-        [
-          _Entry([pitch], value),
-        ],
-        ids,
-        overfill,
-      ).asResult(),
-    EnterRest(:final at, :final value, :final overfill) => _overwrite(
+    EnterNote(:final at, :final pitch, :final value, :final overfill) => _enter(
       score,
       at,
-      [_Entry.rest(value)],
+      ChordEvent(
+        id: ids.event(),
+        value: value,
+        notes: Seq([Note(id: ids.note(), pitch: pitch)]),
+      ),
       ids,
       overfill,
-    ).asResult(),
+    ),
+    EnterRest(:final at, :final value, :final overfill) => _enter(
+      score,
+      at,
+      RestEvent(id: ids.event(), value: value),
+      ids,
+      overfill,
+    ),
     SetValue() || EnterTuplet() => _rhythm(score, edit, ids),
     AddToChord() ||
     RemoveNote() ||
@@ -252,6 +253,13 @@ TimedEvent _target(Score score, EventRef ref) =>
 _Head _targetHead(Score score, NoteRef ref) =>
     _headWhere(_target(score, ref.event), (note) => note.id == ref.note) ??
     (throw _Refuse(StaleReference(ref)));
+
+/// Whether [note]'s tie would end on another head, or on none where it
+/// ended on one, if the event after it were [after] instead of [before].
+bool _tieMoves(Note note, TimedEvent? before, TimedEvent? after) =>
+    note.tie &&
+    _headWhere(before, (n) => n.pitch == note.pitch)?.note.id !=
+        _headWhere(after, (n) => n.pitch == note.pitch)?.note.id;
 
 /// The head of [timed] that [matches], or null when [timed] is null, a
 /// rest, or has no such head.
@@ -549,13 +557,62 @@ _Result _addToChord(Score score, EventRef ref, Pitch pitch, _Ids ids) {
   }
 }
 
+/// Edits that rewrite a lane's rhythm through the lane writer.
 _Result _rhythm(Score score, Edit edit, _Ids ids) {
-  // TODO: SetValue shorter → replace the event with a shorter copy plus
-  // rests (Meter.spell) for the freed time. Longer → _overwrite from the
-  // event's onset with the event's content at the new value (keeps id).
-  // EnterTuplet → refuse WouldSplitTuplet if onset + span crosses the
-  // barline; otherwise _overwrite with a Tuplet of `ratio.actual` rests.
-  throw UnimplementedError();
+  switch (edit) {
+    case SetValue(:final event, :final value):
+      return _Result(_setValue(score, _target(score, event), value, ids));
+    case EnterTuplet(:final at, :final ratio, :final unit):
+      final tuplet = Tuplet(
+        id: ids.tuplet(),
+        ratio: ratio,
+        unit: unit,
+        members: Seq([
+          for (var k = 0; k < ratio.actual; k++)
+            RestEvent(id: ids.event(), value: unit),
+        ]),
+      );
+      final write = _overwrite(score, at, [tuplet], ids, Overfill.refuse);
+      return _Result(
+        _untieInto(write.score, at, const {}, ids),
+        cursor: at,
+        selection: Selection.event(write.first),
+      );
+    default:
+      throw StateError('not a rhythm edit: $edit');
+  }
+}
+
+/// [timed] rewritten at [value] from its onset. It keeps its ids, its marks
+/// and the ties into it. A tie out of it stays only while it ends on the
+/// head it ended on before, or on none.
+Score _setValue(Score score, TimedEvent timed, NoteValue value, _Ids ids) {
+  final unchanged = switch (timed.event) {
+    ChordEvent(value: final old) || RestEvent(value: final old) => old == value,
+    MeasureRest() => false,
+  };
+  if (unchanged) {
+    return score;
+  }
+  final write = _overwrite(
+    score,
+    VoicePoint(
+      staff: timed.ref.staff,
+      voice: timed.voice,
+      at: ScorePoint(timed.ref.measure, timed.onset),
+    ),
+    [_piece(timed.event, value, ids, first: true, tied: false)],
+    ids,
+    Overfill.splitAndTie,
+  );
+  final last = write.score.lookup(write.last)!;
+  final chord = last.event;
+  final before = _next(score, timed);
+  final after = _next(write.score, last);
+  bool moves(Note note) => _tieMoves(note, before, after);
+  return chord is ChordEvent && chord.notes.any(moves)
+      ? _replace(write.score, last, _untied(chord, moves))
+      : write.score;
 }
 
 _Result _erase(Score score, Selection selection) {
@@ -812,7 +869,9 @@ _Result _paste(
   // TODO: for each lane: target staff = staves[indexOf(at.staff) + lane.staff]
   // (skip if beyond bottom); re-mint every id inside lane.items (events,
   // notes, tuplets); _overwrite(score, VoicePoint(staff, lane.voice, at.at),
-  // pieces, ids, overfill), the same barline rule as note entry. Then
+  // items, ids, overfill), the same barline rule as note entry, then
+  // _untieInto with the pitches the lane starts with. Gaps in a lane need a
+  // rule of their own, since _overwrite writes only content. Then
   // directions and spanners, with offsets mapped through the same bar walk.
   // Selection = RangeSelection covering the pasted span.
   throw UnimplementedError();

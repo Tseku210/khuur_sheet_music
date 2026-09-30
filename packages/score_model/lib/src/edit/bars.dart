@@ -333,17 +333,9 @@ Score _untieAt(Score score, int index, Moment from, MeasureColumn? next) {
           continue;
         }
         final now = _next(score, timed);
-        bool moves(Note note) =>
-            note.tie &&
-            _headWhere(now, (n) => n.pitch == note.pitch)?.note.id !=
-                _headWhere(following, (n) => n.pitch == note.pitch)?.note.id;
+        bool moves(Note note) => _tieMoves(note, now, following);
         if (event.notes.any(moves)) {
-          final replacement = event.copyWith(
-            notes: Seq([
-              for (final note in event.notes)
-                moves(note) ? note.copyWith(tie: false) : note,
-            ]),
-          );
+          final replacement = _untied(event, moves);
           items = Seq([
             for (final item in items)
               item is Content ? _replaceEvent(item, replacement) : item,

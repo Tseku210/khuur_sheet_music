@@ -191,7 +191,7 @@ Implemented in Phase D, unit 1. The deviations below were accepted during implem
 - **Filling the last bar appends a bar.** A write that ends exactly at the end of the score appends one empty bar, so the cursor keeps its invariant of an offset strictly inside a bar.
 - **Cursor revalidation is simpler than "nearest".** `_revalidateCursor` keeps the cursor while its bar and staff exist. It moves the cursor to the bar start when the bar got too short, and to the first bar when the bar is gone. Finding the nearest surviving bar needs the previous score. Unit 6 resolved this when `DeleteMeasures` arrived.
 - **`StaleReference` names the edit's target.** Note entry at a missing measure or staff reports the `VoicePoint` it was given. The typed ids are extension types, which are not `Object`s, and the point is what the edit named.
-- **`_Piece` is sealed.** `_Entry` is a chord, or a rest when it has no pitches. `_Copied` is a clip item for paste and is not implemented yet. This replaces the nullable `value` and `copied` fields.
+- **`_Piece` is sealed.** `_Entry` is a chord, or a rest when it has no pitches. `_Copied` is a clip item for paste and is not implemented yet. This replaces the nullable `value` and `copied` fields. Unit 11 replaced `_Piece` with plain content.
 - **Spelling rules.** `Meter.spell` is greedy. It takes the longest plain or single-dotted value that fits the remaining span and satisfies one of these:
   - it stays inside one beat;
   - on a compound or additive meter, it starts and ends on beats;
@@ -284,7 +284,7 @@ Implemented in Phase D, unit 7. It covers `SetMeter` with both `MeterContent` po
 - **Spanner moving is one helper.** `_moveSpanners` now serves `DeleteMeasures`, `SetBarLength` and `SetMeter`. It drops a spanner that would no longer start before it ends, which includes one whose ends now cross, where unit 6 dropped only one that collapsed to a point.
 - **`keepBars` is the same engine.** Every bar is its own section that may not grow. A bar that still overflows after its trailing rests are dropped is refused with `WouldCrossBarline`. When a bar gets shorter, marks past its new end are dropped, so "anchors are untouched" holds only for a bar that grows.
 - **The tie rule follows unit 6.** A section that used to end on the next bar's music and now ends on rests, or the reverse, clears the ties of its last event that meet the next bar's opening chord. This includes the last note of a tuplet.
-- **Every piece of a split hidden rest stays hidden.** Mutation testing found that only the first piece kept `hidden`. The fix is in `_restPieces`, which note entry also uses when it cuts a rest.
+- **Every piece of a split hidden rest stays hidden.** Mutation testing found that only the first piece kept `hidden`. The fix was in `_restPieces`, which note entry also used when it cut a rest. Unit 11 folded it into `_piece`.
 
 ### Unit 8: key, clef and tempo
 
@@ -319,6 +319,21 @@ Implemented in Phase D, unit 10. It covers `Batch`. The deviations below have no
 - **An edit in a batch cannot name what an earlier one created.** Ids are minted while the batch runs, so a batch cannot insert a bar and then fill it. A batch groups edits whose targets exist before it runs. Paste and tuplet entry create and fill in one edit, so they do not need one.
 - **A batch that undoes itself still takes an undo step.** A no-op is detected by identity, so a batch that enters a note and then a rest over it leaves a new score object with the same content.
 
+### Unit 11: values and tuplets
+
+Implemented in Phase D, unit 11. It covers `SetValue` and `EnterTuplet` in `_rhythm`, and reshapes the lane writer they share with note entry. The deviations below have not yet been reviewed by the project owner.
+
+- **The lane writer takes plain content.** `_overwrite` writes a list of `Content`, so an event or a tuplet. The sketch's `_Piece`, `_Entry` and `_Copied` are gone. Note and rest entry build their event before writing it, a value change writes the event it changes, and paste will write its re-minted clip items.
+- **One rule splits an event.** `_piece` gives one piece of an event. The first piece keeps its ids and marks, the last keeps its ties, and every piece of a hidden rest stays hidden. Entry, value changes, the bar edits and re-barring all use it, and `_pieces` and `_restPieces` are gone.
+- **What only entry does left the lane writer.** Clearing a tie into the entry point and appending an empty bar for the cursor now happen in `_enter`, which note and rest entry call. `EnterTuplet` clears a tie into it too. `SetValue` does neither.
+- **`SetValue` keeps the ties into the event.** The music at its onset is the same event, so a tie into it, including a let-ring tie on a pitch it lacks, stays.
+- **A tie out of a changed value follows the bar-edit rule.** It stays while it ends on the head it ended on before, or on none, as in unit 6. Shortening a tied note clears its tie, because it now meets a rest. Lengthening clears a tie to the note it overwrites. A let-ring tie stays unless the note now meets its pitch. `_tieMoves` and `_untied` are shared with the bar edits.
+- **Freed time in voices two to four is a gap.** The edit's doc said rests. Note entry and `Erase` leave gaps there, so a shorter value does too. Inside a tuplet the freed time is rests, because a tuplet is always full.
+- **A measure rest takes the value.** `SetValue` on a measure rest makes a rest of that value with the same id, followed by rests.
+- **`SetValue` keeps the cursor and selection.** The sketch did not say. A selected event stays selected after it is split, because revalidation finds it by id.
+- **Only entry adds a bar for the cursor.** A value change or tuplet that ends the score adds no bar. Music that runs past the end still gets bars, as with entry.
+- **`EnterTuplet` leaves the cursor at its start and selects its first rest**, so the next notes fill it. A refusal names the new tuplet's id, which is never used because a refused edit keeps the id counter. Inside a tuplet it nests, and running past that tuplet's end names the outer tuplet.
+
 ### Scope: a general library
 
 Accepted by the project owner on 2026-09-30. `simple_sheet_music` is an open-source library, so the model stays general. The Khuur composer is its first consumer, and its designs are direction for that app, not requirements for the library.
@@ -330,7 +345,7 @@ Accepted by the project owner on 2026-09-30. `simple_sheet_music` is an open-sou
 
 ## Open questions and risks
 
-Each question is filed under the point it must be answered by. An answer that changes a stored type gets more expensive with every layer built on it, and once the save format is released it also means migrating other people's saved scores. An answer that changes one function's behaviour, or only adds a value, stays cheap. The deviations under units 1 to 10 that the project owner has not reviewed are behaviour too, so they can be reviewed any time before the release.
+Each question is filed under the point it must be answered by. An answer that changes a stored type gets more expensive with every layer built on it, and once the save format is released it also means migrating other people's saved scores. An answer that changes one function's behaviour, or only adds a value, stays cheap. The deviations under units 1 to 11 that the project owner has not reviewed are behaviour too, so they can be reviewed any time before the release.
 
 **Before the layout engine starts.** These decide how layout is built.
 
@@ -357,7 +372,7 @@ Each question is filed under the point it must be answered by. An answer that ch
 
 ## Next implementation step
 
-Units 1 to 10 (note entry, tap to enter, chords, cursor moves, the measure view, change tracking, the point edits, the bar edits, meter changes, key, clef and tempo, the marks, and batches) are done. The model now answers everything layout reads, so the Flutter layout engine can start against `measureView` and `changesSince`. On the model side the rest of `apply.dart` comes next: `SetValue` and `EnterTuplet`, `Erase`, copy and paste, `Transpose`, and the part edits. The `changesSince` sweep drives every edit that exists except `SetDirections` and `SetTempoMarks`, whose marks the measure view does not carry. It still hides parts by hand until the part edits land. Stubs left are 5 in `apply.dart`, 6 in `playback.dart`, 2 each in `json.dart` and `musicxml.dart`, and 1 each in `lane_writer.dart` and `session.dart`.
+Units 1 to 11 (note entry, tap to enter, chords, cursor moves, the measure view, change tracking, the point edits, the bar edits, meter changes, key, clef and tempo, the marks, batches, and values and tuplets) are done. The model now answers everything layout reads, so the Flutter layout engine can start against `measureView` and `changesSince`. On the model side the rest of `apply.dart` comes next: `Erase`, copy and paste, `Transpose`, and the part edits. The `changesSince` sweep drives every edit that exists except `SetDirections` and `SetTempoMarks`, whose marks the measure view does not carry. It still hides parts by hand until the part edits land. Stubs left are 4 in `apply.dart`, 6 in `playback.dart`, 2 each in `json.dart` and `musicxml.dart`, and 1 in `session.dart`.
 
 ## Access pattern traces
 
@@ -431,4 +446,6 @@ Units 1 to 10 (note entry, tap to enter, chords, cursor moves, the measure view,
   - Thirty-two mutations were each caught. The first run caught 31. The survivor removed the first spanner whatever the id, which passed because the test removed the first. The test now removes the middle one of three.
 - Unit 10 adds 6 tests in `batch_test.dart`, for 280 in all, and all pass. They cover each edit seeing the score the one before it left, one undo step under the batch's label, the score, cursor and selection matching the same edits run one by one with a `SetMeter` that moves the cursor, ids minted once across the batch and after it, a refusal of the whole batch, and no undo step for an empty or idempotent batch. Each failed with the stub's `UnimplementedError` before the fold existed.
   - Six mutations were each caught on the first run. They ran every edit on the first score, gave each edit the first cursor and selection, gave each edit a fresh id counter, skipped a refused edit, and dropped the final cursor, the final selection or both.
+- Unit 11 adds 28 tests in `rhythm_test.dart`, for 308 in all, and all pass. They cover shorter values in voice one, voice two and a tuplet, ids, marks and notes kept, a measure rest and a hidden rest, ties out cleared or kept both ways, ties into the event kept, longer values over what follows, across the barline for a note and a rest, past the end of the score and exactly to it, the tuplet refusal, cursor and selection kept, no-op values and a stale event. For tuplets they cover writing over notes, the cursor and selection and filling the tuplet, nesting, both refusals, voice two gaps, the tie into it, no bar at the end and stale or outside points. Each failed with the stub's `UnimplementedError` first. The lane writer's reshaping kept all 280 earlier tests passing.
+  - Twenty-seven mutations of `_rhythm`, `_setValue`, `_enter` and the lane writer were each caught. The first run caught 26. The survivor spelled a rest that crosses the barline as a note, and a test now lengthens a rest 3/4 into the next bar, where rests take no dot across a beat.
 - Synthesis review caught two pseudocode bugs, which are fixed. `changesSince` marked a bar dirty whenever its predecessor was marked, which would have cascaded one edit to the last bar. It now tests the set of identity-changed columns, a rule unit 4 replaced with neighbour identity. The `keepBars` branch used the scope's end before computing it.

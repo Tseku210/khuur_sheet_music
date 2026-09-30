@@ -139,9 +139,14 @@ final class SetPitch extends Edit {
   String get label => 'Change pitch';
 }
 
-/// Changes an event's written value. Shorter: the freed time becomes rests.
-/// Longer: overwrites what follows, with the same barline rule as
-/// [EnterNote].
+/// Changes an event's written value from its onset. The event keeps its
+/// ids, its marks and the ties into it, and a measure rest becomes a rest.
+/// Shorter: the freed time becomes rests, or a gap in voices two to four.
+/// Longer: overwrites what follows, split and tied at a barline, with bars
+/// appended past the end of the score; inside a tuplet it must still end in
+/// the tuplet. A tie out of the event stays only while it ends on the head
+/// it ended on before, or on none. The cursor and selection stay.
+/// Idempotent.
 final class SetValue extends Edit {
   const SetValue(this.event, this.value);
 
@@ -154,7 +159,9 @@ final class SetValue extends Edit {
 
 /// Creates a tuplet at [at] filled with rests of [unit], overwriting like
 /// [EnterNote]. A tuplet never crosses a barline: refused with
-/// [WouldSplitTuplet] if it does not fit in the bar.
+/// [WouldSplitTuplet] if it does not fit in the bar. Inside a tuplet it
+/// nests, and must fit in that tuplet. The cursor stays at [at] and the
+/// first rest is selected, so the notes entered next fill the tuplet.
 final class EnterTuplet extends Edit {
   const EnterTuplet({
     required this.at,

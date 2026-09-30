@@ -379,16 +379,17 @@ List<List<VoiceItem>> _cut(
   final length = meter.length;
   final grid = BeatGrid.meter(meter);
   final bars = [for (var k = 0; k < count; k++) <VoiceItem>[]];
-  void split(
-    List<_Span> spans,
-    List<Event> Function(List<NoteValue> values) write, {
-    required bool rest,
-  }) {
+  void split(List<_Span> spans, Event event) {
     final values = [
       for (final span in spans)
-        spellOnGrid(grid, span.offset, span.length, rest: rest),
+        spellOnGrid(
+          grid,
+          span.offset,
+          span.length,
+          rest: event is! ChordEvent,
+        ),
     ];
-    final pieces = write([for (final v in values) ...v]);
+    final pieces = _split(event, [for (final v in values) ...v], ids);
     var n = 0;
     for (final (k, span) in spans.indexed) {
       bars[span.bar].addAll(pieces.getRange(n, n + values[k].length));
@@ -411,7 +412,7 @@ List<List<VoiceItem>> _cut(
         bars[span.bar].addAll(
           keeps == null
               ? _rests(grid, span.offset, span.length, ids)
-              : _restPieces(
+              : _split(
                   keeps,
                   spellOnGrid(grid, span.offset, span.length, rest: true),
                   ids,
@@ -436,10 +437,8 @@ List<List<VoiceItem>> _cut(
         for (final span in spans) {
           bars[span.bar].add(Gap(span.length));
         }
-      case ChordEvent():
-        split(spans, (values) => _pieces(item, values, ids), rest: false);
-      case RestEvent():
-        split(spans, (values) => _restPieces(item, values, ids), rest: true);
+      case Event():
+        split(spans, item);
     }
   }
   final left = length * Fraction(count) - time;
