@@ -5,7 +5,8 @@ enum SoundFontType {
   const SoundFontType({required this.path, required this.displayName});
 
   /// Path to the Touhou soundfont file.
-  static const touhouPath = 'assets/soundfonts/touhou.sf2';
+  static const touhouPath =
+      'packages/simple_sheet_music/assets/soundfonts/touhou.sf2';
 
   /// The path to the soundfont file.
   final String path;
