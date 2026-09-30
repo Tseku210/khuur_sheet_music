@@ -422,21 +422,24 @@ Accepted by the project owner on 2026-09-30. `simple_sheet_music` is an open-sou
 - **The Khuur screens need no instrument-specific marks.** They use fingering, accidentals, accents, hairpins, slurs, ties and dynamics, which the model already has. They also use tempo text with a metronome mark, title, lyricist and composer, range copy, cut and paste, undo and redo, and playback with a moving cursor.
 - **Exporting a MIDI file belongs in the library.** It builds on `PlaybackCompiler`, and any app can use it. Audio export, an instrument view that follows playback, note names in a given language and left-handed layouts stay in apps. An instrument view reads `sourcesAt` for what is sounding and `Note.string` and `Note.fingering` for where it is played.
 
+### Save format, drums, tempo and layout
+
+Accepted by the project owner on 2026-10-01, answering the open questions filed before the save format and the layout engine.
+
+- **A saved file embeds each part's whole `Instrument`.** A file then opens in any app that uses the library, and an app can still recognise an instrument by `Instrument.key`. The sketch wrote only the key, which a library without instruments can't read back.
+- **Drum notes get their own type.** A note on a percussion staff names a sound of its part's kit, such as the snare, instead of a pitch that stands for a staff position. No feature that reads pitch needs a drum exception, and the type lands before the save format does.
+- **Grace notes get no reference of their own.** They are added with `AddGrace` and go with their chord. `NoteRef` names principal heads only.
+- **Gradual tempo changes are modeled.** rit. and accel. change playback speed smoothly over a stretch of music.
+- **MusicXML import and export are both in scope**, after the JSON save format. The subset that import supports is designed then.
+- **Manual system breaks and restated signatures are representable.** A bar can force a new line of music, and can restate its key or time signature where it hasn't changed. Courtesy signatures before a change stay automatic unless a bar turns them off.
+
 ## Open questions and risks
 
 Each question is filed under the point it must be answered by. An answer that changes a stored type gets more expensive with every layer built on it, and once the save format is released it also means migrating other people's saved scores. An answer that changes one function's behaviour, or only adds a value, stays cheap. The deviations under units 1 to 16 that the project owner has not reviewed are behaviour too, so they can be reviewed any time before the release.
 
-**Before the layout engine starts.** These decide how layout is built.
+**Before the layout engine starts.** None open.
 
-- Do manual system breaks belong in v1? They are not modeled, and they change how line breaking is designed.
-- Should restated or courtesy signatures be representable, with a `restate` flag on the column?
-
-**Before the save format is released.** These change stored types.
-
-- On percussion parts, `Note.pitch` is a display position mapped through `Instrument.drums`, which breaks the concert-pitch rule. Should unpitched notes get their own note type? If v1 ships without percussion, this can wait.
-- Grace heads can't be named by a `NoteRef`, because `ChordEvent.note` finds only principal heads. No edit can yet repitch or remove one grace note. Should grace chords get their own reference? The editing surface needs this answer before it is built.
-- Do gradual tempo changes (rit., accel.) belong in v1? Neither is modeled.
-- How does a saved file hold its instruments? The sketched wire format names one by key (`"instrument": "violin"`), but the library ships no instruments, so `scoreFromJson` can't turn a key back into an `Instrument` alone. A file could embed each part's whole `Instrument`, so it opens in any app, or store the key and have `scoreFromJson` take the app's instruments, so an app can update an instrument in every saved score. `io/json.dart` waits on this answer and the three above.
+**Before the save format is released.** None open.
 
 **Any time, including after the release.** Each changes one edit or playback, or adds a value old saves never contain.
 
@@ -447,14 +450,13 @@ Each question is filed under the point it must be answered by. An answer that ch
 - Deleting bars drops the tempo marks and dynamics written in them, so the music after the cut can play at the wrong tempo or volume. Should `DeleteMeasures` carry the tempo and dynamic in effect onto the next surviving bar?
 - A pickup bar beams and resolves beats from its own start, not aligned to the end of a full bar. Five eighths in a 4/4 pickup beam as four plus one, where aligning them to the bar's end would give one plus four. Should `irregularLength` bars shift the beat grid?
 - Should hidden parts play? The sketch says yes.
-- Do MusicXML import and export belong in v1, and for which subset? `io/musicxml.dart` is a declared stub marked future. Export can follow the model, but import needs a chosen subset, because files from other apps carry what the model can't hold.
 - Selections name events and notes, not spanners. An app finds a spanner it just added as the last in `Score.spanners`, and removes one by id. Should `ElementRef` gain a spanner reference so a spanner can be selected, moved and deleted like a note? The editing surface needs this answer before it is built.
 - A dynamic applies to its whole part in playback, so a piano marked differently in each hand at one time plays both hands at the lower staff's mark. Should `DynamicMark` gain a scope, its staff or its part, as MuseScore's has? A default of the part keeps old saves meaning what they did.
 - Quarter tones use channel-wide pitch bend, so a chord mixing a quarter-tone note and a plain note on one channel can't sound correctly. Is it acceptable to allocate an extra channel per part when needed?
 
 ## Next implementation step
 
-Units 1 to 15 (note entry, tap to enter, chords, cursor moves, the measure view, change tracking, the point edits, the bar edits, meter changes, key, clef and tempo, the marks, batches, values and tuplets, erase, copy and paste, transpose, and the part edits) are done. The model now answers everything layout reads, so the Flutter layout engine can start against `measureView` and `changesSince`. Every edit in `apply.dart` is implemented. The `changesSince` sweep drives note entry, voltas, keys, clefs, spanners, inserted and deleted bars, bar lengths, meters, range erases, pastes, range transposes, and adding, removing, hiding and showing parts. Playback is done: its play order, timing, notes, ties, channels, dynamics, hairpins, articulations, fermatas, grace notes, ornaments, tremolos and trill lines. 2 stubs each remain in `io/json.dart` and `io/musicxml.dart`. The JSON codec waits on the save-format questions above, and MusicXML on whether it belongs in v1. The layout engine waits on the two layout questions.
+Units 1 to 15 (note entry, tap to enter, chords, cursor moves, the measure view, change tracking, the point edits, the bar edits, meter changes, key, clef and tempo, the marks, batches, values and tuplets, erase, copy and paste, transpose, and the part edits) are done. The model now answers everything layout reads, so the Flutter layout engine can start against `measureView` and `changesSince`. Every edit in `apply.dart` is implemented. The `changesSince` sweep drives note entry, voltas, keys, clefs, spanners, inserted and deleted bars, bar lengths, meters, range erases, pastes, range transposes, and adding, removing, hiding and showing parts. Playback is done: its play order, timing, notes, ties, channels, dynamics, hairpins, articulations, fermatas, grace notes, ornaments, tremolos and trill lines. 2 stubs each remain in `io/json.dart` and `io/musicxml.dart`. The owner's answers of 2026-10-01 set the order. Drum notes, gradual tempo changes, system breaks and restated signatures change stored types, so they come first. The JSON codec follows, then MusicXML.
 
 ## Access pattern traces
 
