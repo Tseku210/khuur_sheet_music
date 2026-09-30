@@ -240,6 +240,21 @@ Implemented in Phase D, unit 4. It covers `Score.changesSince`, which lets layou
 - **Spanners are diffed by identity.** An added spanner marks the bars it covers in the new score. A removed one marks the bars it covered in the old score that still exist. A spanner kept as the same object marks nothing, because surviving bars keep their order.
 - **`Score.meta` is not compared.** No measure view reads it.
 
+### Unit 5: point edits
+
+Implemented in Phase D, unit 5. It covers `RemoveNote`, `SetPitch`, `SetTie`, `AddGrace`, `SetArticulation`, `SetOrnament`, `SetBowing`, `SetFingering`, `SetString`, `SetAccidental` and `SetLyric`. The deviations below have not yet been reviewed by the project owner.
+
+- **`RemoveNote` clears the tie into the removed head.** The sketch said a point edit touches one column. A tie from the event before, which may sit in the bar before, would otherwise turn silently into a let-ring tie. Note entry already clears a tie that leads into new music, so removal follows the same rule.
+- **The last head leaves a rest that keeps only a fermata.** Ornament, bowing, graces, lyrics and the other articulations go with the chord, because a rest can't carry them.
+- **A rest carries only a fermata.** `SetArticulation` refuses any other articulation on a rest with `InvalidValue`. `SetOrnament`, `SetBowing`, `SetLyric` and `AddGrace` refuse a rest. Clearing any of them on a rest changes nothing, so a caller can clear without checking what the event is.
+- **`SetPitch` follows the tie chain both ways.** It walks heads of the old pitch through adjacent events of the voice, across barlines, and stops at a gap, the same way `measureView` draws ties. It refuses with `InvalidValue` when any chord in the chain already has the new pitch, rather than merging two heads.
+- **`SetTie` only sets the flag.** The sketch said it may touch the next column. It never does, because the tie's end is derived. A tie with no matching head draws as let-ring.
+- **`AddGrace` adds the new grace chord nearest the principal.**
+- **`SetFingering` refuses a negative finger and nothing else.** The upper bound depends on the instrument, and the model keeps fingering a free integer.
+- **`SetString` refuses an index the part's instrument doesn't have.**
+- **`SetLyric` refuses a verse below 1 and a lyric whose own verse differs from the edit's.** Lyrics stay in verse order. `Lyric` now has value equality, so setting the same lyric again changes nothing.
+- **An edit that changes nothing returns the same score.** The session then records no undo step, as it already did for `AddToChord`.
+
 ## Open questions and risks
 
 - Does Maestro push later notes forward when you enter into a full bar? If users expect insert mode, is an `InsertTime` edit batched with `EnterNote` enough? It would have to ripple every voice on the staff together, because a one-voice ripple desyncs the others.
@@ -251,11 +266,12 @@ Implemented in Phase D, unit 4. It covers `Score.changesSince`, which lets layou
 - Do gradual tempo changes (rit., accel.) and manual system breaks belong in v1? Neither is modeled.
 - Should hidden parts play? The sketch says yes.
 - Should a tap read accidentals earlier in the bar, as MuseScore does? `pitchForStaffStep` reads only the key signature, so after an F♯ in C major a tap on the F line enters F natural, which then prints a natural sign. `measureView` now resolves the accidental state per staff, so reading it is possible.
+- Grace heads can't be named by a `NoteRef`, because `ChordEvent.note` finds only principal heads. No edit can yet repitch or remove one grace note. Should grace chords get their own reference?
 - A pickup bar beams and resolves beats from its own start, not aligned to the end of a full bar. Five eighths in a 4/4 pickup beam as four plus one, where aligning them to the bar's end would give one plus four. Should `irregularLength` bars shift the beat grid?
 
 ## Next implementation step
 
-Units 1 to 4 (note entry, tap to enter, chords, cursor moves, the measure view and change tracking) are done. The model now answers everything layout reads, so the Flutter layout engine can start against `measureView` and `changesSince`. On the model side the remaining point edits come next. They are `RemoveNote`, `SetPitch` along tie chains, `SetTie`, `AddGrace` and the marks. The bar edits in `_bars` follow. Once `InsertMeasures`, `DeleteMeasures`, `AddSpanner` and `RemoveSpanner` exist, the `changesSince` sweep should drive them instead of its hand-built bar and spanner edits. Stubs left are 11 in `apply.dart`, 6 in `playback.dart`, 2 each in `json.dart` and `musicxml.dart`, and 1 each in `rebar.dart`, `lane_writer.dart` and `session.dart`.
+Units 1 to 5 (note entry, tap to enter, chords, cursor moves, the measure view, change tracking and the point edits) are done. The model now answers everything layout reads, so the Flutter layout engine can start against `measureView` and `changesSince`. On the model side the bar edits in `_bars` come next, then `SetClef`, `SetTempoMarks` and the marks in `_marks`. Once `InsertMeasures`, `DeleteMeasures`, `AddSpanner` and `RemoveSpanner` exist, the `changesSince` sweep should drive them instead of its hand-built bar and spanner edits. Stubs left are 10 in `apply.dart`, 6 in `playback.dart`, 2 each in `json.dart` and `musicxml.dart`, and 1 each in `rebar.dart`, `lane_writer.dart` and `session.dart`.
 
 ## Access pattern traces
 
@@ -316,4 +332,6 @@ Units 1 to 4 (note entry, tap to enter, chords, cursor moves, the measure view a
 - Unit 4 adds 12 tests in `changes_test.dart`, for 142 in all, and all pass. They cover an unchanged score, an edited bar and its neighbours, both ends of the score, two edits that must not cascade, undo in both directions, inserted and deleted bars, a parts change, added and removed spanners including one over a deleted bar, and a hand-built reorder. A seeded sweep makes 450 random edits across note entry in two voices, voltas, keys, clefs, spanners, inserted and deleted bars and hiding a part. After each edit it checks `removed` and `reflow` exactly, and checks that every bar whose view differs in anything but its index is in `relayout`.
   - Thirteen of 14 mutations were caught, among them dropping either neighbour check, the spanner diff, the filter on removed spanners and the reorder fallback. The survivor sets `reflow` only for new bars and a shorter score, which gives the same answer once a reorder falls back to every bar.
   - The sweep first failed on its own ids. Its counter and `EditSession` both issued ids, so after the sweep deleted a bar it had inserted, the session could start below the counter and a measure id appeared twice. The sweep now counts its ids down from -1.
+- Unit 5 adds 23 tests in `point_edits_test.dart`, for 165 in all, and all pass. They cover removing a head and the last head, the tie cleared into a removed head, tie chains across the barline, through chords and stopped by a gap, pitch collisions anywhere in a chain, every mark on chords and rests, string and finger bounds, lyric order and replacement, an event inside a tuplet, no-op edits keeping the same score, and a stale reference refused by every point edit.
+  - Thirty-three mutations were each caught by a failing assertion. The first run needed three fixes. Two mutations only broke compilation and were rewritten. One survived, because re-setting verse 2 last put the lyrics back in order by accident, and the test now checks the order before that step.
 - Synthesis review caught two pseudocode bugs, which are fixed. `changesSince` marked a bar dirty whenever its predecessor was marked, which would have cascaded one edit to the last bar. It now tests the set of identity-changed columns, a rule unit 4 replaced with neighbour identity. The `keepBars` branch used the scope's end before computing it.

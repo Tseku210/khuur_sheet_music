@@ -328,6 +328,17 @@ final class Lyric {
 
   /// Draw a melisma extender line after the syllable.
   final bool extend;
+
+  @override
+  bool operator ==(Object other) =>
+      other is Lyric &&
+      other.verse == verse &&
+      other.text == text &&
+      other.syllabic == syllabic &&
+      other.extend == extend;
+
+  @override
+  int get hashCode => Object.hash(verse, text, syllabic, extend);
 }
 
 enum Syllabic { single, begin, middle, end }

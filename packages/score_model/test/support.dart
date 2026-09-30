@@ -233,3 +233,44 @@ Score withSlur(
     ),
   ]),
 );
+
+Score fill(
+  Score score,
+  int bar,
+  List<VoiceItem> items, {
+  int staff = 0,
+  VoiceSlot slot = VoiceSlot.one,
+}) => changeBar(score, bar, (column) {
+  final measure = column.staves[staff];
+  return column.withStaff(
+    measure.withVoice(Voice(slot: slot, items: Seq(items))),
+  );
+});
+
+/// A chord of space-separated [pitches]. Note `i` has id `id * 10 + i`.
+ChordEvent chordOf(
+  int id,
+  String pitches, {
+  NoteValue value = NoteValue.quarter,
+  bool tie = false,
+  AccidentalRequest accidental = AccidentalRequest.auto,
+  BeamMode beam = BeamMode.auto,
+  List<GraceChord> graces = const [],
+}) {
+  final names = pitches.split(' ');
+  return ChordEvent(
+    id: EventId(id),
+    value: value,
+    beam: beam,
+    graces: Seq(graces),
+    notes: Seq([
+      for (var i = 0; i < names.length; i++)
+        Note(
+          id: NoteId(id * 10 + i),
+          pitch: Pitch.parse(names[i]),
+          tie: tie,
+          accidental: accidental,
+        ),
+    ]),
+  );
+}
