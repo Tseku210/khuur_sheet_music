@@ -45,10 +45,16 @@ EditSession applied(EditOutcome outcome) => switch (outcome) {
 final f4 = Pitch.parse('F4');
 final g4 = Pitch.parse('G4');
 
-const morinKhuur = PartTemplate(
-  name: 'Морин хуур',
-  instrument: Instrument.morinKhuur,
+/// A two-string fiddle tuned F3 and B♭3.
+const fiddle = Instrument(
+  key: 'morin-khuur',
+  program: 110,
+  strings: [Pitch(Step.f, 3), Pitch(Step.b, 3, Alter.flat)],
+  lowest: Pitch(Step.f, 3),
+  highest: Pitch(Step.b, 5, Alter.flat),
 );
+
+const morinKhuur = PartTemplate(name: 'Морин хуур', instrument: fiddle);
 
 /// A one-staff score whose single bar holds [items] in voice one. Ids in
 /// [items] must stay below 100; the scaffolding uses 100 and up.
@@ -62,7 +68,7 @@ Score scoreWith(
     Part(
       id: const PartId(100),
       name: 'Морин хуур',
-      instrument: Instrument.morinKhuur,
+      instrument: fiddle,
       staves: Seq([const Staff(id: StaffId(101))]),
     ),
   ]),

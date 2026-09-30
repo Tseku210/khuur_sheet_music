@@ -1,5 +1,5 @@
 name: score_model
-description: Immutable, measure-major score model for the Khuur composer. Pure Dart, no Flutter.
+description: Immutable, measure-major score model for a notation editor. Pure Dart, no Flutter.
 publish_to: none
 
 environment:

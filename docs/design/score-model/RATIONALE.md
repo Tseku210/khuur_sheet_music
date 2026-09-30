@@ -2,9 +2,9 @@
 
 ## Problem
 
-The Khuur composer needs an immutable, pure-Dart score model. Layout, painting, playback, editing and persistence all derive from it. The current engine fails in ways that come from its shape. Model, layout and paint are fused. Durations are `double`. Pitch is a 52-value enum with display-only accidentals. Clef and key do not cross barlines. `Note` and `ChordNote` duplicate code. IDs are random UUIDs minted in constructors. There is no cache, and playback is monophonic. Voices, staves, ties, tuplets, undo and selection do not exist. The grounding for all of this is in [`grounding.md`](grounding.md).
+A notation editor needs an immutable, pure-Dart score model. Layout, painting, playback, editing and persistence all derive from it. The current engine fails in ways that come from its shape. Model, layout and paint are fused. Durations are `double`. Pitch is a 52-value enum with display-only accidentals. Clef and key do not cross barlines. `Note` and `ChordNote` duplicate code. IDs are random UUIDs minted in constructors. There is no cache, and playback is monophonic. Voices, staves, ties, tuplets, undo and selection do not exist. The grounding for all of this is in [`grounding.md`](grounding.md).
 
-The constraints make the shape non-obvious. A single-note edit in a 500-bar, 4-staff score must not force a whole-score relayout or recompile, and the consumer must be able to tell which bars changed. Undo must share structure instead of making deep copies. Identity must survive edits, undo and a JSON round trip. The model must also carry Maestro's full scope. That means voices, tuplets, grace notes, quarter tones, twelve clefs (Maestro has nine), mid-score changes, voltas, D.C./D.S./coda, lyrics in Mongolian Cyrillic, and morin khuur marks.
+The constraints make the shape non-obvious. A single-note edit in a 500-bar, 4-staff score must not force a whole-score relayout or recompile, and the consumer must be able to tell which bars changed. Undo must share structure instead of making deep copies. Identity must survive edits, undo and a JSON round trip. The model must also carry Maestro's full scope. That means voices, tuplets, grace notes, quarter tones, twelve clefs (Maestro has nine), mid-score changes, voltas, D.C./D.S./coda, lyrics in any script, and string marks such as fingering, string numbers and bowing. The library is open source and stays general. The Khuur composer is its first consumer, and nothing in the model is specific to it.
 
 This design makes the measure the organizing unit, as MuseScore and MusicXML's `score-timewise` do. A bar is a real container that the composer fills.
 
@@ -14,8 +14,8 @@ This was written first. The full file is [`packages/score_model/example/usage.da
 
 ```dart
 final score = Score.blank(
-  title: 'Жороо морь',
-  parts: [PartTemplate(name: 'Морин хуур', instrument: Instrument.morinKhuur)],
+  title: 'Étude',
+  parts: [PartTemplate(name: 'Violin', instrument: violin)],
   measureCount: 8,
   meter: Meter.fourFour,
   key: const KeySignature(-1),
@@ -91,7 +91,7 @@ These are the load-bearing decisions.
 5. **Time points and time spans are different types.** `Moment` (a point in a bar, or an onset) and `Length` (a span, a duration, a capacity) are extension types over the exact `Fraction`. `Moment + Length` is a `Moment`. `Moment.until(Moment)` is a `Length`. Adding two moments does not compile. Two arguments that share a primitive but mean different things get brands, per **type-system-discipline**. The brand paid for itself during synthesis. It flagged the `MeasureColumn` constructor comparing a clef-change offset against the bar's capacity.
 6. **Change tracking is pointer identity.** An edit rebuilds only the path event → voice → staff measure → column → column list. Every other column is the same object in the old and new score. `changesSince` compares columns by identity. It marks a bar when the bar or either neighbour is a different object, because a view reads the previous bar for printed changes, arriving ties and courtesy accidentals and the next bar for tie targets and volta ends. It also marks the bars covered by added or removed spanners. It costs O(bars + spanners) pointer checks. It can't under-report, because nothing records changes by hand.
 7. **Pitch is spelled and concert.** `Pitch(step, octave, Alter)` uses a range-checked quarter-tone `Alter`. `Pitch.transpose(Interval(steps, semitones))` spells correctly, so C4 up a diminished fourth gives F♭4. Written pitch (instrument transposition, 8va lines) is derived in `StaffView.writtenPitches`, so playback never applies 8va or transposition.
-8. **Marks split by whether they stack.** `Event.articulations` is a set of marks that stack (staccato, accent, tenuto, fermata and so on). Marks that exclude each other are single nullable fields on `ChordEvent`. `ornament` holds at most one of trill, mordent or turn. `bowing` holds up or down. A morin khuur note can carry down-bow, accent and trill at once, and it can't carry up-bow and down-bow at once.
+8. **Marks split by whether they stack.** `Event.articulations` is a set of marks that stack (staccato, accent, tenuto, fermata and so on). Marks that exclude each other are single nullable fields on `ChordEvent`. `ornament` holds at most one of trill, mordent or turn. `bowing` holds up or down. A string note can carry down-bow, accent and trill at once, and it can't carry up-bow and down-bow at once.
 9. **One deep editing module.** `EditSession` is a value with eight public operations. They are `start`, `run`, `undo`, `redo`, `select`, `placeCursor`, `moveCursor` and `copy`. Edits are sealed plain data that name their targets. Behind that surface, one library holds everything that is hard. That includes the overwrite, split and tie engine (`_overwrite`, `_replaceSpan`), the re-barrer, forward propagation, ID minting, refusals, cursor revalidation and snapshot history. Every note-writing edit, including paste and lengthening, goes through `_overwrite`, so entry and paste can't disagree about barlines.
 10. **Playback caches per column.** `PlaybackCompiler` keeps compiled bar fragments in an `Expando` keyed by the column object, in whole-note time. Each compile folds tempo and dynamics over bar-level facts and unrolls repeats. A one-note edit recompiles one fragment. Seconds are computed only for the window the player asks for.
 
@@ -271,20 +271,40 @@ Implemented in Phase D, unit 6. It covers `InsertMeasures`, `DeleteMeasures`, `S
 - **Ids implement `Object`.** The typed ids are now `extension type const X(int value) implements Object`, so a bar edit's `StaleReference` names the `MeasureId` it was given. Note entry still reports its `VoicePoint`, which is what that edit named.
 - **An edit that changes nothing returns the same score**, as in unit 5. Setting a mark to its current value, or a length to the current one, records no undo step.
 
+### Scope: a general library
+
+Accepted by the project owner on 2026-09-30. `simple_sheet_music` is an open-source library, so the model stays general. The Khuur composer is its first consumer, and its designs are direction for that app, not requirements for the library.
+
+- **The library ships no instruments.** `Instrument` is a plain const value, so each app defines the instruments it offers. `Instrument.morinKhuur` was removed. The tests keep a two-string fiddle as test data in `support.dart`.
+- **Examples and docs use general instruments.** The usage example defines a violin.
+- **The Khuur screens need no instrument-specific marks.** They use fingering, accidentals, accents, hairpins, slurs, ties and dynamics, which the model already has. They also use tempo text with a metronome mark, title, lyricist and composer, range copy, cut and paste, undo and redo, and playback with a moving cursor.
+- **Exporting a MIDI file belongs in the library.** It builds on `PlaybackCompiler`, and any app can use it. Audio export, an instrument view that follows playback, note names in a given language and left-handed layouts stay in apps. An instrument view reads `sourcesAt` for what is sounding and `Note.string` and `Note.fingering` for where it is played.
+
 ## Open questions and risks
 
-- Does Maestro push later notes forward when you enter into a full bar? If users expect insert mode, is an `InsertTime` edit batched with `EnterNote` enough? It would have to ripple every voice on the staff together, because a one-voice ripple desyncs the others.
+Each question is filed under the point it must be answered by. An answer that changes a stored type gets more expensive with every layer built on it, and once the save format is released it also means migrating other people's saved scores. An answer that changes one function's behaviour, or only adds a value, stays cheap. The deviations under units 1 to 6 that the project owner has not reviewed are behaviour too, so they can be reviewed any time before the release.
+
+**Before the layout engine starts.** These decide how layout is built.
+
+- Do manual system breaks belong in v1? They are not modeled, and they change how line breaking is designed.
 - Should restated or courtesy signatures be representable, with a `restate` flag on the column?
-- Is "re-barring never removes bars" the right call, or should surplus bars that are entirely empty be dropped?
-- On percussion parts, `Note.pitch` is a display position mapped through `Instrument.drums`, which breaks the concert-pitch rule. Should unpitched notes get their own note type?
-- Quarter tones use channel-wide pitch bend, so a chord mixing a quarter-tone note and a plain note on one channel can't sound correctly. Is it acceptable to allocate an extra channel per part when needed?
-- Which Mongolian-specific marks are missing? The morin khuur set (fingering 0 to 4, string index, up-bow, down-bow, the ornament enum) is a guess. The Figma file is still unread, because access failed on the account's View-only seat.
-- Do gradual tempo changes (rit., accel.) and manual system breaks belong in v1? Neither is modeled.
-- Should hidden parts play? The sketch says yes.
-- Should a tap read accidentals earlier in the bar, as MuseScore does? `pitchForStaffStep` reads only the key signature, so after an F♯ in C major a tap on the F line enters F natural, which then prints a natural sign. `measureView` now resolves the accidental state per staff, so reading it is possible.
-- Grace heads can't be named by a `NoteRef`, because `ChordEvent.note` finds only principal heads. No edit can yet repitch or remove one grace note. Should grace chords get their own reference?
+
+**Before the save format is released.** These change stored types.
+
+- On percussion parts, `Note.pitch` is a display position mapped through `Instrument.drums`, which breaks the concert-pitch rule. Should unpitched notes get their own note type? If v1 ships without percussion, this can wait.
+- Grace heads can't be named by a `NoteRef`, because `ChordEvent.note` finds only principal heads. No edit can yet repitch or remove one grace note. Should grace chords get their own reference? The editing surface needs this answer before it is built.
+- Do gradual tempo changes (rit., accel.) belong in v1? Neither is modeled.
+
+**Any time, including after the release.** Each changes one edit or playback, or adds a value old saves never contain.
+
+- Which string-technique marks belong in v1 beyond fingering, string numbers, bowing and the common ornaments? Harmonics, pizzicato and glissando are candidates.
+- Does Maestro push later notes forward when you enter into a full bar? If users expect insert mode, is an `InsertTime` edit batched with `EnterNote` enough? It would have to ripple every voice on the staff together, because a one-voice ripple desyncs the others. Trying it in Maestro answers the first question.
+- Should a tap read accidentals earlier in the bar, as MuseScore does? `pitchForStaffStep` reads only the key signature, so after an F♯ in C major a tap on the F line enters F natural, which then prints a natural sign. `measureView` now resolves the accidental state per staff, so reading it is possible. Trying it in Maestro answers this.
+- Is "re-barring never removes bars" the right call, or should surplus bars that are entirely empty be dropped? `SetMeter` keeps them until this is answered.
 - Deleting bars drops the tempo marks and dynamics written in them, so the music after the cut can play at the wrong tempo or volume. Should `DeleteMeasures` carry the tempo and dynamic in effect onto the next surviving bar?
 - A pickup bar beams and resolves beats from its own start, not aligned to the end of a full bar. Five eighths in a 4/4 pickup beam as four plus one, where aligning them to the bar's end would give one plus four. Should `irregularLength` bars shift the beat grid?
+- Should hidden parts play? The sketch says yes.
+- Quarter tones use channel-wide pitch bend, so a chord mixing a quarter-tone note and a plain note on one channel can't sound correctly. Is it acceptable to allocate an extra channel per part when needed?
 
 ## Next implementation step
 

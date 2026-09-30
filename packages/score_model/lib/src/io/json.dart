@@ -23,7 +23,7 @@ const int scoreSchemaVersion = 1;
 /// Shape (abridged):
 /// ```json
 /// {"schema": 1, "meta": {...},
-///  "parts": [{"id": 1, "name": "Морин хуур", "instrument": "morin-khuur",
+///  "parts": [{"id": 1, "name": "Violin", "instrument": "violin",
 ///             "staves": [{"id": 2}]}],
 ///  "measures": [{"id": 3, "meter": "4/4", "key": -1,
 ///                "staves": [{"staff": 2, "clef": "treble",

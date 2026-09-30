@@ -408,7 +408,7 @@ final class Part {
 
   final PartId id;
 
-  /// Full Unicode ("Морин хуур").
+  /// Full Unicode.
   final String name;
   final String shortName;
   final Instrument instrument;
@@ -444,7 +444,7 @@ final class Instrument {
     this.highest,
   });
 
-  /// Stable catalogue key, for example `morin-khuur`. Saved in JSON.
+  /// Stable catalogue key, for example `violin`. Saved in JSON.
   final String key;
 
   /// General MIDI program 0–127. The app's SoundFont decides the sound.
@@ -457,7 +457,7 @@ final class Instrument {
 
   final Clef clef;
 
-  /// Open strings, lowest first. Morin khuur: F3, B♭3.
+  /// Open strings, lowest first. Violin: G3, D4, A4, E5.
   final List<Pitch> strings;
 
   /// Non-empty only for percussion: display position → sound.
@@ -473,14 +473,6 @@ final class Instrument {
   /// prints none.
   KeySignature writtenKey(KeySignature key) =>
       isPercussion ? const KeySignature(0) : key.transpose(transposition);
-
-  static const morinKhuur = Instrument(
-    key: 'morin-khuur',
-    program: 110,
-    strings: [Pitch(Step.f, 3), Pitch(Step.b, 3, Alter.flat)],
-    lowest: Pitch(Step.f, 3),
-    highest: Pitch(Step.b, 5, Alter.flat),
-  );
 }
 
 /// One sound of a drum kit: where it sits on the staff and which MIDI key

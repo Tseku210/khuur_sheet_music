@@ -4,6 +4,8 @@ These are the facts that every candidate design starts from. They were gathered 
 
 ## Goal
 
+**Update, 2026-09-30.** The project owner widened the goal. `simple_sheet_music` is an open-source library and stays general. The Khuur composer is its first consumer, and nothing in the library is specific to it. The Khuur facts below are kept as the record the design started from. The scope decision is in [`RATIONALE.md`](RATIONALE.md).
+
 The goal is to rewrite `simple_sheet_music` into a notation engine for the composer screen of the Khuur app. The composer should match Maestro - Music Composer, published by Future Sculptor. The first artifact is the score model. It is an immutable domain model with no Flutter imports. Every other layer is derived from it:
 
 - a layout engine that computes spacing, line breaks and glyph positions

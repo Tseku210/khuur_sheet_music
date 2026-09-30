@@ -90,7 +90,7 @@ final class ChordEvent extends Event {
   /// Single-note tremolo strokes through the stem. 0 for none.
   final int tremolo;
 
-  /// One entry per verse. Full Unicode text (Mongolian Cyrillic included).
+  /// One entry per verse. Full Unicode text.
   final Seq<Lyric> lyrics;
 
   @override
@@ -230,11 +230,12 @@ final class Note {
   final AccidentalRequest accidental;
   final NoteHead head;
 
-  /// Finger number, 0 (open) to 4 on a morin khuur; free int for others.
+  /// Finger number, 0 for an open string. The upper bound depends on the
+  /// instrument, so any non-negative int is allowed.
   final int? fingering;
 
-  /// Index into `Instrument.strings`, lowest-tuned string first. On a morin
-  /// khuur 0 is the F string and 1 the B♭ string.
+  /// Index into `Instrument.strings`, lowest-tuned string first. On a violin
+  /// 0 is the G string and 3 the E string.
   final int? string;
 
   Note copyWith({
@@ -296,7 +297,7 @@ enum BeamMode {
   none,
 }
 
-/// Stackable event marks. A morin khuur note can still carry down-bow,
+/// Stackable event marks. A string note can still carry down-bow,
 /// accent and trill at once, through [ChordEvent.bowing],
 /// [Event.articulations] and [ChordEvent.ornament].
 enum Articulation {

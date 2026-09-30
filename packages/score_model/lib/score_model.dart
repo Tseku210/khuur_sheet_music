@@ -1,4 +1,4 @@
-/// Immutable, measure-major score model for the Khuur composer.
+/// Immutable, measure-major score model for a notation editor.
 ///
 /// Read `Score` first. It owns parts, a global list of `MeasureColumn`s, and
 /// cross-bar `Spanner`s. Change it only through `EditSession.run`. Layout

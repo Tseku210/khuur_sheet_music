@@ -11,8 +11,8 @@
 // hairpins, 8va lines) live beside the columns in `Score.spanners`.
 //
 //     final score = Score.blank(
-//       title: 'Жороо морь',
-//       parts: [PartTemplate(name: 'Морин хуур', instrument: Instrument.morinKhuur)],
+//       title: 'Étude',
+//       parts: [PartTemplate(name: 'Violin', instrument: violin)],
 //       measureCount: 8,
 //       meter: Meter.fourFour,
 //       key: const KeySignature(-1),
@@ -39,12 +39,24 @@ import 'dart:convert';
 
 import 'package:score_model/score_model.dart';
 
+// Apps define their own instruments.
+const violin = Instrument(
+  key: 'violin',
+  program: 40,
+  strings: [
+    Pitch(Step.g, 3),
+    Pitch(Step.d, 4),
+    Pitch(Step.a, 4),
+    Pitch(Step.e, 5),
+  ],
+  lowest: Pitch(Step.g, 3),
+  highest: Pitch(Step.a, 7),
+);
+
 void main() {
   final score = Score.blank(
-    title: 'Жороо морь',
-    parts: [
-      const PartTemplate(name: 'Морин хуур', instrument: Instrument.morinKhuur),
-    ],
+    title: 'Étude',
+    parts: [const PartTemplate(name: 'Violin', instrument: violin)],
     measureCount: 8,
     key: const KeySignature(-1),
   );
@@ -212,7 +224,7 @@ class ComposerController {
   // ties it into the next bar. With `Overfill.refuse` the same tap comes back
   // as `Refused(WouldCrossBarline)`, handled in `_run`.
 
-  // Palette actions a morin khuur composer needs.
+  // Palette actions a composer needs.
   void toggleArticulation(Articulation articulation) {
     final target = selection.singleEvent;
     if (target == null) {
