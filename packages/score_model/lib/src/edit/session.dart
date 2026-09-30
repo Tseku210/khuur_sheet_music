@@ -23,6 +23,7 @@ import 'edits.dart';
 
 part 'apply.dart';
 part 'bars.dart';
+part 'clipboard.dart';
 part 'lane_writer.dart';
 part 'rebar.dart';
 
@@ -304,15 +305,24 @@ final class EditSession {
     _historyLimit,
   );
 
-  /// Copies the selected range into a [Clip], or null when nothing is
-  /// selected. An item selection copies the smallest range on its staff that
-  /// covers the selected events.
+  /// Copies the selected music into a [Clip], or null when nothing is
+  /// selected or the range is empty or runs outside its bars.
+  ///
+  /// A copy takes what [Erase] would clear: the events that start in the
+  /// range, the tuplets wholly inside it, its directions, and the spanners
+  /// that start and end in it. It runs to the end of the last event it
+  /// takes. A measure rest is silence and is not taken. An item selection
+  /// copies the smallest range that covers the picked events on their
+  /// staves, widened to the whole tuplet of a picked member.
   ///
   /// The clip is a standalone value: bars are dissolved into one timeline
-  /// per voice, tied pieces stay tied, and spanners and directions wholly
-  /// inside the range come along with offsets relative to the clip start.
-  /// It can be pasted into any score.
-  Clip? copy() => throw UnimplementedError();
+  /// per voice, tied pieces stay tied, and a tie that leads out of the
+  /// copied music onto a head is cleared. It can be pasted into any score.
+  Clip? copy() => switch (_revalidateSelection(selection, score)) {
+    NoSelection() => null,
+    ItemSelection(:final items) => _copy(score, _covering(score, items)),
+    final RangeSelection range => _copy(score, range),
+  };
 }
 
 /// [point] with the end of its bar spelled as offset 0 of the next bar.
@@ -541,54 +551,4 @@ final class RangeSelection extends Selection {
 
   @override
   bool get isEmpty => false;
-}
-
-/// Copied music, detached from any score. Opaque: the only things a caller
-/// does with a clip are keep it and paste it.
-final class Clip {
-  const Clip._(this.length, this._lanes, this._spanners, this._directions);
-
-  /// Sounding length of the copied range.
-  final Length length;
-
-  final List<_ClipLane> _lanes;
-  // Read by `_paste` once its body is written.
-  // ignore: unused_field
-  final List<_ClipSpanner> _spanners;
-  // ignore: unused_field
-  final List<_ClipDirection> _directions;
-
-  /// Number of staves the clip spans.
-  int get staffCount =>
-      _lanes.fold(0, (n, lane) => lane.staff >= n ? lane.staff + 1 : n);
-}
-
-/// One voice of one staff, barlines dissolved. [items] are placed at
-/// offsets from the clip start. Ids inside are the source ids and are never
-/// written into a score as-is; paste mints new ones.
-final class _ClipLane {
-  const _ClipLane(this.staff, this.voice, this.items);
-
-  /// Staff index relative to the clip's top staff.
-  final int staff;
-  final VoiceSlot voice;
-  final List<({Moment offset, Content item})> items;
-}
-
-final class _ClipSpanner {
-  const _ClipSpanner(this.staff, this.kind, this.voice, this.first, this.last);
-
-  final int staff;
-  final SpannerKind kind;
-  final VoiceSlot? voice;
-  final Moment first;
-  final Moment last;
-}
-
-final class _ClipDirection {
-  const _ClipDirection(this.staff, this.offset, this.direction);
-
-  final int staff;
-  final Moment offset;
-  final StaffDirection direction;
 }

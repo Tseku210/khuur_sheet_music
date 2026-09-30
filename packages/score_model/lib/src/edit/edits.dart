@@ -587,11 +587,19 @@ final class SetBarLength extends Edit {
 
 // --- Clipboard and bulk -----------------------------------------------------
 
-/// Pastes [clip] with its top staff at [at]'s staff and its time origin at
-/// [at]'s point. Each lane overwrites like [EnterNote], crossing barlines by
-/// split-and-tie and appending bars at the end if needed. Every pasted
-/// entity gets a new id. Voices keep their slots. Staves beyond the bottom of
-/// the score are dropped. The pasted range becomes the selection.
+/// Replaces the music from [at] for the clip's length with [clip], on the
+/// staves from [at]'s staff down. What was there goes as [Erase] clears a
+/// range: every voice, the directions and the spanners inside. Each voice
+/// of the clip is then written like [EnterNote]. A note crosses a barline
+/// by split-and-tie, or is refused with [WouldCrossBarline] under
+/// [Overfill.refuse], and a tuplet that would cross one is refused with
+/// [WouldSplitTuplet]. Bars are appended first when the score is too short.
+///
+/// Every pasted entity gets a new id. Voices keep their slots, and staves
+/// beyond the bottom of the score are dropped. A tie into the pasted music,
+/// or out of it onto a head, is cleared. The pasted range becomes the
+/// selection and the cursor stays. Refused with [StaleReference] for a gone
+/// bar or staff and [OutsideMeasure] for a point outside its bar.
 final class Paste extends Edit {
   const Paste(
     this.clip, {

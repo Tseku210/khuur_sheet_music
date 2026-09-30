@@ -231,6 +231,7 @@ Score withSlur(
   ScorePoint first,
   ScorePoint last, {
   int staff = 0,
+  VoiceSlot? voice,
 }) => score.copyWith(
   spanners: Seq([
     ...score.spanners,
@@ -238,6 +239,7 @@ Score withSlur(
       id: SpannerId(900 + score.spanners.length),
       kind: const Slur(),
       staff: score.staves[staff].id,
+      voice: voice,
       first: first,
       last: last,
     ),

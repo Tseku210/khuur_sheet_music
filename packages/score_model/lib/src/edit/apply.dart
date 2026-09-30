@@ -1138,24 +1138,6 @@ Seq<MeasureColumn> _propagate(
   ]);
 }
 
-_Result _paste(
-  Score score,
-  Clip clip,
-  VoicePoint at,
-  _Ids ids,
-  Overfill overfill,
-) {
-  // TODO: for each lane: target staff = staves[indexOf(at.staff) + lane.staff]
-  // (skip if beyond bottom); re-mint every id inside lane.items (events,
-  // notes, tuplets); _overwrite(score, VoicePoint(staff, lane.voice, at.at),
-  // items, ids, overfill), the same barline rule as note entry, then
-  // _untieInto with the pitches the lane starts with. Gaps in a lane need a
-  // rule of their own, since _overwrite writes only content. Then
-  // directions and spanners, with offsets mapped through the same bar walk.
-  // Selection = RangeSelection covering the pasted span.
-  throw UnimplementedError();
-}
-
 _Result _transpose(Score score, Selection selection, Transposition by) {
   // TODO: collect notes (range: every note head whose event onset is inside
   // the range on the selected staves; items: the listed heads/events).

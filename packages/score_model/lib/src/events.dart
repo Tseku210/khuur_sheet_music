@@ -239,6 +239,7 @@ final class Note {
   final int? string;
 
   Note copyWith({
+    NoteId? id,
     Pitch? pitch,
     bool? tie,
     AccidentalRequest? accidental,
@@ -246,7 +247,7 @@ final class Note {
     int? Function()? fingering,
     int? Function()? string,
   }) => Note(
-    id: id,
+    id: id ?? this.id,
     pitch: pitch ?? this.pitch,
     tie: tie ?? this.tie,
     accidental: accidental ?? this.accidental,
