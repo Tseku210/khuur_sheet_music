@@ -434,9 +434,11 @@ final class SetTempoMarks extends Edit {
 // --- Bars -------------------------------------------------------------------
 
 /// Inserts [count] empty bars before [before] (at the end when null). New
-/// bars copy meter, key and clefs from the bar before the insertion point
-/// and hold one [MeasureRest] per staff. A bar inserted inside a volta joins
-/// it. Spanners that cross the insertion point stretch over the new bars.
+/// bars copy meter, key and closing clefs from the bar before the insertion
+/// point (the first bar's opening clefs at the start) and hold one
+/// [MeasureRest] per staff. A bar inserted inside a volta joins it. Spanners
+/// that cross the insertion point stretch over the new bars. A tie into the
+/// bar at the insertion point is cleared, since it would lead into rests.
 final class InsertMeasures extends Edit {
   const InsertMeasures({this.before, this.count = 1})
     : assert(count > 0, 'count > 0');
@@ -448,10 +450,12 @@ final class InsertMeasures extends Edit {
   String get label => 'Insert measures';
 }
 
-/// Deletes bars [first] to [last] inclusive. Ties into the deleted range are
-/// cleared; spanners wholly inside are removed and those crossing it are
-/// clipped to the surviving bars. Deleting every bar is refused with
-/// [WouldEmptyScore].
+/// Deletes bars [first] to [last] inclusive, in either order. A tie into
+/// the range is cleared when it would land on a different note, or on one
+/// where it landed on none. Spanners wholly inside are removed. One that
+/// starts inside moves to the start of the bar after, and one that ends
+/// inside moves to the last onset before the range. Deleting every bar is
+/// refused with [WouldEmptyScore].
 final class DeleteMeasures extends Edit {
   const DeleteMeasures(this.first, this.last);
 
@@ -492,7 +496,8 @@ final class SetRepeatEnd extends Edit {
   String get label => 'End repeat';
 }
 
-/// Puts bars [first]..[last] under [volta], or clears them (null).
+/// Puts bars [first]..[last] under [volta], or clears them (null). Refused
+/// with [InvalidValue] unless the endings count passes from 1, ascending.
 final class SetVolta extends Edit {
   const SetVolta(this.first, this.last, this.volta);
 
@@ -514,6 +519,7 @@ final class SetNavigation extends Edit {
   String get label => 'Repeat sign';
 }
 
+/// Sets the rehearsal mark of [measure]. Null or empty text clears it.
 final class SetRehearsal extends Edit {
   const SetRehearsal(this.measure, this.text);
 
@@ -526,7 +532,13 @@ final class SetRehearsal extends Edit {
 
 /// Makes [measure] a pickup (or irregular) bar of [length], or restores the
 /// meter's length (null). Content beyond a shortened length is cut from the
-/// end; a lengthened bar is padded with rests.
+/// end, with the event crossing the new end keeping its head, and so are
+/// clef changes, directions and tempo marks there. Spanner ends in the cut
+/// move as for [DeleteMeasures]. A lengthened bar is padded with rests in
+/// voice one and a gap in the other voices. Ties at the bar's end follow the
+/// [DeleteMeasures] rule. Refused with [WouldSplitTuplet] when the new end
+/// cuts a tuplet, and with [InvalidValue] for a length that is not a whole
+/// number of 128th notes.
 final class SetBarLength extends Edit {
   const SetBarLength(this.measure, this.length);
 

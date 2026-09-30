@@ -622,18 +622,6 @@ Seq<MeasureColumn> _propagate(
   ]);
 }
 
-_Result _bars(Score score, Edit edit, _Ids ids) {
-  // TODO: InsertMeasures copies meter/key/clefAtEnd from the bar before,
-  // volta membership if both neighbours share it, MeasureRest per staff;
-  // spanners whose first < insertion point <= last are untouched (anchors
-  // are by measure id, so they stretch automatically).
-  // DeleteMeasures: refuse WouldEmptyScore; clear `tie` on notes whose tie
-  // target was in the range; drop spanners wholly inside; clip crossing
-  // ones to the nearest surviving event onset.
-  // SetBarLength: cut or pad voices; a pickup is its own re-bar section.
-  throw UnimplementedError();
-}
-
 _Result _paste(
   Score score,
   Clip clip,

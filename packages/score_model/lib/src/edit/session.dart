@@ -22,6 +22,7 @@ import '../voice_walk.dart';
 import 'edits.dart';
 
 part 'apply.dart';
+part 'bars.dart';
 part 'lane_writer.dart';
 part 'rebar.dart';
 
@@ -106,7 +107,7 @@ final class EditSession {
       return Refused(this, refusal.reason);
     }
     final cursor =
-        result.cursor ?? _revalidateCursor(this.cursor, result.score);
+        result.cursor ?? _revalidateCursor(this.cursor, score, result.score);
     final selection =
         result.selection ?? _revalidateSelection(this.selection, result.score);
     if (identical(result.score, score)) {
@@ -353,9 +354,10 @@ Iterable<int> _itemIds(VoiceItem item) sync* {
 }
 
 /// Keeps [cursor] while its bar and staff exist, moving it to the bar start
-/// if the bar became too short for it. Otherwise the start of the first bar,
-/// on the same staff if it survived or on the first staff.
-VoicePoint _revalidateCursor(VoicePoint cursor, Score score) {
+/// if the bar became too short for it. When the bar is gone, the start of
+/// the nearest bar after it in [before] that survived, or else the nearest
+/// before it. On the same staff if it survived, or on the first staff.
+VoicePoint _revalidateCursor(VoicePoint cursor, Score before, Score score) {
   final staffAlive = score.staves.any((staff) => staff.id == cursor.staff);
   final measure = cursor.at.measure;
   if (staffAlive &&
@@ -367,10 +369,18 @@ VoicePoint _revalidateCursor(VoicePoint cursor, Score score) {
     staff: staffAlive ? cursor.staff : score.staves.first.id,
     voice: cursor.voice,
     at: ScorePoint(
-      score.contains(measure) ? measure : score.measures.first.id,
+      score.contains(measure) ? measure : _survivor(measure, before, score),
       Moment.zero,
     ),
   );
+}
+
+MeasureId _survivor(MeasureId gone, Score before, Score score) {
+  final index = before.indexOf(gone);
+  bool kept(MeasureColumn column) => score.contains(column.id);
+  return (before.measures.skip(index + 1).where(kept).firstOrNull ??
+          before.measures.take(index).where(kept).last)
+      .id;
 }
 
 /// Drops references that no longer resolve in [score] and moves the rest

@@ -93,20 +93,29 @@ String _describe(MeasureView view) => [
 T pick<T>(Random random, List<T> options) =>
     options[random.nextInt(options.length)];
 
+Score edited(Score score, Edit edit) =>
+    switch (EditSession.start(score).run(edit)) {
+      Applied(:final session) => session.score,
+      Refused() => score,
+    };
+
 /// One random edit of the kinds a composer makes: note entry (the common
 /// case), voltas, keys, clefs, spanners, inserted and deleted bars, and
-/// hiding a part. Bars, spanners and parts are rebuilt the way edits
-/// rebuild them, sharing everything they don't touch.
+/// hiding a part. Clefs, keys, spanners and parts are rebuilt by hand the
+/// way edits rebuild them, sharing everything they don't touch, until their
+/// edits exist.
 Score randomEdit(Score score, Random random, int Function() nextId) {
   final bar = random.nextInt(score.measures.length);
-  switch (random.nextInt(9)) {
+  final id = score.measures[bar].id;
+  switch (random.nextInt(10)) {
     case 0 || 1 || 2:
-      final outcome = EditSession.start(score).run(
+      return edited(
+        score,
         EnterNote(
           at: VoicePoint(
             staff: pick(random, score.staves).id,
             voice: pick(random, [VoiceSlot.one, VoiceSlot.two]),
-            at: ScorePoint(score.measures[bar].id, at(random.nextInt(8), 8)),
+            at: ScorePoint(id, at(random.nextInt(8), 8)),
           ),
           pitch: Pitch.parse(pick(random, ['F4', 'F#4', 'Bb4', 'E5'])),
           value: pick(random, [
@@ -118,16 +127,14 @@ Score randomEdit(Score score, Random random, int Function() nextId) {
           ]),
         ),
       );
-      return switch (outcome) {
-        Applied(:final session) => session.score,
-        Refused() => score,
-      };
     case 3:
-      return changeBar(
+      final last = score.measures[min(bar + 1, score.measures.length - 1)];
+      return edited(
         score,
-        bar,
-        (c) => c.copyWith(
-          volta: () => pick(random, [
+        SetVolta(
+          id,
+          last.id,
+          pick(random, [
             null,
             const Volta([1]),
             const Volta([2]),
@@ -177,22 +184,21 @@ Score randomEdit(Score score, Random random, int Function() nextId) {
         ]),
       );
     case 7:
-      if (score.measures.length > 2 && random.nextBool()) {
-        final gone = score.measures[bar].id;
-        return score.copyWith(
-          measures: score.measures.removeAt(bar),
-          spanners: Seq(
-            score.spanners.where(
-              (s) => s.first.measure != gone && s.last.measure != gone,
-            ),
-          ),
-        );
+      if (score.measures.length > 3 && random.nextBool()) {
+        final last = score.measures[min(bar + 1, score.measures.length - 1)];
+        return edited(score, DeleteMeasures(id, last.id));
       }
-      return score.copyWith(
-        measures: score.measures.insertAt(
-          bar,
-          emptyLike(score.measures[max(bar - 1, 0)], nextId()),
+      return edited(
+        score,
+        InsertMeasures(
+          before: random.nextBool() ? id : null,
+          count: 1 + random.nextInt(2),
         ),
+      );
+    case 8:
+      return edited(
+        score,
+        SetBarLength(id, pick(random, [null, len(1, 4), len(3, 8), len(5, 4)])),
       );
     default:
       return hidePart(score, 1, hidden: !score.parts[1].hidden);

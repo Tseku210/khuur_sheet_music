@@ -324,6 +324,13 @@ final class Volta {
 /// Playback honours all of them, codas included (Maestro ignores codas).
 sealed class NavigationMark {
   const NavigationMark();
+
+  /// Marks without fields are equal when they are the same kind.
+  @override
+  bool operator ==(Object other) => other.runtimeType == runtimeType;
+
+  @override
+  int get hashCode => runtimeType.hashCode;
 }
 
 final class Segno extends NavigationMark {
@@ -354,6 +361,16 @@ final class Jump extends NavigationMark {
 
   /// Printed text override ("D.C. al Fine" is the default rendering).
   final String? text;
+
+  @override
+  bool operator ==(Object other) =>
+      other is Jump &&
+      other.target == target &&
+      other.then == then &&
+      other.text == text;
+
+  @override
+  int get hashCode => Object.hash(target, then, text);
 }
 
 enum JumpTarget { start, segno }

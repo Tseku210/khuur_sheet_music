@@ -13,23 +13,23 @@ library;
 
 import 'time.dart';
 
-extension type const PartId(int value);
+extension type const PartId(int value) implements Object;
 
-extension type const StaffId(int value);
+extension type const StaffId(int value) implements Object;
 
 /// Stable across insertions and deletions of other measures. Layout caches
 /// and playback fragments key on it; the measure *number* is derived.
-extension type const MeasureId(int value);
+extension type const MeasureId(int value) implements Object;
 
-extension type const EventId(int value);
+extension type const EventId(int value) implements Object;
 
 /// A single notehead inside a chord. Ties, fingering and string marks attach
 /// to note heads, and a selection can hold one head of a chord.
-extension type const NoteId(int value);
+extension type const NoteId(int value) implements Object;
 
-extension type const TupletId(int value);
+extension type const TupletId(int value) implements Object;
 
-extension type const SpannerId(int value);
+extension type const SpannerId(int value) implements Object;
 
 /// The four voice lanes of a staff. Slot one is the only voice that always
 /// exists; it is never allowed to have gaps.

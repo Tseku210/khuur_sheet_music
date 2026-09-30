@@ -274,3 +274,35 @@ ChordEvent chordOf(
     ]),
   );
 }
+
+/// A session over one bar per entry of [bars], each holding its items in
+/// voice one of a morin khuur staff.
+EditSession sessionWith(List<List<VoiceItem>> bars) {
+  var score = blankScore(bars: bars.length);
+  for (final (i, items) in bars.indexed) {
+    score = fill(score, i, items);
+  }
+  return EditSession.start(score);
+}
+
+EventRef eventRef(EditSession session, int id) =>
+    session.score.locate(EventId(id))!;
+
+Event eventOf(EditSession session, int id) =>
+    session.score.lookup(eventRef(session, id))!.event;
+
+ChordEvent chordIn(EditSession session, int id) =>
+    eventOf(session, id) as ChordEvent;
+
+Map<String, bool> tiesOf(EditSession session, int id) => {
+  for (final note in chordIn(session, id).notes) '${note.pitch}': note.tie,
+};
+
+EditRefusal refusal(EditOutcome outcome) => switch (outcome) {
+  Refused(:final reason) => reason,
+  Applied() => throw StateError('applied'),
+};
+
+/// Whether [edit] applies to [session] and leaves its score as it was.
+bool changesNothing(EditSession session, Edit edit) =>
+    identical(applied(session.run(edit)).score, session.score);
