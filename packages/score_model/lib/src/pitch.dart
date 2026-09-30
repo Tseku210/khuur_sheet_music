@@ -326,9 +326,62 @@ sealed class Transposition {
   /// to the key are kept).
   const factory Transposition.diatonic(int steps) = ByScaleSteps;
 
-  /// By semitones, respelled to suit the key in effect at each note: sharps
-  /// in sharp keys, flats in flat keys.
+  /// By semitones, spelled as a member of the key in effect at each note
+  /// when one fits, else with sharps in C and sharp keys and flats in flat
+  /// keys.
   const factory Transposition.chromatic(int semitones) = BySemitones;
+
+  /// [pitch] moved by this transposition in [key], the key in effect at the
+  /// note. Null when the result needs more than a double sharp or flat.
+  Pitch? apply(Pitch pitch, KeySignature key) => switch (this) {
+    ByInterval(:final interval) => _spelledAt(
+      pitch.diatonic + interval.steps,
+      pitch._quarterTones + interval.semitones * 2,
+    ),
+    ByScaleSteps(:final steps) => _altered(
+      pitch.diatonic + steps,
+      key.alterFor(Step.values[(pitch.diatonic + steps) % 7]).quarterTones +
+          pitch.alter.quarterTones -
+          key.alterFor(pitch.step).quarterTones,
+    ),
+    BySemitones(:final semitones) => _spell(
+      pitch._quarterTones + semitones * 2,
+      key,
+    ),
+  };
+}
+
+Pitch _natural(int diatonic) =>
+    Pitch(Step.values[diatonic % 7], (diatonic - diatonic % 7) ~/ 7);
+
+Pitch? _altered(int diatonic, int quarterTones) {
+  if (quarterTones.abs() > 4) {
+    return null;
+  }
+  final natural = _natural(diatonic);
+  return Pitch(natural.step, natural.octave, Alter._(quarterTones));
+}
+
+/// The pitch [quarterTones] above C−1 written on the letter at [diatonic].
+Pitch? _spelledAt(int diatonic, int quarterTones) =>
+    _altered(diatonic, quarterTones - _natural(diatonic)._quarterTones);
+
+Pitch _spell(int quarterTones, KeySignature key) {
+  final degree = quarterTones % 24;
+  final below =
+      ((quarterTones - degree) ~/ 24 - 1) * 7 +
+      Step.values.lastIndexWhere((step) => step.semitones * 2 <= degree);
+  final inKey = [
+    for (final diatonic in [below - 1, below, below + 1])
+      ?_spelledAt(diatonic, quarterTones),
+  ].where((pitch) => pitch.alter == key.alterFor(pitch.step));
+  if (inKey.isNotEmpty) {
+    return inKey.first;
+  }
+  final sharp = _spelledAt(below, quarterTones)!;
+  return key.fifths >= 0 || sharp.alter == Alter.natural
+      ? sharp
+      : _spelledAt(below + 1, quarterTones)!;
 }
 
 final class ByInterval extends Transposition {

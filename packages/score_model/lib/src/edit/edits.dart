@@ -615,10 +615,17 @@ final class Paste extends Edit {
   String get label => 'Paste';
 }
 
-/// Transposes every note in [selection] (and chord symbols in a range).
-/// Diatonic and chromatic transpositions read the key in effect at each
-/// note. A tie chain is transposed as a whole even if only part of it is
-/// selected. Key signatures are not changed.
+/// Transposes the picked heads, or every head that starts in a range. A
+/// tie chain moves whole, even when only part of it is picked, as its first
+/// head moves in that head's key. A picked event also moves its graces, and
+/// a range moves its graces and chord symbols. Diatonic and chromatic
+/// transpositions read the key in effect at each note. Drum staves and key
+/// signatures are left alone. A tie left leading onto a head it did not
+/// reach before is cleared. The cursor and selection stay. Refused with
+/// [InvalidValue] when a note would need more than a double sharp or flat
+/// or a chord would hold one pitch twice, with [StaleReference] for a gone
+/// event, head, bar or staff, and with [OutsideMeasure] for a range end
+/// outside its bar.
 final class Transpose extends Edit {
   const Transpose(this.selection, this.by);
 

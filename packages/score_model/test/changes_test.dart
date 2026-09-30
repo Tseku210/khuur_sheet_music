@@ -101,13 +101,13 @@ Score edited(Score score, Edit edit) =>
 
 /// One random edit of the kinds a composer makes: note entry (the common
 /// case), voltas, keys, clefs, spanners, inserted and deleted bars, bar
-/// lengths, meters, erased and pasted ranges, and hiding a part. Parts are rebuilt by hand the way
-/// edits rebuild them, sharing everything they don't touch, until their
-/// edits exist.
+/// lengths, meters, erased, pasted and transposed ranges, and hiding a
+/// part. Parts are rebuilt by hand the way edits rebuild them, sharing
+/// everything they don't touch, until their edits exist.
 Score randomEdit(Score score, Random random) {
   final bar = random.nextInt(score.measures.length);
   final id = score.measures[bar].id;
-  switch (random.nextInt(13)) {
+  switch (random.nextInt(14)) {
     case 0 || 1 || 2:
       return edited(
         score,
@@ -251,6 +251,24 @@ Score randomEdit(Score score, Random random) {
                 ),
               ),
             );
+    case 12:
+      final last = min(bar + random.nextInt(2), score.measures.length - 1);
+      return edited(
+        score,
+        Transpose(
+          RangeSelection(
+            from: ScorePoint(id, at(random.nextInt(4), 4)),
+            to: pointAt(score, last, at(1 + random.nextInt(4), 4)),
+            top: pick(random, score.staves).id,
+            bottom: pick(random, score.staves).id,
+          ),
+          pick(random, const [
+            Transposition.interval(Interval.majorSecond),
+            Transposition.diatonic(-2),
+            Transposition.chromatic(1),
+          ]),
+        ),
+      );
     default:
       return hidePart(score, 1, hidden: !score.parts[1].hidden);
   }

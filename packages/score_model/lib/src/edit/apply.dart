@@ -256,9 +256,15 @@ _Head _targetHead(Score score, NoteRef ref) =>
 
 /// Whether [note]'s tie would end on another head, or on none where it
 /// ended on one, if the event after it were [after] instead of [before].
-bool _tieMoves(Note note, TimedEvent? before, TimedEvent? after) =>
+/// [from] is the pitch [note] had before, when it changed.
+bool _tieMoves(
+  Note note,
+  TimedEvent? before,
+  TimedEvent? after, {
+  Pitch? from,
+}) =>
     note.tie &&
-    _headWhere(before, (n) => n.pitch == note.pitch)?.note.id !=
+    _headWhere(before, (n) => n.pitch == (from ?? note.pitch))?.note.id !=
         _headWhere(after, (n) => n.pitch == note.pitch)?.note.id;
 
 /// The head of [timed] that [matches], or null when [timed] is null, a
@@ -675,27 +681,8 @@ Score _eraseItems(Score score, Seq<ElementRef> items, _Ids ids) {
 /// [RangeSelection.to]: the events that start in it, the tuplets wholly
 /// inside it, its directions, and the spanners that start and end in it.
 Score _eraseRange(Score score, RangeSelection range, _Ids ids) {
-  final RangeSelection(:from, :to, :top, :bottom) = range;
-  final first = _barIndex(score, from.measure);
-  final last = _barIndex(score, to.measure);
-  _inside(score.measures[first], from);
-  if (to.offset.isNegative || to.offset > _barEnd(score.measures[last])) {
-    throw _Refuse(OutsideMeasure(to));
-  }
-  final order = [for (final staff in score.staves) staff.id];
-  final ends = [
-    for (final staff in [top, bottom])
-      order.contains(staff)
-          ? order.indexOf(staff)
-          : throw _Refuse(StaleReference(staff)),
-  ];
-  final staves = order.sublist(ends.reduce(min), ends.reduce(max) + 1).toSet();
-  bool inRange(ScorePoint point) =>
-      !_precedes(score, point, from) && _precedes(score, point, to);
-  final lanes = {
-    for (var bar = first; bar <= last; bar++)
-      for (final staff in staves) (bar, staff),
-  };
+  final (:lanes, :staves, :inRange) = _covers(score, range);
+  final to = range.to;
   final cleared = _clear(
     score,
     lanes,
@@ -734,6 +721,41 @@ Score _eraseRange(Score score, RangeSelection range, _Ids ids) {
         ? cleared
         : cleared.copyWith(measures: measures, spanners: Seq(spanners)),
     lanes,
+  );
+}
+
+/// The (bar index, staff) lanes [range] spans, its staves, and whether a
+/// point lies in it. Refused with [StaleReference] for a gone bar or staff
+/// and [OutsideMeasure] for an end outside its bar.
+({
+  Set<(int, StaffId)> lanes,
+  Set<StaffId> staves,
+  bool Function(ScorePoint point) inRange,
+})
+_covers(Score score, RangeSelection range) {
+  final RangeSelection(:from, :to, :top, :bottom) = range;
+  final first = _barIndex(score, from.measure);
+  final last = _barIndex(score, to.measure);
+  _inside(score.measures[first], from);
+  if (to.offset.isNegative || to.offset > _barEnd(score.measures[last])) {
+    throw _Refuse(OutsideMeasure(to));
+  }
+  final order = [for (final staff in score.staves) staff.id];
+  final ends = [
+    for (final staff in [top, bottom])
+      order.contains(staff)
+          ? order.indexOf(staff)
+          : throw _Refuse(StaleReference(staff)),
+  ];
+  final staves = order.sublist(ends.reduce(min), ends.reduce(max) + 1).toSet();
+  return (
+    lanes: {
+      for (var bar = first; bar <= last; bar++)
+        for (final staff in staves) (bar, staff),
+    },
+    staves: staves,
+    inRange: (point) =>
+        !_precedes(score, point, from) && _precedes(score, point, to),
   );
 }
 
@@ -890,9 +912,15 @@ Score _retie(Score before, Score after, Set<(int, StaffId)> lanes) {
         if (event is! ChordEvent) {
           continue;
         }
-        final was = _next(before, before.lookup(timed.ref)!);
+        final old = before.lookup(timed.ref)!;
+        final pitches = {
+          if (old.event case ChordEvent(:final notes))
+            for (final note in notes) note.id: note.pitch,
+        };
+        final was = _next(before, old);
         final now = _next(after, timed);
-        bool moves(Note note) => _tieMoves(note, was, now);
+        bool moves(Note note) =>
+            _tieMoves(note, was, now, from: pitches[note.id]);
         if (event.notes.any(moves)) {
           retied = _replace(retied, timed, _untied(event, moves));
         }
@@ -1138,19 +1166,172 @@ Seq<MeasureColumn> _propagate(
   ]);
 }
 
+/// Moves the picked heads, each with its whole tie chain as the chain's
+/// first head moves in that head's key. A picked event moves its graces,
+/// and a range moves the graces and chord symbols in it. Drum staves stay.
+/// A tie left leading onto a head it did not reach before is cleared.
 _Result _transpose(Score score, Selection selection, Transposition by) {
-  // TODO: collect notes (range: every note head whose event onset is inside
-  // the range on the selected staves; items: the listed heads/events).
-  // Extend to whole tie chains. For each note:
-  //   ByInterval(i): pitch.transpose(i)
-  //   ByScaleSteps(n): key = column.key at the note; move the letter n
-  //     steps; alteration = key.alterFor(newStep) + (pitch.alter -
-  //     key.alterFor(oldStep)) so chromatic colour is kept.
-  //   BySemitones(n): midi + n, spelled from the key's preferred spelling
-  //     (sharps for fifths >= 0, flats otherwise).
-  // Refuse InvalidValue if an alteration leaves -4..4. Chord symbols in a
-  // range move with the same rule. Rebuild each touched column once.
-  throw UnimplementedError();
+  final drums = {
+    for (final part in score.parts)
+      if (part.instrument.drums.isNotEmpty)
+        for (final staff in part.staves) staff.id,
+  };
+  final heads = <_Head>[];
+  final graced = <TimedEvent>[];
+  void pick(TimedEvent timed) {
+    if (timed.event case final ChordEvent chord) {
+      heads.addAll([
+        for (final note in chord.notes)
+          (timed: timed, chord: chord, note: note),
+      ]);
+      graced.add(timed);
+    }
+  }
+
+  var symbols = score;
+  switch (selection) {
+    case NoSelection():
+      return _Result(score);
+    case ItemSelection(:final items):
+      for (final item in items) {
+        switch (item) {
+          case EventRef():
+            pick(_target(score, item));
+          case NoteRef():
+            heads.add(_targetHead(score, item));
+        }
+      }
+    case final RangeSelection range:
+      final (:lanes, staves: _, :inRange) = _covers(score, range);
+      for (final (bar, staff) in lanes) {
+        if (drums.contains(staff)) {
+          continue;
+        }
+        final column = score.measures[bar];
+        final measure = column.staff(staff);
+        for (final voice in measure.voices) {
+          timedEvents(voice, measure: column.id, staff: staff)
+              .where((timed) => inRange(ScorePoint(column.id, timed.onset)))
+              .forEach(pick);
+        }
+        final directions = [
+          for (final d in measure.directions)
+            d is ChordSymbol && inRange(ScorePoint(column.id, d.offset))
+                ? _movedSymbol(d, by, column.key)
+                : d,
+        ];
+        if (!_same(directions, measure.directions)) {
+          symbols = symbols.copyWith(
+            measures: symbols.measures.replaceAt(
+              bar,
+              symbols.measures[bar].withStaff(
+                measure.copyWith(directions: Seq(directions)),
+              ),
+            ),
+          );
+        }
+      }
+  }
+  final moved = <NoteId, Pitch>{};
+  final touched = <EventId, TimedEvent>{};
+  for (final head in heads) {
+    if (drums.contains(head.timed.ref.staff)) {
+      continue;
+    }
+    final chain = _tieChain(score, head);
+    final pitch = _moved(
+      head.note.pitch,
+      by,
+      score.column(chain.first.timed.ref.measure).key,
+    );
+    for (final (:timed, :note, chord: _) in chain) {
+      moved[note.id] = pitch;
+      if (pitch != note.pitch) {
+        touched[timed.event.id] = timed;
+      }
+    }
+  }
+  final graces = <EventId, Seq<GraceChord>>{};
+  for (final timed in graced) {
+    final chord = timed.event as ChordEvent;
+    if (drums.contains(timed.ref.staff)) {
+      continue;
+    }
+    final key = score.column(timed.ref.measure).key;
+    final repitched = [
+      for (final grace in chord.graces)
+        switch (_pitched(grace.notes, (note) => _moved(note.pitch, by, key))) {
+          final notes when identical(notes, grace.notes) => grace,
+          final notes => GraceChord(
+            id: grace.id,
+            kind: grace.kind,
+            value: grace.value,
+            notes: notes,
+          ),
+        },
+    ];
+    if (!_same(repitched, chord.graces)) {
+      graces[chord.id] = Seq(repitched);
+      touched[chord.id] = timed;
+    }
+  }
+  var transposed = symbols;
+  for (final timed in touched.values) {
+    final chord = timed.event as ChordEvent;
+    transposed = _replace(
+      transposed,
+      timed,
+      chord.copyWith(
+        notes: _pitched(chord.notes, (note) => moved[note.id] ?? note.pitch),
+        graces: graces[chord.id],
+      ),
+    );
+  }
+  return _Result(
+    _retie(score, transposed, {
+      for (final timed in touched.values)
+        (score.indexOf(timed.ref.measure), timed.ref.staff),
+    }),
+  );
+}
+
+Pitch _moved(Pitch pitch, Transposition by, KeySignature key) =>
+    by.apply(pitch, key) ??
+    (throw _Refuse(InvalidValue('$pitch moves past a double accidental')));
+
+ChordSymbol _movedSymbol(
+  ChordSymbol symbol,
+  Transposition by,
+  KeySignature key,
+) {
+  PitchName move(PitchName name) =>
+      _moved(Pitch(name.step, 4, name.alter), by, key).name;
+  final ChordSymbol(:offset, :root, :quality, :bass) = symbol;
+  return ChordSymbol(
+    offset,
+    root: move(root),
+    quality: quality,
+    bass: bass == null ? null : move(bass),
+  );
+}
+
+/// [notes] each at the pitch [to] gives it, in pitch order; the same
+/// object when none moves. Refused when two would share a pitch.
+Seq<Note> _pitched(Seq<Note> notes, Pitch Function(Note note) to) {
+  if (notes.every((note) => to(note) == note.pitch)) {
+    return notes;
+  }
+  final sorted = [
+    for (final note in notes) note.copyWith(pitch: to(note)),
+  ]..sort((a, b) => a.pitch.compareTo(b.pitch));
+  for (var k = 1; k < sorted.length; k++) {
+    if (sorted[k].pitch == sorted[k - 1].pitch) {
+      throw _Refuse(
+        InvalidValue('the chord would have ${sorted[k].pitch} twice'),
+      );
+    }
+  }
+  return Seq(sorted);
 }
 
 _Result _parts(Score score, Edit edit, _Ids ids) => throw UnimplementedError();
