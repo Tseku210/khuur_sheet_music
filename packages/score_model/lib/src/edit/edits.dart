@@ -32,7 +32,7 @@ sealed class Edit {
 
 // --- Note entry -----------------------------------------------------------
 
-/// Writes a note of [value] (written) with [pitch] at [at], replacing
+/// Writes a note of [value] (written) playing [tone] at [at], replacing
 /// whatever sounded in that voice from `at` for the note's length.
 ///
 /// Overwrite policy: the span `[at, at + length)` of the voice is cleared
@@ -61,13 +61,16 @@ sealed class Edit {
 final class EnterNote extends Edit {
   const EnterNote({
     required this.at,
-    required this.pitch,
+    required this.tone,
     required this.value,
     this.overfill = Overfill.splitAndTie,
   });
 
   final VoicePoint at;
-  final Pitch pitch;
+
+  /// A pitch on a pitched staff, or a drum of the part's kit on a
+  /// percussion staff. Anything else is refused with [InvalidValue].
+  final Tone tone;
   final NoteValue value;
   final Overfill overfill;
 
@@ -101,16 +104,16 @@ enum Overfill {
   refuse,
 }
 
-/// Adds [pitch] to [event] (access pattern 2). A single note becomes a
-/// chord; a rest becomes a note of the rest's value. Adding a pitch the
+/// Adds [tone] to [event] (access pattern 2). A single note becomes a
+/// chord; a rest becomes a note of the rest's value. Adding a tone the
 /// chord already has is a no-op (idempotent). If the chord is tied into
 /// the next event, the new note is tied too when the next event has the
-/// same pitch.
+/// same tone. The tone must suit the staff, as for [EnterNote].
 final class AddToChord extends Edit {
-  const AddToChord({required this.event, required this.pitch});
+  const AddToChord({required this.event, required this.tone});
 
   final EventRef event;
-  final Pitch pitch;
+  final Tone tone;
 
   @override
   String get label => 'Add note to chord';
@@ -127,16 +130,17 @@ final class RemoveNote extends Edit {
   String get label => 'Delete note';
 }
 
-/// Changes one head's pitch. If the note is part of a tie chain, the whole
-/// chain changes so the tie stays valid.
-final class SetPitch extends Edit {
-  const SetPitch(this.note, this.pitch);
+/// Changes what one head plays, its pitch or its drum. If the note is part
+/// of a tie chain, the whole chain changes so the tie stays valid. The tone
+/// must suit the staff, as for [EnterNote].
+final class SetTone extends Edit {
+  const SetTone(this.note, this.tone);
 
   final NoteRef note;
-  final Pitch pitch;
+  final Tone tone;
 
   @override
-  String get label => 'Change pitch';
+  String get label => 'Change note';
 }
 
 /// Changes an event's written value from its onset. The event keeps its
@@ -177,16 +181,18 @@ final class EnterTuplet extends Edit {
   String get label => 'Enter tuplet';
 }
 
+/// Adds a grace chord of [tone] before [event], nearest the principal. The
+/// tone must suit the staff, as for [EnterNote]; a drum grace is a flam.
 final class AddGrace extends Edit {
   const AddGrace({
     required this.event,
-    required this.pitch,
+    required this.tone,
     this.kind = GraceKind.acciaccatura,
     this.value = NoteValue.eighth,
   });
 
   final EventRef event;
-  final Pitch pitch;
+  final Tone tone;
   final GraceKind kind;
   final NoteValue value;
 
@@ -194,7 +200,7 @@ final class AddGrace extends Edit {
   String get label => 'Add grace note';
 }
 
-/// Sets or clears the tie from [note] to the same pitch in the next event.
+/// Sets or clears the tie from [note] to the same tone in the next event.
 /// Idempotent.
 final class SetTie extends Edit {
   const SetTie(this.note, {required this.tied});
@@ -261,6 +267,8 @@ final class SetBowing extends Edit {
   String get label => 'Bowing';
 }
 
+/// Refused with [InvalidValue] on a drum note, as are [SetString] and
+/// [SetAccidental].
 final class SetFingering extends Edit {
   const SetFingering(this.note, this.finger);
 
@@ -599,7 +607,9 @@ final class SetBarLength extends Edit {
 /// beyond the bottom of the score are dropped. A tie into the pasted music,
 /// or out of it onto a head, is cleared. The pasted range becomes the
 /// selection and the cursor stays. Refused with [StaleReference] for a gone
-/// bar or staff and [OutsideMeasure] for a point outside its bar.
+/// bar or staff, [OutsideMeasure] for a point outside its bar, and
+/// [InvalidValue] for a note that does not suit the staff it lands on, as
+/// for [EnterNote].
 final class Paste extends Edit {
   const Paste(
     this.clip, {
@@ -619,9 +629,10 @@ final class Paste extends Edit {
 /// tie chain moves whole, even when only part of it is picked, as its first
 /// head moves in that head's key. A picked event also moves its graces, and
 /// a range moves its graces and chord symbols. Diatonic and chromatic
-/// transpositions read the key in effect at each note. Drum staves and key
-/// signatures are left alone. A tie left leading onto a head it did not
-/// reach before is cleared. The cursor and selection stay. Refused with
+/// transpositions read the key in effect at each note. Drum notes, which
+/// have no pitch, and key signatures are left alone. A tie left leading
+/// onto a head it did not reach before is cleared. The cursor and selection
+/// stay. Refused with
 /// [InvalidValue] when a note would need more than a double sharp or flat
 /// or a chord would hold one pitch twice, with [StaleReference] for a gone
 /// event, head, bar or staff, and with [OutsideMeasure] for a range end
@@ -641,8 +652,8 @@ final class Transpose extends Edit {
 /// Adds a part made from [template] at part [index], or at the bottom when
 /// null, with a [MeasureRest] on each new staff in every bar. The cursor
 /// and selection stay. Refused with [InvalidValue] for an index outside 0
-/// to the part count, or a template with no staff or a clef list of
-/// another length.
+/// to the part count, a template with no staff or a clef list of another
+/// length, or a kit that names a sound twice.
 final class AddPart extends Edit {
   const AddPart(this.template, {this.index});
 

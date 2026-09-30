@@ -89,7 +89,7 @@ void main() {
         ]),
       );
 
-      final next = enterAt(session, 0, at(1, 4), pitch: g4);
+      final next = enterAt(session, 0, at(1, 4), tone: g4);
 
       expect(bar(next.score, 0), ['F4/quarter', 'G4/quarter', 'rest/half']);
       expect(firstEvent(next.score, 0).id, const EventId(1));
@@ -104,7 +104,7 @@ void main() {
         session,
         0,
         at(5, 8),
-        pitch: g4,
+        tone: g4,
         value: NoteValue.eighth,
       );
 
@@ -122,7 +122,7 @@ void main() {
         scoreWith([chord(1, f4, NoteValue.whole)]),
       );
 
-      final next = enterAt(session, 0, Moment.zero, pitch: g4);
+      final next = enterAt(session, 0, Moment.zero, tone: g4);
 
       expect(bar(next.score, 0), ['G4/quarter', 'rest/quarter', 'rest/half']);
     });
@@ -201,7 +201,7 @@ void main() {
         enterAt(blank(), 0, at(3, 4), value: NoteValue.half);
 
     test('are cleared when the new note has another pitch', () {
-      final session = enterAt(tiedAcross(), 1, Moment.zero, pitch: g4);
+      final session = enterAt(tiedAcross(), 1, Moment.zero, tone: g4);
 
       expect(bar(session.score, 0).last, 'F4/quarter');
     });
@@ -237,7 +237,7 @@ void main() {
         session,
         0,
         at(1, 4),
-        pitch: g4,
+        tone: g4,
         voice: VoiceSlot.two,
         value: NoteValue.eighth,
       );

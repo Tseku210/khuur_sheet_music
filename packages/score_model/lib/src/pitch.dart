@@ -62,10 +62,16 @@ final class PitchName {
   int get hashCode => Object.hash(step, alter);
 }
 
+/// What a note head plays: a [Pitch] on a pitched staff, or a [Drum] of
+/// its part's kit on a percussion staff. A chord holds one kind.
+sealed class Tone implements Comparable<Tone> {
+  const Tone();
+}
+
 /// A spelled pitch. In the model a note's pitch is the *concert, sounding*
 /// pitch. Written pitch (after instrument transposition and 8va lines) is
 /// derived for display in `StaffView.writtenPitches`.
-final class Pitch implements Comparable<Pitch> {
+final class Pitch extends Tone {
   const Pitch(this.step, this.octave, [this.alter = Alter.natural]);
 
   /// Parses scientific pitch notation: `C4`, `Bb3`, `F#5`, `Ebb2`, `C+4`
@@ -127,8 +133,12 @@ final class Pitch implements Comparable<Pitch> {
 
   PitchName get name => PitchName(step, alter);
 
+  /// By sounding height, then by letter, and before any drum.
   @override
-  int compareTo(Pitch other) {
+  int compareTo(Tone other) {
+    if (other is! Pitch) {
+      return -1;
+    }
     final byHeight = _quarterTones.compareTo(other._quarterTones);
     return byHeight != 0 ? byHeight : diatonic.compareTo(other.diatonic);
   }
@@ -158,6 +168,31 @@ final class Pitch implements Comparable<Pitch> {
     };
     return '${step.name.toUpperCase()}$accidental$octave';
   }
+}
+
+/// A sound of a percussion part's kit, named as in `Instrument.drums`. It is
+/// drawn where the kit places it, with the kit's head, and plays the kit's
+/// MIDI key.
+final class Drum extends Tone {
+  const Drum(this.name);
+
+  final String name;
+
+  /// By name, and after any pitch.
+  @override
+  int compareTo(Tone other) => switch (other) {
+    Drum(:final name) => this.name.compareTo(name),
+    Pitch() => 1,
+  };
+
+  @override
+  bool operator ==(Object other) => other is Drum && other.name == name;
+
+  @override
+  int get hashCode => name.hashCode;
+
+  @override
+  String toString() => name;
 }
 
 /// A spelled interval: [steps] letter names and [semitones] half steps. An
@@ -304,7 +339,7 @@ enum Clef {
       octave * 7;
 
   /// The natural written pitch at [staffStep]. The caller applies the key
-  /// and any accidental; `Score.pitchForStaffStep` does all of that.
+  /// and any accidental; `Score.toneForStaffStep` does all of that.
   Pitch naturalAt(int staffStep) {
     final diatonic = _anchor + staffStep - 2 * (line - 1);
     return Pitch(Step.values[diatonic % 7], (diatonic - diatonic % 7) ~/ 7);

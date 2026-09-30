@@ -8,7 +8,7 @@ List<String> describe(Iterable<VoiceItem> items) => [
 
 String _token(VoiceItem item) => switch (item) {
   ChordEvent(:final notes, :final value) =>
-    '${notes.map((n) => n.pitch).join('+')}/$value'
+    '${notes.map((n) => n.tone).join('+')}/$value'
         '${notes.any((n) => n.tie) ? '~' : ''}',
   RestEvent(:final value) => 'rest/$value',
   MeasureRest() => 'measure-rest',
@@ -109,25 +109,25 @@ EditSession blank({int bars = 2, Meter meter = Meter.fourFour}) =>
 EditOutcome enter(
   EditSession session,
   VoicePoint at, {
-  Pitch? pitch,
+  Tone? tone,
   NoteValue value = NoteValue.quarter,
   Overfill overfill = Overfill.splitAndTie,
 }) => session.run(
-  EnterNote(at: at, pitch: pitch ?? f4, value: value, overfill: overfill),
+  EnterNote(at: at, tone: tone ?? f4, value: value, overfill: overfill),
 );
 
 EditSession enterAt(
   EditSession session,
   int barIndex,
   Moment offset, {
-  Pitch? pitch,
+  Tone? tone,
   NoteValue value = NoteValue.quarter,
   VoiceSlot voice = VoiceSlot.one,
 }) => applied(
   enter(
     session,
     point(session.score, barIndex, offset, voice: voice),
-    pitch: pitch,
+    tone: tone,
     value: value,
   ),
 );
@@ -136,7 +136,7 @@ ChordEvent chord(int id, Pitch pitch, NoteValue value, {bool tie = false}) =>
     ChordEvent(
       id: EventId(id),
       value: value,
-      notes: Seq([Note(id: NoteId(id + 50), pitch: pitch, tie: tie)]),
+      notes: Seq([PitchedNote(id: NoteId(id + 50), pitch: pitch, tie: tie)]),
     );
 
 Event firstEvent(Score score, int barIndex) =>
@@ -163,11 +163,40 @@ const drums = PartTemplate(
   instrument: Instrument(
     key: 'drums',
     program: 0,
+    bank: 128,
     clef: Clef.percussion,
     drums: [
       DrumSound(name: 'Snare', position: Pitch(Step.c, 5), midiKey: 38),
+      DrumSound(
+        name: 'Side stick',
+        position: Pitch(Step.c, 5),
+        midiKey: 37,
+        head: NoteHead.cross,
+      ),
+      DrumSound(name: 'Bass drum', position: Pitch(Step.f, 4), midiKey: 36),
     ],
   ),
+);
+
+const snare = Drum('Snare');
+const sideStick = Drum('Side stick');
+const bassDrum = Drum('Bass drum');
+
+/// A chord of [drums], which the caller lists in name order.
+ChordEvent hit(
+  int id,
+  List<Drum> drums, {
+  NoteValue value = NoteValue.quarter,
+  bool tie = false,
+  List<GraceChord> graces = const [],
+}) => ChordEvent(
+  id: EventId(id),
+  value: value,
+  graces: Seq(graces),
+  notes: Seq([
+    for (final (i, drum) in drums.indexed)
+      DrumNote(id: NoteId(id * 10 + i), drum: drum, tie: tie),
+  ]),
 );
 
 MeasureId idOf(EditSession session, int bar) => session.score.measures[bar].id;
@@ -267,7 +296,7 @@ ChordEvent chordOf(
     graces: Seq(graces),
     notes: Seq([
       for (var i = 0; i < names.length; i++)
-        Note(
+        PitchedNote(
           id: NoteId(id * 10 + i),
           pitch: Pitch.parse(names[i]),
           tie: tie,
@@ -297,7 +326,7 @@ ChordEvent chordIn(EditSession session, int id) =>
     eventOf(session, id) as ChordEvent;
 
 Map<String, bool> tiesOf(EditSession session, int id) => {
-  for (final note in chordIn(session, id).notes) '${note.pitch}': note.tie,
+  for (final note in chordIn(session, id).notes) '${note.tone}': note.tie,
 };
 
 EditRefusal refusal(EditOutcome outcome) => switch (outcome) {

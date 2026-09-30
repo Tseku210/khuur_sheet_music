@@ -25,7 +25,7 @@
 //     var session = EditSession.start(score);
 //     session = session.run(EnterNote(
 //       at: session.cursor,
-//       pitch: Pitch.parse('F4'),
+//       tone: Pitch.parse('F4'),
 //       value: NoteValue.quarter,
 //     )).session;
 //
@@ -136,19 +136,23 @@ class ComposerController {
   // Pattern 1: tap to enter a note. The layout resolved the tap to a staff,
   // a measure, an offset and a staff step. The model turns the staff step
   // into a concert pitch using the clef, key, 8va line and instrument
-  // transposition in effect there, then overwrites the voice at that point.
-  // The session advances the cursor past the new note and selects it.
+  // transposition in effect there, or into the kit's drum on a percussion
+  // staff, then overwrites the voice at that point. The session advances
+  // the cursor past the new note and selects it.
   void onStaffTap(StaffHit hit) {
-    final pitch = score.pitchForStaffStep(hit.staff, hit.at, hit.staffStep);
+    final tone = score.toneForStaffStep(hit.staff, hit.at, hit.staffStep);
+    if (tone == null) {
+      return;
+    }
     final at = VoicePoint(staff: hit.staff, voice: inputVoice, at: hit.at);
     final under = score.eventAt(at);
     if (chordMode && under != null && under.onset == hit.at.offset) {
-      _run(AddToChord(event: under.ref, pitch: pitch));
+      _run(AddToChord(event: under.ref, tone: tone));
     } else {
       _run(
         EnterNote(
           at: at,
-          pitch: pitch,
+          tone: tone,
           value: inputValue,
           overfill: overfill,
         ),
@@ -166,7 +170,7 @@ class ComposerController {
     if (target == null) {
       return;
     }
-    _run(AddToChord(event: target, pitch: pitch));
+    _run(AddToChord(event: target, tone: pitch));
   }
 
   // Pattern 3: range select, copy, paste, transpose.

@@ -255,6 +255,15 @@ _Result _paste(
     if (lane.staff >= staves.length) {
       continue;
     }
+    for (final (:item, offset: _) in lane.items) {
+      for (final event in _eventsIn(item)) {
+        if (event case ChordEvent(:final notes, :final graces)) {
+          for (final note in [...notes, for (final g in graces) ...g.notes]) {
+            _checkTone(score, staves[lane.staff], note.tone);
+          }
+        }
+      }
+    }
     for (final run in _runs(lane.items)) {
       pasted = _overwrite(
         pasted,

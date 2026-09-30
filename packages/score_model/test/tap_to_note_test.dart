@@ -14,8 +14,8 @@ Score withClefChange(Score score, Moment offset, Clef clef) =>
       );
     });
 
-Pitch tap(Score score, int step, {int staff = 0, Moment? offset}) =>
-    score.pitchForStaffStep(
+Tone? tap(Score score, int step, {int staff = 0, Moment? offset}) =>
+    score.toneForStaffStep(
       score.staves[staff].id,
       pointAt(score, 0, offset ?? Moment.zero),
       step,
@@ -28,10 +28,10 @@ EventRef refTo(Score score, int bar, EventId id) => EventRef(
 );
 
 EditOutcome addTo(EditSession session, EventRef event, Pitch pitch) =>
-    session.run(AddToChord(event: event, pitch: pitch));
+    session.run(AddToChord(event: event, tone: pitch));
 
 Map<String, bool> ties(ChordEvent chord) => {
-  for (final note in chord.notes) '${note.pitch}': note.tie,
+  for (final note in chord.notes) '${note.tone}': note.tie,
 };
 
 (int, Moment) spot(EditSession session) => (
@@ -186,7 +186,7 @@ void main() {
     });
   });
 
-  group('Score.pitchForStaffStep', () {
+  group('Score.toneForStaffStep', () {
     test('reads the natural pitch from the clef', () {
       final score = blankScore(parts: const [piano]);
 
@@ -238,14 +238,15 @@ void main() {
       expect(tap(score, 2), Pitch.parse('F4'));
     });
 
-    test('gives the plain display position on a percussion staff', () {
+    test('gives the kit\'s first drum at a percussion step, or none', () {
       final score = blankScore(
         parts: const [drums],
         key: const KeySignature(2),
       );
 
-      expect(tap(score, 1), Pitch.parse('F4'));
-      expect(tap(score, 5), Pitch.parse('C5'));
+      expect(tap(score, 1), bassDrum);
+      expect(tap(score, 5), snare);
+      expect(tap(score, 3), isNull);
     });
   });
 
@@ -340,7 +341,7 @@ void main() {
         blank(),
         0,
         Moment.zero,
-        pitch: g4,
+        tone: g4,
         voice: VoiceSlot.two,
       );
 
@@ -522,7 +523,7 @@ void main() {
         blank(),
         0,
         at(1, 4),
-        pitch: g4,
+        tone: g4,
         value: NoteValue.eighth,
         voice: VoiceSlot.two,
       );

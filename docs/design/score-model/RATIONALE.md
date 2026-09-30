@@ -22,17 +22,18 @@ final score = Score.blank(
 );
 var session = EditSession.start(score);
 session = session.run(EnterNote(
-    at: session.cursor, pitch: Pitch.parse('F4'), value: NoteValue.quarter)).session;
+    at: session.cursor, tone: Pitch.parse('F4'), value: NoteValue.quarter)).session;
 ```
 
 The composer controller is a `ChangeNotifier` in the app.
 
 ```dart
 void onStaffTap(StaffHit hit) {
-  final pitch = score.pitchForStaffStep(hit.staff, hit.at, hit.staffStep);
+  final tone = score.toneForStaffStep(hit.staff, hit.at, hit.staffStep);
+  if (tone == null) return; // a percussion line with no drum
   _run(EnterNote(
     at: VoicePoint(staff: hit.staff, voice: inputVoice, at: hit.at),
-    pitch: pitch,
+    tone: tone,
     value: inputValue,
     overfill: overfill, // splitAndTie, or refuse for Maestro's "need a bar line"
   ));
@@ -78,7 +79,8 @@ Score
 │              └─ items: Seq<VoiceItem> = Gap | Content
 │                   Content = Event (ChordEvent | RestEvent | MeasureRest) | Tuplet(members: Seq<Content>)
 │                   ChordEvent  notes · articulations (a set) · ornament? · bowing? · graces · lyrics
-│                   Note        id · concert Pitch · tie flag · fingering · string
+│                   Note        PitchedNote (id · concert Pitch · tie flag · fingering · string)
+│                               | DrumNote (id · Drum of the kit · tie flag)
 └─ spanners: Seq<Spanner>           slur, hairpin, 8va, trill, pedal, gliss; anchored at ScorePoint(MeasureId, Moment)
 ```
 
@@ -103,6 +105,7 @@ Encoded in types:
 - IDs can't be mixed up, and neither can points and spans
 - where a navigation mark takes effect is fixed by its class
 - up-bow and down-bow can't both be set
+- a drum note has no pitch, accidental, fingering or string (`DrumNote`)
 
 The constructors check bar fill, tuplet fill, no gaps in voice one, voice slot order, and clef-change and tempo offsets. Only the boundary (`scoreFromJson`) checks staff order per column, unique IDs across the whole score, and spanner anchors. Debug asserts cover those elsewhere.
 
@@ -203,10 +206,10 @@ Implemented in Phase D, unit 1. The deviations below were accepted during implem
 
 ### Unit 2: tap to enter a note or chord
 
-Implemented in Phase D, unit 2. It covers access patterns 1 and 2 through `Score.contextAt`, `Score.pitchForStaffStep`, `KeySignature.transpose`, `Score.spannersTouching`, `AddToChord`, `EditSession.placeCursor` and `EditSession.moveCursor`. The deviations below have not yet been reviewed by the project owner.
+Implemented in Phase D, unit 2. It covers access patterns 1 and 2 through `Score.contextAt`, `Score.pitchForStaffStep` (now `toneForStaffStep`), `KeySignature.transpose`, `Score.spannersTouching`, `AddToChord`, `EditSession.placeCursor` and `EditSession.moveCursor`. The deviations below have not yet been reviewed by the project owner.
 
 - **The percussion clef reads like treble.** The sketch anchored G4 on the percussion clef's own line, which is the middle line, so a percussion staff read a third low. The clef now marks B4 there, and the bottom line is E4 as on a treble staff. This was a bug in the sketch.
-- **A percussion tap ignores key, 8va and transposition.** `pitchForStaffStep` returns the natural position on the staff, which is what `Instrument.drums` maps. The pseudocode applied the key signature, which in D major would turn the F4 position into F♯4 and miss the drum map.
+- **A percussion tap ignores key, 8va and transposition.** `pitchForStaffStep` returns the natural position on the staff, which is what `Instrument.drums` maps. The pseudocode applied the key signature, which in D major would turn the F4 position into F♯4 and miss the drum map. Since unit 17 the tap returns the kit's drum at that position.
 - **`Tempo.unmarked`.** Music before its first tempo mark plays at 100 quarter notes per minute. `contextAt` falls back to it, and `Score.blank` uses it as its default. Playback needs the same fallback.
 - **An octave line covers its anchors inclusively.** A point is under the line from its first anchor through its last, compared by bar position and then offset. A tap later inside the last covered event is outside, because the new note would start after the line's last anchor.
 - **`AddToChord` ties when any note of the chord is tied.** The sketch said the event's first note. The lowest note is an arbitrary choice, and "the chord continues into the next event" is what the tie means. The next event is found with `eventAt`, in the same bar or at the start of the next.
@@ -242,7 +245,7 @@ Implemented in Phase D, unit 4. It covers `Score.changesSince`, which lets layou
 
 ### Unit 5: point edits
 
-Implemented in Phase D, unit 5. It covers `RemoveNote`, `SetPitch`, `SetTie`, `AddGrace`, `SetArticulation`, `SetOrnament`, `SetBowing`, `SetFingering`, `SetString`, `SetAccidental` and `SetLyric`. The deviations below have not yet been reviewed by the project owner.
+Implemented in Phase D, unit 5. It covers `RemoveNote`, `SetPitch` (now `SetTone`), `SetTie`, `AddGrace`, `SetArticulation`, `SetOrnament`, `SetBowing`, `SetFingering`, `SetString`, `SetAccidental` and `SetLyric`. The deviations below have not yet been reviewed by the project owner.
 
 - **`RemoveNote` clears the tie into the removed head.** The sketch said a point edit touches one column. A tie from the event before, which may sit in the bar before, would otherwise turn silently into a let-ring tie. Note entry already clears a tie that leads into new music, so removal follows the same rule.
 - **The last head leaves a rest that keeps only a fermata.** Ornament, bowing, graces, lyrics and the other articulations go with the chord, because a rest can't carry them.
@@ -363,7 +366,7 @@ Implemented in Phase D, unit 14. It covers `Transpose` and `Transposition.apply`
 
 - **A chain moves as its first head does.** Picking any head of a tie chain moves the whole chain, even into bars outside a range. The chain takes the pitch its first head gets in that head's key, so a chain that crosses a key change stays one pitch.
 - **Graces move with their chord.** A picked event or a range moves the graces of the chords it takes, in the chord's key. A picked head moves only that head.
-- **Drum staves stay.** A staff of a part whose instrument has drum sounds keeps its notes, graces and chord symbols, because a drum note's pitch names a staff position.
+- **Drum notes stay.** A drum note has no pitch, so it and its graces keep their place. Chord symbols on a drum staff name harmony and move like any others. Before unit 17 the whole drum staff stayed, chord symbols included, because a drum note's pitch named a staff position.
 - **Chromatic spelling prefers the key.** `BySemitones` spells the result as a member of the key when one of the three nearest letters gives one. Otherwise it spells a natural when the pitch is one, sharps in C and in sharp keys, and flats in flat keys. Quarter tones follow the same side, so C quarter-sharp up a semitone is C three-quarter-sharp in C and D quarter-flat in F. The sketch said only sharps in sharp keys and flats in flat keys.
 - **`Transposition.apply` is public.** It is the one rule for moving a pitch in a key, and it returns null past a double sharp or flat. `Transpose` refuses that with `InvalidValue`, as it refuses a chord that would hold one pitch twice.
 - **A range picks by onset, as erase does.** It takes the events that start in it, including the members of a tuplet it cuts, and the chord symbols whose offset is in it. The range checks are shared with erase in `_covers`.
@@ -410,8 +413,19 @@ Implemented in Phase D, unit 16, in parts. The first part covers the play order,
 - **A tremolo divides its chord by its strokes and flags.** One stroke on a quarter or longer plays eighths, one on an eighth plays sixteenths, and each further stroke halves again. The pieces fill the chord's played length, so a triplet eighth with one stroke plays two. An ornament on the chord wins over its tremolo.
 - **A trill line trills every chord under it that has no ornament**, from its first point to its last inclusive, in every voice of its staff. Like a hairpin, it lives in `Score.spanners`, so the chords under it are realized again on every compile.
 - **The first note a chord plays takes its accents, and the last takes its articulation.** A trilled quarter with an accent and a staccato strikes only its first 32nd harder and cuts only its last. A tie runs on only from the last note, and only when that note is the written pitch. A neighbour never ties.
-- **A drum note plays the sound at its position with its head**, else the first sound at its position, else nothing.
+- **A drum note plays the kit sound it names**, at 0 cents. Before unit 17 it played the sound at its position with its head, else the first sound at its position, else nothing.
 - **`sourcesAt` reports chords for their notated length.** It gives one per voice in staff and voice order, and none for rests or muted parts. While its grace notes play, a chord is reported.
+
+### Unit 17: drum notes
+
+Implemented in Phase D, unit 17, from the owner's decision of 2026-10-01 below. It covers `Tone`, `Drum`, `PitchedNote`, `DrumNote`, `SetTone` (was `SetPitch`), `Score.toneForStaffStep` (was `pitchForStaffStep`), `Instrument.soundOf` and `StaffView.headOf`. The deviations below have not yet been reviewed by the project owner.
+
+- **`Note` is sealed, with `PitchedNote` and `DrumNote`.** Two shapes were weighed. One `Note` with a tone field keeps a single class, but leaves `accidental`, `fingering` and `string` on a drum note, where they mean nothing, and its `head` would compete with the kit's. The sealed pair makes those states unrepresentable. Code that reads a pitch has to say what a drum does, and the compiler listed every such site. `Note.tone` gives what either kind plays, so ties, chord order and repeated tones are checked once for both.
+- **A tone is a `Pitch` or a `Drum`.** A `Drum` holds the name of a kit sound, so the names in `Instrument.drums` are unique. Tones order pitches by height and drums by name. A chord and its graces hold one kind, which `ChordEvent` asserts.
+- **Edits take a tone and check it against the staff.** `EnterNote`, `AddToChord`, `AddGrace` and `SetTone` refuse a pitch on a percussion staff, a drum on a pitched staff and a drum the kit lacks, with `InvalidValue`. `Paste` refuses a note that doesn't suit the staff it lands on. `SetAccidental`, `SetFingering` and `SetString` refuse a drum note. `AddPart` refuses a kit that names a sound twice. The JSON codec will check the same when a file loads.
+- **A drum prints and sounds from its kit.** `StaffView.writtenPitches` gives a drum its kit position, with no 8va shift, and `StaffView.headOf` gives the kit's head. A drum takes no accidental. Playback plays the kit sound's key.
+- **A percussion tap gives the kit's first drum on that line or space, or null.** A kit may put two sounds on one line, like snare and side stick, and the app switches between them with `SetTone`. `toneForStaffStep` returns null where the kit has no sound, so an app ignores that tap.
+- **A split keeps the drum.** A drum note cut at a barline or re-barred becomes tied drum notes of the same sound, as a pitched note keeps its pitch and head.
 
 ### Scope: a general library
 
@@ -445,7 +459,7 @@ Each question is filed under the point it must be answered by. An answer that ch
 
 - Which string-technique marks belong in v1 beyond fingering, string numbers, bowing and the common ornaments? Harmonics, pizzicato and glissando are candidates.
 - Does Maestro push later notes forward when you enter into a full bar? If users expect insert mode, is an `InsertTime` edit batched with `EnterNote` enough? It would have to ripple every voice on the staff together, because a one-voice ripple desyncs the others. Trying it in Maestro answers the first question.
-- Should a tap read accidentals earlier in the bar, as MuseScore does? `pitchForStaffStep` reads only the key signature, so after an F♯ in C major a tap on the F line enters F natural, which then prints a natural sign. `measureView` now resolves the accidental state per staff, so reading it is possible. Trying it in Maestro answers this.
+- Should a tap read accidentals earlier in the bar, as MuseScore does? `toneForStaffStep` reads only the key signature, so after an F♯ in C major a tap on the F line enters F natural, which then prints a natural sign. `measureView` now resolves the accidental state per staff, so reading it is possible. Trying it in Maestro answers this.
 - Is "re-barring never removes bars" the right call, or should surplus bars that are entirely empty be dropped? `SetMeter` keeps them until this is answered.
 - Deleting bars drops the tempo marks and dynamics written in them, so the music after the cut can play at the wrong tempo or volume. Should `DeleteMeasures` carry the tempo and dynamic in effect onto the next surviving bar?
 - A pickup bar beams and resolves beats from its own start, not aligned to the end of a full bar. Five eighths in a 4/4 pickup beam as four plus one, where aligning them to the bar's end would give one plus four. Should `irregularLength` bars shift the beat grid?
@@ -456,13 +470,13 @@ Each question is filed under the point it must be answered by. An answer that ch
 
 ## Next implementation step
 
-Units 1 to 15 (note entry, tap to enter, chords, cursor moves, the measure view, change tracking, the point edits, the bar edits, meter changes, key, clef and tempo, the marks, batches, values and tuplets, erase, copy and paste, transpose, and the part edits) are done. The model now answers everything layout reads, so the Flutter layout engine can start against `measureView` and `changesSince`. Every edit in `apply.dart` is implemented. The `changesSince` sweep drives note entry, voltas, keys, clefs, spanners, inserted and deleted bars, bar lengths, meters, range erases, pastes, range transposes, and adding, removing, hiding and showing parts. Playback is done: its play order, timing, notes, ties, channels, dynamics, hairpins, articulations, fermatas, grace notes, ornaments, tremolos and trill lines. 2 stubs each remain in `io/json.dart` and `io/musicxml.dart`. The owner's answers of 2026-10-01 set the order. Drum notes, gradual tempo changes, system breaks and restated signatures change stored types, so they come first. The JSON codec follows, then MusicXML.
+Units 1 to 17 (note entry, tap to enter, chords, cursor moves, the measure view, change tracking, the point edits, the bar edits, meter changes, key, clef and tempo, the marks, batches, values and tuplets, erase, copy and paste, transpose, the part edits, playback and drum notes) are done. The model now answers everything layout reads, so the Flutter layout engine can start against `measureView` and `changesSince`. Every edit in `apply.dart` is implemented. The `changesSince` sweep drives note entry, voltas, keys, clefs, spanners, inserted and deleted bars, bar lengths, meters, range erases, pastes, range transposes, and adding, removing, hiding and showing parts. Playback is done: its play order, timing, notes, ties, channels, dynamics, hairpins, articulations, fermatas, grace notes, ornaments, tremolos and trill lines. 2 stubs each remain in `io/json.dart` and `io/musicxml.dart`. The owner's answers of 2026-10-01 set the order. Gradual tempo changes, system breaks and restated signatures change stored types, so they come next. The JSON codec follows, then MusicXML.
 
 ## Access pattern traces
 
-**1. Tap to enter a note.** The layout's hit test yields a staff, a `ScorePoint(measureId, Moment)` and a staff step. `Score.pitchForStaffStep` reads `StaffMeasure.clefAt(offset)` and `column.key`, both stored in the bar. It applies any 8va line from `spannersTouching` and converts written to concert pitch through `Instrument.transposition`. The controller runs `EnterNote(at, pitch, value, overfill)`. `EditSession.run` calls `_apply`, then `_overwrite`. That finds the column through `indexOf` and rebuilds the voice with `_replaceSpan`, where `Meter.spell` splits and re-spells the rest at the tap point. The staff measure and column are rebuilt, and the column constructor re-checks fill. One `replaceRange` completes the edit. The new session's cursor sits after the note, the new event is selected, and one snapshot is pushed.
+**1. Tap to enter a note.** The layout's hit test yields a staff, a `ScorePoint(measureId, Moment)` and a staff step. `Score.toneForStaffStep` reads `StaffMeasure.clefAt(offset)` and `column.key`, both stored in the bar. It applies any 8va line from `spannersTouching` and converts written to concert pitch through `Instrument.transposition`. On a percussion staff it gives the kit's drum at that position instead. The controller runs `EnterNote(at, tone, value, overfill)`. `EditSession.run` calls `_apply`, then `_overwrite`. That finds the column through `indexOf` and rebuilds the voice with `_replaceSpan`, where `Meter.spell` splits and re-spells the rest at the tap point. The staff measure and column are rebuilt, and the column constructor re-checks fill. One `replaceRange` completes the edit. The new session's cursor sits after the note, the new event is selected, and one snapshot is pushed.
 
-**2. Enter a chord.** `AddToChord(event: selection.singleEvent, pitch)` goes to `_pointEdit`. It resolves the `EventRef` through `Score.lookup` (the hinted bar, or `locate` on a miss) and inserts a `Note` with a fresh `NoteId` into `ChordEvent.notes` in pitch order. A single note is already a `ChordEvent`, so nothing changes type. A rest becomes a one-note chord. One column is rebuilt. Adding a pitch the chord already has returns the identical score, and the session records no history entry.
+**2. Enter a chord.** `AddToChord(event: selection.singleEvent, tone)` goes to `_pointEdit`. It resolves the `EventRef` through `Score.lookup` (the hinted bar, or `locate` on a miss) and inserts a `Note` with a fresh `NoteId` into `ChordEvent.notes` in tone order. A single note is already a `ChordEvent`, so nothing changes type. A rest becomes a one-note chord. One column is rebuilt. Adding a tone the chord already has returns the identical score, and the session records no history entry.
 
 **3. Copy, paste, transpose.** `select(RangeSelection(from, to, top, bottom))`, then `copy()` walks the columns from `from.measure` to `to.measure`. For each staff in the block it dissolves barlines into one timeline per voice of `(Moment offset, Content item)` pairs, keeping tied pieces tied. It also takes the spanners and directions inside the range. The result is an opaque `Clip`. `Paste(clip, at: cursor, overfill)` clears the target range as a range erase does, re-mints every ID and sends each lane through `_overwrite`. It follows the same barline rule as entry. It splits, ties and appends bars at the end if needed, or refuses with `WouldCrossBarline`. The pasted range becomes the selection. `Transpose(selection, Transposition.diatonic(1))` or `.chromatic(1)` reads `column.key` for each note's bar in O(1). It moves the spelled pitch, extends to whole tie chains, and rewrites each touched chord.
 
@@ -548,4 +562,6 @@ Units 1 to 15 (note entry, tap to enter, chords, cursor moves, the measure view,
   - Forty-nine mutations were each caught. The first run caught 48. The survivor let a hairpin sound on every part, which the test could not see because the other part's note sat at the hairpin's start, so that note now starts on beat two. Planning the mutations found five cases no test told apart and added them: marks on two staves out of order, hairpins added out of order, a dynamic after a hairpin's end, the pppp and ffff bounds, and overlapping hairpins. It also found that a target had to lie at or after the hairpin's last event, which no test could observe apart from a dynamic inside the hairpin, so that rule was dropped.
 - The fourth part adds 8 tests, for 453 in all, and all pass. They cover acciaccaturas a 32nd each from their chord, appoggiaturas taking half and three acciaccaturas capped at half, tremolos from one to three strokes on eighths, quarters, a half and a triplet eighth, a trill in the key with its accent on the first 32nd and its staccato on the last, a trill stretched to whole 32nds and one too short for any, mordents and turns in a flat key down to octave -1 with the held note's length, a trill line in bar 2 heard by a reused compiler with a mordent under it kept, and ties from a tremolo's last stroke, from a tied grace, broken by a grace and never from a neighbour. The first seven failed with each chord as one plain note, the acciaccatura test with `(0.0, 0.675, 60, 0, 1)` in place of the grace's `(0.0, 0.084, 62, 0, 5)`. A mordent on C0 then played its lower neighbour at key 22, an octave high, because the octave was truncated rather than floored.
   - Fifty-five mutations were each caught. The first run caught 46. A trill line in bar 1 could not see its bar's start, so the test's line moved to bar 2 and ends on a plain chord. No test tied a grace. Clearing a grace's tie was a rule no case needed, and a tied grace re-struck its principal with `(4.594, 67, 7)`, so graces now keep their ties. The others were a neighbour tied into a turn, trill counts not in whole 32nds, a trill too short for one, a mordent's held length, a half-note tremolo and three strokes, and each now has a test.
+- Unit 17 adds 10 tests in `drums_test.dart`, for 463 in all, and all pass. They cover entering a drum, each tone refused by each of the four entry edits, chords kept in name order through `AddToChord` and `SetTone` with a repeated drum refused, a drum added to a tied chord tied on, a mixed chord or grace asserted, the pitched-only marks refused, a drum split at a barline into tied drums, a tied drum held under a new stroke, paste between staves of each kind, and a kit that repeats a name. Four earlier tests now build drum notes: playback by name, the view's positions and heads with no key or accidentals, a percussion tap giving a drum or null, and a transpose that leaves drums and moves their chord symbols. The paste and kit tests failed first with `Bad state: applied`. The tone checks were written with the types, before their tests, so mutations prove those tests instead.
+  - Twenty-five mutations were each caught. The first run caught 23. Both survivors were in the split that keeps a drum, which the barline test could not see because it entered a snare, the drum the mutation substituted, and made no middle piece. The test now enters a bass drum off the beat. Planning the mutations found `_addToChord` checking the tone that every branch's new head already checks, and that check was deleted.
 - Synthesis review caught two pseudocode bugs, which are fixed. `changesSince` marked a bar dirty whenever its predecessor was marked, which would have cascaded one edit to the last bar. It now tests the set of identity-changed columns, a rule unit 4 replaced with neighbour identity. The `keepBars` branch used the scope's end before computing it.

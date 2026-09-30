@@ -65,6 +65,10 @@ final class ChordEvent extends Event {
     this.tremolo = 0,
     this.lyrics = const Seq.empty(),
   }) : assert(notes.isNotEmpty, 'a chord has at least one note'),
+       assert(
+         _oneKind([...notes, for (final grace in graces) ...grace.notes]),
+         'a chord and its graces are all pitched or all drums',
+       ),
        assert(tremolo >= 0 && tremolo <= 4, 'tremolo strokes in 0..4');
 
   final NoteValue value;
@@ -77,8 +81,9 @@ final class ChordEvent extends Event {
   /// cannot both be set.
   final Bowing? bowing;
 
-  /// Sorted from lowest to highest sounding pitch; no two notes share a
-  /// spelled pitch. A unison of different spellings (E♯/F) is allowed.
+  /// All pitched or all drums, sorted by [Tone.compareTo]: lowest to highest
+  /// sounding pitch, or drums by name. No two notes share a tone, but a
+  /// unison of different spellings (E♯/F) is allowed.
   final Seq<Note> notes;
 
   /// Grace chords played before this chord, in order.
@@ -131,6 +136,10 @@ final class ChordEvent extends Event {
     lyrics: lyrics ?? this.lyrics,
   );
 }
+
+bool _oneKind(List<Note> notes) =>
+    notes.every((note) => note is PitchedNote) ||
+    notes.every((note) => note is DrumNote);
 
 /// A rest of a written value.
 final class RestEvent extends Event {
@@ -204,28 +213,38 @@ final class Tuplet extends Content {
 enum TupletBracket { auto, shown, hidden }
 
 /// One note head.
-final class Note {
-  const Note({
-    required this.id,
+sealed class Note {
+  const Note({required this.id, this.tie = false});
+
+  final NoteId id;
+
+  /// Tied to the head of the same [tone] in the next event of the same
+  /// staff and voice, which may be in the next measure. The tie's end is
+  /// derived, never stored, so it cannot dangle. If no matching head
+  /// follows, the tie is drawn as a short let-ring tie and playback ends the
+  /// note normally.
+  final bool tie;
+
+  /// What it plays. A chord never holds one tone twice.
+  Tone get tone;
+
+  Note copyWith({NoteId? id, bool? tie});
+}
+
+/// A head on a pitched staff.
+final class PitchedNote extends Note {
+  const PitchedNote({
+    required super.id,
     required this.pitch,
-    this.tie = false,
+    super.tie,
     this.accidental = AccidentalRequest.auto,
     this.head = NoteHead.normal,
     this.fingering,
     this.string,
   });
 
-  final NoteId id;
-
   /// Concert (sounding) pitch. What is printed is derived per staff.
   final Pitch pitch;
-
-  /// Tied to the note with the same written pitch in the next event of the
-  /// same staff and voice, which may be in the next measure. The tie's end
-  /// is derived, never stored, so it cannot dangle. If no matching note
-  /// follows, the tie is drawn as a short let-ring tie and playback ends the
-  /// note normally.
-  final bool tie;
 
   final AccidentalRequest accidental;
   final NoteHead head;
@@ -238,15 +257,19 @@ final class Note {
   /// 0 is the G string and 3 the E string.
   final int? string;
 
-  Note copyWith({
+  @override
+  Pitch get tone => pitch;
+
+  @override
+  PitchedNote copyWith({
     NoteId? id,
-    Pitch? pitch,
     bool? tie,
+    Pitch? pitch,
     AccidentalRequest? accidental,
     NoteHead? head,
     int? Function()? fingering,
     int? Function()? string,
-  }) => Note(
+  }) => PitchedNote(
     id: id ?? this.id,
     pitch: pitch ?? this.pitch,
     tie: tie ?? this.tie,
@@ -254,6 +277,24 @@ final class Note {
     head: head ?? this.head,
     fingering: fingering == null ? this.fingering : fingering(),
     string: string == null ? this.string : string(),
+  );
+}
+
+/// A head on a percussion staff. It is drawn where its part's kit places
+/// [drum], with the kit's head.
+final class DrumNote extends Note {
+  const DrumNote({required super.id, required this.drum, super.tie});
+
+  final Drum drum;
+
+  @override
+  Drum get tone => drum;
+
+  @override
+  DrumNote copyWith({NoteId? id, bool? tie, Drum? drum}) => DrumNote(
+    id: id ?? this.id,
+    drum: drum ?? this.drum,
+    tie: tie ?? this.tie,
   );
 }
 

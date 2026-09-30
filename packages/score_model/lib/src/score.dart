@@ -260,19 +260,21 @@ final class Score {
     return byBar != 0 ? byBar : a.offset.compareTo(b.offset);
   }
 
-  /// The concert pitch a tap at [staffStep] means at [at] on [staff]: the
-  /// clef gives the written letter and octave, the key gives the default
-  /// alteration, an 8va line in effect shifts it, and the part's instrument
-  /// transposition turns written into concert pitch.
-  ///
-  /// On a percussion staff the result is the natural display position,
-  /// which `Instrument.drums` maps to a sound.
-  Pitch pitchForStaffStep(StaffId staff, ScorePoint at, int staffStep) {
+  /// What a tap at [staffStep] enters at [at] on [staff]. On a pitched
+  /// staff it is the concert pitch: the clef gives the written letter and
+  /// octave, the key gives the default alteration, an 8va line in effect
+  /// shifts it, and the part's instrument transposition turns written into
+  /// concert pitch. On a percussion staff it is the kit's first drum at that
+  /// position, or null when none sits there.
+  Tone? toneForStaffStep(StaffId staff, ScorePoint at, int staffStep) {
     final context = contextAt(staff, at);
     final natural = context.clef.naturalAt(staffStep);
     final instrument = partOf(staff).instrument;
     if (instrument.isPercussion) {
-      return natural;
+      return instrument.drums
+          .where((sound) => sound.position.diatonic == natural.diatonic)
+          .map((sound) => Drum(sound.name))
+          .firstOrNull;
     }
     final written = Pitch(
       natural.step,
@@ -469,7 +471,8 @@ final class Instrument {
   /// Open strings, lowest first. Violin: G3, D4, A4, E5.
   final List<Pitch> strings;
 
-  /// Non-empty only for percussion: display position → sound.
+  /// The kit, non-empty only for percussion. Names are unique, because a
+  /// [Drum] names its sound.
   final List<DrumSound> drums;
 
   /// Comfortable range, for out-of-range colouring. Null when unknown.
@@ -478,14 +481,18 @@ final class Instrument {
 
   bool get isPercussion => drums.isNotEmpty;
 
+  /// The sound [drum] names, or null when the kit has none.
+  DrumSound? soundOf(Drum drum) =>
+      drums.where((sound) => sound.name == drum.name).firstOrNull;
+
   /// The key signature this instrument prints in concert [key]. Percussion
   /// prints none.
   KeySignature writtenKey(KeySignature key) =>
       isPercussion ? const KeySignature(0) : key.transpose(transposition);
 }
 
-/// One sound of a drum kit: where it sits on the staff and which MIDI key
-/// plays it.
+/// One sound of a drum kit: where it sits on the staff, the head it is
+/// drawn with and which MIDI key plays it.
 final class DrumSound {
   const DrumSound({
     required this.name,

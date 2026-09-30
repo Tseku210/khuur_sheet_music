@@ -336,14 +336,27 @@ void main() {
       expect(printed(staffOf(score, 0, staff: 1)), ['E3']);
     });
 
-    test('prints percussion at its position with no key', () {
+    test('prints each drum at its kit position and head, with no key', () {
       final score = fill(
         blankScore(parts: const [drums], key: const KeySignature(2)),
         0,
-        [chordOf(100, 'C5', value: NoteValue.whole)],
+        [
+          hit(100, [bassDrum, sideStick], value: NoteValue.half),
+          hit(101, [snare], value: NoteValue.half),
+        ],
       );
+      final staff = staffOf(score, 0);
+      final heads = [
+        for (final voice in staff.voices)
+          for (final timed in voice.events)
+            for (final note in (timed.event as ChordEvent).notes)
+              staff.headOf(note),
+      ];
 
-      expect(printed(staffOf(score, 0)), ['C5']);
+      expect(printed(staff), ['F4', 'C5', 'C5']);
+      expect(heads, [NoteHead.normal, NoteHead.cross, NoteHead.normal]);
+      expect(staff.writtenKey, const KeySignature(0));
+      expect(staff.accidentals, isEmpty);
     });
   });
 
@@ -607,7 +620,9 @@ void main() {
         id: const EventId(99),
         kind: GraceKind.acciaccatura,
         value: NoteValue.eighth,
-        notes: Seq([Note(id: const NoteId(990), pitch: Pitch.parse('F#4'))]),
+        notes: Seq([
+          PitchedNote(id: const NoteId(990), pitch: Pitch.parse('F#4')),
+        ]),
       );
       final score = fill(blankScore(), 0, [
         chordOf(100, 'F4', graces: [grace]),
@@ -622,7 +637,9 @@ void main() {
         id: const EventId(99),
         kind: GraceKind.acciaccatura,
         value: NoteValue.eighth,
-        notes: Seq([Note(id: const NoteId(990), pitch: Pitch.parse('F#4'))]),
+        notes: Seq([
+          PitchedNote(id: const NoteId(990), pitch: Pitch.parse('F#4')),
+        ]),
       );
       var score = fill(blankScore(), 0, [
         chordOf(100, 'F4', value: NoteValue.whole),

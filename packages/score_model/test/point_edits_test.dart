@@ -35,7 +35,7 @@ void main() {
           ChordEvent(
             id: const EventId(20),
             value: NoteValue.half,
-            notes: Seq([Note(id: const NoteId(200), pitch: f4)]),
+            notes: Seq([PitchedNote(id: const NoteId(200), pitch: f4)]),
             articulations: const {Articulation.staccato, Articulation.fermata},
             ornament: Ornament.trill,
             bowing: Bowing.up,
@@ -45,7 +45,7 @@ void main() {
                 id: const EventId(30),
                 kind: GraceKind.acciaccatura,
                 value: NoteValue.eighth,
-                notes: Seq([Note(id: const NoteId(300), pitch: g4)]),
+                notes: Seq([PitchedNote(id: const NoteId(300), pitch: g4)]),
               ),
             ]),
           ),
@@ -80,14 +80,14 @@ void main() {
     });
   });
 
-  group('SetPitch', () {
+  group('SetTone', () {
     test('moves a head and keeps the chord in pitch order', () {
       final session = sessionWith([
         [chordOf(20, 'D4 F4 A4', value: NoteValue.whole)],
       ]);
 
       final next = applied(
-        session.run(SetPitch(head(session, 20, 1), Pitch.parse('B4'))),
+        session.run(SetTone(head(session, 20, 1), Pitch.parse('B4'))),
       );
 
       expect(bar(next.score, 0), ['D4+A4+B4/whole']);
@@ -109,7 +109,7 @@ void main() {
         ],
       ]);
 
-      final next = applied(session.run(SetPitch(head(session, 22), g4)));
+      final next = applied(session.run(SetTone(head(session, 22), g4)));
 
       expect(bar(next.score, 0), [
         'F4/quarter',
@@ -128,7 +128,7 @@ void main() {
         ],
       ]);
 
-      final next = applied(session.run(SetPitch(head(session, 21, 1), g4)));
+      final next = applied(session.run(SetTone(head(session, 21, 1), g4)));
 
       expect(bar(next.score, 0), ['D4+G4/half~', 'D4+G4/half']);
     });
@@ -147,8 +147,8 @@ void main() {
         ),
       );
 
-      final first = applied(session.run(SetPitch(head(session, 20), g4)));
-      final last = applied(session.run(SetPitch(head(session, 21), g4)));
+      final first = applied(session.run(SetTone(head(session, 20), g4)));
+      final last = applied(session.run(SetTone(head(session, 21), g4)));
 
       expect(bar(first.score, 0, slot: VoiceSlot.two), [
         'G4/quarter~',
@@ -172,11 +172,11 @@ void main() {
       ]);
 
       expect(
-        refusal(session.run(SetPitch(head(session, 20), g4))),
+        refusal(session.run(SetTone(head(session, 20), g4))),
         isA<InvalidValue>(),
       );
       expect(
-        refusal(session.run(SetPitch(head(session, 21), g4))),
+        refusal(session.run(SetTone(head(session, 21), g4))),
         isA<InvalidValue>(),
       );
     });
@@ -186,7 +186,7 @@ void main() {
         [chordOf(20, 'F4', value: NoteValue.whole)],
       ]);
 
-      expect(changesNothing(session, SetPitch(head(session, 20), f4)), isTrue);
+      expect(changesNothing(session, SetTone(head(session, 20), f4)), isTrue);
     });
   });
 
@@ -232,7 +232,7 @@ void main() {
                 id: const EventId(30),
                 kind: GraceKind.acciaccatura,
                 value: NoteValue.eighth,
-                notes: Seq([Note(id: const NoteId(300), pitch: g4)]),
+                notes: Seq([PitchedNote(id: const NoteId(300), pitch: g4)]),
               ),
             ],
           ),
@@ -243,7 +243,7 @@ void main() {
         session.run(
           AddGrace(
             event: eventRef(session, 20),
-            pitch: a4,
+            tone: a4,
             kind: GraceKind.appoggiatura,
             value: NoteValue.sixteenth,
           ),
@@ -251,7 +251,7 @@ void main() {
       );
 
       final graces = chordIn(next, 20).graces;
-      expect(graces.map((g) => g.notes.single.pitch), [g4, a4]);
+      expect(graces.map((g) => g.notes.single.tone), [g4, a4]);
       final added = graces.last;
       expect(added.kind, GraceKind.appoggiatura);
       expect(added.value, NoteValue.sixteenth);
@@ -267,7 +267,7 @@ void main() {
 
       expect(
         refusal(
-          session.run(AddGrace(event: eventRef(session, 20), pitch: g4)),
+          session.run(AddGrace(event: eventRef(session, 20), tone: g4)),
         ),
         isA<InvalidValue>(),
       );
@@ -462,14 +462,18 @@ void main() {
     ]);
     final upper = head(session, 20, 1);
 
-    Note upperOf(EditSession session) => chordIn(session, 20).notes.last;
+    PitchedNote upperOf(EditSession session) =>
+        chordIn(session, 20).notes.last as PitchedNote;
 
     test('sets and clears a fingering; a negative finger is refused', () {
       final fingered = applied(session.run(SetFingering(upper, 0)));
       final cleared = applied(fingered.run(SetFingering(upper, null)));
 
       expect(upperOf(fingered).fingering, 0);
-      expect(chordIn(fingered, 20).notes.first.fingering, isNull);
+      expect(
+        (chordIn(fingered, 20).notes.first as PitchedNote).fingering,
+        isNull,
+      );
       expect(upperOf(cleared).fingering, isNull);
       expect(changesNothing(fingered, SetFingering(upper, 0)), isTrue);
       expect(
@@ -592,13 +596,13 @@ void main() {
     for (final edit in [
       for (final note in heads) ...[
         RemoveNote(note),
-        SetPitch(note, g4),
+        SetTone(note, g4),
         SetTie(note, tied: true),
         SetFingering(note, 1),
         SetString(note, 0),
         SetAccidental(note, AccidentalRequest.always),
       ],
-      AddGrace(event: gone, pitch: g4),
+      AddGrace(event: gone, tone: g4),
       SetArticulation(gone, Articulation.accent, present: true),
       SetOrnament(gone, Ornament.trill),
       SetBowing(gone, Bowing.up),

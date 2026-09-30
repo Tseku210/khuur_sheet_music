@@ -95,7 +95,7 @@ final class PlaybackCompiler {
         : _range(score, options.from, options.to);
     final timeline = <_Bar>[];
     final sounding = <_Sounding>[];
-    final ties = <(StaffId, VoiceSlot, Pitch), (_Sounding, int, Moment)>{};
+    final ties = <(StaffId, VoiceSlot, Tone), (_Sounding, int, Moment)>{};
     var seconds = 0.0;
     for (final (k, (:index, :pass, :from, :to)) in windows.indexed) {
       final column = measures[index];
@@ -134,14 +134,11 @@ final class PlaybackCompiler {
             in trilled
                 ? _attacks(chord.timed, chord.event, column.key, trill: true)
                 : chord.attacks) {
-          final key = _key(attack.note, instrument);
-          if (key == null) {
-            continue;
-          }
+          final (key, cents) = _key(attack.note, instrument);
           final start = bar.secondsAt(attack.onset);
           final end = bar.secondsAt(attack.onset + attack.length);
           final release = (end - start) * (1 - attack.gate);
-          final lane = (staff, voice, attack.note.pitch);
+          final lane = (staff, voice, attack.note.tone);
           final _Sounding note;
           if (ties.remove(lane) case (final held, final window, final expected)
               when window == k && expected == attack.onset) {
@@ -154,7 +151,7 @@ final class PlaybackCompiler {
               end: end,
               release: release,
               key: key,
-              cents: attack.note.pitch.cents,
+              cents: cents,
               velocity: min((level * attack.stress).round(), 127),
               channel: channel,
               source: attack.source,
@@ -261,12 +258,13 @@ List<_Attack> _attacks(
         _Attack(
           onset: at,
           length: length,
-          note: steps == 0
-              ? note.copyWith(tie: last && note.tie)
-              : note.copyWith(
-                  pitch: _neighbour(note.pitch, steps, key),
-                  tie: false,
-                ),
+          note: switch (note) {
+            PitchedNote(:final pitch) when steps != 0 => note.copyWith(
+              pitch: _neighbour(pitch, steps, key),
+              tie: false,
+            ),
+            _ => note.copyWith(tie: last && note.tie),
+          },
           stress: i == 0 ? _stress(chord.articulations) : 1,
           gate: _gate(last ? chord.articulations : const {}),
           source: ref,
@@ -363,18 +361,12 @@ double _stress(Set<Articulation> marks) =>
     (marks.contains(Articulation.accent) ? 1.25 : 1) *
     (marks.contains(Articulation.marcato) ? 1.5 : 1);
 
-/// The MIDI key [note] plays on [instrument]. A drum note plays the sound
-/// at its position with its head, or else the first at its position, and
-/// nothing when no sound sits there.
-int? _key(Note note, Instrument instrument) {
-  if (!instrument.isPercussion) {
-    return note.pitch.midiKey;
-  }
-  final there = instrument.drums.where((d) => d.position == note.pitch);
-  return (there.where((d) => d.head == note.head).firstOrNull ??
-          there.firstOrNull)
-      ?.midiKey;
-}
+/// The MIDI key and cents [note] plays on [instrument]. A drum note plays
+/// the kit sound it names.
+(int, int) _key(Note note, Instrument instrument) => switch (note) {
+  PitchedNote(:final pitch) => (pitch.midiKey, pitch.cents),
+  DrumNote(:final drum) => (instrument.soundOf(drum)!.midiKey, 0),
+};
 
 /// Unrolls repeats, voltas and navigation into (bar index, pass) pairs,
 /// where pass counts the times the bar has played, this one included.

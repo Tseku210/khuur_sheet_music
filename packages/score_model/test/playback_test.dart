@@ -93,15 +93,6 @@ ChordEvent halves(int id, String pitches, {bool tie = false}) =>
 ChordEvent wholes(int id, String pitches, {bool tie = false}) =>
     chordOf(id, pitches, value: NoteValue.whole, tie: tie);
 
-ChordEvent drum(int id, String position, [NoteHead head = NoteHead.normal]) =>
-    ChordEvent(
-      id: EventId(id),
-      value: NoteValue.quarter,
-      notes: Seq([
-        Note(id: NoteId(id * 10), pitch: Pitch.parse(position), head: head),
-      ]),
-    );
-
 /// A score of [bars] bars of four C4 quarters on the first staff, with ids
 /// 10 × bar + beat, both 1-based.
 Score beats(int bars, {List<PartTemplate> parts = const [morinKhuur]}) {
@@ -200,7 +191,7 @@ GraceChord grace(
   kind: kind,
   value: NoteValue.eighth,
   notes: Seq([
-    Note(id: NoteId(id * 10), pitch: Pitch.parse(pitch), tie: tie),
+    PitchedNote(id: NoteId(id * 10), pitch: Pitch.parse(pitch), tie: tie),
   ]),
 );
 
@@ -209,26 +200,6 @@ ChordEvent ornamented(ChordEvent chord, Ornament ornament) =>
 
 ChordEvent tremolo(ChordEvent chord, int strokes) =>
     chord.copyWith(tremolo: strokes);
-
-const kit = PartTemplate(
-  name: 'Kit',
-  instrument: Instrument(
-    key: 'kit',
-    program: 0,
-    bank: 128,
-    clef: Clef.percussion,
-    drums: [
-      DrumSound(name: 'Snare', position: Pitch(Step.c, 5), midiKey: 38),
-      DrumSound(
-        name: 'Side stick',
-        position: Pitch(Step.c, 5),
-        midiKey: 37,
-        head: NoteHead.cross,
-      ),
-      DrumSound(name: 'Bass drum', position: Pitch(Step.f, 4), midiKey: 36),
-    ],
-  ),
-);
 
 void main() {
   group('play order', () {
@@ -605,12 +576,12 @@ void main() {
       );
     });
 
-    test('plays a drum note as the sound at its position and head', () {
-      final score = fill(blankScore(parts: const [kit], bars: 1), 0, [
-        drum(1, 'C5'),
-        drum(2, 'C5', NoteHead.cross),
-        drum(3, 'F4', NoteHead.diamond),
-        drum(4, 'E4'),
+    test('plays a drum note as the kit sound it names', () {
+      final score = fill(blankScore(parts: const [drums], bars: 1), 0, [
+        hit(1, [snare]),
+        hit(2, [sideStick]),
+        hit(3, [bassDrum, snare]),
+        hit(4, [bassDrum]),
       ]);
       final script = compiled(score);
 
@@ -618,6 +589,8 @@ void main() {
         (0.0, 0.54, 38, 9, 1),
         (0.6, 0.54, 37, 9, 2),
         (1.2, 0.54, 36, 9, 3),
+        (1.2, 0.54, 38, 9, 3),
+        (1.8, 0.54, 36, 9, 4),
       ]);
       expect({for (final note in script.notesBetween(0, 10)) note.cents}, {0});
     });
@@ -626,7 +599,7 @@ void main() {
       'gives each part a channel past 9, drums 9, and skips muted parts',
       () {
         final score = blankScore(
-          parts: const [piano, kit, clarinet, morinKhuur],
+          parts: const [piano, drums, clarinet, morinKhuur],
         );
         List<(int, int, int, int)> setups(Set<PartId> muted) => [
           for (final setup in compiled(

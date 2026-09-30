@@ -158,7 +158,7 @@ _LaneWrite _overwrite(
 }
 
 /// Enters [event] at [at] as new music. A tie into [at] keeps only the
-/// pitches [event] starts with, [event] is selected, and the cursor moves
+/// tones [event] starts with, [event] is selected, and the cursor moves
 /// past it, into a new bar when it ends the score.
 _Result _enter(
   Score score,
@@ -168,7 +168,7 @@ _Result _enter(
   Overfill overfill,
 ) {
   final write = _overwrite(score, at, [event], ids, overfill);
-  var entered = _untieInto(write.score, at, _pitches(event), ids);
+  var entered = _untieInto(write.score, at, _tones(event), ids);
   var end = write.end;
   final bar = entered.column(end.at.measure);
   if (end.at.offset == Moment.zero + bar.length) {
@@ -183,16 +183,16 @@ _Result _enter(
   return _Result(entered, cursor: end, selection: Selection.event(write.first));
 }
 
-/// [score] with the tie into [at] cleared on every note whose pitch is not
+/// [score] with the tie into [at] cleared on every note whose tone is not
 /// in [kept], for new music written at [at].
-Score _untieInto(Score score, VoicePoint at, Set<Pitch> kept, _Ids ids) {
+Score _untieInto(Score score, VoicePoint at, Set<Tone> kept, _Ids ids) {
   final lane = _Lane(score, at.staff, at.voice, ids)
     ..untieInto(score.indexOf(at.at.measure), at.at.offset, kept);
   return score.copyWith(measures: Seq(lane.columns));
 }
 
-Set<Pitch> _pitches(Event event) => switch (event) {
-  ChordEvent(:final notes) => {for (final note in notes) note.pitch},
+Set<Tone> _tones(Event event) => switch (event) {
+  ChordEvent(:final notes) => {for (final note in notes) note.tone},
   _ => const {},
 };
 
@@ -254,8 +254,8 @@ final class _Lane {
 
   /// A tie from the event that ends at [offset] of bar [i] (or at the end
   /// of the bar before, for offset 0) now leads into new music. Clears it on
-  /// every note whose pitch the new music does not start with.
-  void untieInto(int i, Moment offset, Set<Pitch> kept) {
+  /// every note whose tone the new music does not start with.
+  void untieInto(int i, Moment offset, Set<Tone> kept) {
     final bar = offset.isZero ? i - 1 : i;
     if (bar < 0) {
       return;
@@ -265,10 +265,10 @@ final class _Lane {
       bar,
     ).where((e) => e.onset + e.duration == stop).firstOrNull?.event;
     if (before is! ChordEvent ||
-        !before.notes.any((n) => n.tie && !kept.contains(n.pitch))) {
+        !before.notes.any((n) => n.tie && !kept.contains(n.tone))) {
       return;
     }
-    final untied = _untied(before, (note) => !kept.contains(note.pitch));
+    final untied = _untied(before, (note) => !kept.contains(note.tone));
     write(bar, [
       for (final item in items(bar))
         item is Content ? _replaceEvent(item, untied) : item,
@@ -462,7 +462,19 @@ Event _piece(
     value: value,
     notes: Seq([
       for (final n in notes)
-        Note(id: ids.note(), pitch: n.pitch, head: n.head, tie: tied || n.tie),
+        switch (n) {
+          PitchedNote(:final pitch, :final head) => PitchedNote(
+            id: ids.note(),
+            pitch: pitch,
+            head: head,
+            tie: tied || n.tie,
+          ),
+          DrumNote(:final drum) => DrumNote(
+            id: ids.note(),
+            drum: drum,
+            tie: tied || n.tie,
+          ),
+        },
     ]),
   ),
   _ => RestEvent(

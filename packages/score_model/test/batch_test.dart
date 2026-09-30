@@ -6,7 +6,7 @@ import 'support.dart';
 EnterNote noteAt(EditSession session, int bar, Moment offset, Pitch pitch) =>
     EnterNote(
       at: point(session.score, bar, offset),
-      pitch: pitch,
+      tone: pitch,
       value: NoteValue.quarter,
     );
 

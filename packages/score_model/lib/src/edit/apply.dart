@@ -43,13 +43,13 @@ final class _Result {
 /// column list with one `Seq.replaceRange`. Untouched columns are shared.
 _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
   return switch (edit) {
-    EnterNote(:final at, :final pitch, :final value, :final overfill) => _enter(
+    EnterNote(:final at, :final tone, :final value, :final overfill) => _enter(
       score,
       at,
       ChordEvent(
         id: ids.event(),
         value: value,
-        notes: Seq([Note(id: ids.note(), pitch: pitch)]),
+        notes: Seq([_noteOn(score, at.staff, ids.note(), tone)]),
       ),
       ids,
       overfill,
@@ -64,7 +64,7 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
     SetValue() || EnterTuplet() => _rhythm(score, edit, ids),
     AddToChord() ||
     RemoveNote() ||
-    SetPitch() ||
+    SetTone() ||
     AddGrace() ||
     SetTie() ||
     SetArticulation() ||
@@ -112,17 +112,18 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
 }
 
 /// Edits that change one event in place: resolve the reference, rebuild
-/// that event, and walk back up. Touches one column, except [SetPitch] on a
+/// that event, and walk back up. Touches one column, except [SetTone] on a
 /// tie chain and [RemoveNote] when it clears a tie from the bar before. An
 /// edit that changes nothing returns the same score.
 _Result _pointEdit(Score score, Edit edit, _Ids ids) {
   switch (edit) {
-    case AddToChord(:final event, :final pitch):
-      return _addToChord(score, event, pitch, ids);
+    case AddToChord(:final event, :final tone):
+      return _addToChord(score, event, tone, ids);
     case RemoveNote(:final note):
       return _Result(_removeNote(score, _targetHead(score, note)));
-    case SetPitch(:final note, :final pitch):
-      return _Result(_setPitch(score, _targetHead(score, note), pitch));
+    case SetTone(:final note, :final tone):
+      _checkTone(score, note.event.staff, tone);
+      return _Result(_setTone(score, _targetHead(score, note), tone));
     case SetTie(:final note, :final tied):
       final head = _targetHead(score, note);
       return _changeNote(
@@ -135,15 +136,17 @@ _Result _pointEdit(Score score, Edit edit, _Ids ids) {
         throw const _Refuse(InvalidValue('a finger number is 0 or more'));
       }
       final head = _targetHead(score, note);
+      final pitched = _pitchedOnly(head, 'fingering');
       return _changeNote(
         score,
         head,
-        head.note.fingering == finger
-            ? head.note
-            : head.note.copyWith(fingering: () => finger),
+        pitched.fingering == finger
+            ? pitched
+            : pitched.copyWith(fingering: () => finger),
       );
     case SetString(:final note, :final string):
       final head = _targetHead(score, note);
+      final pitched = _pitchedOnly(head, 'string');
       final strings = score.partOf(head.timed.ref.staff).instrument.strings;
       if (string != null && (string < 0 || string >= strings.length)) {
         throw const _Refuse(InvalidValue('the instrument has no such string'));
@@ -151,20 +154,21 @@ _Result _pointEdit(Score score, Edit edit, _Ids ids) {
       return _changeNote(
         score,
         head,
-        head.note.string == string
-            ? head.note
-            : head.note.copyWith(string: () => string),
+        pitched.string == string
+            ? pitched
+            : pitched.copyWith(string: () => string),
       );
     case SetAccidental(:final note, :final request):
       final head = _targetHead(score, note);
+      final pitched = _pitchedOnly(head, 'accidental');
       return _changeNote(
         score,
         head,
-        head.note.accidental == request
-            ? head.note
-            : head.note.copyWith(accidental: request),
+        pitched.accidental == request
+            ? pitched
+            : pitched.copyWith(accidental: request),
       );
-    case AddGrace(:final event, :final pitch, :final kind, :final value):
+    case AddGrace(:final event, :final tone, :final kind, :final value):
       final timed = _target(score, event);
       return _changeEvent(
         score,
@@ -178,7 +182,7 @@ _Result _pointEdit(Score score, Edit edit, _Ids ids) {
                 id: ids.event(),
                 kind: kind,
                 value: value,
-                notes: Seq([Note(id: ids.note(), pitch: pitch)]),
+                notes: Seq([_noteOn(score, event.staff, ids.note(), tone)]),
               ),
             ),
           ),
@@ -265,16 +269,16 @@ _Head _targetHead(Score score, NoteRef ref) =>
 
 /// Whether [note]'s tie would end on another head, or on none where it
 /// ended on one, if the event after it were [after] instead of [before].
-/// [from] is the pitch [note] had before, when it changed.
+/// [from] is the tone [note] had before, when it changed.
 bool _tieMoves(
   Note note,
   TimedEvent? before,
   TimedEvent? after, {
-  Pitch? from,
+  Tone? from,
 }) =>
     note.tie &&
-    _headWhere(before, (n) => n.pitch == (from ?? note.pitch))?.note.id !=
-        _headWhere(after, (n) => n.pitch == note.pitch)?.note.id;
+    _headWhere(before, (n) => n.tone == (from ?? note.tone))?.note.id !=
+        _headWhere(after, (n) => n.tone == note.tone)?.note.id;
 
 /// The head of [timed] that [matches], or null when [timed] is null, a
 /// rest, or has no such head.
@@ -410,7 +414,7 @@ Score _removeNote(Score score, _Head head) {
         );
   final into = _headWhere(
     _previous(score, timed),
-    (n) => n.tie && n.pitch == note.pitch,
+    (n) => n.tie && n.tone == note.tone,
   );
   final untied = into == null
       ? score
@@ -422,31 +426,30 @@ Score _removeNote(Score score, _Head head) {
   return _replace(untied, timed, left);
 }
 
-/// Moves [head] and every head tied to it to [pitch], keeping each chord in
-/// pitch order. Refused when a chord in the chain already has [pitch].
-Score _setPitch(Score score, _Head head, Pitch pitch) {
-  if (head.note.pitch == pitch) {
+/// Moves [head] and every head tied to it to [tone], keeping each chord in
+/// tone order. Refused when a chord in the chain already has [tone].
+Score _setTone(Score score, _Head head, Tone tone) {
+  if (head.note.tone == tone) {
     return score;
   }
   var moved = score;
   for (final (:timed, :chord, :note) in _tieChain(score, head)) {
-    if (chord.notes.any((n) => n.pitch == pitch)) {
-      throw _Refuse(InvalidValue('the chord already has $pitch'));
+    if (chord.notes.any((n) => n.tone == tone)) {
+      throw _Refuse(InvalidValue('the chord already has $tone'));
     }
     final notes = [
-      for (final n in chord.notes)
-        n.id == note.id ? n.copyWith(pitch: pitch) : n,
-    ]..sort((a, b) => a.pitch.compareTo(b.pitch));
+      for (final n in chord.notes) n.id == note.id ? _retoned(n, tone) : n,
+    ]..sort((a, b) => a.tone.compareTo(b.tone));
     moved = _replace(moved, timed, chord.copyWith(notes: Seq(notes)));
   }
   return moved;
 }
 
 /// [head] and every head tied to it, in time order. A tie joins a head to
-/// the head of the same pitch in the adjacent event of its voice, as
+/// the head of the same tone in the adjacent event of its voice, as
 /// `measureView` draws it.
 List<_Head> _tieChain(Score score, _Head head) {
-  bool samePitch(Note note) => note.pitch == head.note.pitch;
+  bool samePitch(Note note) => note.tone == head.note.tone;
   final chain = [head];
   while (true) {
     final back = _headWhere(_previous(score, chain.first.timed), samePitch);
@@ -505,23 +508,25 @@ TimedEvent? _previous(Score score, TimedEvent timed) {
   ).where((e) => e.onset + e.duration == end).firstOrNull;
 }
 
-/// Adds [pitch] to the event [ref] names, which keeps its id. A rest
+/// Adds [tone] to the event [ref] names, which keeps its id. A rest
 /// becomes a chord of its value, and a measure rest becomes chords that
 /// fill the bar, tied.
-_Result _addToChord(Score score, EventRef ref, Pitch pitch, _Ids ids) {
+_Result _addToChord(Score score, EventRef ref, Tone tone, _Ids ids) {
   final timed = _target(score, ref);
   switch (timed.event) {
-    case ChordEvent(:final notes) when notes.any((n) => n.pitch == pitch):
+    case ChordEvent(:final notes) when notes.any((n) => n.tone == tone):
       return _Result(score);
     case final ChordEvent chord:
-      final note = Note(
-        id: ids.note(),
-        pitch: pitch,
+      final note = _noteOn(
+        score,
+        ref.staff,
+        ids.note(),
+        tone,
         tie:
             chord.notes.any((n) => n.tie) &&
-            _headWhere(_next(score, timed), (n) => n.pitch == pitch) != null,
+            _headWhere(_next(score, timed), (n) => n.tone == tone) != null,
       );
-      final above = chord.notes.indexWhere((n) => n.pitch.compareTo(pitch) > 0);
+      final above = chord.notes.indexWhere((n) => n.tone.compareTo(tone) > 0);
       return _changeEvent(
         score,
         timed,
@@ -540,7 +545,7 @@ _Result _addToChord(Score score, EventRef ref, Pitch pitch, _Ids ids) {
           id: id,
           value: value,
           articulations: articulations,
-          notes: Seq([Note(id: ids.note(), pitch: pitch)]),
+          notes: Seq([_noteOn(score, ref.staff, ids.note(), tone)]),
         ),
       );
     case MeasureRest(:final id, :final span, :final articulations):
@@ -559,9 +564,11 @@ _Result _addToChord(Score score, EventRef ref, Pitch pitch, _Ids ids) {
                 value: value,
                 articulations: k == 0 ? articulations : const {},
                 notes: Seq([
-                  Note(
-                    id: ids.note(),
-                    pitch: pitch,
+                  _noteOn(
+                    score,
+                    ref.staff,
+                    ids.note(),
+                    tone,
                     tie: k < values.length - 1,
                   ),
                 ]),
@@ -922,14 +929,14 @@ Score _retie(Score before, Score after, Set<(int, StaffId)> lanes) {
           continue;
         }
         final old = before.lookup(timed.ref)!;
-        final pitches = {
+        final tones = {
           if (old.event case ChordEvent(:final notes))
-            for (final note in notes) note.id: note.pitch,
+            for (final note in notes) note.id: note.tone,
         };
         final was = _next(before, old);
         final now = _next(after, timed);
         bool moves(Note note) =>
-            _tieMoves(note, was, now, from: pitches[note.id]);
+            _tieMoves(note, was, now, from: tones[note.id]);
         if (event.notes.any(moves)) {
           retied = _replace(retied, timed, _untied(event, moves));
         }
@@ -1177,14 +1184,10 @@ Seq<MeasureColumn> _propagate(
 
 /// Moves the picked heads, each with its whole tie chain as the chain's
 /// first head moves in that head's key. A picked event moves its graces,
-/// and a range moves the graces and chord symbols in it. Drum staves stay.
-/// A tie left leading onto a head it did not reach before is cleared.
+/// and a range moves the graces and chord symbols in it. Drum notes have no
+/// pitch, so they stay. A tie left leading onto a head it did not reach
+/// before is cleared.
 _Result _transpose(Score score, Selection selection, Transposition by) {
-  final drums = {
-    for (final part in score.parts)
-      if (part.instrument.drums.isNotEmpty)
-        for (final staff in part.staves) staff.id,
-  };
   final heads = <_Head>[];
   final graced = <TimedEvent>[];
   void pick(TimedEvent timed) {
@@ -1213,9 +1216,6 @@ _Result _transpose(Score score, Selection selection, Transposition by) {
     case final RangeSelection range:
       final (:lanes, staves: _, :inRange) = _covers(score, range);
       for (final (bar, staff) in lanes) {
-        if (drums.contains(staff)) {
-          continue;
-        }
         final column = score.measures[bar];
         final measure = column.staff(staff);
         for (final voice in measure.voices) {
@@ -1244,28 +1244,24 @@ _Result _transpose(Score score, Selection selection, Transposition by) {
   final moved = <NoteId, Pitch>{};
   final touched = <EventId, TimedEvent>{};
   for (final head in heads) {
-    if (drums.contains(head.timed.ref.staff)) {
-      continue;
-    }
-    final chain = _tieChain(score, head);
-    final pitch = _moved(
-      head.note.pitch,
-      by,
-      score.column(chain.first.timed.ref.measure).key,
-    );
-    for (final (:timed, :note, chord: _) in chain) {
-      moved[note.id] = pitch;
-      if (pitch != note.pitch) {
-        touched[timed.event.id] = timed;
+    if (head.note case PitchedNote(:final pitch)) {
+      final chain = _tieChain(score, head);
+      final to = _moved(
+        pitch,
+        by,
+        score.column(chain.first.timed.ref.measure).key,
+      );
+      for (final (:timed, :note, chord: _) in chain) {
+        moved[note.id] = to;
+        if (to != note.tone) {
+          touched[timed.event.id] = timed;
+        }
       }
     }
   }
   final graces = <EventId, Seq<GraceChord>>{};
   for (final timed in graced) {
     final chord = timed.event as ChordEvent;
-    if (drums.contains(timed.ref.staff)) {
-      continue;
-    }
     final key = score.column(timed.ref.measure).key;
     final repitched = [
       for (final grace in chord.graces)
@@ -1325,23 +1321,72 @@ ChordSymbol _movedSymbol(
 }
 
 /// [notes] each at the pitch [to] gives it, in pitch order; the same
-/// object when none moves. Refused when two would share a pitch.
-Seq<Note> _pitched(Seq<Note> notes, Pitch Function(Note note) to) {
-  if (notes.every((note) => to(note) == note.pitch)) {
+/// object when none moves, as for drums. Refused when two would share a
+/// pitch.
+Seq<Note> _pitched(Seq<Note> notes, Pitch Function(PitchedNote note) to) {
+  if (notes.every((note) => note is! PitchedNote || to(note) == note.pitch)) {
     return notes;
   }
   final sorted = [
-    for (final note in notes) note.copyWith(pitch: to(note)),
-  ]..sort((a, b) => a.pitch.compareTo(b.pitch));
+    for (final note in notes)
+      if (note case final PitchedNote pitched)
+        pitched.copyWith(pitch: to(pitched))
+      else
+        note,
+  ]..sort((a, b) => a.tone.compareTo(b.tone));
   for (var k = 1; k < sorted.length; k++) {
-    if (sorted[k].pitch == sorted[k - 1].pitch) {
+    if (sorted[k].tone == sorted[k - 1].tone) {
       throw _Refuse(
-        InvalidValue('the chord would have ${sorted[k].pitch} twice'),
+        InvalidValue('the chord would have ${sorted[k].tone} twice'),
       );
     }
   }
   return Seq(sorted);
 }
+
+/// A new head playing [tone] on [staff]. Refused unless the tone suits the
+/// staff.
+Note _noteOn(
+  Score score,
+  StaffId staff,
+  NoteId id,
+  Tone tone, {
+  bool tie = false,
+}) {
+  _checkTone(score, staff, tone);
+  return switch (tone) {
+    Pitch() => PitchedNote(id: id, pitch: tone, tie: tie),
+    Drum() => DrumNote(id: id, drum: tone, tie: tie),
+  };
+}
+
+/// Refuses [tone] unless it suits [staff]: a pitch on a pitched staff, or a
+/// drum of the part's kit on a percussion staff.
+void _checkTone(Score score, StaffId staff, Tone tone) {
+  final instrument = score.partOf(staff).instrument;
+  final problem = switch (tone) {
+    Pitch() when instrument.isPercussion => 'a percussion staff takes drums',
+    Drum() when !instrument.isPercussion => 'a pitched staff takes pitches',
+    Drum() when instrument.soundOf(tone) == null => 'the kit has no $tone',
+    _ => null,
+  };
+  if (problem != null) {
+    throw _Refuse(InvalidValue(problem));
+  }
+}
+
+/// [note] playing [tone] instead, which [_checkTone] has matched to it.
+Note _retoned(Note note, Tone tone) => switch ((note, tone)) {
+  (final PitchedNote note, final Pitch pitch) => note.copyWith(pitch: pitch),
+  (final DrumNote note, final Drum drum) => note.copyWith(drum: drum),
+  _ => throw StateError('$tone on a ${note.runtimeType}'),
+};
+
+/// [head]'s note, refused when it is a drum note, which has no [what].
+PitchedNote _pitchedOnly(_Head head, String what) => switch (head.note) {
+  final PitchedNote note => note,
+  DrumNote() => throw _Refuse(InvalidValue('a drum note has no $what')),
+};
 
 /// [score] with a part made from [template] at part [index], or at the
 /// bottom, and a measure rest on each of its staves in every bar.
@@ -1353,6 +1398,12 @@ Score _addPart(Score score, PartTemplate template, int? index, _Ids ids) {
   final PartTemplate(:instrument, :staves, :clefs) = template;
   if (staves < 1 || (clefs != null && clefs.length != staves)) {
     throw const _Refuse(InvalidValue('a part needs a staff and a clef each'));
+  }
+  final names = <String>{};
+  for (final DrumSound(:name) in instrument.drums) {
+    if (!names.add(name)) {
+      throw _Refuse(InvalidValue('the kit names $name twice'));
+    }
   }
   final part = Part(
     id: ids.part(),

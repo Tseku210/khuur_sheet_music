@@ -206,7 +206,9 @@ void main() {
         id: const EventId(5),
         kind: GraceKind.acciaccatura,
         value: NoteValue.eighth,
-        notes: Seq([Note(id: const NoteId(50), pitch: Pitch.parse('C5'))]),
+        notes: Seq([
+          PitchedNote(id: const NoteId(50), pitch: Pitch.parse('C5')),
+        ]),
       );
       final session = sessionWith([
         [

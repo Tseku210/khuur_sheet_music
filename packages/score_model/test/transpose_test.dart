@@ -44,7 +44,7 @@ GraceChord graceOf(int id, String pitch) => GraceChord(
   id: EventId(id),
   kind: GraceKind.acciaccatura,
   value: NoteValue.eighth,
-  notes: Seq([Note(id: NoteId(id * 10), pitch: Pitch.parse(pitch))]),
+  notes: Seq([PitchedNote(id: NoteId(id * 10), pitch: Pitch.parse(pitch))]),
 );
 
 Score withKey(Score score, int bar, int fifths) => changeBar(
@@ -257,7 +257,7 @@ void main() {
         ),
       );
       List<String> graces(EditSession session) => [
-        for (final n in chordIn(session, 1).graces.single.notes) '${n.pitch}',
+        for (final n in chordIn(session, 1).graces.single.notes) '${n.tone}',
       ];
       const step = Transposition.diatonic(1);
 
@@ -324,10 +324,22 @@ void main() {
       );
     });
 
-    test('leaves a drum staff alone', () {
+    test('leaves drum notes alone and moves their staff\'s chord symbols', () {
       var score = blankScore(parts: const [drums, piano]);
       score = fill(score, 0, [
-        chordOf(1, 'C5', value: NoteValue.whole, graces: [graceOf(9, 'C5')]),
+        hit(
+          1,
+          [snare],
+          value: NoteValue.whole,
+          graces: [
+            GraceChord(
+              id: const EventId(9),
+              kind: GraceKind.acciaccatura,
+              value: NoteValue.eighth,
+              notes: Seq([const DrumNote(id: NoteId(90), drum: snare)]),
+            ),
+          ],
+        ),
       ]);
       score = changeBar(
         score,
@@ -352,12 +364,17 @@ void main() {
       );
       final picked = transposed(session, events(session, [1]), up);
 
+      final drumStaff = next.score.measures[0].staves.first;
       expect(
         identical(
-          next.score.measures[0].staves.first,
-          session.score.measures[0].staves.first,
+          drumStaff.voice(VoiceSlot.one),
+          session.score.measures[0].staves.first.voice(VoiceSlot.one),
         ),
         isTrue,
+      );
+      expect(
+        (drumStaff.directions.single as ChordSymbol).root,
+        const PitchName(Step.d),
       );
       expect(
         describe(next.score.measures[0].staves[1].voice(VoiceSlot.one)!.items),

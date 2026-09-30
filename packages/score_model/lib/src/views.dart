@@ -128,8 +128,14 @@ final class StaffView {
 
   /// The pitch each note head prints at, graces included: concert pitch
   /// moved by the instrument's transposition and by any 8va line covering
-  /// the note.
+  /// the note. A drum note prints at its kit position.
   final Map<NoteId, Pitch> writtenPitches;
+
+  /// The head [note] is drawn with. A drum note takes its kit sound's.
+  NoteHead headOf(Note note) => switch (note) {
+    PitchedNote(:final head) => head,
+    DrumNote(:final drum) => part.instrument.soundOf(drum)!.head,
+  };
 }
 
 final class VoiceView {

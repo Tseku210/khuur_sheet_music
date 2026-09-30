@@ -90,9 +90,12 @@ StaffView _staffView(
             .firstOrNull
             ?.octaves ??
         0;
-    return note.pitch.transpose(
-      -(part.instrument.transposition + Interval.octave * octaves),
-    );
+    return switch (note) {
+      PitchedNote(:final pitch) => pitch.transpose(
+        -(part.instrument.transposition + Interval.octave * octaves),
+      ),
+      DrumNote(:final drum) => part.instrument.soundOf(drum)!.position,
+    };
   }
 
   final heads = [
@@ -151,13 +154,13 @@ StaffView _staffView(
   );
 }
 
-/// Each tied note of [chord], with the note of the same pitch in [target]
+/// Each tied note of [chord], with the note of the same tone in [target]
 /// that the tie lands on, or null when none matches.
 List<(Note, NoteRef?)> _tieEnds(ChordEvent chord, TimedEvent? target) {
   NoteRef? landing(Note tied) {
     if (target case TimedEvent(:final ref, event: ChordEvent(:final notes))) {
       for (final note in notes) {
-        if (note.pitch == tied.pitch) {
+        if (note.tone == tied.tone) {
           return NoteRef(ref, note.id);
         }
       }
@@ -280,6 +283,9 @@ Map<NoteId, AccidentalMark> _accidentals(
   final marks = <NoteId, AccidentalMark>{};
   for (final i in order) {
     final note = heads[i].note;
+    if (note is! PitchedNote) {
+      continue;
+    }
     final pitch = written[note.id]!;
     switch (note.accidental) {
       case AccidentalRequest.never:

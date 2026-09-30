@@ -116,7 +116,7 @@ Score randomEdit(Score score, Random random) {
             voice: pick(random, [VoiceSlot.one, VoiceSlot.two]),
             at: ScorePoint(id, at(random.nextInt(8), 8)),
           ),
-          pitch: Pitch.parse(pick(random, ['F4', 'F#4', 'Bb4', 'E5'])),
+          tone: Pitch.parse(pick(random, ['F4', 'F#4', 'Bb4', 'E5'])),
           value: pick(random, [
             NoteValue.eighth,
             NoteValue.sixteenth,
