@@ -206,11 +206,15 @@ final class SetTie extends Edit {
   String get label => tied ? 'Add tie' : 'Remove tie';
 }
 
-/// Clears what is selected: events in voice one become rests (a bar left
-/// with only rests becomes one [MeasureRest]); in voices two to four they
-/// become gaps, and a voice left with only gaps disappears. A range also
-/// clears directions and spanners inside it. Bars are never removed; see
-/// [DeleteMeasures].
+/// Clears what is selected. An event in voice one or in a tuplet becomes a
+/// rest of its value that keeps its id and a fermata, and a bar left with
+/// only plain rests becomes one [MeasureRest]. In voices two to four an
+/// event becomes a gap, a tuplet left with only rests becomes a gap, and a
+/// voice left with only gaps disappears. Picked heads of a chord that keeps
+/// another head are removed. A range takes the events that start in it and
+/// the tuplets wholly inside it, its directions, and the spanners that start
+/// and end in it. A tie into what is cleared is cleared too. Bars are never
+/// removed; see [DeleteMeasures].
 final class Erase extends Edit {
   const Erase(this.selection);
 
