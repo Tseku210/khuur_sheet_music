@@ -57,11 +57,16 @@ enum Pitch {
 
   final int position;
 
-  /// Returns the MIDI note number for this pitch.
-  /// 
-  /// MIDI note numbers range from 0 to 127, with middle C (C4) being 60.
-  /// A0 (the lowest note on a piano) is 21, and C8 is 108.
-  int get midiNoteNumber => position + 21;
+  /// Returns the MIDI note number of this natural pitch, ignoring accidentals
+  /// and key signature.
+  ///
+  /// A0 (the lowest note on a piano) is 21, middle C (C4) is 60, and C8 is 108.
+  int get midiNoteNumber {
+    final stepsFromC0 = position + 5;
+    return 12 + (stepsFromC0 ~/ 7) * 12 + _semitonesAboveC[stepsFromC0 % 7];
+  }
+
+  static const _semitonesAboveC = [0, 2, 4, 5, 7, 9, 11];
 
   /// Returns the pitch that is `n` positions higher than the current pitch.
   Pitch get up => upN(1);
