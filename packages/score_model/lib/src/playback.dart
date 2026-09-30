@@ -2,17 +2,20 @@
 ///
 /// The score is compiled bar by bar. A bar's notes are compiled once into a
 /// fragment in whole-note time and cached on the column object itself, so a
-/// one-note edit recompiles one fragment. The cheap part, which runs on
-/// every compile, folds tempo and dynamics over the bars and unrolls the
-/// repeats into a play order. Seconds are computed only when the player
-/// asks for a window of notes.
+/// one-note edit recompiles one fragment. The part that runs on every
+/// compile unrolls the repeats into a play order, folds tempo over the bars,
+/// and places each played bar's fragment in seconds, merging tie chains
+/// across the bars as they are played.
 library;
 
+import 'events.dart';
 import 'measure.dart';
+import 'pitch.dart';
 import 'refs.dart';
 import 'score.dart';
 import 'seq.dart';
 import 'time.dart';
+import 'voice_walk.dart';
 
 /// Long-lived. Keep one per composer screen so its fragment cache survives
 /// across edits.
@@ -22,17 +25,36 @@ final class PlaybackCompiler {
   /// Fragments keyed by column identity. A column that an edit did not touch
   /// is the same object in the new score, so its fragment is reused. Entries
   /// die with their columns.
-  // Read by `compile` once its body is written.
-  // ignore: unused_field
   final Expando<List<_Fragment>> _fragments = Expando('playback fragments');
 
   PlaybackScript compile(
     Score score, [
     PlaybackOptions options = const PlaybackOptions(),
   ]) {
-    // TODO: notes from the cached fragments, shaped by dynamics, hairpins
-    // and fermatas, and one channel per part.
+    // TODO: shape velocity by dynamics, hairpins and accents, and length by
+    // articulations and fermatas.
     final measures = score.measures;
+    final channels = <ChannelSetup>[];
+    final sounds = <StaffId, (int, Instrument)>{};
+    var melodic = 0;
+    for (final Part(:id, :instrument, :staves) in score.parts) {
+      final channel = instrument.isPercussion
+          ? 9
+          : _melodicChannels[melodic++ % _melodicChannels.length];
+      if (!options.muted.contains(id)) {
+        channels.add(
+          ChannelSetup(
+            channel: channel,
+            part: id,
+            program: instrument.program,
+            bank: instrument.bank,
+          ),
+        );
+        for (final staff in staves) {
+          sounds[staff.id] = (channel, instrument);
+        }
+      }
+    }
     final windows = options.from == null && options.to == null
         ? [
             for (final (:index, :pass) in _playOrder(measures))
@@ -51,53 +73,127 @@ final class PlaybackCompiler {
       tempo = column.tempos.lastOrNull?.tempo ?? tempo;
     }
     final timeline = <_Bar>[];
+    final sounding = <_Sounding>[];
+    final ties = <(StaffId, VoiceSlot, Pitch), (_Sounding, int, Moment)>{};
     var seconds = 0.0;
-    for (final (:index, :pass, :from, :to) in windows) {
+    for (final (k, (:index, :pass, :from, :to)) in windows.indexed) {
       final column = measures[index];
       final clock = _Clock(entries[index], column.tempos);
       final start = seconds;
       seconds += clock.at(to) - clock.at(from);
-      timeline.add(
-        _Bar(
-          PlayedBar(
-            measure: column.id,
-            pass: pass,
-            start: start,
-            end: seconds,
-          ),
-          from: from,
-          to: to,
-          clock: clock,
+      final bar = _Bar(
+        PlayedBar(
+          measure: column.id,
+          pass: pass,
+          start: start,
+          end: seconds,
         ),
+        from: from,
+        to: to,
+        clock: clock,
+        heard: [
+          for (final fragment in _fragments[column] ??= _compileBar(column))
+            if (sounds.containsKey(fragment.source.staff) &&
+                from <= fragment.onset &&
+                fragment.onset < to)
+              fragment,
+        ],
       );
+      timeline.add(bar);
+      for (final fragment in bar.heard) {
+        final (channel, instrument) = sounds[fragment.source.staff]!;
+        final key = _key(fragment.note, instrument);
+        if (key == null) {
+          continue;
+        }
+        final start = bar.secondsAt(fragment.onset);
+        final end = bar.secondsAt(fragment.onset + fragment.length);
+        final lane = (
+          fragment.source.staff,
+          fragment.voice,
+          fragment.note.pitch,
+        );
+        final _Sounding note;
+        if (ties.remove(lane) case (final held, final at, final onset)
+            when at == k && onset == fragment.onset) {
+          note = held
+            ..end = end
+            ..last = end - start;
+        } else {
+          note = _Sounding(
+            start: start,
+            end: end,
+            key: key,
+            cents: fragment.note.pitch.cents,
+            channel: channel,
+            source: fragment.source,
+          );
+          sounding.add(note);
+        }
+        if (fragment.note.tie) {
+          final after = fragment.onset + fragment.length;
+          ties[lane] = after == Moment.zero + column.length
+              ? (note, k + 1, Moment.zero)
+              : (note, k, after);
+        }
+      }
     }
+    final notes = [for (final note in sounding) note.played];
+    final order = [for (var i = 0; i < notes.length; i++) i]
+      ..sort((a, b) {
+        final byStart = notes[a].start.compareTo(notes[b].start);
+        return byStart != 0 ? byStart : a.compareTo(b);
+      });
     return PlaybackScript._(
       timeline,
+      [for (final i in order) notes[i]],
       totalSeconds: seconds,
-      channels: const [],
+      channels: channels,
       bars: [for (final bar in timeline) bar.played],
     );
   }
+}
 
-  /// Compiles one bar into notes in whole-note time relative to the bar.
-  // TODO: for each visible or hidden staff (hidden parts still play), each
-  // voice, each TimedEvent:
-  //   - skip heads that a tie from the previous event lands on;
-  //   - for heads with `tie`, follow the chain (into the next notated bar if
-  //     needed) and sum sounding lengths: one attack, merged duration;
-  //   - velocity = entry dynamic, updated by in-bar DynamicMarks, shaped by
-  //     hairpin interpolation, +accent/marcato, sf/sfz/fp for one event;
-  //   - length shaping: staccato 1/2, staccatissimo 1/4, tenuto full,
-  //     default 0.9 of the notated length; fermata holds (from step 2);
-  //   - grace chords: acciaccatura just before the beat, appoggiatura takes
-  //     half the principal's length; tremolo strokes and the chord's
-  //     ornament (trill, mordent, turn) expand to notes; percussion heads
-  //     map through Instrument.drums;
-  //   - key and cents from Pitch.midiKey / Pitch.cents (pitch is already
-  //     concert; 8va lines and transposition are display-only).
-  // ignore: unused_element
-  List<_Fragment> _compileBar(Score score, MeasureColumn column) =>
-      throw UnimplementedError();
+/// Channels for pitched parts, in order. Channel 9 is General MIDI's
+/// percussion channel.
+const _melodicChannels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15];
+
+/// A bar's notes in whole-note time relative to the bar, one per head, in
+/// staff, voice and time order. Depends on the column alone, so it can be
+/// cached on the column. Hidden parts are compiled too, because they play.
+// TODO: velocity inputs from DynamicMarks and accents, length shaping from
+// articulations, grace chords (acciaccatura just before the beat,
+// appoggiatura taking half the principal), tremolo strokes and ornaments.
+List<_Fragment> _compileBar(MeasureColumn column) => [
+  for (final measure in column.staves)
+    for (final voice in measure.voices)
+      for (final timed in timedEvents(
+        voice,
+        measure: column.id,
+        staff: measure.staff,
+      ))
+        if (timed.event case ChordEvent(:final notes))
+          for (final note in notes)
+            _Fragment(
+              onset: timed.onset,
+              length: timed.duration,
+              note: note,
+              voice: timed.voice,
+              source: timed.ref,
+            ),
+];
+
+/// The MIDI key [note] plays on [instrument]. A drum note plays the sound
+/// at its position with its head, or else the first at its position, and
+/// nothing when no sound sits there.
+int? _key(Note note, Instrument instrument) {
+  if (!instrument.isPercussion) {
+    return note.pitch.midiKey;
+  }
+  final there = instrument.drums.where((d) => d.position == note.pitch);
+  return (there.where((d) => d.head == note.head).firstOrNull ??
+          there.firstOrNull)
+      ?.midiKey;
 }
 
 /// Unrolls repeats, voltas and navigation into (bar index, pass) pairs,
@@ -244,6 +340,7 @@ final class _Bar {
     required this.from,
     required this.to,
     required this.clock,
+    required this.heard,
   });
 
   final PlayedBar played;
@@ -252,6 +349,9 @@ final class _Bar {
   final Moment from;
   final Moment to;
   final _Clock clock;
+
+  /// The fragment notes that start in the played part, on parts not muted.
+  final List<_Fragment> heard;
 
   double secondsAt(Moment offset) =>
       played.start + clock.at(offset) - clock.at(from);
@@ -272,7 +372,8 @@ final class PlaybackOptions {
 /// library doc).
 final class PlaybackScript {
   const PlaybackScript._(
-    this._timeline, {
+    this._timeline,
+    this._notes, {
     required this.totalSeconds,
     required this.channels,
     required this.bars,
@@ -288,17 +389,35 @@ final class PlaybackScript {
 
   final List<_Bar> _timeline;
 
+  /// Sorted by start.
+  final List<PlaybackNote> _notes;
+
   /// Notes whose start falls in `[from, to)` seconds, sorted by start. The
   /// player pulls windows ahead of a monotonic clock.
-  Iterable<PlaybackNote> notesBetween(double from, double to) {
-    // TODO: binary search `bars` for the first bar ending after `from`;
-    // convert that bar's fragment notes from whole-note time to seconds with
-    // the bar's tempo map; continue until a bar starts at or after `to`.
-    throw UnimplementedError();
-  }
+  Iterable<PlaybackNote> notesBetween(double from, double to) => _notes
+      .skip(_partition(_notes.length, (i) => _notes[i].start >= from))
+      .takeWhile((note) => note.start < to);
 
-  /// Events sounding at [seconds], one per voice, for highlighting.
-  List<EventRef> sourcesAt(double seconds) => throw UnimplementedError();
+  /// Events sounding at [seconds], one per voice, for highlighting. An
+  /// event sounds for its notated length, and rests sound nothing.
+  List<EventRef> sourcesAt(double seconds) {
+    final at = _partition(
+      _timeline.length,
+      (i) => _timeline[i].played.end > seconds,
+    );
+    if (at == _timeline.length) {
+      return const [];
+    }
+    final bar = _timeline[at];
+    final voices = <(StaffId, VoiceSlot)>{};
+    return [
+      for (final fragment in bar.heard)
+        if (bar.secondsAt(fragment.onset) <= seconds &&
+            seconds < bar.secondsAt(fragment.onset + fragment.length) &&
+            voices.add((fragment.source.staff, fragment.voice)))
+          fragment.source,
+    ];
+  }
 
   /// When [point] is first reached, for starting playback at the cursor.
   /// Null if the point is not in the played range.
@@ -374,25 +493,67 @@ final class PlayedBar {
   final double end;
 }
 
-/// One note of a compiled bar, in whole-note time relative to the bar.
+/// One head of a compiled bar, in whole-note time relative to the bar.
 final class _Fragment {
   const _Fragment({
     required this.onset,
     required this.length,
-    required this.key,
-    required this.cents,
-    required this.velocity,
-    required this.part,
+    required this.note,
+    required this.voice,
     required this.source,
   });
 
   final Moment onset;
-
-  /// May reach past the bar end when a tie chain continues.
   final Length length;
+  final Note note;
+  final VoiceSlot voice;
+  final EventRef source;
+}
+
+/// A note being placed in seconds. A tie chain extends it.
+final class _Sounding {
+  _Sounding({
+    required this.start,
+    required this.end,
+    required this.key,
+    required this.cents,
+    required this.channel,
+    required this.source,
+  }) : last = end - start;
+
+  final double start;
+  double end;
+
+  /// Seconds of the chain's last note, which the release shortens.
+  double last;
   final int key;
   final int cents;
-  final int velocity;
-  final PartId part;
+  final int channel;
   final EventRef source;
+
+  PlaybackNote get played => PlaybackNote(
+    start: start,
+    duration: end - start - last * 0.1,
+    key: key,
+    cents: cents,
+    velocity: Dynamic.mf.velocity,
+    channel: channel,
+    source: source,
+  );
+}
+
+/// The first index in `[0, length)` where [reached] holds, given that it
+/// holds from some index on, or [length] when it never does.
+int _partition(int length, bool Function(int i) reached) {
+  var low = 0;
+  var high = length;
+  while (low < high) {
+    final mid = (low + high) ~/ 2;
+    if (reached(mid)) {
+      high = mid;
+    } else {
+      low = mid + 1;
+    }
+  }
+  return low;
 }

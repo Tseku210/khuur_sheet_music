@@ -64,6 +64,64 @@ List<(double, double)> timings(
 
 double ms(double seconds) => (seconds * 1000).roundToDouble() / 1000;
 
+/// Each note in `[from, to)` as (start, duration, key, channel, source
+/// event id), times rounded to milliseconds.
+List<(double, double, int, int, int)> notes(
+  PlaybackScript script, [
+  double from = 0,
+  double to = double.infinity,
+]) => [
+  for (final note in script.notesBetween(from, to))
+    (
+      ms(note.start),
+      ms(note.duration),
+      note.key,
+      note.channel,
+      note.source.id.value,
+    ),
+];
+
+List<int> sources(PlaybackScript script, double seconds) => [
+  for (final ref in script.sourcesAt(seconds)) ref.id.value,
+];
+
+ChordEvent quarters(int id, String pitches) => chordOf(id, pitches);
+
+ChordEvent halves(int id, String pitches, {bool tie = false}) =>
+    chordOf(id, pitches, value: NoteValue.half, tie: tie);
+
+ChordEvent wholes(int id, String pitches, {bool tie = false}) =>
+    chordOf(id, pitches, value: NoteValue.whole, tie: tie);
+
+ChordEvent drum(int id, String position, [NoteHead head = NoteHead.normal]) =>
+    ChordEvent(
+      id: EventId(id),
+      value: NoteValue.quarter,
+      notes: Seq([
+        Note(id: NoteId(id * 10), pitch: Pitch.parse(position), head: head),
+      ]),
+    );
+
+const kit = PartTemplate(
+  name: 'Kit',
+  instrument: Instrument(
+    key: 'kit',
+    program: 0,
+    bank: 128,
+    clef: Clef.percussion,
+    drums: [
+      DrumSound(name: 'Snare', position: Pitch(Step.c, 5), midiKey: 38),
+      DrumSound(
+        name: 'Side stick',
+        position: Pitch(Step.c, 5),
+        midiKey: 37,
+        head: NoteHead.cross,
+      ),
+      DrumSound(name: 'Bass drum', position: Pitch(Step.f, 4), midiKey: 36),
+    ],
+  ),
+);
+
 void main() {
   group('play order', () {
     test('plays the bars once in notated order', () {
@@ -288,6 +346,327 @@ void main() {
     });
   });
 
+  group('notes', () {
+    test('plays each head at its time, 0.9 of its length, at mf', () {
+      final score = sessionWith([
+        [
+          quarters(1, 'C4 E4'),
+          rest(2, NoteValue.quarter),
+          halves(3, 'G4'),
+        ],
+      ]).score;
+      final script = compiled(score);
+
+      expect(notes(script), [
+        (0.0, 0.54, 60, 0, 1),
+        (0.0, 0.54, 64, 0, 1),
+        (1.2, 1.08, 67, 0, 3),
+      ]);
+      expect(
+        {for (final note in script.notesBetween(0, 10)) note.velocity},
+        {64},
+      );
+    });
+
+    test('times tuplets, every voice and every staff', () {
+      var score = blankScore(parts: const [piano], bars: 1);
+      score = fill(score, 0, [
+        tripletOfEighths(1, [
+          chordOf(2, 'C4', value: NoteValue.eighth),
+          chordOf(3, 'D4', value: NoteValue.eighth),
+          chordOf(4, 'E4', value: NoteValue.eighth),
+        ]),
+        rest(5, NoteValue.quarter),
+        rest(6, NoteValue.half),
+      ]);
+      score = fill(score, 0, [
+        Gap(len(1, 2)),
+        halves(7, 'A3'),
+      ], slot: VoiceSlot.two);
+      score = fill(score, 0, [wholes(8, 'C3')], staff: 1);
+
+      expect(notes(compiled(score)), [
+        (0.0, 0.18, 60, 0, 2),
+        (0.0, 2.16, 48, 0, 8),
+        (0.2, 0.18, 62, 0, 3),
+        (0.4, 0.18, 64, 0, 4),
+        (1.2, 1.08, 57, 0, 7),
+      ]);
+    });
+
+    test('merges a tie chain into one note from its first event', () {
+      final score = sessionWith([
+        [
+          chordOf(1, 'C4 E4', tie: true),
+          quarters(2, 'C4'),
+          halves(3, 'G4', tie: true),
+        ],
+        [wholes(4, 'G4')],
+      ]).score;
+
+      expect(notes(compiled(score)), [
+        (0.0, 1.14, 60, 0, 1),
+        (0.0, 0.54, 64, 0, 1),
+        (1.2, 3.36, 67, 0, 3),
+      ]);
+    });
+
+    test('a tie stays in its staff and voice', () {
+      var score = blankScore(parts: const [piano], bars: 1);
+      score = fill(score, 0, [
+        chordOf(1, 'C4', tie: true),
+        rest(2, NoteValue.quarter),
+        rest(3, NoteValue.half),
+      ]);
+      score = fill(score, 0, [
+        Gap(len(1, 4)),
+        quarters(4, 'C4'),
+        Gap(len(1, 2)),
+      ], slot: VoiceSlot.two);
+      score = fill(score, 0, [
+        rest(5, NoteValue.quarter),
+        quarters(6, 'C4'),
+        rest(7, NoteValue.half),
+      ], staff: 1);
+
+      expect([for (final n in notes(compiled(score))) n.$5], [1, 4, 6]);
+    });
+
+    test('a tie that meets a gap, a rest or another pitch lets go', () {
+      var score = sessionWith([
+        [
+          chordOf(1, 'E4', tie: true),
+          rest(2, NoteValue.quarter),
+          chordOf(3, 'E4', tie: true),
+          quarters(4, 'F4'),
+        ],
+      ]).score;
+      score = fill(score, 0, [
+        chordOf(5, 'C4', tie: true),
+        Gap(len(1, 4)),
+        halves(6, 'C4'),
+      ], slot: VoiceSlot.two);
+
+      expect(notes(compiled(score)), [
+        (0.0, 0.54, 64, 0, 1),
+        (0.0, 0.54, 60, 0, 5),
+        (1.2, 0.54, 64, 0, 3),
+        (1.2, 1.08, 60, 0, 6),
+        (1.8, 0.54, 65, 0, 4),
+      ]);
+    });
+
+    test('a tie across a barline lands on the bar played next', () {
+      final score = changeBar(
+        changeBar(
+          sessionWith([
+            [wholes(1, 'E4')],
+            [wholes(2, 'C4', tie: true)],
+            [wholes(3, 'C4')],
+          ]).score,
+          1,
+          ending([1], repeat: true),
+        ),
+        2,
+        ending([2]),
+      );
+
+      expect(notes(compiled(score)), [
+        (0.0, 2.16, 64, 0, 1),
+        (2.4, 2.16, 60, 0, 2),
+        (4.8, 2.16, 64, 0, 1),
+        (7.2, 2.16, 60, 0, 3),
+      ]);
+    });
+
+    test('gives quarter tones their cents', () {
+      final score = sessionWith([
+        [
+          quarters(1, 'C+4 Ed4'),
+          rest(2, NoteValue.quarter),
+          rest(3, NoteValue.half),
+        ],
+      ]).score;
+
+      expect(
+        [
+          for (final note in compiled(score).notesBetween(0, 10))
+            (note.key, note.cents),
+        ],
+        [(60, 50), (63, 50)],
+      );
+    });
+
+    test('plays a drum note as the sound at its position and head', () {
+      final score = fill(blankScore(parts: const [kit], bars: 1), 0, [
+        drum(1, 'C5'),
+        drum(2, 'C5', NoteHead.cross),
+        drum(3, 'F4', NoteHead.diamond),
+        drum(4, 'E4'),
+      ]);
+      final script = compiled(score);
+
+      expect(notes(script), [
+        (0.0, 0.54, 38, 9, 1),
+        (0.6, 0.54, 37, 9, 2),
+        (1.2, 0.54, 36, 9, 3),
+      ]);
+      expect({for (final note in script.notesBetween(0, 10)) note.cents}, {0});
+    });
+
+    test(
+      'gives each part a channel past 9, drums 9, and skips muted parts',
+      () {
+        final score = blankScore(
+          parts: const [piano, kit, clarinet, morinKhuur],
+        );
+        List<(int, int, int, int)> setups(Set<PartId> muted) => [
+          for (final setup in compiled(
+            score,
+            PlaybackOptions(muted: muted),
+          ).channels)
+            (
+              setup.channel,
+              score.parts.indexWhere((p) => p.id == setup.part),
+              setup.program,
+              setup.bank,
+            ),
+        ];
+
+        expect(setups(const {}), [
+          (0, 0, 0, 0),
+          (9, 1, 0, 128),
+          (1, 2, 71, 0),
+          (2, 3, 110, 0),
+        ]);
+        expect(setups({score.parts[2].id}), [
+          (0, 0, 0, 0),
+          (9, 1, 0, 128),
+          (2, 3, 110, 0),
+        ]);
+        expect(
+          [
+            for (final setup in compiled(
+              blankScore(parts: List.filled(17, morinKhuur)),
+            ).channels)
+              setup.channel,
+          ],
+          [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 0, 1],
+        );
+      },
+    );
+
+    test('notes that start together keep score order', () {
+      var score = blankScore(parts: List.filled(17, morinKhuur), bars: 1);
+      for (var staff = 0; staff < 17; staff++) {
+        score = fill(score, 0, [wholes(staff + 1, 'C4 E4 G4')], staff: staff);
+      }
+
+      expect(
+        [for (final n in notes(compiled(score))) (n.$5, n.$3)],
+        [
+          for (var id = 1; id <= 17; id++) ...[(id, 60), (id, 64), (id, 67)],
+        ],
+      );
+    });
+
+    test('leaves out muted parts and plays hidden ones', () {
+      var score = blankScore(
+        parts: const [morinKhuur, clarinet, piano],
+        bars: 1,
+      );
+      score = fill(score, 0, [wholes(1, 'C4')]);
+      score = fill(score, 0, [wholes(2, 'D4')], staff: 1);
+      score = fill(score, 0, [wholes(3, 'E4')], staff: 2);
+      score = hidePart(score, 1);
+
+      expect(
+        notes(compiled(score, PlaybackOptions(muted: {score.parts[2].id}))),
+        [(0.0, 2.16, 60, 0, 1), (0.0, 2.16, 62, 1, 2)],
+      );
+    });
+
+    test('a range plays the notes that start in it', () {
+      final score = sessionWith([
+        [
+          chordOf(1, 'C4', tie: true),
+          quarters(2, 'C4'),
+          quarters(3, 'E4'),
+          quarters(4, 'F4'),
+        ],
+        [
+          quarters(5, 'G4'),
+          quarters(6, 'A4'),
+          quarters(7, 'B4'),
+          quarters(8, 'C5'),
+        ],
+      ]).score;
+
+      expect(
+        notes(
+          compiled(
+            score,
+            PlaybackOptions(
+              from: pointAt(score, 0, at(1, 4)),
+              to: pointAt(score, 1, at(1, 2)),
+            ),
+          ),
+        ),
+        [
+          (0.0, 0.54, 60, 0, 2),
+          (0.6, 0.54, 64, 0, 3),
+          (1.2, 0.54, 65, 0, 4),
+          (1.8, 0.54, 67, 0, 5),
+          (2.4, 0.54, 69, 0, 6),
+        ],
+      );
+    });
+
+    test('returns the notes that start in a window', () {
+      final script = compiled(
+        sessionWith([
+          [
+            quarters(1, 'C4'),
+            quarters(2, 'D4'),
+            quarters(3, 'E4'),
+            quarters(4, 'F4'),
+          ],
+        ]).score,
+      );
+
+      expect([for (final n in notes(script, 0.6, 1.8)) n.$5], [2, 3]);
+      expect([for (final n in notes(script, 0.61, 1.81)) n.$5], [3, 4]);
+      expect(notes(script, 0.6, 0.6), isEmpty);
+      expect(notes(script, 2.4), isEmpty);
+    });
+
+    test('says which event sounds in each voice', () {
+      var score = blankScore(parts: const [morinKhuur, clarinet]);
+      score = fill(score, 0, [
+        halves(1, 'C4 E4', tie: true),
+        halves(2, 'C4'),
+      ]);
+      score = fill(score, 0, [
+        Gap(len(1, 2)),
+        rest(3, NoteValue.quarter),
+        quarters(4, 'A3'),
+      ], slot: VoiceSlot.two);
+      score = fill(score, 0, [wholes(5, 'D4')], staff: 1);
+      score = fill(score, 1, [wholes(6, 'E4')]);
+      final script = compiled(
+        score,
+        PlaybackOptions(muted: {score.parts[1].id}),
+      );
+
+      expect(sources(script, 0.3), [1]);
+      expect(sources(script, 1.5), [2]);
+      expect(sources(script, 2.1), [2, 4]);
+      expect(sources(script, 2.4), [6]);
+      expect(sources(script, 4.8), isEmpty);
+      expect(sources(compiled(score), 0.3), [1, 5]);
+    });
+  });
+
   group('timing', () {
     test('times bars at 100 quarters a minute before any tempo mark', () {
       final script = compiled(blankScore());
@@ -297,7 +676,7 @@ void main() {
     });
 
     test('changes tempo at each mark, mid-bar included', () {
-      final score = marked(2, {
+      final score = marked(4, {
         1: tempos([
           const TempoMark(
             offset: Moment.zero,
@@ -308,7 +687,12 @@ void main() {
         2: tempos([TempoMark(offset: at(1, 2), tempo: const Tempo(75))]),
       });
 
-      expect(timings(score), [(0.0, 1.8), (1.8, 4.2)]);
+      expect(timings(score), [
+        (0.0, 1.8),
+        (1.8, 4.2),
+        (4.2, 7.4),
+        (7.4, 10.6),
+      ]);
       expect(
         compiled(score).secondsAt(pointAt(score, 1, at(1, 4))),
         closeTo(2.2, 1e-9),
