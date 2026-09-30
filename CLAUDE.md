@@ -24,5 +24,5 @@ cd example && flutter run -d macos -t lib/midi_example.dart   # MIDI demo
 
 - Lints come from `pedantic_mono`. Keep `flutter analyze` clean.
 - Asset paths that code loads at runtime must use the `packages/simple_sheet_music/` prefix. A bare `assets/...` path only resolves inside this package, not in a consuming app.
-- The package bundles no SoundFont, because Flutter ships every package asset to every consuming app. The example app bundles `example/assets/soundfonts/piano.sf2`. Rebuild it with `example/tool/extract_sf2_preset.dart`.
+- The package bundles no SoundFont, because Flutter ships every package asset to every consuming app. The example app bundles `example/assets/soundfonts/piano.sf2`, FreePats' CC0 Upright Piano KW (small).
 - Commit messages use Conventional Commits: `type(scope): description`.
