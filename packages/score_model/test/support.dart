@@ -52,7 +52,11 @@ const morinKhuur = PartTemplate(
 
 /// A one-staff score whose single bar holds [items] in voice one. Ids in
 /// [items] must stay below 100; the scaffolding uses 100 and up.
-Score scoreWith(List<VoiceItem> items, {Meter meter = Meter.fourFour}) => Score(
+Score scoreWith(
+  List<VoiceItem> items, {
+  Meter meter = Meter.fourFour,
+  KeySignature key = KeySignature.cMajor,
+}) => Score(
   meta: const ScoreMeta(),
   parts: Seq([
     Part(
@@ -66,7 +70,7 @@ Score scoreWith(List<VoiceItem> items, {Meter meter = Meter.fourFour}) => Score(
     MeasureColumn(
       id: const MeasureId(102),
       meter: meter,
-      key: KeySignature.cMajor,
+      key: key,
       staves: Seq([
         StaffMeasure(
           staff: const StaffId(101),
@@ -131,3 +135,83 @@ ChordEvent chord(int id, Pitch pitch, NoteValue value, {bool tie = false}) =>
 
 Event firstEvent(Score score, int barIndex) =>
     voiceOf(score, barIndex).items.first as Event;
+
+const piano = PartTemplate(
+  name: 'Piano',
+  instrument: Instrument(key: 'piano', program: 0),
+  staves: 2,
+  clefs: [Clef.treble, Clef.bass],
+);
+
+const clarinet = PartTemplate(
+  name: 'Clarinet in B♭',
+  instrument: Instrument(
+    key: 'clarinet-b-flat',
+    program: 71,
+    transposition: Interval(-1, -2),
+  ),
+);
+
+const drums = PartTemplate(
+  name: 'Drums',
+  instrument: Instrument(
+    key: 'drums',
+    program: 0,
+    clef: Clef.percussion,
+    drums: [
+      DrumSound(name: 'Snare', position: Pitch(Step.c, 5), midiKey: 38),
+    ],
+  ),
+);
+
+ScorePoint pointAt(Score score, int bar, Moment offset) =>
+    ScorePoint(score.measures[bar].id, offset);
+
+Score changeBar(
+  Score score,
+  int bar,
+  MeasureColumn Function(MeasureColumn column) change,
+) => score.copyWith(
+  measures: score.measures.replaceAt(bar, change(score.measures[bar])),
+);
+
+Score withOctaveLine(
+  Score score,
+  OctaveShift shift,
+  ScorePoint first,
+  ScorePoint last,
+) => score.copyWith(
+  spanners: Seq([
+    Spanner(
+      id: const SpannerId(900),
+      kind: OctaveLine(shift),
+      staff: score.staves.first.id,
+      first: first,
+      last: last,
+    ),
+  ]),
+);
+
+/// [score] with part [index] hidden.
+Score hidePart(Score score, int index) {
+  final part = score.parts[index];
+  return score.copyWith(
+    parts: score.parts.replaceAt(
+      index,
+      Part(
+        id: part.id,
+        name: part.name,
+        instrument: part.instrument,
+        staves: part.staves,
+        hidden: true,
+      ),
+    ),
+  );
+}
+
+Score blankScore({
+  List<PartTemplate> parts = const [morinKhuur],
+  int bars = 2,
+  Meter meter = Meter.fourFour,
+  KeySignature key = KeySignature.cMajor,
+}) => Score.blank(parts: parts, measureCount: bars, meter: meter, key: key);

@@ -322,7 +322,7 @@ class LayoutCache {
           switch (placed.event) {
             case ChordEvent(:final notes, :final value):
               for (final note in notes) {
-                final written = staff.writtenPitch(note);
+                final written = staff.writtenPitches[note.id];
                 final accidental = staff.accidentals[note.id];
                 out.add(
                   '$written $value at ${placed.onset} '

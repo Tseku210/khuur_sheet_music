@@ -64,7 +64,7 @@ final class PitchName {
 
 /// A spelled pitch. In the model a note's pitch is the *concert, sounding*
 /// pitch. Written pitch (after instrument transposition and 8va lines) is
-/// derived for display by `StaffView.writtenPitch`.
+/// derived for display in `StaffView.writtenPitches`.
 final class Pitch implements Comparable<Pitch> {
   const Pitch(this.step, this.octave, [this.alter = Alter.natural]);
 

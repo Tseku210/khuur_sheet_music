@@ -53,9 +53,34 @@ final class MeasureView {
   /// Pieces of spanners that touch this bar.
   final List<SpannerSegment> spanners;
 
-  /// Every voice is a single [MeasureRest] and no bar-level mark interrupts:
-  /// layout may fold a run of these into a multi-measure rest.
-  bool get isRestOnly => throw UnimplementedError();
+  /// Layout may fold a run of these bars into a multi-measure rest. Every
+  /// voice of every visible staff is a single [MeasureRest], and nothing is
+  /// printed in or around the bar: no spanner, direction, clef, key or meter
+  /// change, tempo, rehearsal mark, repeat, volta, navigation mark or
+  /// special barline. Conservative: a mark that would not actually break the
+  /// rest still does.
+  bool get isRestOnly =>
+      !meterChanged &&
+      !keyChanged &&
+      spanners.isEmpty &&
+      column.irregularLength == null &&
+      column.barline == Barline.regular &&
+      !column.repeatStart &&
+      column.repeatEnd == null &&
+      column.volta == null &&
+      column.navigation.isEmpty &&
+      column.rehearsal == null &&
+      column.tempos.isEmpty &&
+      staves.every(
+        (staff) =>
+            !staff.clefChanged &&
+            staff.source.clefChanges.isEmpty &&
+            staff.source.directions.isEmpty &&
+            staff.source.voices.every(
+              (voice) =>
+                  voice.items.length == 1 && voice.items.first is MeasureRest,
+            ),
+      );
 }
 
 /// One staff of one bar, resolved for drawing.
@@ -69,6 +94,7 @@ final class StaffView {
     required this.accidentals,
     required this.ties,
     required this.tiedIn,
+    required this.writtenPitches,
   });
 
   final StaffMeasure source;
@@ -100,9 +126,10 @@ final class StaffView {
   /// Notes in this bar that a tie from the previous bar ends on.
   final List<NoteId> tiedIn;
 
-  /// The pitch as printed: concert pitch moved by the instrument's
-  /// transposition and by any 8va line covering the note.
-  Pitch writtenPitch(Note note) => throw UnimplementedError();
+  /// The pitch each note head prints at, graces included: concert pitch
+  /// moved by the instrument's transposition and by any 8va line covering
+  /// the note.
+  final Map<NoteId, Pitch> writtenPitches;
 }
 
 final class VoiceView {

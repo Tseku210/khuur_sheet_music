@@ -3,54 +3,8 @@ import 'package:test/test.dart';
 
 import 'support.dart';
 
-const piano = PartTemplate(
-  name: 'Piano',
-  instrument: Instrument(key: 'piano', program: 0),
-  staves: 2,
-  clefs: [Clef.treble, Clef.bass],
-);
-
-const clarinet = PartTemplate(
-  name: 'Clarinet in B♭',
-  instrument: Instrument(
-    key: 'clarinet-b-flat',
-    program: 71,
-    transposition: Interval(-1, -2),
-  ),
-);
-
-const drums = PartTemplate(
-  name: 'Drums',
-  instrument: Instrument(
-    key: 'drums',
-    program: 0,
-    clef: Clef.percussion,
-    drums: [
-      DrumSound(name: 'Snare', position: Pitch(Step.c, 5), midiKey: 38),
-    ],
-  ),
-);
-
 final a4 = Pitch.parse('A4');
 final c5 = Pitch.parse('C5');
-
-Score blankScore({
-  List<PartTemplate> parts = const [morinKhuur],
-  int bars = 2,
-  Meter meter = Meter.fourFour,
-  KeySignature key = KeySignature.cMajor,
-}) => Score.blank(parts: parts, measureCount: bars, meter: meter, key: key);
-
-ScorePoint pointAt(Score score, int bar, Moment offset) =>
-    ScorePoint(score.measures[bar].id, offset);
-
-Score changeBar(
-  Score score,
-  int bar,
-  MeasureColumn Function(MeasureColumn column) change,
-) => score.copyWith(
-  measures: score.measures.replaceAt(bar, change(score.measures[bar])),
-);
 
 Score withClefChange(Score score, Moment offset, Clef clef) =>
     changeBar(score, 0, (column) {
@@ -59,23 +13,6 @@ Score withClefChange(Score score, Moment offset, Clef clef) =>
         staff.copyWith(clefChanges: Seq([ClefChange(offset, clef)])),
       );
     });
-
-Score withOctaveLine(
-  Score score,
-  OctaveShift shift,
-  ScorePoint first,
-  ScorePoint last,
-) => score.copyWith(
-  spanners: Seq([
-    Spanner(
-      id: const SpannerId(900),
-      kind: OctaveLine(shift),
-      staff: score.staves.first.id,
-      first: first,
-      last: last,
-    ),
-  ]),
-);
 
 Pitch tap(Score score, int step, {int staff = 0, Moment? offset}) =>
     score.pitchForStaffStep(
@@ -638,19 +575,7 @@ void main() {
         parts: const [piano, morinKhuur, morinKhuur],
         measureCount: 1,
       );
-      final hidden = base.parts[1];
-      final score = base.copyWith(
-        parts: base.parts.replaceAt(
-          1,
-          Part(
-            id: hidden.id,
-            name: hidden.name,
-            instrument: hidden.instrument,
-            staves: hidden.staves,
-            hidden: true,
-          ),
-        ),
-      );
+      final score = hidePart(base, 1);
       final start = EditSession.start(score).placeCursor(
         VoicePoint(
           staff: score.staves.first.id,

@@ -4,6 +4,7 @@ library;
 import 'empty_bar.dart';
 import 'events.dart';
 import 'measure.dart';
+import 'measure_view.dart';
 import 'pitch.dart';
 import 'refs.dart';
 import 'seq.dart';
@@ -231,7 +232,7 @@ final class Score {
     return ScoreContext(
       clef: column.staff(staff).clefAt(at.offset),
       key: column.key,
-      writtenKey: column.key.transpose(partOf(staff).instrument.transposition),
+      writtenKey: partOf(staff).instrument.writtenKey(column.key),
       meter: column.meter,
       tempo: _tempoAt(index, at.offset),
       octaveShift: octaveLine?.shift.octaves ?? 0,
@@ -287,7 +288,7 @@ final class Score {
   /// bar's content plus the spanner count; it reads the previous column for
   /// printed changes and tie arrivals, and the next column for outgoing tie
   /// targets. No other measure is touched.
-  MeasureView measureView(MeasureId id) => throw UnimplementedError();
+  MeasureView measureView(MeasureId id) => buildMeasureView(this, indexOf(id));
 
   /// Which measures' [MeasureView]s may differ from those of [previous].
   ///
@@ -420,6 +421,11 @@ final class Instrument {
   final Pitch? highest;
 
   bool get isPercussion => drums.isNotEmpty;
+
+  /// The key signature this instrument prints in concert [key]. Percussion
+  /// prints none.
+  KeySignature writtenKey(KeySignature key) =>
+      isPercussion ? const KeySignature(0) : key.transpose(transposition);
 
   static const morinKhuur = Instrument(
     key: 'morin-khuur',

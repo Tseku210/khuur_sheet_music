@@ -282,10 +282,23 @@ final class Meter {
     return offsets;
   }
 
-  /// Offsets where default beams break. 4/4 breaks at the half bar, 3/4
-  /// beams the whole bar, 6/8 breaks per dotted quarter, additive meters
-  /// break per group.
-  List<Moment> get beamBreaks => throw UnimplementedError();
+  /// Offsets where default beams break. A simple bar up to 3/4 beams whole,
+  /// a longer one with an even numerator breaks at the half bar (4/4, 2/2),
+  /// and anything else breaks per beat: per dotted quarter in 6/8, per group
+  /// in 3+2+2/8, per quarter in 5/4. An ungrouped 7/8 therefore beams per
+  /// eighth, which is why a meter carries its grouping.
+  List<Moment> get beamBreaks {
+    if (groups.length > 1 || isCompound) {
+      return beatOffsets;
+    }
+    if (length <= const Length(Fraction._(3, 4))) {
+      return const [Moment.zero];
+    }
+    if (numerator.isEven) {
+      return [Moment.zero, Moment(Fraction(numerator, 2 * unit))];
+    }
+    return beatOffsets;
+  }
 
   /// Splits a span that starts at [offset] into note values that can be
   /// written, respecting the beat structure. Used whenever the model must
