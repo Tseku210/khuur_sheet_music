@@ -101,10 +101,10 @@ Score edited(Score score, Edit edit) =>
 
 /// One random edit of the kinds a composer makes: note entry (the common
 /// case), voltas, keys, clefs, spanners, inserted and deleted bars, bar
-/// lengths, meters, and hiding a part. Spanners and parts are rebuilt by
-/// hand the way edits rebuild them, sharing everything they don't touch,
-/// until their edits exist.
-Score randomEdit(Score score, Random random, int Function() nextId) {
+/// lengths, meters, and hiding a part. Parts are rebuilt by hand the way
+/// edits rebuild them, sharing everything they don't touch, until their
+/// edits exist.
+Score randomEdit(Score score, Random random) {
   final bar = random.nextInt(score.measures.length);
   final id = score.measures[bar].id;
   switch (random.nextInt(11)) {
@@ -157,31 +157,27 @@ Score randomEdit(Score score, Random random, int Function() nextId) {
       );
     case 6:
       if (score.spanners.isNotEmpty && random.nextBool()) {
-        return score.copyWith(
-          spanners: score.spanners.removeAt(
-            random.nextInt(score.spanners.length),
-          ),
+        return edited(
+          score,
+          RemoveSpanner(pick(random, score.spanners.toList()).id),
         );
       }
       final ends = [
         (random.nextInt(score.measures.length), random.nextInt(4)),
         (random.nextInt(score.measures.length), random.nextInt(4)),
       ]..sort((a, b) => a.$1 != b.$1 ? a.$1 - b.$1 : a.$2 - b.$2);
-      return score.copyWith(
-        spanners: Seq([
-          ...score.spanners,
-          Spanner(
-            id: SpannerId(nextId()),
-            kind: pick(random, const [
-              Slur(),
-              OctaveLine(OctaveShift.up8),
-              OctaveLine(OctaveShift.down8),
-            ]),
-            staff: pick(random, score.staves).id,
-            first: pointAt(score, ends[0].$1, at(ends[0].$2, 4)),
-            last: pointAt(score, ends[1].$1, at(ends[1].$2, 4)),
-          ),
-        ]),
+      return edited(
+        score,
+        AddSpanner(
+          kind: pick(random, const [
+            Slur(),
+            OctaveLine(OctaveShift.up8),
+            OctaveLine(OctaveShift.down8),
+          ]),
+          staff: pick(random, score.staves).id,
+          first: pointAt(score, ends[0].$1, at(ends[0].$2, 4)),
+          last: pointAt(score, ends[1].$1, at(ends[1].$2, 4)),
+        ),
       );
     case 7:
       if (score.measures.length > 3 && random.nextBool()) {
@@ -361,13 +357,10 @@ void main() {
     test('never misses a bar that draws differently', () {
       for (final seed in [1, 2, 3]) {
         final random = Random(seed);
-        // Negative, so they never meet the ids EditSession hands out above
-        // the score's largest.
-        var nextId = -1;
         var score = blankScore(parts: const [morinKhuur, clarinet], bars: 4);
         for (var step = 0; step < 150; step++) {
           final before = score;
-          score = randomEdit(before, random, () => nextId--);
+          score = randomEdit(before, random);
           final changes = score.changesSince(before);
           final beforeIds = [for (final c in before.measures) c.id];
           final afterIds = [for (final c in score.measures) c.id];

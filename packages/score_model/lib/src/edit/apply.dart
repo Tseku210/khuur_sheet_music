@@ -566,7 +566,104 @@ _Result _erase(Score score, Selection selection) {
   throw UnimplementedError();
 }
 
-_Result _marks(Score score, Edit edit, _Ids ids) => throw UnimplementedError();
+/// Directions and spanners. Directions are replaced per staff and bar;
+/// spanners are added or removed whole.
+_Result _marks(Score score, Edit edit, _Ids ids) {
+  switch (edit) {
+    case SetDirections(:final staff, :final measure, :final directions):
+      return _Result(_setDirections(score, staff, measure, directions));
+    case AddSpanner(
+      :final kind,
+      :final staff,
+      :final voice,
+      :final first,
+      :final last,
+    ):
+      _staff(score, staff);
+      for (final end in [first, last]) {
+        _inside(score.measures[_barIndex(score, end.measure)], end);
+      }
+      if (!_fits(score, kind, first, last)) {
+        throw _Refuse(
+          InvalidValue(
+            kind.joinsNotes
+                ? 'a ${kind.runtimeType} must end after it starts'
+                : 'a ${kind.runtimeType} cannot end before it starts',
+          ),
+        );
+      }
+      return _Result(
+        score.copyWith(
+          spanners: score.spanners.append(
+            Spanner(
+              id: ids.spanner(),
+              kind: kind,
+              staff: staff,
+              voice: kind.joinsNotes ? voice ?? VoiceSlot.one : null,
+              first: first,
+              last: last,
+            ),
+          ),
+        ),
+      );
+    case RemoveSpanner(:final spanner):
+      final index = score.spanners.indexWhere((s) => s.id == spanner);
+      if (index < 0) {
+        throw _Refuse(StaleReference(spanner));
+      }
+      return _Result(
+        score.copyWith(spanners: score.spanners.removeAt(index)),
+      );
+    default:
+      throw StateError('not a mark edit: $edit');
+  }
+}
+
+/// [score] with [staff]'s directions in bar [measure] replaced by
+/// [directions] in time order, keeping the given order at one time.
+Score _setDirections(
+  Score score,
+  StaffId staff,
+  MeasureId measure,
+  Seq<StaffDirection> directions,
+) {
+  final index = _barIndex(score, measure);
+  _staff(score, staff);
+  final column = score.measures[index];
+  for (final direction in directions) {
+    _inside(column, ScorePoint(measure, direction.offset));
+  }
+  final order = [...directions.indexed]
+    ..sort((a, b) {
+      final byTime = a.$2.offset.compareTo(b.$2.offset);
+      return byTime != 0 ? byTime : a.$1 - b.$1;
+    });
+  final sorted = [for (final (_, direction) in order) direction];
+  final old = column.staff(staff);
+  if (_same(sorted, old.directions)) {
+    return score;
+  }
+  return score.copyWith(
+    measures: score.measures.replaceAt(
+      index,
+      column.withStaff(old.copyWith(directions: Seq(sorted))),
+    ),
+  );
+}
+
+/// Refuses [staff] when the score no longer has it.
+void _staff(Score score, StaffId staff) {
+  if (!score.staves.any((s) => s.id == staff)) {
+    throw _Refuse(StaleReference(staff));
+  }
+}
+
+/// Refuses [point] when it does not lie inside [column].
+void _inside(MeasureColumn column, ScorePoint point) {
+  if (point.offset.isNegative || point.offset >= Moment.zero + column.length) {
+    throw _Refuse(OutsideMeasure(point));
+  }
+}
 
 /// Key, clef and tempo. Key and clef propagate forward through the run of
 /// bars that carried the old value; see [_propagate] and [_setClef].
@@ -603,13 +700,9 @@ _Result _context(Score score, Edit edit) {
 /// before.
 Score _setClef(Score score, StaffId staff, ScorePoint at, Clef clef) {
   final index = _barIndex(score, at.measure);
-  if (!score.staves.any((s) => s.id == staff)) {
-    throw _Refuse(StaleReference(staff));
-  }
+  _staff(score, staff);
   final column = score.measures[index];
-  if (at.offset.isNegative || at.offset >= Moment.zero + column.length) {
-    throw _Refuse(OutsideMeasure(at));
-  }
+  _inside(column, at);
   final measure = column.staff(staff);
   final set = at.offset.isZero
       ? _withClefs(measure, clef, measure.clefChanges)
@@ -668,11 +761,8 @@ StaffMeasure _withClefs(
 Score _setTempoMarks(Score score, MeasureId measure, Seq<TempoMark> marks) {
   final index = _barIndex(score, measure);
   final column = score.measures[index];
-  final end = Moment.zero + column.length;
   for (final mark in marks) {
-    if (mark.offset.isNegative || mark.offset >= end) {
-      throw _Refuse(OutsideMeasure(ScorePoint(measure, mark.offset)));
-    }
+    _inside(column, ScorePoint(measure, mark.offset));
   }
   final sorted = [...marks]..sort((a, b) => a.offset.compareTo(b.offset));
   for (var k = 1; k < sorted.length; k++) {

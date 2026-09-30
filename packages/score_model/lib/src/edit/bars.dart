@@ -376,8 +376,9 @@ TimedEvent? _opening(MeasureColumn column, StaffId staff, VoiceSlot slot) {
 
 /// [score]'s spanners with their ends where [first] and [last] put them
 /// among [score]'s bars, which are the bars after the edit. An end with
-/// nowhere to go is null. A spanner that loses an end, or would no longer
-/// start before it ends, is dropped. The same object when nothing moves.
+/// nowhere to go is null. A spanner that loses an end, or whose ends no
+/// longer fit its kind (see [_fits]), is dropped. The same object when
+/// nothing moves.
 Seq<Spanner> _moveSpanners(
   Score score, {
   required ScorePoint? Function(Spanner spanner) first,
@@ -393,7 +394,7 @@ Seq<Spanner> _moveSpanners(
       continue;
     }
     moved = true;
-    if (from == null || to == null || !_precedes(score, from, to)) {
+    if (from == null || to == null || !_fits(score, spanner.kind, from, to)) {
       continue;
     }
     kept.add(
@@ -409,6 +410,13 @@ Seq<Spanner> _moveSpanners(
   }
   return moved ? Seq(kept) : score.spanners;
 }
+
+/// Whether a [kind] spanner can run from [first] to [last] in [score]: in
+/// order, and past its first event when it joins notes.
+bool _fits(Score score, SpannerKind kind, ScorePoint first, ScorePoint last) =>
+    kind.joinsNotes
+    ? _precedes(score, first, last)
+    : !_precedes(score, last, first);
 
 /// Whether [a] comes before [b] in [score].
 bool _precedes(Score score, ScorePoint a, ScorePoint b) {

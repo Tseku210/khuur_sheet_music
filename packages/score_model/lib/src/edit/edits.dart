@@ -295,6 +295,9 @@ final class SetLyric extends Edit {
 
 /// Replaces the directions (dynamics, text, chord symbols) of one staff in
 /// one bar. Adding, removing and moving are all this one idempotent edit.
+/// They are stored in time order, keeping the given order at one time.
+/// Refused with [StaleReference] for a bar or staff that is gone and
+/// [OutsideMeasure] for a direction outside the bar.
 final class SetDirections extends Edit {
   const SetDirections({
     required this.staff,
@@ -310,6 +313,13 @@ final class SetDirections extends Edit {
   String get label => 'Directions';
 }
 
+/// Adds a spanner from [first] to [last] on [staff], with a new id, at the
+/// end of `Score.spanners`. A slur or glissando belongs to [voice], voice
+/// one when it names none, and must end after it starts. A line or hairpin
+/// belongs to the staff, so [voice] is ignored, and may start and end on
+/// one event. Refused with [StaleReference] for a bar or staff that is
+/// gone, [OutsideMeasure] for an end outside its bar, and [InvalidValue]
+/// for ends out of order.
 final class AddSpanner extends Edit {
   const AddSpanner({
     required this.kind,
@@ -329,6 +339,7 @@ final class AddSpanner extends Edit {
   String get label => 'Add line';
 }
 
+/// Removes one spanner. Refused with [StaleReference] when it is gone.
 final class RemoveSpanner extends Edit {
   const RemoveSpanner(this.spanner);
 

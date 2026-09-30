@@ -316,3 +316,11 @@ EditRefusal refusal(EditOutcome outcome) => switch (outcome) {
 /// Whether [edit] applies to [session] and leaves its score as it was.
 bool changesNothing(EditSession session, Edit edit) =>
     identical(applied(session.run(edit)).score, session.score);
+
+/// A staff direction as `offset kind`, for comparing.
+String mark(StaffDirection direction) =>
+    '${direction.offset.wholeNotes} ${switch (direction) {
+      DynamicMark(:final level) => level.name,
+      TextMark(:final text, :final above) => '$text${above ? '' : ' below'}',
+      ChordSymbol(:final root, :final quality, :final bass) => '${root.step.name}$quality${bass == null ? '' : '/${bass.step.name}'}',
+    }}';

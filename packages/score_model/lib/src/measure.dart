@@ -424,6 +424,13 @@ final class DynamicMark extends StaffDirection {
   const DynamicMark(super.offset, this.level);
 
   final Dynamic level;
+
+  @override
+  bool operator ==(Object other) =>
+      other is DynamicMark && other.offset == offset && other.level == level;
+
+  @override
+  int get hashCode => Object.hash(offset, level);
 }
 
 final class TextMark extends StaffDirection {
@@ -431,6 +438,16 @@ final class TextMark extends StaffDirection {
 
   final String text;
   final bool above;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TextMark &&
+      other.offset == offset &&
+      other.text == text &&
+      other.above == above;
+
+  @override
+  int get hashCode => Object.hash(offset, text, above);
 }
 
 /// A chord symbol. Root and bass are spelled so transposition moves them
@@ -446,6 +463,17 @@ final class ChordSymbol extends StaffDirection {
   final PitchName root;
   final String quality;
   final PitchName? bass;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ChordSymbol &&
+      other.offset == offset &&
+      other.root == root &&
+      other.quality == quality &&
+      other.bass == bass;
+
+  @override
+  int get hashCode => Object.hash(offset, root, quality, bass);
 }
 
 enum Dynamic {

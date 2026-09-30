@@ -546,12 +546,20 @@ final class Spanner {
 
 sealed class SpannerKind {
   const SpannerKind();
+
+  /// Whether the spanner joins notes of one voice, as a slur or glissando
+  /// does. It then belongs to that voice and covers at least two events.
+  /// Lines and hairpins mark a stretch of the staff and may cover one.
+  bool get joinsNotes => false;
 }
 
 final class Slur extends SpannerKind {
   const Slur({this.dashed = false});
 
   final bool dashed;
+
+  @override
+  bool get joinsNotes => true;
 }
 
 final class Hairpin extends SpannerKind {
@@ -579,6 +587,9 @@ final class PedalLine extends SpannerKind {
 
 final class Glissando extends SpannerKind {
   const Glissando();
+
+  @override
+  bool get joinsNotes => true;
 }
 
 enum OctaveShift {

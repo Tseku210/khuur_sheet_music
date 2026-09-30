@@ -48,14 +48,6 @@ Score irregular(Score score, int bar, Length length, List<VoiceItem> items) =>
       ),
     );
 
-/// A staff direction as `offset kind`, for comparing.
-String mark(StaffDirection direction) =>
-    '${direction.offset.wholeNotes} ${switch (direction) {
-      DynamicMark(:final level) => level.name,
-      TextMark(:final text, :final above) => '$text${above ? '' : ' below'}',
-      ChordSymbol(:final root, :final quality, :final bass) => '${root.step.name}$quality${bass == null ? '' : '/${bass.step.name}'}',
-    }}';
-
 EditSession rebarred(EditSession session, Meter meter, {int from = 0}) =>
     applied(session.run(SetMeter(from: idOf(session, from), meter: meter)));
 
