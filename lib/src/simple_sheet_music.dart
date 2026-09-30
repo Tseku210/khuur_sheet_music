@@ -121,6 +121,10 @@ class SimpleSheetMusicState extends State<SimpleSheetMusic>
   @override
   List<Measure> get measures => widget.measures;
 
+  @override
+  KeySignatureType get initialKeySignatureType =>
+      widget.initialKeySignatureType;
+
   TimeSignatureType get initialTimeSignatureType =>
       widget.initialTimeSignatureType;
 

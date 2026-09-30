@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_midi_pro/flutter_midi_pro.dart';
 import 'package:simple_sheet_music/src/measure/measure.dart';
+import 'package:simple_sheet_music/src/midi/midi_keys.dart';
 import 'package:simple_sheet_music/src/midi/soundfont_types.dart';
+import 'package:simple_sheet_music/src/music_objects/key_signature/keysignature_type.dart';
 import 'package:simple_sheet_music/src/music_objects/notes/single_note/note.dart';
 import 'package:simple_sheet_music/src/music_objects/rest/rest.dart';
 
@@ -24,6 +26,7 @@ class MidiPlayer extends ChangeNotifier {
   MidiPlayer({
     this.tempo = 120,
     this.soundFontType = SoundFontType.touhou,
+    this.initialKeySignatureType = KeySignatureType.cMajor,
   }) : _midi = MidiPro();
 
   /// The tempo in beats per minute (BPM).
@@ -32,8 +35,14 @@ class MidiPlayer extends ChangeNotifier {
   /// The soundfont type to use for playback.
   final SoundFontType soundFontType;
 
+  /// The key signature in effect before the first measure.
+  final KeySignatureType initialKeySignatureType;
+
   /// The measures to play.
   List<Measure>? _measures;
+
+  /// The MIDI key of each symbol in [_measures], from [resolveMidiKeys].
+  List<List<int?>> _midiKeys = const [];
 
   /// The current status of the player.
   MidiPlayerStatus _status = MidiPlayerStatus.stopped;
@@ -99,6 +108,7 @@ class MidiPlayer extends ChangeNotifier {
   /// Loads measures to play.
   void loadMeasures(List<Measure> measures) {
     _measures = measures;
+    _midiKeys = resolveMidiKeys(measures, initialKeySignatureType);
     _currentMeasureIndex = 0;
     _currentSymbolIndex = 0;
     _clearHighlight();
@@ -242,7 +252,7 @@ class MidiPlayer extends ChangeNotifier {
       notifyListeners();
     }
 
-    _playKey(symbol is Note ? symbol.pitch.midiNoteNumber : null);
+    _playKey(_midiKeys[_currentMeasureIndex][_currentSymbolIndex]);
 
     // Calculate duration for the next symbol
     final durationInSeconds =

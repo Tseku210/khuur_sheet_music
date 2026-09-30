@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:simple_sheet_music/simple_sheet_music.dart';
+import 'package:simple_sheet_music/src/music_objects/key_signature/keysignature_type.dart';
 
 class FakeMidiPlatform extends FlutterMidiProPlatform
     with MockPlatformInterfaceMixin {
@@ -80,5 +81,21 @@ void main() {
 
     player.dispose();
     expect(midi.events.last, 'unload sf7');
+  });
+
+  testWidgets(
+      'plays the key signature and accidentals, not the bare staff line',
+      (tester) async {
+    final player = MidiPlayer(initialKeySignatureType: KeySignatureType.gMajor);
+    await tester.runAsync(player.initialize);
+    player
+      ..loadMeasures([
+        Measure([Note(Pitch.f4), Note(Pitch.b4, accidental: Accidental.flat)]),
+      ])
+      ..play();
+    await tester.pump(const Duration(milliseconds: 500));
+    player.pause();
+    expect(midi.events, ['on 66 sf7', 'off 66 sf7', 'on 70 sf7', 'off 70 sf7']);
+    player.dispose();
   });
 }
