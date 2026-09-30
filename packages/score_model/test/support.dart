@@ -170,6 +170,10 @@ const drums = PartTemplate(
   ),
 );
 
+MeasureId idOf(EditSession session, int bar) => session.score.measures[bar].id;
+
+List<MeasureId> barIds(Score score) => [for (final c in score.measures) c.id];
+
 ScorePoint pointAt(Score score, int bar, Moment offset) =>
     ScorePoint(score.measures[bar].id, offset);
 

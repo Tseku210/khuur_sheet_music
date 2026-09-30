@@ -77,7 +77,7 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
     SetDirections() ||
     AddSpanner() ||
     RemoveSpanner() => _marks(score, edit, ids),
-    SetMeter() => _setMeter(score, edit, ids),
+    SetMeter() => _setMeter(score, edit, ids, session),
     SetKey() || SetClef() || SetTempoMarks() => _context(score, edit),
     InsertMeasures() ||
     DeleteMeasures() ||

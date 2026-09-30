@@ -165,14 +165,21 @@ Score _deleteMeasures(Score score, int start, int end) {
       ? score
       : _untieAt(score, start - 1, _barEnd(measures[start - 1]), next);
   final gone = {for (var i = start; i < end; i++) measures[i].id};
-  return untied.copyWith(
+  final resume = next == null ? null : ScorePoint(next.id, Moment.zero);
+  final before = start == 0 ? null : untied.measures[start - 1];
+  final cut = untied.copyWith(
     measures: untied.measures.replaceRange(start, end, const []),
-    spanners: _cutSpanners(
-      untied.spanners,
-      removed: (point) => gone.contains(point.measure),
-      resume: next == null ? null : ScorePoint(next.id, Moment.zero),
-      lastBefore: (spanner) =>
-          start == 0 ? null : _lastOnset(untied.measures[start - 1], spanner),
+  );
+  return cut.copyWith(
+    spanners: _moveSpanners(
+      cut,
+      first: (spanner) =>
+          gone.contains(spanner.first.measure) ? resume : spanner.first,
+      last: (spanner) => !gone.contains(spanner.last.measure)
+          ? spanner.last
+          : before == null
+          ? null
+          : _lastOnset(before, spanner),
     ),
   );
 }
@@ -232,13 +239,18 @@ Score _setBarLength(Score score, int index, Length? length, _Ids ids) {
         ),
     ]),
   );
-  return untied.copyWith(
+  bool removed(ScorePoint point) =>
+      point.measure == bar.id && point.offset >= newEnd;
+  final resume = next == null ? null : ScorePoint(next.id, Moment.zero);
+  final cut = untied.copyWith(
     measures: untied.measures.replaceAt(index, resized),
-    spanners: _cutSpanners(
-      untied.spanners,
-      removed: (point) => point.measure == bar.id && point.offset >= newEnd,
-      resume: next == null ? null : ScorePoint(next.id, Moment.zero),
-      lastBefore: (spanner) => _lastOnset(resized, spanner),
+  );
+  return cut.copyWith(
+    spanners: _moveSpanners(
+      cut,
+      first: (spanner) => removed(spanner.first) ? resume : spanner.first,
+      last: (spanner) =>
+          removed(spanner.last) ? _lastOnset(resized, spanner) : spanner.last,
     ),
   );
 }
@@ -360,30 +372,26 @@ TimedEvent? _opening(MeasureColumn column, StaffId staff, VoiceSlot slot) {
   return first != null && first.onset.isZero ? first : null;
 }
 
-/// [spanners] with the [removed] time cut out of them. A start in it moves
-/// to [resume], where the music goes on, and an end in it moves to
-/// [lastBefore], the last onset before it. A spanner with nowhere to go, or
-/// that would start where it ends, is dropped. The same object when nothing
-/// moves.
-Seq<Spanner> _cutSpanners(
-  Seq<Spanner> spanners, {
-  required bool Function(ScorePoint point) removed,
-  required ScorePoint? resume,
-  required ScorePoint? Function(Spanner spanner) lastBefore,
+/// [score]'s spanners with their ends where [first] and [last] put them
+/// among [score]'s bars, which are the bars after the edit. An end with
+/// nowhere to go is null. A spanner that loses an end, or would no longer
+/// start before it ends, is dropped. The same object when nothing moves.
+Seq<Spanner> _moveSpanners(
+  Score score, {
+  required ScorePoint? Function(Spanner spanner) first,
+  required ScorePoint? Function(Spanner spanner) last,
 }) {
   var moved = false;
   final kept = <Spanner>[];
-  for (final spanner in spanners) {
-    final cutFirst = removed(spanner.first);
-    final cutLast = removed(spanner.last);
-    if (!cutFirst && !cutLast) {
+  for (final spanner in score.spanners) {
+    final from = first(spanner);
+    final to = last(spanner);
+    if (from == spanner.first && to == spanner.last) {
       kept.add(spanner);
       continue;
     }
     moved = true;
-    final first = cutFirst ? resume : spanner.first;
-    final last = cutLast ? lastBefore(spanner) : spanner.last;
-    if (cutFirst && cutLast || first == null || last == null || first == last) {
+    if (from == null || to == null || !_precedes(score, from, to)) {
       continue;
     }
     kept.add(
@@ -392,12 +400,19 @@ Seq<Spanner> _cutSpanners(
         kind: spanner.kind,
         staff: spanner.staff,
         voice: spanner.voice,
-        first: first,
-        last: last,
+        first: from,
+        last: to,
       ),
     );
   }
-  return moved ? Seq(kept) : spanners;
+  return moved ? Seq(kept) : score.spanners;
+}
+
+/// Whether [a] comes before [b] in [score].
+bool _precedes(Score score, ScorePoint a, ScorePoint b) {
+  final i = score.indexOf(a.measure);
+  final j = score.indexOf(b.measure);
+  return i < j || i == j && a.offset < b.offset;
 }
 
 /// Where the last event of [spanner]'s voice in [column] starts, taking

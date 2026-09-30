@@ -376,8 +376,12 @@ List<VoiceItem> _replaceSpan(
     }
     start = stop;
   }
+  return _mergeGaps([...before, ...parts, ...after]);
+}
+
+List<VoiceItem> _mergeGaps(Iterable<VoiceItem> items) {
   final merged = <VoiceItem>[];
-  for (final item in [...before, ...parts, ...after]) {
+  for (final item in items) {
     if (merged.lastOrNull case final Gap previous when item is Gap) {
       merged.last = Gap(previous.span + item.span);
     } else {
@@ -401,42 +405,48 @@ List<VoiceItem> _head(
       return [Gap(span)];
     case Tuplet():
       return _rests(grid, start, span, ids);
-    case ChordEvent(:final notes):
-      final values = spellOnGrid(grid, start, span, rest: false);
-      bool tied(Note note, int piece) => piece < values.length - 1 || note.tie;
-      return [
-        item.copyWith(
-          value: values.first,
-          notes: Seq([for (final n in notes) n.copyWith(tie: tied(n, 0))]),
-        ),
-        for (final (k, value) in values.indexed.skip(1))
-          ChordEvent(
-            id: ids.event(),
-            value: value,
-            notes: Seq([
-              for (final n in notes)
-                Note(
-                  id: ids.note(),
-                  pitch: n.pitch,
-                  head: n.head,
-                  tie: tied(n, k),
-                ),
-            ]),
-          ),
-      ];
-    case Event(:final id, :final articulations):
-      final values = spellOnGrid(grid, start, span, rest: true);
-      return [
-        RestEvent(
-          id: id,
-          value: values.first,
-          articulations: articulations,
-          hidden: item is RestEvent && item.hidden,
-        ),
-        for (final value in values.skip(1))
-          RestEvent(id: ids.event(), value: value),
-      ];
+    case ChordEvent():
+      return _pieces(item, spellOnGrid(grid, start, span, rest: false), ids);
+    case Event():
+      return _restPieces(item, spellOnGrid(grid, start, span, rest: true), ids);
   }
+}
+
+/// [chord] written as tied [values]. The first piece keeps the chord's ids
+/// and marks, and the last keeps its ties.
+List<ChordEvent> _pieces(ChordEvent chord, List<NoteValue> values, _Ids ids) {
+  bool tied(Note note, int piece) => piece < values.length - 1 || note.tie;
+  return [
+    chord.copyWith(
+      value: values.first,
+      notes: Seq([for (final n in chord.notes) n.copyWith(tie: tied(n, 0))]),
+    ),
+    for (final (k, value) in values.indexed.skip(1))
+      ChordEvent(
+        id: ids.event(),
+        value: value,
+        notes: Seq([
+          for (final n in chord.notes)
+            Note(id: ids.note(), pitch: n.pitch, head: n.head, tie: tied(n, k)),
+        ]),
+      ),
+  ];
+}
+
+/// [rest] written as rests of [values]. The first keeps its id and marks,
+/// and every piece of a hidden rest stays hidden.
+List<RestEvent> _restPieces(Event rest, List<NoteValue> values, _Ids ids) {
+  final hidden = rest is RestEvent && rest.hidden;
+  return [
+    RestEvent(
+      id: rest.id,
+      value: values.first,
+      articulations: rest.articulations,
+      hidden: hidden,
+    ),
+    for (final value in values.skip(1))
+      RestEvent(id: ids.event(), value: value, hidden: hidden),
+  ];
 }
 
 List<RestEvent> _rests(BeatGrid grid, Moment at, Length span, _Ids ids) => [

@@ -3,10 +3,6 @@ import 'package:test/test.dart';
 
 import 'support.dart';
 
-MeasureId idOf(EditSession session, int bar) => session.score.measures[bar].id;
-
-List<MeasureId> barIds(Score score) => [for (final c in score.measures) c.id];
-
 /// Built at run time, so equal values are never the same object.
 T fresh<T>(T Function() make) => make();
 

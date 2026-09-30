@@ -343,22 +343,30 @@ final class RemoveSpanner extends Edit {
 /// Changes the meter from bar [from] onward (access pattern 8).
 ///
 /// Scope: [from] and every following bar that carried the same meter as
-/// [from], up to the next different meter. Bars after that keep theirs.
+/// [from], up to the next different meter. Bars after that keep theirs. A
+/// meter of the same length, such as common time for 4/4, only replaces
+/// the meter.
 ///
 /// Re-bar policy: inside the scope the music is re-barred, one *section* at
-/// a time. A section ends at a structural barline the composer placed: a
-/// repeat sign, a volta boundary, a key change, a double or final barline,
-/// or a pickup bar. Those barlines never move. Within a section, each voice's content is
-/// laid end to end and cut into bars of the new length; a note crossing a
-/// new barline is split and tied (as in [EnterNote]); the section's last bar
-/// is padded with rests. Trailing rests are elastic: they are dropped before
-/// cutting, so a section never gains bars just because it held rests, and
-/// a section never loses bars (surplus bars stay, filled with rests). Bars
-/// keep their ids in order; extra bars get new ids.
+/// a time. A section ends at a barline the composer gave meaning: a repeat
+/// sign, a volta boundary, a key change, a rehearsal or navigation mark, or
+/// any barline other than a plain one. A pickup or other irregular bar is a
+/// section of its own and keeps its content. Those barlines never move.
+/// Within a section, each voice's content is laid end to end and cut into
+/// bars of the new length; a note crossing a new barline is split and tied
+/// (as in [EnterNote]); the section's last bar is padded with rests in
+/// voice one and gaps in the others. Trailing rests and gaps are elastic:
+/// they are dropped before cutting, so a section never gains bars just
+/// because it held rests, and a section never loses bars (surplus bars
+/// stay, filled with rests). A rest with a fermata is music, not elastic.
+/// Bars keep their ids in order; extra bars get new ids. A tie whose end
+/// now meets a different head is cleared.
 ///
-/// Tempo marks, directions, clef changes and spanner anchors keep their
-/// absolute time within the section and move to whichever new bar holds
-/// that time.
+/// Tempo marks, directions, clef changes, spanner anchors, the cursor and a
+/// range selection keep their absolute time within the section and move to
+/// whichever new bar holds that time. Marks in dropped trailing time are
+/// dropped. A start or the cursor there moves on to the bar after the
+/// section, and an end moves back to the section's last bar.
 ///
 /// Refused with [WouldSplitTuplet] if a new barline would cut a tuplet.
 /// Setting the meter a bar already has is a no-op.
@@ -366,7 +374,7 @@ final class RemoveSpanner extends Edit {
 /// With [MeterContent.keepBars] nothing is re-barred: each bar in scope
 /// keeps its own content under the new meter. Trailing rests are dropped
 /// first; a bar that is still too long refuses the edit with
-/// [WouldCrossBarline], and a short bar is padded with rests.
+/// [WouldCrossBarline], and a short bar is padded.
 final class SetMeter extends Edit {
   const SetMeter({
     required this.from,
