@@ -11,6 +11,7 @@ library;
 import 'measure.dart';
 import 'refs.dart';
 import 'score.dart';
+import 'seq.dart';
 import 'time.dart';
 
 /// Long-lived. Keep one per composer screen so its fragment cache survives
@@ -29,20 +30,53 @@ final class PlaybackCompiler {
     Score score, [
     PlaybackOptions options = const PlaybackOptions(),
   ]) {
-    // TODO:
-    // 1. Play order. With a range (options.from/to), the bars of the range
-    //    in notated order, once. Otherwise _playOrder(score.measures).
-    // 2. One fold over the play order, reading only bar-level facts and
-    //    staff directions: tempo in effect (TempoMarks, including mid-bar
-    //    ones), dynamic level per staff (DynamicMarks), hairpin segments
-    //    from score.spanners, fermata holds. Produces, per played bar, its
-    //    start in seconds, its internal tempo map, and its entry state.
-    // 3. For each played bar, fetch the fragment for (column, entry state,
-    //    next notated column if a tie leaves the bar) from _fragments or
-    //    compile it with _compileBar.
-    // 4. Channels: parts in order get channels 0..15 skipping 9; percussion
-    //    parts get 9; muted parts are left out.
-    throw UnimplementedError();
+    // TODO: notes from the cached fragments, shaped by dynamics, hairpins
+    // and fermatas, and one channel per part.
+    final measures = score.measures;
+    final windows = options.from == null && options.to == null
+        ? [
+            for (final (:index, :pass) in _playOrder(measures))
+              (
+                index: index,
+                pass: pass,
+                from: Moment.zero,
+                to: Moment.zero + measures[index].length,
+              ),
+          ]
+        : _range(score, options.from, options.to);
+    final entries = <Tempo>[];
+    var tempo = Tempo.unmarked;
+    for (final column in measures) {
+      entries.add(tempo);
+      tempo = column.tempos.lastOrNull?.tempo ?? tempo;
+    }
+    final timeline = <_Bar>[];
+    var seconds = 0.0;
+    for (final (:index, :pass, :from, :to) in windows) {
+      final column = measures[index];
+      final clock = _Clock(entries[index], column.tempos);
+      final start = seconds;
+      seconds += clock.at(to) - clock.at(from);
+      timeline.add(
+        _Bar(
+          PlayedBar(
+            measure: column.id,
+            pass: pass,
+            start: start,
+            end: seconds,
+          ),
+          from: from,
+          to: to,
+          clock: clock,
+        ),
+      );
+    }
+    return PlaybackScript._(
+      timeline,
+      totalSeconds: seconds,
+      channels: const [],
+      bars: [for (final bar in timeline) bar.played],
+    );
   }
 
   /// Compiles one bar into notes in whole-note time relative to the bar.
@@ -66,17 +100,162 @@ final class PlaybackCompiler {
       throw UnimplementedError();
 }
 
-/// Unrolls repeats, voltas and navigation into (bar index, pass) pairs.
+/// Unrolls repeats, voltas and navigation into (bar index, pass) pairs,
+/// where pass counts the times the bar has played, this one included.
 ///
-/// Rules: a start repeat marks where an end repeat returns to (the score
-/// start if none). A bar under a volta plays only on the passes its endings
-/// list. A [Jump] is taken once, after the repeats before it are done;
-/// after a jump, repeats are not taken again, [Fine] stops, and [ToCoda]
-/// continues at the [Coda] bar. A loop guard stops at 64 × bar count.
-// TODO: state machine over (index, pass, jumped, repeatStart) as described.
-// ignore: unused_element
-List<({int index, int pass})> _playOrder(List<MeasureColumn> measures) =>
-    throw UnimplementedError();
+/// An end repeat returns to the last start repeat, or to the bar after the
+/// previous repeated section, or to the score start. A bar under a volta
+/// plays on the passes its endings list. A section being repeated ends
+/// after its end repeat, or after the last bar of the endings that hold its
+/// end repeat. A [Jump] is taken once, after the repeats of its bar are
+/// done. A D.S. without a [Segno] goes to the start. After the jump,
+/// repeats are not taken, a bar under a volta plays only if it is under
+/// the last ending of its run, and the jump's [JumpThen] says whether [Fine] stops or
+/// [ToCoda] leaves for the [Coda], once. A loop guard stops at 64 × bar
+/// count.
+List<({int index, int pass})> _playOrder(Seq<MeasureColumn> measures) {
+  final segno = measures.indexWhere(
+    (c) => c.navigation.contains(const Segno()),
+  );
+  final coda = measures.indexWhere((c) => c.navigation.contains(const Coda()));
+  final plays = List.filled(measures.length, 0);
+  final order = <({int index, int pass})>[];
+  var i = 0;
+  var pass = 1;
+  var start = 0;
+  int? sectionEnd;
+  Jump? jump;
+  var codaTaken = false;
+  while (i < measures.length && order.length < 64 * measures.length) {
+    final column = measures[i];
+    if ((sectionEnd != null && i > sectionEnd) ||
+        (column.repeatStart && i != start)) {
+      pass = 1;
+      start = i;
+      sectionEnd = null;
+    }
+    final volta = column.volta;
+    if (volta != null &&
+        (jump == null
+            ? !volta.endings.contains(pass)
+            : volta != measures[_endingsEnd(measures, i)].volta)) {
+      i++;
+      continue;
+    }
+    order.add((index: i, pass: ++plays[i]));
+    final marks = column.navigation;
+    if (jump != null) {
+      if (jump.then == JumpThen.toFine && marks.contains(const Fine())) {
+        break;
+      }
+      if (jump.then == JumpThen.toCoda &&
+          marks.contains(const ToCoda()) &&
+          coda >= 0 &&
+          !codaTaken) {
+        codaTaken = true;
+        i = coda;
+        continue;
+      }
+    } else {
+      final end = column.repeatEnd;
+      if (end != null && pass < end.times) {
+        pass++;
+        sectionEnd = _endingsEnd(measures, i);
+        i = start;
+        continue;
+      }
+      jump = marks.whereType<Jump>().firstOrNull;
+      if (jump != null) {
+        i = jump.target == JumpTarget.segno && segno >= 0 ? segno : 0;
+        continue;
+      }
+    }
+    i++;
+  }
+  return order;
+}
+
+/// The last bar of the run of volta bars holding bar [i], or [i] when it
+/// has no volta.
+int _endingsEnd(Seq<MeasureColumn> measures, int i) {
+  var end = i;
+  while (measures[end].volta != null &&
+      end + 1 < measures.length &&
+      measures[end + 1].volta != null) {
+    end++;
+  }
+  return end;
+}
+
+/// The bars of `[from, to)` in notated order, once, each with the part of
+/// it that plays.
+List<({int index, int pass, Moment from, Moment to})> _range(
+  Score score,
+  ScorePoint? from,
+  ScorePoint? to,
+) {
+  final first = from == null ? 0 : score.indexOf(from.measure);
+  final last = to == null
+      ? score.measures.length - 1
+      : score.indexOf(to.measure);
+  return [
+    for (var i = first; i <= last; i++)
+      if ((
+            index: i,
+            pass: 1,
+            from: i == first && from != null ? from.offset : Moment.zero,
+            to: i == last && to != null
+                ? to.offset
+                : Moment.zero + score.measures[i].length,
+          )
+          case final window when window.from < window.to)
+        window,
+  ];
+}
+
+/// Seconds from a bar's downbeat, at the tempo in effect there and then at
+/// each of the bar's tempo marks.
+final class _Clock {
+  _Clock(Tempo entry, Seq<TempoMark> marks)
+    : _changes = [
+        (Moment.zero, entry),
+        for (final mark in marks) (mark.offset, mark.tempo),
+      ];
+
+  final List<(Moment, Tempo)> _changes;
+
+  double at(Moment offset) {
+    var seconds = 0.0;
+    for (final (k, (from, tempo)) in _changes.indexed) {
+      if (from >= offset) {
+        break;
+      }
+      final next = k + 1 < _changes.length ? _changes[k + 1].$1 : offset;
+      seconds += tempo.secondsFor(from.until(next < offset ? next : offset));
+    }
+    return seconds;
+  }
+}
+
+/// A played bar with what the script needs to place times in it.
+final class _Bar {
+  const _Bar(
+    this.played, {
+    required this.from,
+    required this.to,
+    required this.clock,
+  });
+
+  final PlayedBar played;
+
+  /// The part of the bar that plays: all of it, or the ends of a range.
+  final Moment from;
+  final Moment to;
+  final _Clock clock;
+
+  double secondsAt(Moment offset) =>
+      played.start + clock.at(offset) - clock.at(from);
+}
 
 final class PlaybackOptions {
   const PlaybackOptions({this.from, this.to, this.muted = const {}});
@@ -92,7 +271,8 @@ final class PlaybackOptions {
 /// A compiled score. Immutable; recompile after an edit (cheap, see the
 /// library doc).
 final class PlaybackScript {
-  const PlaybackScript._({
+  const PlaybackScript._(
+    this._timeline, {
     required this.totalSeconds,
     required this.channels,
     required this.bars,
@@ -105,6 +285,8 @@ final class PlaybackScript {
 
   /// The unrolled play order with timings. The UI can show "2nd time".
   final List<PlayedBar> bars;
+
+  final List<_Bar> _timeline;
 
   /// Notes whose start falls in `[from, to)` seconds, sorted by start. The
   /// player pulls windows ahead of a monotonic clock.
@@ -120,7 +302,16 @@ final class PlaybackScript {
 
   /// When [point] is first reached, for starting playback at the cursor.
   /// Null if the point is not in the played range.
-  double? secondsAt(ScorePoint point) => throw UnimplementedError();
+  double? secondsAt(ScorePoint point) {
+    for (final bar in _timeline) {
+      if (bar.played.measure == point.measure &&
+          bar.from <= point.offset &&
+          point.offset < bar.to) {
+        return bar.secondsAt(point.offset);
+      }
+    }
+    return null;
+  }
 }
 
 final class PlaybackNote {
@@ -176,7 +367,8 @@ final class PlayedBar {
 
   final MeasureId measure;
 
-  /// 1 for the first time through.
+  /// How many times the bar has played, counting this time: 1 for the
+  /// first time through.
   final int pass;
   final double start;
   final double end;

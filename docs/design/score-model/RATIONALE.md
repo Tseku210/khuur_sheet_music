@@ -381,6 +381,19 @@ Implemented in Phase D, unit 15. It covers `AddPart`, `RemovePart` and `SetPartH
 - **The selection is revalidated.** A range or picked events on a removed part are dropped. Hiding a part keeps a selection on it, because a hidden part stays in the score.
 - **`Part.copyWith` takes `hidden`**, and keeps everything else.
 
+### Unit 16: playback
+
+Implemented in Phase D, unit 16, in parts. The first part covers the play order, bar timing and `secondsAt`. The deviations below have not yet been reviewed by the project owner.
+
+- **`PlayedBar.pass` counts the times the bar has played.** A bar played again after a D.C. reports its second or third time. The sketch counted passes through a repeat, which says nothing for bars after a jump.
+- **An end repeat without a start repeat returns to the bar after the previous repeated section**, or to the score start when there is none. The sketch always went to the score start, which replays the first section for a second one.
+- **A repeated section ends after its endings.** When the end repeat sits under a volta, the section runs to the last bar of that run of voltas. A later end repeat then returns to the bar after it.
+- **The jump says whether Fine and to-coda apply.** After a jump with `JumpThen.toFine` a Fine stops, and after one with `JumpThen.toCoda` a to-coda leaves for the coda, once. A plain D.C. or D.S. plays to the end past both. The sketch let both act after any jump.
+- **After a jump only the last ending plays.** A bar under a volta plays when its volta equals the one on the last bar of its run.
+- **Missing targets fall back.** A D.S. without a segno goes to the start, and a to-coda without a coda plays on.
+- **Tempo is read in notated order.** A bar starts at the last tempo marked before it in the score, not the one that last played, so a D.C. brings back the opening tempo.
+- **A range plays the part of each bar inside it.** The script starts at zero at `from`, and `secondsAt` is null outside the range.
+
 ### Scope: a general library
 
 Accepted by the project owner on 2026-09-30. `simple_sheet_music` is an open-source library, so the model stays general. The Khuur composer is its first consumer, and its designs are direction for that app, not requirements for the library.
@@ -392,7 +405,7 @@ Accepted by the project owner on 2026-09-30. `simple_sheet_music` is an open-sou
 
 ## Open questions and risks
 
-Each question is filed under the point it must be answered by. An answer that changes a stored type gets more expensive with every layer built on it, and once the save format is released it also means migrating other people's saved scores. An answer that changes one function's behaviour, or only adds a value, stays cheap. The deviations under units 1 to 15 that the project owner has not reviewed are behaviour too, so they can be reviewed any time before the release.
+Each question is filed under the point it must be answered by. An answer that changes a stored type gets more expensive with every layer built on it, and once the save format is released it also means migrating other people's saved scores. An answer that changes one function's behaviour, or only adds a value, stays cheap. The deviations under units 1 to 16 that the project owner has not reviewed are behaviour too, so they can be reviewed any time before the release.
 
 **Before the layout engine starts.** These decide how layout is built.
 
@@ -419,7 +432,7 @@ Each question is filed under the point it must be answered by. An answer that ch
 
 ## Next implementation step
 
-Units 1 to 15 (note entry, tap to enter, chords, cursor moves, the measure view, change tracking, the point edits, the bar edits, meter changes, key, clef and tempo, the marks, batches, values and tuplets, erase, copy and paste, transpose, and the part edits) are done. The model now answers everything layout reads, so the Flutter layout engine can start against `measureView` and `changesSince`. Every edit in `apply.dart` is implemented. The `changesSince` sweep drives note entry, voltas, keys, clefs, spanners, inserted and deleted bars, bar lengths, meters, range erases, pastes, range transposes, and adding, removing, hiding and showing parts. Stubs left are 6 in `playback.dart`, and 2 each in `json.dart` and `musicxml.dart`.
+Units 1 to 15 (note entry, tap to enter, chords, cursor moves, the measure view, change tracking, the point edits, the bar edits, meter changes, key, clef and tempo, the marks, batches, values and tuplets, erase, copy and paste, transpose, and the part edits) are done. The model now answers everything layout reads, so the Flutter layout engine can start against `measureView` and `changesSince`. Every edit in `apply.dart` is implemented. The `changesSince` sweep drives note entry, voltas, keys, clefs, spanners, inserted and deleted bars, bar lengths, meters, range erases, pastes, range transposes, and adding, removing, hiding and showing parts. Playback has its play order, bar timing and `secondsAt`. Left in `playback.dart` are the notes, channels, `notesBetween` and `sourcesAt`, and 2 stubs each remain in `json.dart` and `musicxml.dart`.
 
 ## Access pattern traces
 
@@ -443,7 +456,7 @@ Units 1 to 15 (note entry, tap to enter, chords, cursor moves, the measure view,
 
 **6. Compile playback.** `PlaybackCompiler.compile(score, options)` runs in three steps.
 1. `_playOrder` unrolls `repeatStart`, `repeatEnd.times`, `Volta.endings`, `Segno`, `Coda`, `ToCoda`, `Fine` and `Jump` into (bar, pass) pairs. Codas are honoured.
-2. One fold over bar-level facts gives each played bar a start time in seconds, a tempo map and its entry dynamics.
+2. One fold over the bars in notated order gives each bar its entry tempo and dynamics. Each played bar gets a start time in seconds and a clock for times inside it.
 3. Each bar's fragment comes from the `Expando` cache keyed by column, or is compiled on a miss. Compiling merges tie chains through `Note.tie` into one attack. It applies dynamics, hairpins and accents to velocity, shapes note lengths from articulations, and realizes grace notes, tremolos and ornaments.
 
 `notesBetween` converts to seconds lazily. `sourcesAt(seconds)` binary-searches the played bars, then the fragment, and returns `EventRef`s for highlighting. A one-note edit recompiles one fragment.
@@ -503,4 +516,6 @@ Units 1 to 15 (note entry, tap to enter, chords, cursor moves, the measure view,
   - Thirty-two mutations of `Transposition.apply` and `_transpose` were each caught. The first run of 32 caught 25, and one of its mutations did not compile and was rewritten. One survivor skipped a chain already moved, which only recomputes the same pitch, so the check was deleted with an empty-graces check that was redundant the same way. Another read the chain's first pitch, which always equals the picked head's, so the code now reads the head's. Tests were added for the other four: a chord symbol on a drum staff in a range, a grace in a flat key, the accidental bound at exactly a double sharp, and a unison over a grace. Mutations for a flam on a picked drum event and a refused double sharp replaced the two that no longer applied.
 - Unit 15 adds 14 tests in `parts_test.dart`, for 397 in all, and all pass. For `AddPart` they cover a part at the bottom with measure rests and clefs in every bar and the other staves shared, a part at each index with its name, short name, instrument and clefs, a short bar, new ids for the part, its staves and its rests, the cursor and selection kept, and each refusal. For `RemovePart` they cover its staves and spanners gone from every bar, the cursor moved below or above past hidden parts and kept elsewhere, a selection on it dropped, and each refusal. For `SetPartHidden` they cover hiding and showing with the rest of the part kept and the undo labels, no change when the part already is so, the cursor moved off a hidden part and kept when showing, and each refusal. Each failed with `_parts`'s `UnimplementedError` first. The `hidePart` test helper now runs `SetPartHidden`, and every earlier test still passes. The `changesSince` sweep now adds, removes, hides and shows random parts in place of flipping one part by hand, and a throwing stub in each of the three edits confirmed it reaches them.
   - Twenty-six mutations were each caught. The first run caught 25. The survivor took the last staff of the part below, which the test could not tell apart because that part had one staff, so the test now has two-staff parts on both sides. That let a cursor on another part be moved onto its own staff by chance, so that case now starts on another staff.
+- Unit 16 starts with 22 tests in `playback_test.dart`, for 419 in all, and all pass. For the play order they cover plain bars, repeats to a start repeat, to the score start and to the bar after an earlier section, endings on their passes including three passes, a section after its endings, an end repeat after the endings, D.C. al Fine, D.S. al Coda, a jump past Fine and to-coda, a jump after its bar's repeats, only the last ending after a jump, a missing segno or coda, a coda left once, the loop guard and ranges. For timing they cover the unmarked tempo, tempo marks at and inside bars, a pickup, the notated tempo after a D.C., a range from zero and `secondsAt` inside and outside a range. Each failed with `compile`'s `UnimplementedError` first.
+  - Thirty-seven mutations were each caught. The first run caught 36, and the 37th did not compile and was rewritten. Before the run, tracing the clock and `secondsAt` found no test reading a time inside a bar with a later tempo mark or past a range's end, and both were added.
 - Synthesis review caught two pseudocode bugs, which are fixed. `changesSince` marked a bar dirty whenever its predecessor was marked, which would have cascaded one edit to the last bar. It now tests the set of identity-changed columns, a rule unit 4 replaced with neighbour identity. The `keepBars` branch used the scope's end before computing it.
