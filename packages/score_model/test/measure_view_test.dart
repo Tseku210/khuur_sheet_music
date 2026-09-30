@@ -87,24 +87,6 @@ MeasureColumn retimed(MeasureColumn column, Meter meter) => MeasureColumn(
   ]),
 );
 
-Score withSlur(
-  Score score,
-  ScorePoint first,
-  ScorePoint last, {
-  int staff = 0,
-}) => score.copyWith(
-  spanners: Seq([
-    ...score.spanners,
-    Spanner(
-      id: SpannerId(900 + score.spanners.length),
-      kind: const Slur(),
-      staff: score.staves[staff].id,
-      first: first,
-      last: last,
-    ),
-  ]),
-);
-
 /// Each head as printed, in voice then time order, graces first: written
 /// pitch, then the accidental sign (`n` natural, parentheses cautionary).
 List<String> printed(StaffView staff) => [

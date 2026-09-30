@@ -192,8 +192,8 @@ Score withOctaveLine(
   ]),
 );
 
-/// [score] with part [index] hidden.
-Score hidePart(Score score, int index) {
+/// [score] with part [index] hidden, or shown again.
+Score hidePart(Score score, int index, {bool hidden = true}) {
   final part = score.parts[index];
   return score.copyWith(
     parts: score.parts.replaceAt(
@@ -203,7 +203,7 @@ Score hidePart(Score score, int index) {
         name: part.name,
         instrument: part.instrument,
         staves: part.staves,
-        hidden: true,
+        hidden: hidden,
       ),
     ),
   );
@@ -215,3 +215,21 @@ Score blankScore({
   Meter meter = Meter.fourFour,
   KeySignature key = KeySignature.cMajor,
 }) => Score.blank(parts: parts, measureCount: bars, meter: meter, key: key);
+
+Score withSlur(
+  Score score,
+  ScorePoint first,
+  ScorePoint last, {
+  int staff = 0,
+}) => score.copyWith(
+  spanners: Seq([
+    ...score.spanners,
+    Spanner(
+      id: SpannerId(900 + score.spanners.length),
+      kind: const Slur(),
+      staff: score.staves[staff].id,
+      first: first,
+      last: last,
+    ),
+  ]),
+);

@@ -293,34 +293,81 @@ final class Score {
   /// Which measures' [MeasureView]s may differ from those of [previous].
   ///
   /// Works by identity. An edit rebuilds only the path from the root to what
-  /// it touched, so every other column is the same object in both scores.
+  /// it touched, so every other column is the same object in both scores. A
+  /// view reads its own column, both neighbours and the spanners touching it.
+  /// So a bar is relaid out when it is new, when it or either neighbour is a
+  /// different object than before, or when a spanner covering it was added
+  /// or removed. Every bar is relaid out when the parts change or when bars
+  /// that survive change order. [meta] is not compared.
   ScoreChanges changesSince(Score previous) {
-    // TODO:
-    //   if identical(previous, this): return ScoreChanges.none
-    //   if !identical(parts, previous.parts): return all() with reflow
-    //   changed = {}   // columns that are new objects, not merely relaid out
-    //   for i, col in measures:
-    //     j = previous._indexById[col.id]
-    //     if j == null: changed.add(col.id); relayout.add(col.id); reflow = true; continue
-    //     if !identical(col, previous.measures[j]):
-    //       changed.add(col.id); relayout.add(col.id)
-    //     // Printed clef/key/meter changes, courtesy accidentals and tie
-    //     // arrivals depend on the previous bar. Test `changed`, not
-    //     // `relayout`, or one edit would cascade to the last bar.
-    //     prevId = i > 0 ? measures[i-1].id : null
-    //     prevOld = j > 0 ? previous.measures[j-1].id : null
-    //     if prevId != prevOld: relayout.add(col.id); reflow = true
-    //     else if i > 0 && changed.contains(prevId): relayout.add(col.id)
-    //     // Outgoing tie targets depend on the next bar:
-    //     if the next column changed and col has a tie crossing its end:
-    //       relayout.add(col.id)
-    //   removed = previous ids not in this
-    //   if !identical(spanners, previous.spanners):
-    //     for s in symmetric difference by identity:
-    //       relayout.addAll(ids of measures s covers, in whichever score
-    //                       still has them)
-    throw UnimplementedError();
+    if (identical(previous, this)) {
+      return ScoreChanges.none;
+    }
+    final removed = {
+      for (final column in previous.measures)
+        if (!contains(column.id)) column.id,
+    };
+    final everything = ScoreChanges(
+      relayout: {for (final column in measures) column.id},
+      removed: removed,
+      reflow: true,
+    );
+    if (!identical(parts, previous.parts)) {
+      return everything;
+    }
+    final relayout = <MeasureId>{};
+    var reflow = measures.length != previous.measures.length;
+    var lastSurvivor = -1;
+    for (var i = 0; i < measures.length; i++) {
+      final column = measures[i];
+      final j = previous._indexById[column.id];
+      if (j != i) {
+        reflow = true;
+      }
+      if (j == null) {
+        relayout.add(column.id);
+        continue;
+      }
+      // A reorder can carry a bar into or out of an unchanged spanner's range
+      // while its neighbours stay the same.
+      if (j < lastSurvivor) {
+        return everything;
+      }
+      lastSurvivor = j;
+      if (!identical(column, previous.measures[j]) ||
+          !identical(_columnAt(i - 1), previous._columnAt(j - 1)) ||
+          !identical(_columnAt(i + 1), previous._columnAt(j + 1))) {
+        relayout.add(column.id);
+      }
+    }
+    if (!identical(spanners, previous.spanners)) {
+      final now = Set<Spanner>.identity()..addAll(spanners);
+      final before = Set<Spanner>.identity()..addAll(previous.spanners);
+      for (final spanner in spanners) {
+        if (!before.contains(spanner)) {
+          relayout.addAll(_covered(spanner));
+        }
+      }
+      for (final spanner in previous.spanners) {
+        if (!now.contains(spanner)) {
+          relayout.addAll(previous._covered(spanner).where(contains));
+        }
+      }
+    }
+    return ScoreChanges(relayout: relayout, removed: removed, reflow: reflow);
   }
+
+  MeasureColumn? _columnAt(int index) =>
+      index >= 0 && index < measures.length ? measures[index] : null;
+
+  List<MeasureId> _covered(Spanner spanner) => [
+    for (
+      var i = indexOf(spanner.first.measure);
+      i <= indexOf(spanner.last.measure);
+      i++
+    )
+      measures[i].id,
+  ];
 
   /// Spanners with at least one point inside bar [id]. Linear in the
   /// spanner count (hundreds in a large score).

@@ -270,15 +270,17 @@ final class ScoreChanges {
 
   static const none = ScoreChanges(relayout: {}, removed: {}, reflow: false);
 
-  /// Measures whose [MeasureView] may differ. Conservative: never misses a
-  /// change, may include a neighbour that turns out identical.
+  /// Measures whose [MeasureView] may differ in anything but
+  /// [MeasureView.index]. Conservative. It never misses a change and may
+  /// include a neighbour that turns out identical.
   final Set<MeasureId> relayout;
 
   /// Measures that no longer exist.
   final Set<MeasureId> removed;
 
   /// The sequence of measures changed (insert, delete, re-bar) or the parts
-  /// changed: line breaking must run again over cached measure widths.
+  /// changed. Line breaking must run again over cached measure widths, and
+  /// bar numbers may have moved.
   final bool reflow;
 
   bool get isEmpty => relayout.isEmpty && removed.isEmpty && !reflow;
