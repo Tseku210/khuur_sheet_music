@@ -413,10 +413,14 @@ final class SetKey extends Edit {
 }
 
 /// Puts [clef] on [staff] at [at]. At offset 0 it becomes the bar's starting
-/// clef and replaces the clef on every following bar that carried the old
-/// one, up to the next clef change. Mid-bar it adds a [ClefChange] and
-/// propagates the same way from the next bar. Notes keep their pitch; they
-/// move on the staff.
+/// clef. Mid-bar it adds a [ClefChange], or replaces the one at that time.
+/// A change to the clef already in effect is dropped, so setting the clef
+/// in effect removes a change. When the bar now ends in another clef, that
+/// clef replaces the old one on each following bar that carried it on,
+/// stopping at a bar that opens in another clef or ends as it did before.
+/// Notes keep their pitch; they move on the staff. Refused with
+/// [StaleReference] for a bar or staff that is gone and [OutsideMeasure]
+/// for a time outside the bar. Idempotent.
 final class SetClef extends Edit {
   const SetClef({required this.staff, required this.at, required this.clef});
 
@@ -428,7 +432,9 @@ final class SetClef extends Edit {
   String get label => 'Clef';
 }
 
-/// Replaces the tempo marks of one bar. Idempotent.
+/// Replaces the tempo marks of one bar, stored in time order. Refused with
+/// [OutsideMeasure] for a mark outside the bar and [InvalidValue] for two
+/// marks at one time. Idempotent.
 final class SetTempoMarks extends Edit {
   const SetTempoMarks(this.measure, this.marks);
 

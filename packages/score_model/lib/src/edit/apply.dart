@@ -569,11 +569,11 @@ _Result _erase(Score score, Selection selection) {
 _Result _marks(Score score, Edit edit, _Ids ids) => throw UnimplementedError();
 
 /// Key, clef and tempo. Key and clef propagate forward through the run of
-/// bars that carried the old value; see [_propagate].
+/// bars that carried the old value; see [_propagate] and [_setClef].
 _Result _context(Score score, Edit edit) {
   switch (edit) {
     case SetKey(:final from, :final key):
-      final start = score.indexOf(from);
+      final start = _barIndex(score, from);
       final old = score.measures[start].key;
       if (old == key) {
         return _Result(score);
@@ -588,19 +588,109 @@ _Result _context(Score score, Edit edit) {
           ),
         ),
       );
-    case SetClef():
-      // TODO: at offset 0: old = the staff measure's clef; propagate over
-      // following bars whose staff measure starts with `old`, replacing it
-      // (a bar starting with a different clef is an explicit change and
-      // stops the run). Mid-bar: insert a ClefChange, then propagate from
-      // the next bar with old = the previous clefAtEnd.
-      throw UnimplementedError();
-    case SetTempoMarks():
-      // TODO: replace the column's tempos (validated by the constructor).
-      throw UnimplementedError();
+    case SetClef(:final staff, :final at, :final clef):
+      return _Result(_setClef(score, staff, at, clef));
+    case SetTempoMarks(:final measure, :final marks):
+      return _Result(_setTempoMarks(score, measure, marks));
     default:
       throw StateError('not a context edit: $edit');
   }
+}
+
+/// [score] with [clef] on [staff] from [at]. The clef the bar now ends in
+/// replaces the old one on each following bar that carried it on, and the
+/// run stops at a bar that opens in another clef or ends in the same one as
+/// before.
+Score _setClef(Score score, StaffId staff, ScorePoint at, Clef clef) {
+  final index = _barIndex(score, at.measure);
+  if (!score.staves.any((s) => s.id == staff)) {
+    throw _Refuse(StaleReference(staff));
+  }
+  final column = score.measures[index];
+  if (at.offset.isNegative || at.offset >= Moment.zero + column.length) {
+    throw _Refuse(OutsideMeasure(at));
+  }
+  final measure = column.staff(staff);
+  final set = at.offset.isZero
+      ? _withClefs(measure, clef, measure.clefChanges)
+      : _withClefs(measure, measure.clef, [
+          for (final c in measure.clefChanges)
+            if (c.offset < at.offset) c,
+          ClefChange(at.offset, clef),
+          for (final c in measure.clefChanges)
+            if (c.offset > at.offset) c,
+        ]);
+  if (identical(set, measure)) {
+    return score;
+  }
+  final columns = [column.withStaff(set)];
+  var (old, now) = (measure.clefAtEnd, set.clefAtEnd);
+  for (var i = index + 1; i < score.measures.length && old != now; i++) {
+    final next = score.measures[i].staff(staff);
+    if (next.clef != old) {
+      break;
+    }
+    final carried = _withClefs(next, now, next.clefChanges);
+    columns.add(score.measures[i].withStaff(carried));
+    (old, now) = (next.clefAtEnd, carried.clefAtEnd);
+  }
+  return score.copyWith(
+    measures: score.measures.replaceRange(
+      index,
+      index + columns.length,
+      columns,
+    ),
+  );
+}
+
+/// [measure] opening in [clef] with [changes], less each change to the
+/// clef already in effect. The same object when that is what it had.
+StaffMeasure _withClefs(
+  StaffMeasure measure,
+  Clef clef,
+  Iterable<ClefChange> changes,
+) {
+  final kept = <ClefChange>[];
+  var current = clef;
+  for (final change in changes) {
+    if (change.clef != current) {
+      kept.add(change);
+      current = change.clef;
+    }
+  }
+  return clef == measure.clef && _same(kept, measure.clefChanges)
+      ? measure
+      : measure.copyWith(clef: clef, clefChanges: Seq(kept));
+}
+
+/// [score] with bar [measure]'s tempo marks replaced by [marks] in time
+/// order. Refused when a mark lies outside the bar or two share a time.
+Score _setTempoMarks(Score score, MeasureId measure, Seq<TempoMark> marks) {
+  final index = _barIndex(score, measure);
+  final column = score.measures[index];
+  final end = Moment.zero + column.length;
+  for (final mark in marks) {
+    if (mark.offset.isNegative || mark.offset >= end) {
+      throw _Refuse(OutsideMeasure(ScorePoint(measure, mark.offset)));
+    }
+  }
+  final sorted = [...marks]..sort((a, b) => a.offset.compareTo(b.offset));
+  for (var k = 1; k < sorted.length; k++) {
+    if (sorted[k].offset == sorted[k - 1].offset) {
+      throw _Refuse(
+        InvalidValue('two tempo marks at ${sorted[k].offset.wholeNotes}'),
+      );
+    }
+  }
+  if (_same(sorted, column.tempos)) {
+    return score;
+  }
+  return score.copyWith(
+    measures: score.measures.replaceAt(
+      index,
+      column.copyWith(tempos: Seq(sorted)),
+    ),
+  );
 }
 
 /// Replaces the value carried by a run of bars: bar [start] and every

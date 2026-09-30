@@ -101,9 +101,9 @@ Score edited(Score score, Edit edit) =>
 
 /// One random edit of the kinds a composer makes: note entry (the common
 /// case), voltas, keys, clefs, spanners, inserted and deleted bars, bar
-/// lengths, meters, and hiding a part. Clefs, keys, spanners and parts are
-/// rebuilt by hand the way edits rebuild them, sharing everything they
-/// don't touch, until their edits exist.
+/// lengths, meters, and hiding a part. Spanners and parts are rebuilt by
+/// hand the way edits rebuild them, sharing everything they don't touch,
+/// until their edits exist.
 Score randomEdit(Score score, Random random, int Function() nextId) {
   final bar = random.nextInt(score.measures.length);
   final id = score.measures[bar].id;
@@ -142,17 +142,17 @@ Score randomEdit(Score score, Random random, int Function() nextId) {
         ),
       );
     case 4:
-      return changeBar(
+      return edited(
         score,
-        bar,
-        (c) => c.copyWith(key: KeySignature(random.nextInt(5) - 2)),
+        SetKey(from: id, key: KeySignature(random.nextInt(5) - 2)),
       );
     case 5:
-      return changeBar(
+      return edited(
         score,
-        bar,
-        (c) => c.withStaff(
-          c.staves.first.copyWith(clef: pick(random, [Clef.treble, Clef.bass])),
+        SetClef(
+          staff: pick(random, score.staves).id,
+          at: ScorePoint(id, at(random.nextInt(4), 4)),
+          clef: pick(random, [Clef.treble, Clef.bass, Clef.alto]),
         ),
       );
     case 6:

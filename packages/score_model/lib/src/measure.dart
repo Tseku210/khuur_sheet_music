@@ -276,6 +276,13 @@ final class ClefChange {
 
   final Moment offset;
   final Clef clef;
+
+  @override
+  bool operator ==(Object other) =>
+      other is ClefChange && other.offset == offset && other.clef == clef;
+
+  @override
+  int get hashCode => Object.hash(offset, clef);
 }
 
 enum Barline { regular, doubleBar, finalBar, dashed, dotted, heavy, invisible }
@@ -392,6 +399,17 @@ final class TempoMark {
   final String? text;
 
   final bool showMetronome;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TempoMark &&
+      other.offset == offset &&
+      other.tempo == tempo &&
+      other.text == text &&
+      other.showMetronome == showMetronome;
+
+  @override
+  int get hashCode => Object.hash(offset, tempo, text, showMetronome);
 }
 
 /// Things anchored to a time on one staff (not to an event), like MusicXML

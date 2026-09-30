@@ -56,8 +56,7 @@ _Result _bars(Score score, Edit edit, _Ids ids) {
         score,
         measure,
         measure,
-        (c) =>
-            _sameMarks(c.navigation, marks) ? c : c.copyWith(navigation: marks),
+        (c) => _same(c.navigation, marks) ? c : c.copyWith(navigation: marks),
       );
     case SetRehearsal(:final measure, :final text):
       final rehearsal = text == null || text.isEmpty ? null : text;
@@ -118,9 +117,12 @@ bool _countsPasses(List<int> endings) =>
       endings.length - 1,
     ).every((k) => endings[k] < endings[k + 1]);
 
-bool _sameMarks(Seq<NavigationMark> a, Seq<NavigationMark> b) =>
+/// Whether [a] and [b] hold equal elements in the same order.
+bool _same<T>(Iterable<T> a, Iterable<T> b) =>
     a.length == b.length &&
-    Iterable<int>.generate(a.length).every((k) => a[k] == b[k]);
+    Iterable<int>.generate(
+      a.length,
+    ).every((k) => a.elementAt(k) == b.elementAt(k));
 
 /// [score] with [count] empty bars at [index]. They carry on the meter,
 /// key and clefs of the bar before, or the opening ones of the first bar
