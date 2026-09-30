@@ -51,7 +51,7 @@ SimpleSheetMusic(
 
 To load a SoundFont your app downloaded at runtime, use `FileSoundFont('/absolute/path.sf2')`. Playback uses bank 0, program 0. When `soundFont` is null, playback is off. MIDI works on Android, iOS and macOS.
 
-The example app ships a 2.2 MB piano, `example/assets/soundfonts/piano.sf2`. It is the Acoustic Grand Piano preset from [GeneralUser GS](https://www.schristiancollins.com/generaluser.php) v2.0.3, extracted with `example/tool/extract_sf2_preset.dart`. Its license is in `example/assets/soundfonts/GeneralUser-GS-LICENSE.txt`.
+The example app ships a 9.5 MB piano, `example/assets/soundfonts/piano.sf2`. It is [Upright Piano KW (small)](https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html#UprightKW) from FreePats, a sampled Kawai upright released under CC0. Its readme and license are next to it.
 
 ## License
 
