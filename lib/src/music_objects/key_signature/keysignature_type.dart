@@ -1,4 +1,5 @@
 import 'package:simple_sheet_music/src/music_objects/clef/clef_type.dart';
+import 'package:simple_sheet_music/src/music_objects/notes/note_pitch.dart';
 
 /// Represents the type of a key signature.
 enum KeySignatureType {
@@ -67,6 +68,22 @@ enum KeySignatureType {
   /// Returns whether the key signature has parts.
   bool get hasParts =>
       this != KeySignatureType.cMajor && this != KeySignatureType.aMinor;
+
+  /// Returns how many semitones this key signature moves [pitch]: 1 for a
+  /// sharpened letter, -1 for a flattened one, and 0 otherwise.
+  int alterationFor(Pitch pitch) {
+    final letter = pitch.name[0];
+    if (isSharp) {
+      return _sharpOrder.indexOf(letter) < keyNum ? 1 : 0;
+    }
+    if (isFlat) {
+      return _flatOrder.indexOf(letter) < keyNum ? -1 : 0;
+    }
+    return 0;
+  }
+
+  static const _sharpOrder = 'fcgdaeb';
+  static const _flatOrder = 'beadgcf';
 
   /// Returns the positions of the key signature on the staff for the given [clefType].
   List<int> keySignaturePositions(ClefType clefType) => isSharp
