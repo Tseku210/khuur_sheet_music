@@ -4,6 +4,7 @@ import 'package:simple_sheet_music/src/measure/measure.dart';
 import 'package:simple_sheet_music/src/midi/midi_player.dart';
 import 'package:simple_sheet_music/src/midi/soundfont_types.dart';
 import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol.dart';
+import 'package:simple_sheet_music/src/music_objects/key_signature/keysignature_type.dart';
 
 /// A mixin that provides MIDI playback functionality to the SimpleSheetMusic widget.
 mixin MidiPlaybackMixin<T extends StatefulWidget> on State<T> {
@@ -34,6 +35,9 @@ mixin MidiPlaybackMixin<T extends StatefulWidget> on State<T> {
   /// The list of measures to play
   List<Measure> get measures;
 
+  /// The key signature in effect before the first measure
+  KeySignatureType get initialKeySignatureType;
+
   /// Initialize MIDI playback
   Future<void> initializeMidi() async {
     if (!enableMidi) {
@@ -48,6 +52,7 @@ mixin MidiPlaybackMixin<T extends StatefulWidget> on State<T> {
     _midiPlayer = MidiPlayer(
       tempo: tempo,
       soundFontType: soundFontType,
+      initialKeySignatureType: initialKeySignatureType,
     );
 
     try {

@@ -2,6 +2,28 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:simple_sheet_music/src/music_objects/notes/note_pitch.dart';
 
 void main() {
+  test('Pitch.midiNoteNumber maps piano range to MIDI keys', () {
+    expect(Pitch.a0.midiNoteNumber, 21);
+    expect(Pitch.c4.midiNoteNumber, 60);
+    expect(Pitch.a4.midiNoteNumber, 69);
+    expect(Pitch.c8.midiNoteNumber, 108);
+  });
+
+  test('Pitch.midiNoteNumber steps by whole and half tones within an octave',
+      () {
+    final octave = [
+      Pitch.c4,
+      Pitch.d4,
+      Pitch.e4,
+      Pitch.f4,
+      Pitch.g4,
+      Pitch.a4,
+      Pitch.b4,
+      Pitch.c5,
+    ].map((p) => p.midiNoteNumber);
+    expect(octave, [60, 62, 64, 65, 67, 69, 71, 72]);
+  });
+
   test('Pitch.up should return the next pitch', () {
     // Arrange
     const pitch = Pitch.c4;

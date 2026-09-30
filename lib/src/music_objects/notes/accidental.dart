@@ -1,16 +1,19 @@
 /// Enum representing different types of accidentals in music notation.
 enum Accidental {
-  flat(_flatPathKey), // Represents a flat accidental.
-  natural(_naturalPathKey), // Represents a natural accidental.
-  sharp(_sharpPathKey), // Represents a sharp accidental.
-  doubleSharp(_doubleSharpPathKey), // Represents a double sharp accidental.
-  doubleFlat(_doubleFlatPathKey); // Represents a double flat accidental.
+  flat(_flatPathKey, -1), // Represents a flat accidental.
+  natural(_naturalPathKey, 0), // Represents a natural accidental.
+  sharp(_sharpPathKey, 1), // Represents a sharp accidental.
+  doubleSharp(_doubleSharpPathKey, 2), // Represents a double sharp accidental.
+  doubleFlat(_doubleFlatPathKey, -2); // Represents a double flat accidental.
 
   /// The path key used to retrieve the corresponding symbol for the accidental.
-  const Accidental(this.pathKey);
+  const Accidental(this.pathKey, this.semitones);
 
   /// The path key for the flat accidental symbol.
   final String pathKey;
+
+  /// How many semitones the accidental moves the natural pitch.
+  final int semitones;
 
   /// The path key for the flat accidental symbol.
   static const _flatPathKey = 'uniE260';

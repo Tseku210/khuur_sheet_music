@@ -1,11 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_midi/flutter_midi.dart';
+import 'package:flutter_midi_pro/flutter_midi_pro.dart';
 import 'package:simple_sheet_music/src/measure/measure.dart';
+import 'package:simple_sheet_music/src/midi/midi_keys.dart';
 import 'package:simple_sheet_music/src/midi/soundfont_types.dart';
-import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol.dart';
+import 'package:simple_sheet_music/src/music_objects/key_signature/keysignature_type.dart';
 import 'package:simple_sheet_music/src/music_objects/notes/single_note/note.dart';
 import 'package:simple_sheet_music/src/music_objects/rest/rest.dart';
 
@@ -26,7 +26,8 @@ class MidiPlayer extends ChangeNotifier {
   MidiPlayer({
     this.tempo = 120,
     this.soundFontType = SoundFontType.touhou,
-  }) : _flutterMidi = FlutterMidi();
+    this.initialKeySignatureType = KeySignatureType.cMajor,
+  }) : _midi = MidiPro();
 
   /// The tempo in beats per minute (BPM).
   int tempo;
@@ -34,14 +35,26 @@ class MidiPlayer extends ChangeNotifier {
   /// The soundfont type to use for playback.
   final SoundFontType soundFontType;
 
+  /// The key signature in effect before the first measure.
+  final KeySignatureType initialKeySignatureType;
+
   /// The measures to play.
   List<Measure>? _measures;
+
+  /// The MIDI key of each symbol in [_measures], from [resolveMidiKeys].
+  List<List<int?>> _midiKeys = const [];
 
   /// The current status of the player.
   MidiPlayerStatus _status = MidiPlayerStatus.stopped;
 
   /// The MIDI plugin that handles the actual MIDI output.
-  final FlutterMidi _flutterMidi;
+  final MidiPro _midi;
+
+  /// The ID of the soundfont loaded into [_midi].
+  int? _soundfontId;
+
+  /// The MIDI key that is currently sounding, if any.
+  int? _soundingKey;
 
   /// The index of the current measure being played.
   int _currentMeasureIndex = 0;
@@ -78,8 +91,10 @@ class MidiPlayer extends ChangeNotifier {
     try {
       // Load the soundfont file
       final soundfontPath = customSoundfontPath ?? soundFontType.path;
-      final byte = await rootBundle.load(soundfontPath);
-      await _flutterMidi.prepare(sf2: byte);
+      if (!_midi.isInitialized) {
+        await _midi.init();
+      }
+      _soundfontId = await _midi.loadSoundfontAsset(assetPath: soundfontPath);
 
       _isInitialized = true;
     } catch (e) {
@@ -93,6 +108,7 @@ class MidiPlayer extends ChangeNotifier {
   /// Loads measures to play.
   void loadMeasures(List<Measure> measures) {
     _measures = measures;
+    _midiKeys = resolveMidiKeys(measures, initialKeySignatureType);
     _currentMeasureIndex = 0;
     _currentSymbolIndex = 0;
     _clearHighlight();
@@ -144,6 +160,7 @@ class MidiPlayer extends ChangeNotifier {
 
     _status = MidiPlayerStatus.paused;
     _stopPlaybackTimer();
+    _releaseNote();
     notifyListeners();
   }
 
@@ -155,6 +172,7 @@ class MidiPlayer extends ChangeNotifier {
 
     _status = MidiPlayerStatus.stopped;
     _stopPlaybackTimer();
+    _releaseNote();
     _currentMeasureIndex = 0;
     _currentSymbolIndex = 0;
     _clearHighlight();
@@ -234,7 +252,7 @@ class MidiPlayer extends ChangeNotifier {
       notifyListeners();
     }
 
-    _playSymbol(symbol);
+    _playKey(_midiKeys[_currentMeasureIndex][_currentSymbolIndex]);
 
     // Calculate duration for the next symbol
     final durationInSeconds =
@@ -256,16 +274,34 @@ class MidiPlayer extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Plays a musical symbol.
-  void _playSymbol(MusicalSymbol symbol) {
-    if (symbol is Note) {
-      _flutterMidi.playMidiNote(midi: symbol.pitch.midiNoteNumber);
+  /// Plays [key], releasing the previous note first. A `null` key is silence.
+  void _playKey(int? key) {
+    _releaseNote();
+    final sfId = _soundfontId;
+    if (key != null && sfId != null) {
+      unawaited(_midi.playNote(key: key, sfId: sfId));
+      _soundingKey = key;
+    }
+  }
+
+  /// Sends a note-off for the currently sounding note.
+  void _releaseNote() {
+    final key = _soundingKey;
+    final sfId = _soundfontId;
+    _soundingKey = null;
+    if (key != null && sfId != null) {
+      unawaited(_midi.stopNote(key: key, sfId: sfId));
     }
   }
 
   @override
   void dispose() {
     _stopPlaybackTimer();
+    _releaseNote();
+    final sfId = _soundfontId;
+    if (sfId != null) {
+      unawaited(_midi.unloadSoundfont(sfId));
+    }
     super.dispose();
   }
 }

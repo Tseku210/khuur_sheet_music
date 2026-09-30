@@ -2,7 +2,7 @@
 /// It includes classes for rendering staffs, measures, clefs, notes, and other music objects.
 /// The `SimpleSheetMusic` widget is the main entry point for displaying sheet music.
 /// It takes a list of `Staff` objects and other optional parameters to customize the appearance of the sheet music.
-library simple_sheet_music;
+library;
 
 export '/src/font_types.dart' show FontType;
 export '/src/measure/measure.dart' show Measure;

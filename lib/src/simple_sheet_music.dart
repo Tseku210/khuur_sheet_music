@@ -122,6 +122,9 @@ class SimpleSheetMusicState extends State<SimpleSheetMusic>
   List<Measure> get measures => widget.measures;
 
   @override
+  KeySignatureType get initialKeySignatureType =>
+      widget.initialKeySignatureType;
+
   TimeSignatureType get initialTimeSignatureType =>
       widget.initialTimeSignatureType;
 
@@ -276,7 +279,7 @@ class HighlightPainter extends CustomPainter {
 
     // Draw a rounded rectangle with a semi-transparent fill
     final paint = Paint()
-      ..color = highlightColor.withOpacity(0.3)
+      ..color = highlightColor.withValues(alpha: 0.3)
       ..style = PaintingStyle.fill;
 
     canvas.drawRRect(
