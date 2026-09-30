@@ -89,9 +89,9 @@ class MidiExamplePageState extends State<MidiExamplePage> {
       margin: const EdgeInsets.all(8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.1),
+        color: Colors.blue.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.withOpacity(0.3)),
+        border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
       ),
       child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -133,7 +133,7 @@ class MidiExamplePageState extends State<MidiExamplePage> {
                     _currentExampleIndex == 0 ? null : () => _changeExample(0),
                 style: OutlinedButton.styleFrom(
                   backgroundColor: _currentExampleIndex == 0
-                      ? Colors.blue.withOpacity(0.2)
+                      ? Colors.blue.withValues(alpha: 0.2)
                       : null,
                 ),
                 child: const Text('C Major Scale'),
@@ -268,7 +268,7 @@ class MidiExamplePageState extends State<MidiExamplePage> {
               labelText: 'SoundFont',
               border: OutlineInputBorder(),
             ),
-            value: _selectedSoundFont,
+            initialValue: _selectedSoundFont,
             onChanged: (SoundFontType? newValue) {
               if (newValue != null) {
                 setState(() {

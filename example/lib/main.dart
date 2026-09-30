@@ -7,7 +7,7 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -124,9 +124,9 @@ class SimpleSheetMusicDemoState extends State<SimpleSheetMusicDemo> {
               debug: true,
               onTap: (symbol, position) {
                 // Handle the tapped symbol
-                print(
+                debugPrint(
                     'Tapped symbol: ${symbol is Clef ? symbol.id : symbol.runtimeType}');
-                print('At position: $position');
+                debugPrint('At position: $position');
 
                 // You can now:
                 // 1. Store the selected symbol
