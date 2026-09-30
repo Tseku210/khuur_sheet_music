@@ -1,0 +1,901 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
+
+import 'package:score_model/score_model.dart';
+import 'package:test/test.dart';
+
+import 'random_edits.dart';
+import 'support.dart';
+
+/// [score] saved as JSON text and loaded again.
+Score reloaded(Score score) =>
+    scoreFromJson(jsonDecode(jsonEncode(scoreToJson(score))));
+
+String saved(Score score) =>
+    '${const JsonEncoder.withIndent('  ').convert(scoreToJson(score))}\n';
+
+/// Every bar of [score] as layout reads it.
+List<String> views(Score score) => [
+  for (final column in score.measures)
+    describeView(score.measureView(column.id)),
+];
+
+Pitch p(String name) => Pitch.parse(name);
+
+PitchedNote head(int id, Pitch pitch) =>
+    PitchedNote(id: NoteId(id), pitch: pitch);
+
+ChordEvent single(int id, Pitch pitch, NoteValue value) => ChordEvent(
+  id: EventId(id),
+  value: value,
+  notes: Seq([head(id + 1, pitch)]),
+);
+
+StaffMeasure lane(
+  int staff,
+  Clef clef,
+  List<VoiceItem> one, {
+  List<VoiceItem> two = const [],
+  List<ClefChange> clefChanges = const [],
+  List<StaffDirection> directions = const [],
+}) => StaffMeasure(
+  staff: StaffId(staff),
+  clef: clef,
+  clefChanges: Seq(clefChanges),
+  directions: Seq(directions),
+  voices: Seq([
+    Voice(slot: VoiceSlot.one, items: Seq(one)),
+    if (two.isNotEmpty) Voice(slot: VoiceSlot.two, items: Seq(two)),
+  ]),
+);
+
+ScorePoint where(int measure, int numerator, int denominator) =>
+    ScorePoint(MeasureId(measure), at(numerator, denominator));
+
+/// A score that holds every stored field away from its default at least
+/// once: three parts (violin, a hidden clarinet, a one-line drum kit), a
+/// pickup, meter, key and clef changes, nested tuplets, every accidental,
+/// and one spanner of each kind.
+Score showcase() => Score(
+  meta: const ScoreMeta(
+    title: 'Showcase',
+    subtitle: 'for testing',
+    composer: 'Anon.',
+    lyricist: 'Anon.',
+    copyright: 'CC0',
+  ),
+  parts: Seq([
+    Part(
+      id: const PartId(1),
+      name: 'Violin',
+      shortName: 'Vln.',
+      instrument: Instrument(
+        key: 'violin',
+        program: 40,
+        strings: [p('G3'), p('D4'), p('A4'), p('E5')],
+        lowest: p('G3'),
+        highest: p('A7'),
+      ),
+      staves: Seq([const Staff(id: StaffId(2))]),
+    ),
+    Part(
+      id: const PartId(3),
+      name: 'Clarinet in B♭',
+      hidden: true,
+      instrument: clarinet.instrument,
+      staves: Seq([const Staff(id: StaffId(4))]),
+    ),
+    Part(
+      id: const PartId(5),
+      name: 'Drums',
+      instrument: drums.instrument,
+      staves: Seq([const Staff(id: StaffId(6), lines: 1)]),
+    ),
+  ]),
+  measures: Seq([
+    MeasureColumn(
+      id: const MeasureId(10),
+      meter: Meter.common,
+      key: const KeySignature(2, KeyMode.major),
+      irregularLength: len(1, 4),
+      repeatStart: true,
+      rehearsal: 'A',
+      navigation: Seq(const [Segno()]),
+      tempos: Seq([
+        const TempoMark(
+          offset: Moment.zero,
+          tempo: Tempo(120),
+          text: 'Allegro',
+        ),
+      ]),
+      staves: Seq([
+        lane(
+          2,
+          Clef.treble,
+          [
+            ChordEvent(
+              id: const EventId(11),
+              value: NoteValue.quarter,
+              notes: Seq([
+                PitchedNote(
+                  id: const NoteId(12),
+                  pitch: p('F#4'),
+                  fingering: 1,
+                  string: 1,
+                ),
+                PitchedNote(
+                  id: const NoteId(13),
+                  pitch: p('A4'),
+                  tie: true,
+                  accidental: AccidentalRequest.cautionary,
+                  head: NoteHead.diamond,
+                ),
+              ]),
+              articulations: const {Articulation.accent, Articulation.staccato},
+              ornament: Ornament.trill,
+              bowing: Bowing.down,
+              graces: Seq([
+                GraceChord(
+                  id: const EventId(14),
+                  kind: GraceKind.appoggiatura,
+                  value: NoteValue.eighth,
+                  notes: Seq([head(15, p('E4'))]),
+                ),
+              ]),
+              stem: StemDirection.up,
+              beam: BeamMode.begin,
+              tremolo: 2,
+              lyrics: Seq(const [
+                Lyric(
+                  verse: 1,
+                  text: 'la',
+                  syllabic: Syllabic.begin,
+                  extend: true,
+                ),
+                Lyric(verse: 2, text: 'Тай'),
+              ]),
+            ),
+          ],
+          two: [
+            Gap(len(1, 8)),
+            const RestEvent(
+              id: EventId(16),
+              value: NoteValue.eighth,
+              hidden: true,
+            ),
+          ],
+          directions: [
+            const DynamicMark(Moment.zero, Dynamic.mf),
+            const TextMark(Moment.zero, 'dolce', above: false),
+            ChordSymbol(
+              at(1, 8),
+              root: const PitchName(Step.d),
+              quality: 'maj7',
+              bass: const PitchName(Step.e, Alter.doubleFlat),
+            ),
+          ],
+        ),
+        lane(4, Clef.treble, [
+          MeasureRest(
+            id: const EventId(17),
+            span: len(1, 4),
+            articulations: const {Articulation.fermata},
+          ),
+        ]),
+        lane(6, Clef.percussion, [
+          hit(
+            18,
+            [bassDrum, snare],
+            graces: [
+              GraceChord(
+                id: const EventId(21),
+                kind: GraceKind.acciaccatura,
+                value: NoteValue.sixteenth,
+                notes: Seq([const DrumNote(id: NoteId(22), drum: snare)]),
+              ),
+            ],
+          ),
+        ]),
+      ]),
+    ),
+    MeasureColumn(
+      id: const MeasureId(30),
+      meter: Meter.common,
+      key: const KeySignature(2, KeyMode.major),
+      barline: Barline.doubleBar,
+      repeatEnd: const RepeatEnd(times: 3),
+      volta: const Volta([1]),
+      navigation: Seq(const [
+        ToCoda(),
+        Jump(JumpTarget.segno, then: JumpThen.toCoda, text: 'D.S. al Coda'),
+      ]),
+      breakBefore: LayoutBreak.system,
+      keyDisplay: SignatureDisplay.noCourtesy,
+      meterDisplay: SignatureDisplay.restated,
+      staves: Seq([
+        lane(
+          2,
+          Clef.treble,
+          [
+            Tuplet(
+              id: const TupletId(31),
+              ratio: TupletRatio.triplet,
+              unit: NoteValue.eighth,
+              bracket: TupletBracket.shown,
+              members: Seq([
+                single(32, p('A4'), NoteValue.eighth),
+                const RestEvent(
+                  id: EventId(34),
+                  value: NoteValue.eighth,
+                  articulations: {Articulation.fermata},
+                ),
+                Tuplet(
+                  id: const TupletId(35),
+                  ratio: TupletRatio.triplet,
+                  unit: NoteValue.sixteenth,
+                  members: Seq([
+                    single(36, p('Bb4'), NoteValue.sixteenth),
+                    single(38, p('C+5'), NoteValue.sixteenth),
+                    rest(40, NoteValue.sixteenth),
+                  ]),
+                ),
+              ]),
+            ),
+            ChordEvent(
+              id: const EventId(41),
+              value: NoteValue.half.dotted,
+              notes: Seq([
+                head(42, p('Bd4')),
+                head(43, const Pitch(Step.c, 5, Alter.threeQuarterSharp)),
+              ]),
+            ),
+          ],
+          two: [
+            Gap(len(1, 2)),
+            ChordEvent(
+              id: const EventId(45),
+              value: NoteValue.half,
+              notes: Seq([head(46, p('G4'))]),
+              stem: StemDirection.down,
+              beam: BeamMode.none,
+            ),
+          ],
+          clefChanges: [ClefChange(at(1, 2), Clef.alto)],
+          directions: [const TextMark(Moment.zero, 'pizz.')],
+        ),
+        lane(4, Clef.treble, [
+          const MeasureRest(id: EventId(47), span: Length.whole),
+        ]),
+        lane(6, Clef.percussion, [
+          hit(48, [sideStick], value: NoteValue.half),
+          rest(50, NoteValue.half),
+        ]),
+      ]),
+    ),
+    MeasureColumn(
+      id: const MeasureId(60),
+      meter: Meter.sixEight,
+      key: const KeySignature(-3, KeyMode.minor),
+      volta: const Volta([2, 3], open: true),
+      tempos: Seq([
+        TempoMark(
+          offset: Moment.zero,
+          tempo: Tempo(60, beat: NoteValue.quarter.dotted),
+          showMetronome: false,
+        ),
+        TempoMark(
+          offset: at(3, 8),
+          tempo: Tempo(66.5, beat: NoteValue.quarter.dotted),
+        ),
+      ]),
+      staves: Seq([
+        lane(
+          2,
+          Clef.alto,
+          [MeasureRest(id: const EventId(61), span: len(3, 4))],
+          directions: [const DynamicMark(Moment.zero, Dynamic.p)],
+        ),
+        lane(4, Clef.treble, [
+          MeasureRest(id: const EventId(62), span: len(3, 4)),
+        ]),
+        lane(6, Clef.percussion, [
+          hit(63, [bassDrum], value: NoteValue.quarter.dotted),
+          hit(65, [snare], value: NoteValue.quarter.dotted),
+        ]),
+      ]),
+    ),
+    MeasureColumn(
+      id: const MeasureId(70),
+      meter: const Meter([3, 2, 2], 8),
+      key: const KeySignature(-3, KeyMode.minor),
+      barline: Barline.finalBar,
+      navigation: Seq(const [Coda(), Fine()]),
+      breakBefore: LayoutBreak.page,
+      keyDisplay: SignatureDisplay.restated,
+      staves: Seq([
+        lane(2, Clef.treble, [
+          ChordEvent(
+            id: const EventId(71),
+            value: NoteValue.half.dotted,
+            notes: Seq([
+              head(72, p('Fx4')),
+              head(73, const Pitch(Step.a, 4, Alter.threeQuarterFlat)),
+            ]),
+          ),
+          rest(74, NoteValue.eighth),
+        ]),
+        lane(4, Clef.treble, [
+          MeasureRest(id: const EventId(75), span: len(7, 8)),
+        ]),
+        lane(6, Clef.percussion, [
+          MeasureRest(id: const EventId(76), span: len(7, 8)),
+        ]),
+      ]),
+    ),
+  ]),
+  spanners: Seq([
+    Spanner(
+      id: const SpannerId(80),
+      kind: const Slur(dashed: true),
+      staff: const StaffId(2),
+      voice: VoiceSlot.one,
+      first: where(30, 0, 1),
+      last: where(30, 1, 4),
+    ),
+    Spanner(
+      id: const SpannerId(81),
+      kind: const Hairpin(crescendo: true),
+      staff: const StaffId(2),
+      first: where(10, 0, 1),
+      last: where(30, 1, 2),
+    ),
+    Spanner(
+      id: const SpannerId(82),
+      kind: const Hairpin(crescendo: false),
+      staff: const StaffId(2),
+      first: where(30, 1, 2),
+      last: where(30, 1, 2),
+    ),
+    Spanner(
+      id: const SpannerId(83),
+      kind: const OctaveLine(OctaveShift.up8),
+      staff: const StaffId(2),
+      first: where(60, 0, 1),
+      last: where(70, 0, 1),
+    ),
+    Spanner(
+      id: const SpannerId(84),
+      kind: const TrillLine(),
+      staff: const StaffId(2),
+      first: where(30, 1, 4),
+      last: where(30, 1, 4),
+    ),
+    Spanner(
+      id: const SpannerId(85),
+      kind: const TempoLine(text: 'poco rit.', factor: 0.9),
+      staff: const StaffId(2),
+      first: where(60, 0, 1),
+      last: where(70, 3, 4),
+    ),
+    Spanner(
+      id: const SpannerId(86),
+      kind: const PedalLine(),
+      staff: const StaffId(2),
+      first: where(10, 0, 1),
+      last: where(30, 3, 4),
+    ),
+    Spanner(
+      id: const SpannerId(87),
+      kind: const Glissando(),
+      staff: const StaffId(2),
+      voice: VoiceSlot.two,
+      first: where(30, 1, 2),
+      last: where(70, 0, 1),
+    ),
+    Spanner(
+      id: const SpannerId(88),
+      kind: const Slur(),
+      staff: const StaffId(6),
+      voice: VoiceSlot.one,
+      first: where(60, 0, 1),
+      last: where(60, 3, 8),
+    ),
+  ]),
+);
+
+/// A score with every optional value at its default, including a jump's
+/// and a chord symbol's.
+Score plain() => Score(
+  meta: const ScoreMeta(),
+  parts: Seq([
+    Part(
+      id: const PartId(1),
+      name: 'Flute',
+      instrument: const Instrument(key: 'flute', program: 73),
+      staves: Seq([const Staff(id: StaffId(2))]),
+    ),
+  ]),
+  measures: Seq([
+    MeasureColumn(
+      id: const MeasureId(3),
+      meter: Meter.fourFour,
+      key: const KeySignature(0),
+      staves: Seq([
+        lane(
+          2,
+          Clef.treble,
+          [const MeasureRest(id: EventId(4), span: Length.whole)],
+          directions: [
+            const ChordSymbol(Moment.zero, root: PitchName(Step.c)),
+          ],
+        ),
+      ]),
+    ),
+    MeasureColumn(
+      id: const MeasureId(5),
+      meter: Meter.fourFour,
+      key: const KeySignature(0),
+      navigation: Seq(const [Jump(JumpTarget.start)]),
+      staves: Seq([
+        lane(2, Clef.treble, [
+          const MeasureRest(id: EventId(6), span: Length.whole),
+        ]),
+      ]),
+    ),
+  ]),
+);
+
+final golden = File('test/golden/showcase.json');
+
+/// Marks a member to remove in [put].
+const missing = Object();
+
+/// [root] with the value at [path] (as in `$.parts[0].name`) set to
+/// [value], or removed when [value] is [missing].
+Object? put(Object? root, String path, Object? value) {
+  if (path == r'$') {
+    return value;
+  }
+  final steps = [
+    for (final match in RegExp(r'\.(\w+)|\[(\d+)\]').allMatches(path))
+      match[1] ?? int.parse(match[2]!),
+  ];
+  var node = root;
+  for (final step in steps.take(steps.length - 1)) {
+    node = step is String
+        ? (node! as Map<String, Object?>)[step]
+        : (node! as List<Object?>)[step as int];
+  }
+  final last = steps.last;
+  if (last is String) {
+    final map = node! as Map<String, Object?>;
+    if (identical(value, missing)) {
+      map.remove(last);
+    } else {
+      map[last] = value;
+    }
+  } else {
+    (node! as List<Object?>)[last as int] = value;
+  }
+  return root;
+}
+
+typedef Broken = ({Map<String, Object?> set, String at, String rule});
+
+/// The file with [value] at [at], refused there for [rule].
+Broken bad(String at, Object? value, String rule) =>
+    (set: {at: value}, at: at, rule: rule);
+
+/// The file with each of [set], refused at [at] for [rule].
+Broken badAt(String at, String rule, Map<String, Object?> set) =>
+    (set: set, at: at, rule: rule);
+
+String oneOf(List<Enum> values) =>
+    'expected one of ${values.map((value) => value.name).join(', ')}';
+
+const bar0 = r'$.measures[0].staves[0]';
+const chord0 = '$bar0.voices[0].items[0]';
+const drums0 = r'$.measures[0].staves[2].voices[0].items[0]';
+const tuplet1 = r'$.measures[1].staves[0].voices[0].items[0]';
+
+final broken = <Broken>[
+  bad(r'$', <Object?>[], 'expected an object'),
+  bad(r'$.schema', 2, 'written by a newer version'),
+  bad(r'$.schema', 0, 'no such version'),
+  bad(r'$.schema', missing, 'missing'),
+  bad(r'$.parts', <String, Object?>{}, 'expected a list'),
+  bad(r'$.parts', <Object?>[], 'a score has at least one part'),
+  badAt(r'$.parts', 'a score shows at least one part', {
+    r'$.parts[0].hidden': true,
+    r'$.parts[2].hidden': true,
+  }),
+  bad(r'$.parts[0].id', '1', 'expected an integer'),
+  bad(r'$.parts[0].name', 3, 'expected a string'),
+  bad(r'$.parts[1].hidden', 'yes', 'expected true or false'),
+  bad(r'$.parts[1].id', 1, 'id 1 is used twice'),
+  bad(r'$.parts[2].staves[0].id', 2, 'id 2 is used twice'),
+  bad(r'$.parts[0].staves', <Object?>[], 'a part has at least one staff'),
+  bad(r'$.parts[0].staves[0].lines', 0, 'a staff has at least one line'),
+  bad(r'$.parts[0].instrument.program', 128, 'a MIDI number is 0 to 127'),
+  bad(r'$.parts[0].instrument.program', -1, 'a MIDI number is 0 to 127'),
+  bad(r'$.parts[2].instrument.bank', -1, 'a bank is 0 or more'),
+  bad(r'$.parts[0].instrument.clef', 'violin', oneOf(Clef.values)),
+  for (final interval in [
+    [1],
+    [1, 2, 3],
+  ])
+    bad(
+      r'$.parts[1].instrument.transposition',
+      interval,
+      'a transposition is [steps, semitones]',
+    ),
+  bad(
+    r'$.parts[2].instrument.drums[1].name',
+    'Snare',
+    'the kit names Snare twice',
+  ),
+  bad(r'$.measures', <Object?>[], 'a score has at least one measure'),
+  bad(r'$.measures[1].id', 10, 'id 10 is used twice'),
+  bad(r'$.measures[0].meter', missing, 'missing'),
+  bad(r'$.measures[0].meter', '4', 'expected a meter such as "3+2+2/8"'),
+  bad(r'$.measures[0].meter', '0/4', 'expected a meter such as "3+2+2/8"'),
+  bad(r'$.measures[0].meter', '4/3', 'the unit is a power of two up to 128'),
+  bad(r'$.measures[0].meter', '4/256', 'the unit is a power of two up to 128'),
+  bad(r'$.measures[0].key', 8, 'a key has 7 flats to 7 sharps'),
+  bad(r'$.measures[0].key', -8, 'a key has 7 flats to 7 sharps'),
+  bad(r'$.measures[2].mode', 'dorian', oneOf(KeyMode.values)),
+  bad(
+    r'$.measures[0].length',
+    '1/384',
+    'a bar holds a whole number of 128th notes',
+  ),
+  bad(
+    r'$.measures[0].length',
+    '0',
+    'a bar holds a whole number of 128th notes',
+  ),
+  for (final count in [2, 4])
+    bad(r'$.measures[0].staves', [
+      for (var i = 0; i < count; i++) <String, Object?>{},
+    ], 'expected 3, one per staff'),
+  bad(r'$.measures[1].repeatEnd', 1, 'a repeat plays twice or more'),
+  for (final (at, endings) in [
+    ('', <Object?>[]),
+    ('[0]', [0]),
+    ('[1]', [2, 2]),
+  ])
+    badAt(
+      '\$.measures[2].volta.endings$at',
+      'an ending lists its passes from 1, in order',
+      {r'$.measures[2].volta.endings': endings},
+    ),
+  bad(
+    r'$.measures[0].navigation[0]',
+    'dal segno',
+    'expected segno, coda, toCoda, fine or a jump',
+  ),
+  for (final bpm in [0, double.infinity])
+    bad(r'$.measures[0].tempos[0].bpm', bpm, 'expected a number above 0'),
+  badAt(
+    r'$.measures[2].tempos[1]',
+    'tempo marks are in time order, one at a time',
+    {r'$.measures[2].tempos[1].at': '0'},
+  ),
+  bad(r'$.measures[2].tempos[1].at', '3/4', 'not inside the bar'),
+  bad(r'$.measures[0].key', missing, 'missing'),
+  bad(r'$.measures[0].staves[0].clef', missing, 'missing'),
+  bad(
+    r'$.measures[1].staves[0].clefChanges[0].at',
+    '0',
+    'a clef change comes after the bar starts',
+  ),
+  for (final second in ['1/4', '1/2'])
+    badAt(
+      r'$.measures[1].staves[0].clefChanges[1]',
+      'clef changes are in time order, one at a time',
+      {
+        r'$.measures[1].staves[0].clefChanges': [
+          {'at': '1/2', 'clef': 'alto'},
+          {'at': second, 'clef': 'bass'},
+        ],
+      },
+    ),
+  bad('$bar0.directions[0].at', '1/4', 'not inside the bar'),
+  badAt('$bar0.directions[1]', 'directions are in time order', {
+    '$bar0.directions[0].at': '1/8',
+  }),
+  bad('$bar0.directions[0].dynamic', 'loud', oneOf(Dynamic.values)),
+  bad('$bar0.directions[2].chord', 'H', 'expected a pitch name such as "F#"'),
+  bad('$bar0.directions[2].bass', 'Eb4', 'expected a pitch name such as "F#"'),
+  badAt(
+    '$bar0.voices[0].items',
+    'spans 0, bar is 1/4',
+    {'$bar0.voices[0].items': <Object?>[]},
+  ),
+  badAt('$bar0.voices', 'voice one comes first', {
+    '$bar0.voices': [
+      {
+        'voice': 2,
+        'items': [
+          {'rest': 99, 'value': 'quarter'},
+        ],
+      },
+    ],
+  }),
+  badAt('$bar0.voices[1]', 'voices are in order, each once', {
+    '$bar0.voices[0].voice': 2,
+  }),
+  bad('$bar0.voices[1].voice', 5, 'a voice is 1 to 4'),
+  badAt('$bar0.voices[0].items[0]', 'voice one has no gaps', {
+    '$bar0.voices[0].items': [
+      {'gap': '1/4'},
+    ],
+  }),
+  badAt(
+    '$bar0.voices[1].items',
+    'a voice other than one holds more than gaps',
+    {
+      '$bar0.voices[1].items': [
+        {'gap': '1/4'},
+      ],
+    },
+  ),
+  bad('$bar0.voices[1].items[0].gap', '0', 'expected a length above 0'),
+  bad(
+    '$bar0.voices[1].items[0].gap',
+    '1/0',
+    'expected a fraction such as "3/8"',
+  ),
+  badAt(
+    r'$.measures[0].staves[1].voices[0].items[1]',
+    'a measure rest is alone in its voice',
+    {
+      r'$.measures[0].staves[1].voices[0].items': [
+        {'rest': 99, 'value': 'eighth'},
+        {'measureRest': 17},
+      ],
+    },
+  ),
+  bad(
+    r'$.measures[0].staves[1].voices[0].items[0].articulations',
+    ['accent'],
+    'a rest holds only a fermata',
+  ),
+  for (final (key, value) in [('rest', 99), ('chord', missing)])
+    badAt(
+      chord0,
+      'expected exactly one of gap, measureRest, chord, rest, tuplet',
+      {
+        '$chord0.$key': value,
+      },
+    ),
+  bad(
+    '$chord0.value',
+    'quarter....',
+    'expected a note value such as "quarter."',
+  ),
+  bad('$chord0.value', 'crotchet', 'expected a note value such as "quarter."'),
+  bad('$chord0.notes', <Object?>[], 'a chord has at least one note'),
+  badAt('$chord0.notes[1]', 'a chord lists its notes in order, each once', {
+    '$chord0.notes[1].pitch': 'F#4',
+  }),
+  bad('$chord0.notes[0].pitch', 'H4', 'expected a pitch such as "F#4"'),
+  bad('$chord0.notes[0].pitch', 'F#', 'expected a pitch such as "F#4"'),
+  badAt('$chord0.notes[0]', 'a pitched staff takes pitches', {
+    '$chord0.notes[0]': {'id': 12, 'drum': 'Snare'},
+  }),
+  bad('$chord0.notes[0].string', 4, 'the instrument has no such string'),
+  bad('$chord0.notes[0].string', -1, 'the instrument has no such string'),
+  bad('$chord0.notes[0].fingering', -1, 'a finger number is 0 or more'),
+  bad('$chord0.notes[1].id', 12, 'id 12 is used twice'),
+  bad('$chord0.graces[0].id', 11, 'id 11 is used twice'),
+  bad('$chord0.graces[0].notes[0].id', 12, 'id 12 is used twice'),
+  bad('$chord0.tremolo', 5, 'tremolo strokes are 0 to 4'),
+  bad('$chord0.lyrics[0].verse', 0, 'verses count from 1'),
+  badAt('$chord0.lyrics[1]', 'a chord has one lyric per verse, in order', {
+    '$chord0.lyrics[1].verse': 1,
+  }),
+  badAt('$drums0.notes[0]', 'a percussion staff takes drums', {
+    '$drums0.notes[0]': {'id': 19, 'pitch': 'F4'},
+  }),
+  bad('$drums0.notes[0].drum', 'Cowbell', 'the kit has no Cowbell'),
+  bad('$drums0.graces[0].notes[0].drum', 'Cowbell', 'the kit has no Cowbell'),
+  bad(
+    '$tuplet1.members[1]',
+    {'gap': '1/8'},
+    'expected exactly one of chord, rest, tuplet',
+  ),
+  badAt('$tuplet1.members', 'members span 1/2, expected 3/8', {
+    '$tuplet1.members[1]': {'rest': 34, 'value': 'quarter'},
+  }),
+  for (final ratio in [
+    [3],
+    [3, 2, 1],
+  ])
+    bad('$tuplet1.ratio', ratio, 'a ratio is [actual, normal]'),
+  bad('$tuplet1.ratio[1]', 0, 'ratio terms are above 0'),
+  badAt('$tuplet1.members[2].tuplet', 'id 35 is used twice', {
+    '$tuplet1.tuplet': 35,
+  }),
+  badAt(r'$.spanners[1].id', 'id 81 is used twice', {r'$.spanners[0].id': 81}),
+  bad(r'$.spanners[0].staff', 99, 'no such staff'),
+  bad(
+    r'$.spanners[0].kind',
+    'tie',
+    'expected one of slur, crescendo, diminuendo, octave, trill, tempo, pedal, glissando',
+  ),
+  bad(r'$.spanners[0].from.measure', 99, 'no such bar'),
+  bad(r'$.spanners[0].from.at', '1', 'not inside the bar'),
+  bad(r'$.spanners[3].shift', 'up9', oneOf(OctaveShift.values)),
+  bad(r'$.spanners[5].factor', 0, 'expected a number above 0'),
+  badAt(r'$.spanners[0].to', 'a slur or glissando ends after it starts', {
+    r'$.spanners[0].to': {'measure': 30, 'at': '0'},
+  }),
+  badAt(r'$.spanners[1].to', 'a line cannot end before it starts', {
+    r'$.spanners[1].from': {'measure': 60, 'at': '0'},
+  }),
+];
+
+void main() {
+  group('JSON save format', () {
+    test('writes every field as the golden file shows', () {
+      if (Platform.environment['UPDATE_GOLDEN'] == '1') {
+        golden.writeAsStringSync(saved(showcase()));
+      }
+
+      expect(saved(showcase()), golden.readAsStringSync());
+    });
+
+    test('reads the golden file back to the score it was saved from', () {
+      final loaded = scoreFromJson(jsonDecode(golden.readAsStringSync()));
+
+      expect(saved(loaded), golden.readAsStringSync());
+      expect(views(loaded), views(showcase()));
+    });
+
+    test('fills meter, key and clef into bars that leave them out', () {
+      final loaded = reloaded(showcase());
+
+      expect(
+        [for (final c in loaded.measures) '${c.meter} ${c.meter.symbol.name}'],
+        ['4/4 common', '4/4 common', '6/8 numeric', '3+2+2/8 numeric'],
+      );
+      expect(
+        [for (final c in loaded.measures) '${c.key} ${c.key.mode.name}'],
+        ['2# major', '2# major', '3b minor', '3b minor'],
+      );
+      expect(
+        [for (final c in loaded.measures) c.staves.first.clef],
+        [Clef.treble, Clef.treble, Clef.alto, Clef.treble],
+      );
+    });
+
+    test('leaves out every value at its default', () {
+      expect(scoreToJson(plain()), {
+        'schema': 1,
+        'parts': [
+          {
+            'id': 1,
+            'name': 'Flute',
+            'instrument': {'key': 'flute', 'program': 73},
+            'staves': [
+              {'id': 2},
+            ],
+          },
+        ],
+        'measures': [
+          {
+            'id': 3,
+            'meter': '4/4',
+            'key': 0,
+            'staves': [
+              {
+                'clef': 'treble',
+                'directions': [
+                  {'at': '0', 'chord': 'C'},
+                ],
+                'voices': [
+                  {
+                    'voice': 1,
+                    'items': [
+                      {'measureRest': 4},
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+          {
+            'id': 5,
+            'navigation': [
+              {'jump': 'start'},
+            ],
+            'staves': [
+              {
+                'voices': [
+                  {
+                    'voice': 1,
+                    'items': [
+                      {'measureRest': 6},
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+      expect(saved(reloaded(plain())), saved(plain()));
+    });
+
+    test('reads values at the ends of their ranges', () {
+      Object? json = jsonDecode(golden.readAsStringSync());
+      for (final (path, value) in [
+        (r'$.parts[0].instrument.program', 127),
+        (r'$.parts[2].instrument.bank', 0),
+        (r'$.measures[0].key', 7),
+        (r'$.measures[2].key', -7),
+        (r'$.measures[1].repeatEnd', 2),
+        (r'$.measures[0].tempos[0].beat', 'quarter...'),
+        ('$chord0.tremolo', 4),
+        ('$chord0.notes[0].fingering', 0),
+        ('$chord0.notes[0].id', 11),
+        (r'$.spanners[0].id', 10),
+      ]) {
+        json = put(json, path, value);
+      }
+      final loaded = scoreFromJson(json);
+      final chord =
+          loaded.measures[0].staves[0].voices[0].items[0] as ChordEvent;
+      final note = chord.notes[0] as PitchedNote;
+
+      expect(loaded.parts[0].instrument.program, 127);
+      expect(loaded.parts[2].instrument.bank, 0);
+      expect([for (final c in loaded.measures) c.key.fifths], [7, 7, -7, -7]);
+      expect(loaded.measures[1].repeatEnd?.times, 2);
+      expect(
+        loaded.measures[0].tempos[0].tempo.beat,
+        const NoteValue(DurationBase.quarter, dots: 3),
+      );
+      expect(chord.tremolo, 4);
+      expect((note.id, note.fingering), (const NoteId(11), 0));
+      expect(loaded.spanners[0].id, const SpannerId(10));
+    });
+
+    test('round-trips every score the edits make', () {
+      for (final seed in [1, 2, 3]) {
+        final random = Random(seed);
+        var score = blankScore(parts: const [morinKhuur, clarinet], bars: 4);
+        for (var step = 0; step < 100; step++) {
+          score = randomEdit(score, random);
+          final loaded = reloaded(score);
+          final where = 'seed $seed, step $step';
+
+          expect(saved(loaded), saved(score), reason: where);
+          expect(views(loaded), views(score), reason: where);
+        }
+      }
+    });
+
+    group('refuses a broken file at its path', () {
+      for (final (:set, :at, :rule) in broken) {
+        test('$at: $rule', () {
+          Object? json = jsonDecode(jsonEncode(scoreToJson(showcase())));
+          for (final MapEntry(key: path, :value) in set.entries) {
+            json = put(json, path, value);
+          }
+
+          expect(
+            () => scoreFromJson(json),
+            throwsA(
+              isA<ScoreFormatException>()
+                  .having((e) => e.path, 'path', at)
+                  .having((e) => e.message, 'message', rule),
+            ),
+          );
+        });
+      }
+    });
+  });
+}
