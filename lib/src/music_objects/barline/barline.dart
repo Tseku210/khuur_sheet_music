@@ -129,36 +129,35 @@ class BarlineRenderer with DebugRenderMixin implements MusicalSymbolRenderer {
     switch (barline.barline.barlineType) {
       case BarlineType.single:
         canvas.drawLine(Offset(symbolX, startY), Offset(symbolX, endY), paint);
-        break;
 
       case BarlineType.double:
-        canvas.drawLine(
-          Offset(symbolX - 3, startY),
-          Offset(symbolX - 3, endY),
-          paint,
-        );
-        canvas.drawLine(
-          Offset(symbolX + 3, startY),
-          Offset(symbolX + 3, endY),
-          paint,
-        );
-        break;
+        canvas
+          ..drawLine(
+            Offset(symbolX - 3, startY),
+            Offset(symbolX - 3, endY),
+            paint,
+          )
+          ..drawLine(
+            Offset(symbolX + 3, startY),
+            Offset(symbolX + 3, endY),
+            paint,
+          );
 
       case BarlineType.finalEnd:
         final thickPaint = Paint()
           ..color = barline.color
           ..strokeWidth = 5.0;
-        canvas.drawLine(
-          Offset(symbolX - 4, startY),
-          Offset(symbolX - 4, endY),
-          paint,
-        );
-        canvas.drawLine(
-          Offset(symbolX + 4, startY),
-          Offset(symbolX + 4, endY),
-          thickPaint,
-        );
-        break;
+        canvas
+          ..drawLine(
+            Offset(symbolX - 4, startY),
+            Offset(symbolX - 4, endY),
+            paint,
+          )
+          ..drawLine(
+            Offset(symbolX + 4, startY),
+            Offset(symbolX + 4, endY),
+            thickPaint,
+          );
     }
 
     if (layout.debug) {

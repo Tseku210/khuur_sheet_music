@@ -177,10 +177,10 @@ void main() {
     });
 
     test('Different note durations at same tempo', () {
-      final tempo = 60; // 60 BPM
+      const tempo = 60; // 60 BPM
 
       // Quarter note (1 beat) at 60 BPM = 1 second
-      final quarterNote = Note(Pitch.c4, noteDuration: NoteDuration.quarter);
+      final quarterNote = Note(Pitch.c4);
       expect(calculateSymbolDurationInSeconds(quarterNote, tempo), 1.0);
 
       // Half note (2 beats) at 60 BPM = 2 seconds

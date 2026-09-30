@@ -14,7 +14,7 @@ void main() {
     final json = await rootBundle.loadString(FontType.bravuraMetadataPath);
     glyphMetadata = GlyphMetadata(jsonDecode(json) as Map<String, dynamic>);
   });
-  test('GlyphMetadata.staffLineThickness should not return null', () async {
+  test('GlyphMetadata.staffLineThickness should not return null', () {
     // Act
     final staffLineThickness = glyphMetadata.staffLineThickness;
     // Assert
