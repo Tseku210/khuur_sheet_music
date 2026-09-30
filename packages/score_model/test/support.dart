@@ -1,0 +1,89 @@
+import 'package:score_model/score_model.dart';
+
+/// One token per item: `F4/quarter`, `F4/quarter~` (tied), `rest/half`,
+/// `measure-rest`, `gap 1/4`, and `3:2[...]` for a tuplet's members.
+List<String> describe(Iterable<VoiceItem> items) => [
+  for (final item in items) _token(item),
+];
+
+String _token(VoiceItem item) => switch (item) {
+  ChordEvent(:final notes, :final value) =>
+    '${notes.map((n) => n.pitch).join('+')}/$value'
+        '${notes.any((n) => n.tie) ? '~' : ''}',
+  RestEvent(:final value) => 'rest/$value',
+  MeasureRest() => 'measure-rest',
+  Gap(:final span) => 'gap ${span.wholeNotes}',
+  Tuplet(:final ratio, :final members) =>
+    '$ratio[${describe(members).join(', ')}]',
+};
+
+Voice voiceOf(Score score, int bar, {VoiceSlot slot = VoiceSlot.one}) =>
+    score.measures[bar].staves.first.voice(slot)!;
+
+List<String> bar(Score score, int bar, {VoiceSlot slot = VoiceSlot.one}) =>
+    describe(voiceOf(score, bar, slot: slot).items);
+
+Moment at(int numerator, int denominator) =>
+    Moment(Fraction(numerator, denominator));
+
+VoicePoint point(
+  Score score,
+  int bar,
+  Moment offset, {
+  VoiceSlot voice = VoiceSlot.one,
+}) => VoicePoint(
+  staff: score.staves.first.id,
+  voice: voice,
+  at: ScorePoint(score.measures[bar].id, offset),
+);
+
+EditSession applied(EditOutcome outcome) => switch (outcome) {
+  Applied(:final session) => session,
+  Refused(:final reason) => throw StateError('refused: $reason'),
+};
+
+final f4 = Pitch.parse('F4');
+final g4 = Pitch.parse('G4');
+
+const morinKhuur = PartTemplate(
+  name: 'Морин хуур',
+  instrument: Instrument.morinKhuur,
+);
+
+/// A one-staff score whose single bar holds [items] in voice one. Ids in
+/// [items] must stay below 100; the scaffolding uses 100 and up.
+Score scoreWith(List<VoiceItem> items, {Meter meter = Meter.fourFour}) => Score(
+  meta: const ScoreMeta(),
+  parts: Seq([
+    Part(
+      id: const PartId(100),
+      name: 'Морин хуур',
+      instrument: Instrument.morinKhuur,
+      staves: Seq([const Staff(id: StaffId(101))]),
+    ),
+  ]),
+  measures: Seq([
+    MeasureColumn(
+      id: const MeasureId(102),
+      meter: meter,
+      key: KeySignature.cMajor,
+      staves: Seq([
+        StaffMeasure(
+          staff: const StaffId(101),
+          clef: Clef.treble,
+          voices: Seq([Voice(slot: VoiceSlot.one, items: Seq(items))]),
+        ),
+      ]),
+    ),
+  ]),
+);
+
+RestEvent rest(int id, NoteValue value) =>
+    RestEvent(id: EventId(id), value: value);
+
+Tuplet tripletOfEighths(int id, List<Content> members) => Tuplet(
+  id: TupletId(id),
+  ratio: TupletRatio.triplet,
+  unit: NoteValue.eighth,
+  members: Seq(members),
+);

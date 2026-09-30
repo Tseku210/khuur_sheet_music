@@ -133,11 +133,32 @@ final class MeasureColumn {
     String? Function()? rehearsal,
     Seq<TempoMark>? tempos,
     Seq<StaffMeasure>? staves,
-  }) => throw UnimplementedError();
+  }) => MeasureColumn(
+    id: id,
+    meter: meter ?? this.meter,
+    key: key ?? this.key,
+    staves: staves ?? this.staves,
+    irregularLength: irregularLength == null
+        ? this.irregularLength
+        : irregularLength(),
+    barline: barline ?? this.barline,
+    repeatStart: repeatStart ?? this.repeatStart,
+    repeatEnd: repeatEnd == null ? this.repeatEnd : repeatEnd(),
+    volta: volta == null ? this.volta : volta(),
+    navigation: navigation ?? this.navigation,
+    rehearsal: rehearsal == null ? this.rehearsal : rehearsal(),
+    tempos: tempos ?? this.tempos,
+  );
 
   /// Returns a column with [staff] replaced. The single step every note edit
   /// takes on its way back up the tree.
-  MeasureColumn withStaff(StaffMeasure staff) => throw UnimplementedError();
+  MeasureColumn withStaff(StaffMeasure staff) {
+    final index = staves.indexWhere((s) => s.staff == staff.staff);
+    if (index < 0) {
+      throw ArgumentError.value(staff.staff, 'staff', 'not in measure');
+    }
+    return copyWith(staves: staves.replaceAt(index, staff));
+  }
 }
 
 /// One staff's slice of a column.
@@ -199,11 +220,29 @@ final class StaffMeasure {
     Seq<ClefChange>? clefChanges,
     Seq<Voice>? voices,
     Seq<StaffDirection>? directions,
-  }) => throw UnimplementedError();
+  }) => StaffMeasure(
+    staff: staff,
+    clef: clef ?? this.clef,
+    voices: voices ?? this.voices,
+    clefChanges: clefChanges ?? this.clefChanges,
+    directions: directions ?? this.directions,
+  );
 
   /// Replaces or adds the voice in the slot of [voice]. A secondary voice made only
   /// of gaps is dropped instead of stored.
-  StaffMeasure withVoice(Voice voice) => throw UnimplementedError();
+  StaffMeasure withVoice(Voice voice) {
+    final index = voices.indexWhere((v) => v.slot.index >= voice.slot.index);
+    final replaces = index >= 0 && voices[index].slot == voice.slot;
+    if (voice.slot != VoiceSlot.one && voice.items.every((i) => i is Gap)) {
+      return replaces ? copyWith(voices: voices.removeAt(index)) : this;
+    }
+    if (replaces) {
+      return copyWith(voices: voices.replaceAt(index, voice));
+    }
+    return copyWith(
+      voices: voices.insertAt(index < 0 ? voices.length : index, voice),
+    );
+  }
 }
 
 bool _ascendingSlots(Seq<Voice> voices) {

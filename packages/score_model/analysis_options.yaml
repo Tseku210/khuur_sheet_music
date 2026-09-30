@@ -4,11 +4,7 @@ linter:
   rules:
     lines_longer_than_80_chars: false
     flutter_style_todos: false
-    # The root package targets Dart 3.6, which has no primary constructors.
-    # The sketch keeps classic constructors so the field docs stay on fields.
+    # Classic constructors keep each field's doc comment on the field.
     use_primary_constructors: false
     use_declaring_parameters: false
     unnecessary_type_name_in_constructor: false
-    # Factory bodies are unimplemented in the sketch, so their parameters
-    # read as unused until the bodies land.
-    avoid_unused_constructor_parameters: false

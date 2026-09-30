@@ -180,7 +180,26 @@ Each flag from the architect red-flag list was checked against the synthesized s
 
 ## Implementation reconciliation
 
-None yet. Record accepted deviations here during Phase D.
+### Unit 1: note and rest entry
+
+Implemented in Phase D, unit 1. The deviations below were accepted during implementation and have not yet been reviewed by the project owner. Each one updates the contract the next unit builds on.
+
+- **Package location.** The sketch moved from `docs/design/score-model/sketch/` to [`packages/score_model`](../../../packages/score_model), a pub workspace member of the root package. Root `flutter analyze` covers it. Its tests run with `dart test` inside the package, because root `flutter test` does not run workspace members.
+- **Tuplet descent lives in `_overwrite`.** The sketch had `_replaceSpan` recurse into a tuplet that wholly contains the span. Now `_replaceSpan` replaces a span within one frame, either a bar's voice or a tuplet's members, given that frame's beat grid and whether leftover time becomes rests or gaps. `_overwrite` decides whether to descend, because only a piece's start can enter a tuplet. The continuation of a note tied over a barline never does, even when the next bar opens with a tuplet. The start of a tuplet counts as inside it.
+- **A piece that starts in a tuplet must end in it.** Otherwise the edit is refused with `WouldSplitTuplet` naming the innermost tuplet that holds the start. The sketch only said the value is read in the tuplet's time.
+- **Entered values are written as entered.** A piece that fits in its bar keeps its value. Only the parts of a piece split at a barline are spelled with `Meter.spell`. The pseudocode spelled every part, which would have written a half note on beat two of 4/4 as two tied quarters and contradicted `EnterNote`'s "writes a note of [value]".
+- **Filling the last bar appends a bar.** A write that ends exactly at the end of the score appends one empty bar, so the cursor keeps its invariant of an offset strictly inside a bar.
+- **Cursor revalidation is simpler than "nearest".** `_revalidateCursor` keeps the cursor while its bar and staff exist. It moves the cursor to the bar start when the bar got too short, and to the first bar when the bar is gone. Finding the nearest surviving bar needs the previous score. Revisit this with `DeleteMeasures`, the first edit that removes bars.
+- **`StaleReference` names the edit's target.** Note entry at a missing measure or staff reports the `VoicePoint` it was given. The typed ids are extension types, which are not `Object`s, and the point is what the edit named.
+- **`_Piece` is sealed.** `_Entry` is a chord, or a rest when it has no pitches. `_Copied` is a clip item for paste and is not implemented yet. This replaces the nullable `value` and `copied` fields.
+- **Spelling rules.** `Meter.spell` is greedy. It takes the longest plain or single-dotted value that fits the remaining span and satisfies one of these:
+  - it stays inside one beat;
+  - on a compound or additive meter, it starts and ends on beats;
+  - on a simple meter, a plain value starts on a multiple of its own length from the bar start, and a dotted note on a multiple of twice its base. A dotted rest never crosses a beat.
+
+  A tuplet's members are spelled on one beat that spans the tuplet. A known limit is that in 3/4 a respelled span from beat two to the barline comes out as two tied quarters rather than a half. This affects only split and filler material, never an entered value.
+- **Internal helpers.** `spelling.dart` holds `BeatGrid` and `spellOnGrid`. `voice_walk.dart` holds `timedEvents`, the tuplet-scaled walk that `lookup`, `locate`, `eventAt` and the lane writer share. `empty_bar.dart` builds the empty bars used by `Score.blank` and by appending at the end of the score. None of them are exported.
+- **Lint.** `avoid_unused_constructor_parameters` is back on, since the factories it flagged are implemented.
 
 ## Open questions and risks
 
@@ -195,7 +214,7 @@ None yet. Record accepted deviations here during Phase D.
 
 ## Next implementation step
 
-Implement `Meter.spell`, `_replaceSpan` and `_overwrite` test-first. Cover entry into a rest, overfill split-and-tie into the next bar, overfill refusal, appending at the score end, and writes inside and across tuplets. Every note-writing edit and paste goes through them.
+Unit 1 (note and rest entry) is done. Next, make access patterns 1 and 2 work end to end from a staff tap. That means `Score.contextAt`, `Score.pitchForStaffStep`, `AddToChord` in `_pointEdit`, and `placeCursor` and `moveCursor`. After that come `measureView` and `changesSince`, which the layout engine needs.
 
 ## Access pattern traces
 
@@ -245,4 +264,8 @@ Implement `Meter.spell`, `_replaceSpan` and `_overwrite` test-first. Cover entry
   - The `MeasureColumn` constructor rejects a half-empty 4/4 bar and an overfull 3/4 bar, and accepts a triplet plus a half in 3/4.
   - `Moment` and `Length` arithmetic is exact.
   - `EventRef` equality ignores the measure hint.
+- Unit 1 is covered by 48 tests in [`packages/score_model/test`](../../../packages/score_model/test), and all pass.
+  - `spell_test.dart` has 18 tests. They cover beat offsets for simple, compound and additive meters, and spelling of notes and rests in 4/4, 6/8, 12/8 and 7/8. A sweep over every 1/32 span of 4/4, 3/4, 6/8 and 7/8 checks that each spelling sums to its span. A 1/12 span is an error.
+  - `note_entry_test.dart` has 30 tests. They cover `Score.blank` ids, the session start, overwriting rests and notes (cut heads keep ids, tails become rests), split-and-tie and refusal at the barline, appended bars, clearing and keeping ties into the entry point, voice two gaps, writes inside, over and partly over a triplet, `EnterRest`, stale and outside points, undo and redo, id monotonicity, `lookup`, `locate` and `eventAt`, and revalidation after `SetKey`.
+  - Five mutations of the lane writer were each caught by the test written for that behavior. The mutations were dropping the tie fix, not merging gaps, respelling entered values, not appending the cursor's bar, and untying head pieces.
 - Synthesis review caught two pseudocode bugs, which are fixed. `changesSince` marked a bar dirty whenever its predecessor was marked, which would have cascaded one edit to the last bar. It now tests the set of identity-changed columns. The `keepBars` branch used the scope's end before computing it.

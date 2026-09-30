@@ -50,11 +50,14 @@ sealed class Edit {
 /// is never overfull and never grows.
 ///
 /// Inside a tuplet, [value] is read in the tuplet's time (entering an eighth
-/// inside a triplet writes a triplet eighth). A write that would cover only
-/// part of a tuplet from outside replaces the whole tuplet with rests first.
+/// inside a triplet writes a triplet eighth), and the note must end inside
+/// that tuplet or the edit returns `Refused(WouldSplitTuplet)`. A write that
+/// would cover only part of a tuplet from outside replaces the whole tuplet
+/// with rests first.
 ///
 /// Afterwards the cursor sits at the end of the note (offset 0 of the next
-/// bar if it ended on a barline) and the new event is selected.
+/// bar if it ended on a barline, with an empty bar appended if it ended the
+/// score) and the new event is selected.
 final class EnterNote extends Edit {
   const EnterNote({
     required this.at,

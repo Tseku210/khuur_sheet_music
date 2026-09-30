@@ -117,7 +117,19 @@ final class ChordEvent extends Event {
     BeamMode? beam,
     int? tremolo,
     Seq<Lyric>? lyrics,
-  }) => throw UnimplementedError();
+  }) => ChordEvent(
+    id: id ?? this.id,
+    value: value ?? this.value,
+    notes: notes ?? this.notes,
+    articulations: articulations ?? this.articulations,
+    ornament: ornament == null ? this.ornament : ornament(),
+    bowing: bowing == null ? this.bowing : bowing(),
+    graces: graces ?? this.graces,
+    stem: stem ?? this.stem,
+    beam: beam ?? this.beam,
+    tremolo: tremolo ?? this.tremolo,
+    lyrics: lyrics ?? this.lyrics,
+  );
 }
 
 /// A rest of a written value.
@@ -232,7 +244,15 @@ final class Note {
     NoteHead? head,
     int? Function()? fingering,
     int? Function()? string,
-  }) => throw UnimplementedError();
+  }) => Note(
+    id: id,
+    pitch: pitch ?? this.pitch,
+    tie: tie ?? this.tie,
+    accidental: accidental ?? this.accidental,
+    head: head ?? this.head,
+    fingering: fingering == null ? this.fingering : fingering(),
+    string: string == null ? this.string : string(),
+  );
 }
 
 /// Grace notes attached before a principal chord. Zero duration in the

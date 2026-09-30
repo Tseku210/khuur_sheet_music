@@ -1,6 +1,7 @@
 /// The score root: parts, the global column list, and cross-bar spanners.
 library;
 
+import 'empty_bar.dart';
 import 'events.dart';
 import 'measure.dart';
 import 'pitch.dart';
@@ -8,6 +9,7 @@ import 'refs.dart';
 import 'seq.dart';
 import 'time.dart';
 import 'views.dart';
+import 'voice_walk.dart';
 
 /// An immutable score.
 ///
@@ -48,11 +50,44 @@ final class Score {
     KeySignature key = KeySignature.cMajor,
     Tempo tempo = const Tempo(100),
   }) {
-    // TODO: ids from a local counter: parts, then staves, then per column
-    // the MeasureId followed by one MeasureRest EventId per staff. First
-    // column carries TempoMark(offset: 0, tempo). Each StaffMeasure's clef
-    // comes from the template (or the instrument's default clef).
-    throw UnimplementedError();
+    var next = 1;
+    final built = <Part>[];
+    final clefs = <(StaffId, Clef)>[];
+    for (final template in parts) {
+      final id = PartId(next++);
+      final staves = <Staff>[];
+      for (var i = 0; i < template.staves; i++) {
+        final staff = Staff(id: StaffId(next++));
+        staves.add(staff);
+        clefs.add((staff.id, template.clefs?[i] ?? template.instrument.clef));
+      }
+      built.add(
+        Part(
+          id: id,
+          name: template.name,
+          shortName: template.shortName,
+          instrument: template.instrument,
+          staves: Seq(staves),
+        ),
+      );
+    }
+    return Score(
+      meta: ScoreMeta(title: title),
+      parts: Seq(built),
+      measures: Seq([
+        for (var bar = 0; bar < measureCount; bar++)
+          emptyBar(
+            id: MeasureId(next++),
+            meter: meter,
+            key: key,
+            clefs: clefs,
+            restId: () => EventId(next++),
+            tempos: bar == 0
+                ? Seq([TempoMark(offset: Moment.zero, tempo: tempo)])
+                : const Seq.empty(),
+          ),
+      ]),
+    );
   }
 
   final ScoreMeta meta;
@@ -116,9 +151,39 @@ final class Score {
   /// always carries the current measure, so a caller that stores it gets
   /// the fast path next time.
   TimedEvent? lookup(EventRef ref) {
-    // TODO: fast path in ref.measure / ref.staff; on a miss,
-    // locate(ref.id) and resolve that.
-    throw UnimplementedError();
+    final hit = _find(ref);
+    if (hit != null) {
+      return hit;
+    }
+    final located = locate(ref.id);
+    return located == null ? null : _find(located);
+  }
+
+  TimedEvent? _find(EventRef ref) {
+    final staff = _staffMeasure(ref.measure, ref.staff);
+    if (staff == null) {
+      return null;
+    }
+    for (final voice in staff.voices) {
+      for (final timed in timedEvents(
+        voice,
+        measure: ref.measure,
+        staff: ref.staff,
+      )) {
+        if (timed.event.id == ref.id) {
+          return timed;
+        }
+      }
+    }
+    return null;
+  }
+
+  StaffMeasure? _staffMeasure(MeasureId measure, StaffId staff) {
+    final index = _indexById[measure];
+    if (index == null) {
+      return null;
+    }
+    return measures[index].staves.where((s) => s.staff == staff).firstOrNull;
   }
 
   /// Where [id] lives in this score, or null when it does not exist.
@@ -127,11 +192,32 @@ final class Score {
   /// first miss for this score value (one pass over every event, about
   /// 16k at 500 bars and 4 staves). Only re-barring moves events between
   /// measures, so ordinary editing never builds it.
-  EventRef? locate(EventId id) => throw UnimplementedError();
+  EventRef? locate(EventId id) => _refById[id];
+
+  late final Map<EventId, EventRef> _refById = {
+    for (final column in measures)
+      for (final staff in column.staves)
+        for (final voice in staff.voices)
+          for (final timed in timedEvents(
+            voice,
+            measure: column.id,
+            staff: staff.staff,
+          ))
+            timed.event.id: timed.ref,
+  };
 
   /// The event whose sounding time covers [at] in that voice, or null when
   /// the voice is absent or the point falls in a gap.
-  TimedEvent? eventAt(VoicePoint at) => throw UnimplementedError();
+  TimedEvent? eventAt(VoicePoint at) {
+    final voice = _staffMeasure(at.at.measure, at.staff)?.voice(at.voice);
+    if (voice == null) {
+      return null;
+    }
+    final offset = at.at.offset;
+    return timedEvents(voice, measure: at.at.measure, staff: at.staff)
+        .where((e) => e.onset <= offset && offset < e.onset + e.duration)
+        .firstOrNull;
+  }
 
   /// Everything in effect at a point on a staff.
   ScoreContext contextAt(StaffId staff, ScorePoint at) {

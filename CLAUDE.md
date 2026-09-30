@@ -8,6 +8,7 @@ Flutter package that renders sheet music on a `Canvas` and plays it back over MI
 flutter pub get          # also resolves example/
 flutter analyze          # library, tests, and example; must report no issues
 flutter test             # library unit tests in test/
+cd packages/score_model && dart test   # score model tests (not run by flutter test)
 cd example && flutter run -d macos -t lib/midi_example.dart   # MIDI demo
 ```
 
@@ -19,6 +20,7 @@ cd example && flutter run -d macos -t lib/midi_example.dart   # MIDI demo
 - `lib/src/music_objects/` holds the domain types: notes, chords, rests, clefs, key and time signatures, barlines. Each symbol has a model, a metrics class, and a renderer.
 - `lib/src/midi/midi_player.dart` sequences measures with a `Timer` and plays notes through `flutter_midi_pro` (Android, iOS, macOS only). It loads the `SoundFont` (`lib/src/midi/sound_font.dart`) that the app passes in.
 - `test/mock/` holds hand-written fakes. Tests do not use a mocking package.
+- `packages/score_model/` is the pure-Dart score model for the rewrite, a pub workspace member. Its design and the deviations accepted while implementing it are in `docs/design/score-model/RATIONALE.md`.
 
 ## Conventions
 

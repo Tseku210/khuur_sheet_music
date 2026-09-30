@@ -6,6 +6,8 @@
 /// measure fill is an exact equality. Seconds appear only in playback output.
 library;
 
+import 'spelling.dart';
+
 /// An exact rational number, always normalized (lowest terms, positive
 /// denominator). Used for durations and offsets in whole-note units.
 final class Fraction implements Comparable<Fraction> {
@@ -266,7 +268,19 @@ final class Meter {
 
   /// Offsets from the bar start where a beat begins. Used by beaming, by the
   /// cursor's beat-snap, and by [spell].
-  List<Moment> get beatOffsets => throw UnimplementedError();
+  List<Moment> get beatOffsets {
+    final step = isCompound ? 3 : 1;
+    final beats = groups.length > 1
+        ? groups
+        : List.filled(numerator ~/ step, step);
+    final offsets = <Moment>[];
+    var at = Moment.zero;
+    for (final beat in beats) {
+      offsets.add(at);
+      at += Length(Fraction(beat, unit));
+    }
+    return offsets;
+  }
 
   /// Offsets where default beams break. 4/4 breaks at the half bar, 3/4
   /// beams the whole bar, 6/8 breaks per dotted quarter, additive meters
@@ -284,15 +298,7 @@ final class Meter {
     Moment offset,
     Length length, {
     required bool rest,
-  }) {
-    // TODO: greedy from the largest value that (a) fits in the remaining
-    // length, (b) starts on a position aligned to its own length relative to
-    // the enclosing beat group, (c) for rests, does not cross [beatOffsets].
-    // Allow one dot where the dotted value keeps alignment (dotted half on
-    // beat 1 of 3/4, dotted quarter at a 6/8 group start). Fall back to
-    // splitting at the next beat boundary.
-    throw UnimplementedError();
-  }
+  }) => spellOnGrid(BeatGrid.meter(this), offset, length, rest: rest);
 
   @override
   bool operator ==(Object other) =>

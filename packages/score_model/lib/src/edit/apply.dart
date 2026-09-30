@@ -48,7 +48,7 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
         score,
         at,
         [
-          _Piece.chord([pitch], value),
+          _Entry([pitch], value),
         ],
         ids,
         overfill,
@@ -56,7 +56,7 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
     EnterRest(:final at, :final value, :final overfill) => _overwrite(
       score,
       at,
-      [_Piece.rest(value)],
+      [_Entry.rest(value)],
       ids,
       overfill,
     ).asResult(),

@@ -6,13 +6,19 @@
 /// it while living in separate files.
 library;
 
+import 'dart:math';
+
+import '../empty_bar.dart';
 import '../events.dart';
 import '../measure.dart';
 import '../pitch.dart';
 import '../refs.dart';
 import '../score.dart';
 import '../seq.dart';
+import '../spelling.dart';
 import '../time.dart';
+import '../views.dart';
+import '../voice_walk.dart';
 import 'edits.dart';
 
 part 'apply.dart';
@@ -50,11 +56,20 @@ final class EditSession {
   /// first bar, nothing selected, and empty history. The id counter starts
   /// one past the largest id in [score], so ids loaded from JSON are never
   /// reissued.
-  factory EditSession.start(Score score, {int historyLimit = 200}) {
-    // TODO: nextId = 1 + max over every PartId, StaffId, MeasureId, EventId,
-    // NoteId, TupletId, SpannerId in score (one pass at load time).
-    throw UnimplementedError();
-  }
+  factory EditSession.start(Score score, {int historyLimit = 200}) =>
+      EditSession._(
+        score,
+        VoicePoint(
+          staff: score.staves.first.id,
+          voice: VoiceSlot.one,
+          at: ScorePoint(score.measures.first.id, Moment.zero),
+        ),
+        const Selection.none(),
+        const Seq.empty(),
+        const Seq.empty(),
+        _ids(score).fold(0, max) + 1,
+        historyLimit,
+      );
 
   final Score score;
 
@@ -193,14 +208,101 @@ final class EditSession {
   Clip? copy() => throw UnimplementedError();
 }
 
-/// Keeps [cursor] if its bar still exists; otherwise the start of the
-/// nearest surviving bar on the same staff (or the first staff).
-VoicePoint _revalidateCursor(VoicePoint cursor, Score score) =>
-    throw UnimplementedError();
+/// Every id in [score], for seeding the counter.
+Iterable<int> _ids(Score score) sync* {
+  for (final part in score.parts) {
+    yield part.id.value;
+    yield* part.staves.map((staff) => staff.id.value);
+  }
+  for (final column in score.measures) {
+    yield column.id.value;
+    for (final staff in column.staves) {
+      for (final voice in staff.voices) {
+        yield* voice.items.expand(_itemIds);
+      }
+    }
+  }
+  yield* score.spanners.map((spanner) => spanner.id.value);
+}
 
-/// Drops references that no longer resolve in [score].
-Selection _revalidateSelection(Selection selection, Score score) =>
-    throw UnimplementedError();
+Iterable<int> _itemIds(VoiceItem item) sync* {
+  switch (item) {
+    case Gap():
+      break;
+    case Tuplet(:final id, :final members):
+      yield id.value;
+      yield* members.expand(_itemIds);
+    case ChordEvent(:final id, :final notes, :final graces):
+      yield id.value;
+      yield* notes.map((note) => note.id.value);
+      for (final grace in graces) {
+        yield grace.id.value;
+        yield* grace.notes.map((note) => note.id.value);
+      }
+    case RestEvent(:final id) || MeasureRest(:final id):
+      yield id.value;
+  }
+}
+
+/// Keeps [cursor] while its bar and staff exist, moving it to the bar start
+/// if the bar became too short for it. Otherwise the start of the first bar,
+/// on the same staff if it survived or on the first staff.
+VoicePoint _revalidateCursor(VoicePoint cursor, Score score) {
+  final staffAlive = score.staves.any((staff) => staff.id == cursor.staff);
+  final measure = cursor.at.measure;
+  if (staffAlive &&
+      score.contains(measure) &&
+      cursor.at.offset < Moment.zero + score.column(measure).length) {
+    return cursor;
+  }
+  return VoicePoint(
+    staff: staffAlive ? cursor.staff : score.staves.first.id,
+    voice: cursor.voice,
+    at: ScorePoint(
+      score.contains(measure) ? measure : score.measures.first.id,
+      Moment.zero,
+    ),
+  );
+}
+
+/// Drops references that no longer resolve in [score] and moves the rest
+/// to the measure that now holds them.
+Selection _revalidateSelection(Selection selection, Score score) {
+  switch (selection) {
+    case NoSelection():
+      return selection;
+    case ItemSelection(:final items):
+      final kept = [
+        for (final item in items) ?_resolve(item, score),
+      ];
+      return kept.isEmpty ? const Selection.none() : ItemSelection(Seq(kept));
+    case RangeSelection(:final from, :final to, :final top, :final bottom):
+      final staves = score.staves.map((staff) => staff.id).toSet();
+      final alive =
+          score.contains(from.measure) &&
+          score.contains(to.measure) &&
+          staves.contains(top) &&
+          staves.contains(bottom);
+      return alive ? selection : const Selection.none();
+  }
+}
+
+ElementRef? _resolve(ElementRef item, Score score) {
+  final timed = score.lookup(item.event);
+  if (timed == null) {
+    return null;
+  }
+  return switch (item) {
+    EventRef() => timed.ref,
+    NoteRef(:final note) => switch (timed.event) {
+      final ChordEvent chord when chord.note(note) != null => NoteRef(
+        timed.ref,
+        note,
+      ),
+      _ => null,
+    },
+  };
+}
 
 enum CursorMove {
   nextEvent,
