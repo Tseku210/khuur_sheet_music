@@ -309,6 +309,9 @@ final class ScoreContext {
   final KeySignature key;
   final KeySignature writtenKey;
   final Meter meter;
+
+  /// The last tempo mark written at or before the point. A tempo line
+  /// changes only what playback hears.
   final Tempo tempo;
 
   /// Octaves an 8va/8vb line in effect adds to printed pitch. 0 for none.

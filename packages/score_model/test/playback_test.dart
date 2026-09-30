@@ -125,23 +125,50 @@ Score withDynamics(
   ),
 );
 
-/// [score] with a line or hairpin of [kind] on its first staff.
+/// [score] with a line or hairpin of [kind] on one staff, the first by
+/// default.
 Score withLine(
   Score score,
   SpannerKind kind,
   ScorePoint first,
-  ScorePoint last,
-) => score.copyWith(
+  ScorePoint last, {
+  int staff = 0,
+}) => score.copyWith(
   spanners: Seq([
     ...score.spanners,
     Spanner(
       id: SpannerId(800 + score.spanners.length),
       kind: kind,
-      staff: score.staves.first.id,
+      staff: score.staves[staff].id,
       first: first,
       last: last,
     ),
   ]),
+);
+
+/// [beats] with bar one at 60 quarters a minute, where a quarter lasts a
+/// second.
+Score at60(int bars, {List<PartTemplate> parts = const [morinKhuur]}) =>
+    changeBar(
+      beats(bars, parts: parts),
+      0,
+      tempos([const TempoMark(offset: Moment.zero, tempo: Tempo(60))]),
+    );
+
+/// [score] with a tempo line of [factor] from [from] to [to], each a bar
+/// counted from 0 and an offset in it.
+Score withTempoLine(
+  Score score,
+  double factor,
+  (int, Moment) from,
+  (int, Moment) to, {
+  int staff = 0,
+}) => withLine(
+  score,
+  TempoLine(text: factor < 1 ? 'rit.' : 'accel.', factor: factor),
+  pointAt(score, from.$1, from.$2),
+  pointAt(score, to.$1, to.$2),
+  staff: staff,
 );
 
 List<int> velocities(PlaybackScript script) => [
@@ -1406,6 +1433,144 @@ void main() {
       expect(range.secondsAt(pointAt(score, 2, at(1, 4))), closeTo(2.4, 1e-9));
       expect(range.secondsAt(pointAt(score, 1, Moment.zero)), isNull);
       expect(range.secondsAt(pointAt(score, 2, at(1, 2))), isNull);
+    });
+  });
+
+  group('tempo lines', () {
+    test('move to their factor by the end of their last event and stay', () {
+      final slower = withTempoLine(
+        at60(2),
+        0.5,
+        (0, Moment.zero),
+        (0, at(3, 4)),
+      );
+      final faster = withTempoLine(at60(2), 2, (0, Moment.zero), (0, at(3, 4)));
+
+      expect(timings(slower), [(0.0, 5.545), (5.545, 13.545)]);
+      expect(
+        [for (final (start, _, _) in attacks(compiled(slower))) start],
+        [0.0, 1.068, 2.301, 3.76, 5.545, 7.545, 9.545, 11.545],
+      );
+      expect(timings(faster), [(0.0, 2.773), (2.773, 4.773)]);
+    });
+
+    test('stop moving at the end of their last event, mid-bar too', () {
+      final score = withTempoLine(
+        at60(2),
+        0.5,
+        (0, at(1, 2)),
+        (1, Moment.zero),
+      );
+
+      expect(
+        [for (final (start, _, _) in attacks(compiled(score))) start],
+        [0.0, 1.0, 2.0, 3.094, 4.433, 6.159, 8.159, 10.159],
+      );
+      expect(timings(score), [(0.0, 4.433), (4.433, 12.159)]);
+    });
+
+    test('arrive at a tempo mark where they end', () {
+      final score = changeBar(
+        withTempoLine(at60(2), 0.9, (0, Moment.zero), (0, at(3, 4))),
+        1,
+        tempos([const TempoMark(offset: Moment.zero, tempo: Tempo(30))]),
+      );
+
+      expect(timings(score), [(0.0, 5.545), (5.545, 13.545)]);
+    });
+
+    test('arrive at the first tempo mark inside them', () {
+      var score = withTempoLine(at60(3), 0.9, (0, Moment.zero), (1, at(3, 4)));
+      score = changeBar(
+        score,
+        1,
+        tempos([const TempoMark(offset: Moment.zero, tempo: Tempo(30))]),
+      );
+      score = changeBar(
+        score,
+        2,
+        tempos([const TempoMark(offset: Moment.zero, tempo: Tempo(60))]),
+      );
+
+      expect(timings(score), [
+        (0.0, 5.545),
+        (5.545, 13.545),
+        (13.545, 17.545),
+      ]);
+    });
+
+    test('give way to a line that starts inside them', () {
+      var score = withTempoLine(at60(3), 0.5, (0, Moment.zero), (0, at(3, 4)));
+      score = withTempoLine(score, 2, (0, at(1, 2)), (1, at(3, 4)));
+
+      expect(timings(score), [
+        (0.0, 4.603),
+        (4.603, 7.847),
+        (7.847, 10.513),
+      ]);
+    });
+
+    test('play for every part from any staff, muted or not', () {
+      final score = withTempoLine(
+        at60(2, parts: const [morinKhuur, piano]),
+        0.5,
+        (0, Moment.zero),
+        (0, at(3, 4)),
+        staff: 2,
+      );
+
+      expect(
+        timings(score, PlaybackOptions(muted: {score.parts[1].id})),
+        [(0.0, 5.545), (5.545, 13.545)],
+      );
+    });
+
+    test('stretch a fermata under them', () {
+      var score = changeBar(
+        at60(1),
+        0,
+        (column) => column.withStaff(
+          column.staves.first.withVoice(
+            Voice(
+              slot: VoiceSlot.one,
+              items: Seq([
+                quarters(11, 'C4'),
+                withMarks(quarters(12, 'C4'), {Articulation.fermata}),
+                quarters(13, 'C4'),
+                quarters(14, 'C4'),
+              ]),
+            ),
+          ),
+        ),
+      );
+      score = withTempoLine(score, 0.5, (0, Moment.zero), (0, at(3, 4)));
+
+      expect(
+        [for (final (start, _, _) in attacks(compiled(score))) start],
+        [0.0, 1.068, 3.535, 4.993],
+      );
+    });
+
+    test('are heard by a reused compiler', () {
+      final compiler = PlaybackCompiler();
+      final score = at60(2);
+      compiler.compile(score);
+
+      final slowed = compiler.compile(
+        withTempoLine(score, 0.5, (0, Moment.zero), (0, at(3, 4))),
+      );
+
+      expect(
+        [for (final bar in slowed.bars) (ms(bar.start), ms(bar.end))],
+        [(0.0, 5.545), (5.545, 13.545)],
+      );
+    });
+
+    test('have a positive factor', () {
+      expect(
+        () => TempoLine(text: 'rit.', factor: 0 * 1.0),
+        throwsA(isA<AssertionError>()),
+      );
     });
   });
 }

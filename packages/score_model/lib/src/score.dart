@@ -597,6 +597,24 @@ final class TrillLine extends SpannerKind {
   const TrillLine();
 }
 
+/// rit., rall., accel. and the like: the tempo moves gradually under the
+/// line. It sets the tempo for every part, whichever staff it is written on,
+/// as a fermata holds every part.
+final class TempoLine extends SpannerKind {
+  const TempoLine({required this.text, required this.factor})
+    : assert(factor > 0, 'factor is positive');
+
+  static const ritardando = TempoLine(text: 'rit.', factor: 0.75);
+  static const accelerando = TempoLine(text: 'accel.', factor: 4 / 3);
+
+  /// What prints, as "rit." or "poco accel.". Full Unicode.
+  final String text;
+
+  /// The tempo the line reaches, as a share of the tempo at its start, when
+  /// no tempo mark is written inside it. Below 1 slows down.
+  final double factor;
+}
+
 final class PedalLine extends SpannerKind {
   const PedalLine();
 }
