@@ -258,8 +258,9 @@ final class Note {
 }
 
 /// Grace notes attached before a principal chord. Zero duration in the
-/// voice; playback steals time from the principal (appoggiatura) or plays
-/// them just before the beat (acciaccatura).
+/// voice. Playback plays them on the beat, in time taken from the start of
+/// the principal: a 32nd for each acciaccatura, or half the principal when
+/// any is an appoggiatura, and never more than half.
 final class GraceChord {
   GraceChord({
     required this.id,

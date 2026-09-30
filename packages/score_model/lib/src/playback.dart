@@ -73,6 +73,15 @@ final class PlaybackCompiler {
         }
       }
     }
+    final trills = <StaffId, List<(Moment, Moment)>>{};
+    for (final Spanner(:kind, :staff, :first, :last) in score.spanners) {
+      if (kind is TrillLine) {
+        (trills[staff] ??= []).add((
+          _place(score, starts, first.measure, first.offset),
+          _place(score, starts, last.measure, last.offset),
+        ));
+      }
+    }
     final windows = options.from == null && options.to == null
         ? [
             for (final (:index, :pass) in _playOrder(measures))
@@ -105,49 +114,59 @@ final class PlaybackCompiler {
         to: to,
         clock: clock,
         heard: [
-          for (final head in fragment.heads)
-            if (sounds.containsKey(head.source.staff) &&
-                from <= head.onset &&
-                head.onset < to)
-              head,
+          for (final chord in fragment.chords)
+            if (sounds.containsKey(chord.timed.ref.staff) &&
+                from <= chord.timed.onset &&
+                chord.timed.onset < to)
+              chord,
         ],
       );
       timeline.add(bar);
-      for (final head in bar.heard) {
-        final (:channel, :instrument, :loudness) = sounds[head.source.staff]!;
-        final key = _key(head.note, instrument);
-        if (key == null) {
-          continue;
-        }
-        final start = bar.secondsAt(head.onset);
-        final end = bar.secondsAt(head.onset + head.length);
-        final release = (end - start) * (1 - _gate(head.articulations));
-        final lane = (head.source.staff, head.voice, head.note.pitch);
-        final _Sounding note;
-        if (ties.remove(lane) case (final held, final at, final onset)
-            when at == k && onset == head.onset) {
-          note = held
-            ..end = end
-            ..release = release;
-        } else {
-          final level = loudness.at(head.onset + starts[index]);
-          note = _Sounding(
-            start: start,
-            end: end,
-            release: release,
-            key: key,
-            cents: head.note.pitch.cents,
-            velocity: min((level * _stress(head.articulations)).round(), 127),
-            channel: channel,
-            source: head.source,
-          );
-          sounding.add(note);
-        }
-        if (head.note.tie) {
-          final after = head.onset + head.length;
-          ties[lane] = after == Moment.zero + column.length
-              ? (note, k + 1, Moment.zero)
-              : (note, k, after);
+      for (final chord in bar.heard) {
+        final TimedEvent(:onset, :voice, ref: EventRef(:staff)) = chord.timed;
+        final (:channel, :instrument, :loudness) = sounds[staff]!;
+        final position = onset + starts[index];
+        final level = loudness.at(position);
+        final trilled =
+            trills[staff]?.any((t) => t.$1 <= position && position <= t.$2) ??
+            false;
+        for (final attack
+            in trilled
+                ? _attacks(chord.timed, chord.event, column.key, trill: true)
+                : chord.attacks) {
+          final key = _key(attack.note, instrument);
+          if (key == null) {
+            continue;
+          }
+          final start = bar.secondsAt(attack.onset);
+          final end = bar.secondsAt(attack.onset + attack.length);
+          final release = (end - start) * (1 - attack.gate);
+          final lane = (staff, voice, attack.note.pitch);
+          final _Sounding note;
+          if (ties.remove(lane) case (final held, final window, final expected)
+              when window == k && expected == attack.onset) {
+            note = held
+              ..end = end
+              ..release = release;
+          } else {
+            note = _Sounding(
+              start: start,
+              end: end,
+              release: release,
+              key: key,
+              cents: attack.note.pitch.cents,
+              velocity: min((level * attack.stress).round(), 127),
+              channel: channel,
+              source: attack.source,
+            );
+            sounding.add(note);
+          }
+          if (attack.note.tie) {
+            final after = attack.onset + attack.length;
+            ties[lane] = after == Moment.zero + column.length
+                ? (note, k + 1, Moment.zero)
+                : (note, k, after);
+          }
         }
       }
     }
@@ -171,10 +190,8 @@ typedef _Sound = ({int channel, Instrument instrument, _Loudness loudness});
 /// percussion channel.
 const _melodicChannels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15];
 
-// TODO: grace chords (acciaccatura just before the beat, appoggiatura
-// taking half the principal), tremolo strokes and ornaments.
 _Fragment _compileBar(MeasureColumn column) {
-  final heads = <_Head>[];
+  final chords = <_Chord>[];
   final holds = <(Moment, Moment)>[];
   for (final measure in column.staves) {
     for (final voice in measure.voices) {
@@ -187,25 +204,144 @@ _Fragment _compileBar(MeasureColumn column) {
         if (event.articulations.contains(Articulation.fermata)) {
           holds.add((onset, onset + duration));
         }
-        if (event case ChordEvent(:final notes, :final articulations)) {
-          for (final note in notes) {
-            heads.add(
-              _Head(
-                onset: onset,
-                length: duration,
-                note: note,
-                articulations: articulations,
-                voice: timed.voice,
-                source: timed.ref,
-              ),
-            );
-          }
+        if (event is ChordEvent) {
+          chords.add(_Chord(timed, event, _attacks(timed, event, column.key)));
         }
       }
     }
   }
-  return _Fragment(heads, holds);
+  return _Fragment(chords, holds);
 }
+
+/// What [chord] plays, in whole-note time from the bar's downbeat. Its
+/// graces play first, on the beat. Acciaccaturas take a 32nd each and any
+/// appoggiatura takes half the chord, and together they take at most half.
+/// Its notes then play the figure of its ornament, or of a trill when
+/// [trill] and it has none, or of its tremolo.
+List<_Attack> _attacks(
+  TimedEvent timed,
+  ChordEvent chord,
+  KeySignature key, {
+  bool trill = false,
+}) {
+  final TimedEvent(:onset, :duration, :ref) = timed;
+  final graces = chord.graces;
+  final half = duration * Fraction(1, 2);
+  final steal = graces.isEmpty
+      ? Length.zero
+      : graces.any((g) => g.kind == GraceKind.appoggiatura)
+      ? half
+      : _shorter(_thirtySecond * Fraction(graces.length), half);
+  final attacks = [
+    for (final (i, grace) in graces.indexed)
+      for (final note in grace.notes)
+        _Attack(
+          onset: onset + steal * Fraction(i, graces.length),
+          length: steal * Fraction(1, graces.length),
+          note: note,
+          stress: 1,
+          gate: _gate(const {}),
+          source: EventRef(
+            measure: ref.measure,
+            staff: ref.staff,
+            id: grace.id,
+          ),
+        ),
+  ];
+  final figure = _figure(
+    chord.ornament ?? (trill ? Ornament.trill : null),
+    chord,
+    duration - steal,
+  );
+  for (final note in chord.notes) {
+    var at = onset + steal;
+    for (final (i, (steps, length)) in figure.indexed) {
+      final last = i == figure.length - 1;
+      attacks.add(
+        _Attack(
+          onset: at,
+          length: length,
+          note: steps == 0
+              ? note.copyWith(tie: last && note.tie)
+              : note.copyWith(
+                  pitch: _neighbour(note.pitch, steps, key),
+                  tie: false,
+                ),
+          stress: i == 0 ? _stress(chord.articulations) : 1,
+          gate: _gate(last ? chord.articulations : const {}),
+          source: ref,
+        ),
+      );
+      at += length;
+    }
+  }
+  return attacks;
+}
+
+/// How a chord plays over [length], as each piece's scale steps from the
+/// written note and its length. A trill alternates with the note above in
+/// 32nds. Mordents and turns play their notes in 32nds, or in equal shares
+/// of a shorter chord, and hold the last. A tremolo repeats in the value
+/// its strokes add to the chord's own flags.
+List<(int, Length)> _figure(
+  Ornament? ornament,
+  ChordEvent chord,
+  Length length,
+) {
+  List<(int, Length)> repeat(List<int> steps, Length span, Length each) {
+    final ratio = span / each;
+    final count = max(1, ratio.numerator ~/ ratio.denominator);
+    return [
+      for (var i = 0; i < count; i++)
+        (steps[i % steps.length], length * Fraction(1, count)),
+    ];
+  }
+
+  List<(int, Length)> quick(List<int> steps) {
+    final each = _shorter(
+      _thirtySecond,
+      length * Fraction(1, steps.length + 1),
+    );
+    return [
+      for (final step in steps) (step, each),
+      (0, length - each * Fraction(steps.length)),
+    ];
+  }
+
+  return switch (ornament) {
+    Ornament.trill => repeat([0, 1], length, _thirtySecond),
+    Ornament.mordent => quick([0, -1]),
+    Ornament.invertedMordent => quick([0, 1]),
+    Ornament.turn => quick([1, 0, -1]),
+    Ornament.invertedTurn => quick([-1, 0, 1]),
+    null when chord.tremolo > 0 => repeat(
+      [0],
+      chord.value.length,
+      _shorter(chord.value.base.length, NoteValue.quarter.length) *
+          Fraction(1, 1 << chord.tremolo),
+    ),
+    null => [(0, length)],
+  };
+}
+
+final Length _thirtySecond = NoteValue.thirtySecond.length;
+
+Length _shorter(Length a, Length b) => a < b ? a : b;
+
+/// The note [steps] scale steps from [pitch] in [key].
+Pitch _neighbour(Pitch pitch, int steps, KeySignature key) {
+  final diatonic = pitch.diatonic + steps;
+  final step = Step.values[diatonic % 7];
+  return Pitch(step, (diatonic - step.index) ~/ 7, key.alterFor(step));
+}
+
+/// A point in notated time from the start of the score.
+Moment _place(
+  Score score,
+  List<Length> starts,
+  MeasureId measure,
+  Moment offset,
+) => offset + starts[score.indexOf(measure)];
 
 /// The share of its time a note sounds, by the marks on the last note of
 /// its chain. A staccato under a tenuto is a portato.
@@ -404,7 +540,7 @@ final class _Loudness {
   factory _Loudness(Score score, Seq<Staff> staves, List<Length> starts) {
     final ids = {for (final staff in staves) staff.id};
     Moment place(MeasureId measure, Moment offset) =>
-        offset + starts[score.indexOf(measure)];
+        _place(score, starts, measure, offset);
     final strikes = <Moment, Dynamic>{};
     final marks = <(Moment, Dynamic)>[];
     for (final column in score.measures) {
@@ -553,8 +689,8 @@ final class _Bar {
   final Moment to;
   final _Clock clock;
 
-  /// The heads that start in the played part, on parts not muted.
-  final List<_Head> heard;
+  /// The chords that start in the played part, on parts not muted.
+  final List<_Chord> heard;
 
   double secondsAt(Moment offset) =>
       played.start + clock.at(offset) - clock.at(from);
@@ -614,11 +750,12 @@ final class PlaybackScript {
     final bar = _timeline[at];
     final voices = <(StaffId, VoiceSlot)>{};
     return [
-      for (final head in bar.heard)
-        if (bar.secondsAt(head.onset) <= seconds &&
-            seconds < bar.secondsAt(head.onset + head.length) &&
-            voices.add((head.source.staff, head.voice)))
-          head.source,
+      for (final _Chord(timed: TimedEvent(:onset, :duration, :voice, :ref))
+          in bar.heard)
+        if (bar.secondsAt(onset) <= seconds &&
+            seconds < bar.secondsAt(onset + duration) &&
+            voices.add((ref.staff, voice)))
+          ref,
     ];
   }
 
@@ -700,32 +837,49 @@ final class PlayedBar {
 /// column alone, so it can be cached on the column. Hidden parts are
 /// compiled too, because they play.
 final class _Fragment {
-  const _Fragment(this.heads, this.holds);
+  const _Fragment(this.chords, this.holds);
 
-  /// One per head, in staff, voice and time order.
-  final List<_Head> heads;
+  /// In staff, voice and time order.
+  final List<_Chord> chords;
 
   /// The time under each fermata, on any staff.
   final List<(Moment, Moment)> holds;
 }
 
-final class _Head {
-  const _Head({
+final class _Chord {
+  const _Chord(this.timed, this.event, this.attacks);
+
+  final TimedEvent timed;
+  final ChordEvent event;
+
+  /// What it plays when no trill line covers it.
+  final List<_Attack> attacks;
+}
+
+/// One note struck, in whole-note time from the bar's downbeat.
+final class _Attack {
+  const _Attack({
     required this.onset,
     required this.length,
     required this.note,
-    required this.articulations,
-    required this.voice,
+    required this.stress,
+    required this.gate,
     required this.source,
   });
 
   final Moment onset;
   final Length length;
+
+  /// As played. Inside a figure only the last note keeps its tie.
   final Note note;
 
-  /// Its chord's.
-  final Set<Articulation> articulations;
-  final VoiceSlot voice;
+  /// The factor on its dynamic's velocity.
+  final double stress;
+
+  /// The share of [length] it sounds.
+  final double gate;
+
+  /// Its chord, or its grace chord.
   final EventRef source;
 }
 

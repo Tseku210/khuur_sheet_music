@@ -134,17 +134,18 @@ Score withDynamics(
   ),
 );
 
-Score withHairpin(
+/// [score] with a line or hairpin of [kind] on its first staff.
+Score withLine(
   Score score,
+  SpannerKind kind,
   ScorePoint first,
-  ScorePoint last, {
-  bool crescendo = true,
-}) => score.copyWith(
+  ScorePoint last,
+) => score.copyWith(
   spanners: Seq([
     ...score.spanners,
     Spanner(
       id: SpannerId(800 + score.spanners.length),
-      kind: Hairpin(crescendo: crescendo),
+      kind: kind,
       staff: score.staves.first.id,
       first: first,
       last: last,
@@ -164,6 +165,50 @@ Map<int, int> loudness(PlaybackScript script) => {
 
 ChordEvent withMarks(ChordEvent chord, Set<Articulation> marks) =>
     chord.copyWith(articulations: marks);
+
+/// A score of one bar per entry of [bars] at 80 quarters a minute, where a
+/// 32nd lasts 0.09375 seconds.
+Score at80(
+  List<List<VoiceItem>> bars, {
+  KeySignature key = KeySignature.cMajor,
+}) {
+  var score = blankScore(bars: bars.length, key: key);
+  for (final (i, items) in bars.indexed) {
+    score = fill(score, i, items);
+  }
+  return changeBar(
+    score,
+    0,
+    tempos([const TempoMark(offset: Moment.zero, tempo: Tempo(80))]),
+  );
+}
+
+/// Each note as (start, key, source event id), the start rounded to
+/// milliseconds.
+List<(double, int, int)> attacks(PlaybackScript script) => [
+  for (final note in script.notesBetween(0, double.infinity))
+    (ms(note.start), note.key, note.source.id.value),
+];
+
+GraceChord grace(
+  int id,
+  String pitch, {
+  GraceKind kind = GraceKind.acciaccatura,
+  bool tie = false,
+}) => GraceChord(
+  id: EventId(id),
+  kind: kind,
+  value: NoteValue.eighth,
+  notes: Seq([
+    Note(id: NoteId(id * 10), pitch: Pitch.parse(pitch), tie: tie),
+  ]),
+);
+
+ChordEvent ornamented(ChordEvent chord, Ornament ornament) =>
+    chord.copyWith(ornament: () => ornament);
+
+ChordEvent tremolo(ChordEvent chord, int strokes) =>
+    chord.copyWith(tremolo: strokes);
 
 const kit = PartTemplate(
   name: 'Kit',
@@ -785,8 +830,9 @@ void main() {
       var score = beats(2);
       score = withDynamics(score, 0, {Moment.zero: Dynamic.p});
       score = withDynamics(score, 1, {Moment.zero: Dynamic.f});
-      score = withHairpin(
+      score = withLine(
         score,
+        const Hairpin(crescendo: true),
         pointAt(score, 0, Moment.zero),
         pointAt(score, 0, at(3, 4)),
       );
@@ -800,8 +846,9 @@ void main() {
         Moment.zero: Dynamic.p,
         at(3, 4): Dynamic.f,
       });
-      score = withHairpin(
+      score = withLine(
         score,
+        const Hairpin(crescendo: true),
         pointAt(score, 0, Moment.zero),
         pointAt(score, 0, at(3, 4)),
       );
@@ -811,16 +858,17 @@ void main() {
 
     test('a hairpin with no dynamic at its end moves one level', () {
       var score = withDynamics(beats(3), 2, {at(1, 2): Dynamic.ff});
-      score = withHairpin(
+      score = withLine(
         score,
+        const Hairpin(crescendo: true),
         pointAt(score, 1, Moment.zero),
         pointAt(score, 1, Moment.zero),
       );
-      score = withHairpin(
+      score = withLine(
         score,
+        const Hairpin(crescendo: false),
         pointAt(score, 0, Moment.zero),
         pointAt(score, 0, at(3, 4)),
-        crescendo: false,
       );
 
       expect(velocities(compiled(score)), [
@@ -833,16 +881,17 @@ void main() {
     test('a hairpin stays within pppp and ffff', () {
       var score = withDynamics(beats(2), 0, {Moment.zero: Dynamic.ffff});
       score = withDynamics(score, 1, {Moment.zero: Dynamic.pppp});
-      score = withHairpin(
+      score = withLine(
         score,
+        const Hairpin(crescendo: true),
         pointAt(score, 0, Moment.zero),
         pointAt(score, 0, Moment.zero),
       );
-      score = withHairpin(
+      score = withLine(
         score,
+        const Hairpin(crescendo: false),
         pointAt(score, 1, Moment.zero),
         pointAt(score, 1, Moment.zero),
-        crescendo: false,
       );
 
       expect(velocities(compiled(score)), [127, 127, 127, 127, 12, 12, 12, 12]);
@@ -850,16 +899,17 @@ void main() {
 
     test('the later of two overlapping hairpins wins', () {
       var score = beats(2);
-      score = withHairpin(
+      score = withLine(
         score,
+        const Hairpin(crescendo: true),
         pointAt(score, 0, Moment.zero),
         pointAt(score, 1, at(3, 4)),
       );
-      score = withHairpin(
+      score = withLine(
         score,
+        const Hairpin(crescendo: false),
         pointAt(score, 1, Moment.zero),
         pointAt(score, 1, at(3, 4)),
-        crescendo: false,
       );
 
       expect(velocities(compiled(score)), [64, 66, 68, 70, 64, 61, 59, 56]);
@@ -874,8 +924,9 @@ void main() {
         rest(6, NoteValue.quarter),
       ], staff: 1);
       compiler.compile(score);
-      score = withHairpin(
+      score = withLine(
         score,
+        const Hairpin(crescendo: true),
         pointAt(score, 0, Moment.zero),
         pointAt(score, 0, at(3, 4)),
       );
@@ -969,6 +1020,320 @@ void main() {
         (1.8, 1.08, 62, 1, 5),
       ]);
       expect(sources(compiled(score), 1), [1, 4]);
+    });
+  });
+
+  group('ornaments', () {
+    test('an acciaccatura takes a 32nd from the start of its chord', () {
+      final score = at80([
+        [
+          withMarks(chordOf(1, 'C4', graces: [grace(5, 'D4')]), {
+            Articulation.accent,
+          }),
+          chordOf(2, 'E4', graces: [grace(6, 'F4'), grace(7, 'G4')]),
+          halves(3, 'C5'),
+        ],
+      ]);
+      final script = compiled(score);
+
+      expect(notes(script), [
+        (0.0, 0.084, 62, 0, 5),
+        (0.094, 0.591, 60, 0, 1),
+        (0.75, 0.084, 65, 0, 6),
+        (0.844, 0.084, 67, 0, 7),
+        (0.938, 0.506, 64, 0, 2),
+        (1.5, 1.35, 72, 0, 3),
+      ]);
+      expect(loudness(script), {5: 64, 1: 80, 6: 64, 7: 64, 2: 64, 3: 64});
+      expect(sources(script, 0.05), [1]);
+    });
+
+    test('appoggiaturas take half their chord, and graces at most half', () {
+      final score = at80([
+        [
+          halves(1, 'C5').copyWith(
+            graces: Seq([grace(5, 'D5', kind: GraceKind.appoggiatura)]),
+          ),
+          withMarks(
+            chordOf(
+              2,
+              'E4',
+              graces: [
+                grace(6, 'F4', kind: GraceKind.appoggiatura),
+                grace(7, 'G4'),
+              ],
+            ),
+            {Articulation.tenuto},
+          ),
+          chordOf(
+            3,
+            'D5',
+            value: NoteValue.eighth,
+            graces: [grace(8, 'A4'), grace(9, 'B4'), grace(10, 'C5')],
+          ),
+          rest(4, NoteValue.eighth),
+        ],
+      ]);
+
+      expect(notes(compiled(score)), [
+        (0.0, 0.675, 74, 0, 5),
+        (0.75, 0.675, 72, 0, 1),
+        (1.5, 0.169, 65, 0, 6),
+        (1.688, 0.169, 67, 0, 7),
+        (1.875, 0.375, 64, 0, 2),
+        (2.25, 0.056, 69, 0, 8),
+        (2.313, 0.056, 71, 0, 9),
+        (2.375, 0.056, 72, 0, 10),
+        (2.438, 0.169, 74, 0, 3),
+      ]);
+    });
+
+    test('a tremolo repeats its chord in the value its strokes and flags '
+        'make', () {
+      final score = at80([
+        [
+          tremolo(quarters(1, 'C4'), 1),
+          tremolo(chordOf(2, 'D4', value: NoteValue.eighth), 1),
+          tremolo(chordOf(3, 'E4', value: NoteValue.eighth), 2),
+          tremolo(halves(4, 'F4'), 1),
+        ],
+        [
+          tripletOfEighths(20, [
+            tremolo(chordOf(21, 'G4', value: NoteValue.eighth), 1),
+            chordOf(22, 'A4', value: NoteValue.eighth),
+            chordOf(23, 'B4', value: NoteValue.eighth),
+          ]),
+          tremolo(quarters(24, 'C5'), 3),
+          rest(25, NoteValue.half),
+        ],
+      ]);
+      final script = compiled(score);
+
+      expect(attacks(script), [
+        (0.0, 60, 1),
+        (0.375, 60, 1),
+        (0.75, 62, 2),
+        (0.938, 62, 2),
+        (1.125, 64, 3),
+        (1.219, 64, 3),
+        (1.313, 64, 3),
+        (1.406, 64, 3),
+        (1.5, 65, 4),
+        (1.875, 65, 4),
+        (2.25, 65, 4),
+        (2.625, 65, 4),
+        (3.0, 67, 21),
+        (3.125, 67, 21),
+        (3.25, 69, 22),
+        (3.5, 71, 23),
+        (3.75, 72, 24),
+        (3.844, 72, 24),
+        (3.938, 72, 24),
+        (4.031, 72, 24),
+        (4.125, 72, 24),
+        (4.219, 72, 24),
+        (4.313, 72, 24),
+        (4.406, 72, 24),
+      ]);
+      expect(sources(script, 0.4), [1]);
+    });
+
+    test('a trill alternates with the note above in the key in 32nds', () {
+      final score = at80([
+        [
+          withMarks(ornamented(quarters(1, 'E5'), Ornament.trill), {
+            Articulation.accent,
+            Articulation.staccato,
+          }),
+          rest(2, NoteValue.quarter),
+          rest(3, NoteValue.half),
+        ],
+      ], key: const KeySignature(1));
+      final script = compiled(score);
+
+      expect(notes(script), [
+        (0.0, 0.084, 76, 0, 1),
+        (0.094, 0.084, 78, 0, 1),
+        (0.188, 0.084, 76, 0, 1),
+        (0.281, 0.084, 78, 0, 1),
+        (0.375, 0.084, 76, 0, 1),
+        (0.469, 0.084, 78, 0, 1),
+        (0.563, 0.084, 76, 0, 1),
+        (0.656, 0.047, 78, 0, 1),
+      ]);
+      expect(velocities(script), [80, 64, 64, 64, 64, 64, 64, 64]);
+    });
+
+    test('a trill stretches its 32nds to fit, and plays its note when '
+        'none fit', () {
+      final score = at80([
+        [
+          tripletOfEighths(20, [
+            ornamented(
+              chordOf(21, 'E5', value: NoteValue.eighth),
+              Ornament.trill,
+            ),
+            chordOf(22, 'F5', value: NoteValue.eighth),
+            chordOf(23, 'G5', value: NoteValue.eighth),
+          ]),
+          ornamented(
+            chordOf(
+              24,
+              'E5',
+              value: NoteValue.thirtySecond,
+              graces: [grace(9, 'D5')],
+            ),
+            Ornament.trill,
+          ),
+          rest(25, NoteValue.thirtySecond),
+          rest(26, NoteValue.sixteenth),
+          rest(27, NoteValue.eighth),
+          rest(28, NoteValue.half),
+        ],
+      ]);
+
+      expect(attacks(compiled(score)), [
+        (0.0, 76, 21),
+        (0.125, 77, 21),
+        (0.25, 77, 22),
+        (0.5, 79, 23),
+        (0.75, 74, 9),
+        (0.797, 76, 24),
+      ]);
+    });
+
+    test('mordents and turns play their neighbours in 32nds, then hold', () {
+      final score = at80(
+        [
+          [
+            ornamented(quarters(1, 'A4'), Ornament.mordent),
+            ornamented(quarters(2, 'A4'), Ornament.invertedMordent),
+            ornamented(quarters(3, 'A4'), Ornament.turn),
+            rest(4, NoteValue.quarter),
+          ],
+          [
+            ornamented(quarters(5, 'A4'), Ornament.invertedTurn),
+            ornamented(
+              chordOf(6, 'A4', value: NoteValue.sixteenth),
+              Ornament.mordent,
+            ),
+            chordOf(7, 'C5', value: NoteValue.sixteenth),
+            chordOf(8, 'D5', value: NoteValue.eighth),
+            rest(9, NoteValue.half),
+          ],
+          [
+            ornamented(quarters(10, 'C0'), Ornament.mordent),
+            rest(11, NoteValue.quarter),
+            rest(12, NoteValue.half),
+          ],
+        ],
+        key: const KeySignature(-1),
+      );
+      final script = compiled(score);
+
+      expect(attacks(script), [
+        (0.0, 69, 1),
+        (0.094, 67, 1),
+        (0.188, 69, 1),
+        (0.75, 69, 2),
+        (0.844, 70, 2),
+        (0.938, 69, 2),
+        (1.5, 70, 3),
+        (1.594, 69, 3),
+        (1.688, 67, 3),
+        (1.781, 69, 3),
+        (3.0, 67, 5),
+        (3.094, 69, 5),
+        (3.188, 70, 5),
+        (3.281, 69, 5),
+        (3.75, 69, 6),
+        (3.813, 67, 6),
+        (3.875, 69, 6),
+        (3.938, 72, 7),
+        (4.125, 74, 8),
+        (6.0, 12, 10),
+        (6.094, 10, 10),
+        (6.188, 12, 10),
+      ]);
+      expect(ms(script.notesBetween(0.1, 0.2).single.duration), 0.506);
+    });
+
+    test('a trill line trills the chords under it without an ornament', () {
+      final compiler = PlaybackCompiler();
+      var score = at80([
+        [
+          quarters(1, 'C4'),
+          quarters(2, 'D4'),
+          quarters(3, 'E4'),
+          quarters(4, 'F4'),
+        ],
+        [
+          quarters(5, 'G4'),
+          ornamented(quarters(6, 'A4'), Ornament.mordent),
+          quarters(7, 'B4'),
+          quarters(8, 'C5'),
+        ],
+      ]);
+      List<int> keys() => [
+        for (final (_, key, _) in attacks(compiler.compile(score))) key,
+      ];
+      expect(keys(), [60, 62, 64, 65, 67, 69, 67, 69, 71, 72]);
+      score = withLine(
+        score,
+        const TrillLine(),
+        pointAt(score, 1, Moment.zero),
+        pointAt(score, 1, at(1, 2)),
+      );
+
+      expect(keys(), [
+        ...[60, 62, 64, 65],
+        ...[67, 69, 67, 69, 67, 69, 67, 69],
+        ...[69, 67, 69],
+        ...[71, 72, 71, 72, 71, 72, 71, 72],
+        72,
+      ]);
+    });
+
+    test('a tie holds into the next attack of its pitch, from the last '
+        'stroke of a tremolo or from a grace', () {
+      final score = at80([
+        [
+          tremolo(chordOf(1, 'C4', tie: true), 1),
+          quarters(2, 'C4'),
+          chordOf(3, 'E4', tie: true),
+          chordOf(4, 'E4', graces: [grace(9, 'F4')]),
+        ],
+        [
+          ornamented(chordOf(5, 'C4', tie: true), Ornament.trill),
+          ornamented(quarters(6, 'C4'), Ornament.turn),
+          chordOf(7, 'G4', graces: [grace(11, 'G4', tie: true)]),
+          rest(8, NoteValue.quarter),
+        ],
+      ]);
+      final script = compiled(score);
+
+      expect(attacks(script), [
+        (0.0, 60, 1),
+        (0.375, 60, 1),
+        (1.5, 64, 3),
+        (2.25, 65, 9),
+        (2.344, 64, 4),
+        (3.0, 60, 5),
+        (3.094, 62, 5),
+        (3.188, 60, 5),
+        (3.281, 62, 5),
+        (3.375, 60, 5),
+        (3.469, 62, 5),
+        (3.563, 60, 5),
+        (3.656, 62, 5),
+        (3.75, 62, 6),
+        (3.844, 60, 6),
+        (3.938, 59, 6),
+        (4.031, 60, 6),
+        (4.5, 67, 11),
+      ]);
+      expect(ms(script.notesBetween(0.3, 0.4).single.duration), 1.05);
+      expect(ms(script.notesBetween(4.4, 4.6).single.duration), 0.684);
     });
   });
 
