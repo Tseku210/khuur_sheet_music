@@ -203,21 +203,11 @@ Score withOctaveLine(
 );
 
 /// [score] with part [index] hidden, or shown again.
-Score hidePart(Score score, int index, {bool hidden = true}) {
-  final part = score.parts[index];
-  return score.copyWith(
-    parts: score.parts.replaceAt(
-      index,
-      Part(
-        id: part.id,
-        name: part.name,
-        instrument: part.instrument,
-        staves: part.staves,
-        hidden: hidden,
-      ),
-    ),
-  );
-}
+Score hidePart(Score score, int index, {bool hidden = true}) => applied(
+  EditSession.start(
+    score,
+  ).run(SetPartHidden(score.parts[index].id, hidden: hidden)),
+).score;
 
 Score blankScore({
   List<PartTemplate> parts = const [morinKhuur],

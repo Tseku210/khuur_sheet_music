@@ -418,6 +418,15 @@ final class Part {
 
   /// Hidden parts stay in the score and play, but layout skips them.
   final bool hidden;
+
+  Part copyWith({bool? hidden}) => Part(
+    id: id,
+    name: name,
+    shortName: shortName,
+    instrument: instrument,
+    staves: staves,
+    hidden: hidden ?? this.hidden,
+  );
 }
 
 final class Staff {

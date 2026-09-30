@@ -638,8 +638,11 @@ final class Transpose extends Edit {
 
 // --- Parts ------------------------------------------------------------------
 
-/// Adds a part at [index] (bottom when null). Every bar gets a
-/// [MeasureRest] on each new staff.
+/// Adds a part made from [template] at part [index], or at the bottom when
+/// null, with a [MeasureRest] on each new staff in every bar. The cursor
+/// and selection stay. Refused with [InvalidValue] for an index outside 0
+/// to the part count, or a template with no staff or a clef list of
+/// another length.
 final class AddPart extends Edit {
   const AddPart(this.template, {this.index});
 
@@ -650,8 +653,10 @@ final class AddPart extends Edit {
   String get label => 'Add instrument';
 }
 
-/// Removes a part and its staves from every bar, with its spanners.
-/// Removing the last part is refused with [WouldEmptyScore].
+/// Removes a part and its staves from every bar, with its spanners. A
+/// cursor on it moves to the same point on the nearest shown staff below
+/// it, or else above it. Refused with [WouldEmptyScore] when no other part
+/// is shown, and with [StaleReference] for a gone part.
 final class RemovePart extends Edit {
   const RemovePart(this.part);
 
@@ -661,6 +666,10 @@ final class RemovePart extends Edit {
   String get label => 'Remove instrument';
 }
 
+/// Hides or shows a part. A hidden part stays in the score and plays, but
+/// layout and staff moves skip it. Hiding moves a cursor on the part as
+/// [RemovePart] does. Refused with [WouldEmptyScore] when hiding the last
+/// shown part, and with [StaleReference] for a gone part.
 final class SetPartHidden extends Edit {
   const SetPartHidden(this.part, {required this.hidden});
 
@@ -727,7 +736,7 @@ final class WouldCrossBarline extends EditRefusal {
   final Length excess;
 }
 
-/// The edit would leave the score with no bars or no parts.
+/// The edit would leave the score with no bars or no shown parts.
 final class WouldEmptyScore extends EditRefusal {
   const WouldEmptyScore();
 }
