@@ -2,7 +2,7 @@
 
 ## Problem
 
-The Khuur composer needs an immutable, pure-Dart score model. Layout, painting, playback, editing and persistence all derive from it. The current engine fails in ways that come from its shape. Model, layout and paint are fused. Durations are `double`. Pitch is a 52-value enum with display-only accidentals. Clef and key do not cross barlines. `Note` and `ChordNote` duplicate code. IDs are random UUIDs minted in constructors. There is no cache, and playback is monophonic. Voices, staves, ties, tuplets, undo and selection do not exist. The grounding for all of this is in [`../grounding.md`](../grounding.md).
+The Khuur composer needs an immutable, pure-Dart score model. Layout, painting, playback, editing and persistence all derive from it. The current engine fails in ways that come from its shape. Model, layout and paint are fused. Durations are `double`. Pitch is a 52-value enum with display-only accidentals. Clef and key do not cross barlines. `Note` and `ChordNote` duplicate code. IDs are random UUIDs minted in constructors. There is no cache, and playback is monophonic. Voices, staves, ties, tuplets, undo and selection do not exist. The grounding for all of this is in [`grounding.md`](grounding.md).
 
 The constraints make the shape non-obvious. A single-note edit in a 500-bar, 4-staff score must not force a whole-score relayout or recompile, and the consumer must be able to tell which bars changed. Undo must share structure instead of making deep copies. Identity must survive edits, undo and a JSON round trip. The model must also carry Maestro's full scope. That means voices, tuplets, grace notes, quarter tones, twelve clefs (Maestro has nine), mid-score changes, voltas, D.C./D.S./coda, lyrics in Mongolian Cyrillic, and morin khuur marks.
 
@@ -10,7 +10,7 @@ This design makes the measure the organizing unit, as MuseScore and MusicXML's `
 
 ## Usage (caller's view)
 
-This was written first. The full file is [`example/usage.dart`](example/usage.dart), which type-checks against the sketch.
+This was written first. The full file is [`packages/score_model/example/usage.dart`](../../../packages/score_model/example/usage.dart), which type-checks against the model.
 
 ```dart
 final score = Score.blank(
@@ -236,8 +236,7 @@ Implement `Meter.spell`, `_replaceSpan` and `_overwrite` test-first. Cover entry
 
 ## Verification
 
-- `dart pub get` and `dart analyze` in this directory report **No issues found!** under `pedantic_mono` 1.38.1. [`analysis_options.yaml`](analysis_options.yaml) records the six lints turned off and why. The root package targets Dart 3.6, so the sketch keeps classic constructors rather than primary constructors, and factory bodies are unimplemented.
-- The root `analysis_options.yaml` excludes `docs/**`, so the root `flutter analyze` stays clean on a fresh clone where this sketch's dependencies are not fetched. Check the sketch with its own `dart analyze`.
+- `dart analyze` on the sketch reported **No issues found!** under `pedantic_mono` 1.38.1. The package's [`analysis_options.yaml`](../../../packages/score_model/analysis_options.yaml) records the lints turned off and why.
 - A scratch program outside the package exercised the implemented helpers, and all 13 checks passed. It confirmed the following.
   - A dotted quarter is exactly 3/8 and a double-dotted half 7/8.
   - C4 up `Interval(3, 4)` spells F♭4.

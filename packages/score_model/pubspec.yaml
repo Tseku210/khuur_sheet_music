@@ -1,0 +1,12 @@
+name: score_model
+description: Immutable, measure-major score model for the Khuur composer. Pure Dart, no Flutter.
+publish_to: none
+
+environment:
+  sdk: ^3.13.0
+
+resolution: workspace
+
+dev_dependencies:
+  pedantic_mono: ^1.38.1
+  test: ^1.26.0

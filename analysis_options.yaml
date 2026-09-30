@@ -6,8 +6,6 @@
 analyzer:
   exclude:
     - build/**
-    # Design sketches are standalone packages checked with their own analyze.
-    - docs/**
 include: package:pedantic_mono/analysis_options.yaml
 
 linter:
