@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_midi_pro/flutter_midi_pro.dart';
 import 'package:simple_sheet_music/src/measure/measure.dart';
 import 'package:simple_sheet_music/src/midi/midi_keys.dart';
-import 'package:simple_sheet_music/src/midi/soundfont_types.dart';
+import 'package:simple_sheet_music/src/midi/sound_font.dart';
 import 'package:simple_sheet_music/src/music_objects/key_signature/keysignature_type.dart';
 import 'package:simple_sheet_music/src/music_objects/notes/single_note/note.dart';
 import 'package:simple_sheet_music/src/music_objects/rest/rest.dart';
@@ -24,16 +24,16 @@ enum MidiPlayerStatus {
 /// A class that handles MIDI playback for sheet music.
 class MidiPlayer extends ChangeNotifier {
   MidiPlayer({
+    required this.soundFont,
     this.tempo = 120,
-    this.soundFontType = SoundFontType.touhou,
     this.initialKeySignatureType = KeySignatureType.cMajor,
   }) : _midi = MidiPro();
 
   /// The tempo in beats per minute (BPM).
   int tempo;
 
-  /// The soundfont type to use for playback.
-  final SoundFontType soundFontType;
+  /// The SoundFont that supplies the instrument.
+  final SoundFont soundFont;
 
   /// The key signature in effect before the first measure.
   final KeySignatureType initialKeySignatureType;
@@ -80,21 +80,21 @@ class MidiPlayer extends ChangeNotifier {
   /// Gets whether the player is currently playing.
   bool get isPlaying => _status == MidiPlayerStatus.playing;
 
-  /// Initializes the MIDI player with the specified soundfont.
-  ///
-  /// If no soundfont path is provided, the default soundfont from [soundFontType] will be used.
-  Future<void> initialize([String? customSoundfontPath]) async {
+  /// Initializes the MIDI engine and loads [soundFont].
+  Future<void> initialize() async {
     if (_isInitialized) {
       return;
     }
 
     try {
-      // Load the soundfont file
-      final soundfontPath = customSoundfontPath ?? soundFontType.path;
       if (!_midi.isInitialized) {
         await _midi.init();
       }
-      _soundfontId = await _midi.loadSoundfontAsset(assetPath: soundfontPath);
+      _soundfontId = await switch (soundFont) {
+        AssetSoundFont(:final path) =>
+          _midi.loadSoundfontAsset(assetPath: path),
+        FileSoundFont(:final path) => _midi.loadSoundfontFile(filePath: path),
+      };
 
       _isInitialized = true;
     } catch (e) {

@@ -14,7 +14,7 @@ export 'src/glyph_metadata.dart';
 export 'src/glyph_path.dart';
 export 'src/measure/measure_metrics.dart';
 export 'src/midi/midi_player.dart' show MidiPlayer, MidiPlayerStatus;
-export 'src/midi/soundfont_types.dart';
+export 'src/midi/sound_font.dart';
 export 'src/music_objects/clef/clef_type.dart';
 export 'src/music_objects/key_signature/key_signature.dart' show KeySignature;
 export 'src/music_objects/notes/accidental.dart' show Accidental;

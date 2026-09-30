@@ -19,6 +19,7 @@
 * switching rendering method
 
 ## Unreleased
+* **Breaking:** The package no longer bundles a SoundFont. The 261 MB `touhou.sf2` added that much to every app using the package, even with MIDI off. Pass `soundFont: AssetSoundFont(...)` or `FileSoundFont(...)` to `SimpleSheetMusic` instead. This replaces `enableMidi`, `soundFontType` and `customSoundFontPath`, and a null `soundFont` means playback is off. `MidiPlayer` now requires `soundFont`, and `MidiPlayer.initialize` takes no arguments. `SoundFontType` is removed.
 * Replace the unmaintained `flutter_midi` with `flutter_midi_pro` 4.x. `flutter_midi` used the removed v1 Android plugin API and no longer builds on current Flutter.
 * `MidiPlayer` now sends note-off when a note's duration ends, and on pause, stop, and dispose.
 * Fix the default soundfont path. It now uses the `packages/simple_sheet_music/` prefix, so consuming apps can load it.

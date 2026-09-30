@@ -38,7 +38,6 @@ class MidiExamplePageState extends State<MidiExamplePage> {
   // Add more example measures for testing
   List<List<Measure>> _exampleSets = [];
   int _currentExampleIndex = 0;
-  SoundFontType _selectedSoundFont = SoundFontType.touhou;
 
   @override
   void initState() {
@@ -72,8 +71,7 @@ class MidiExamplePageState extends State<MidiExamplePage> {
               width: MediaQuery.of(context).size.width,
               height: 300,
               tempo: _tempo,
-              enableMidi: true,
-              soundFontType: _selectedSoundFont,
+              soundFont: const AssetSoundFont('assets/soundfonts/piano.sf2'),
               highlightColor: _highlightColor,
             ),
           ),
@@ -262,30 +260,6 @@ class MidiExamplePageState extends State<MidiExamplePage> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<SoundFontType>(
-            decoration: const InputDecoration(
-              labelText: 'SoundFont',
-              border: OutlineInputBorder(),
-            ),
-            initialValue: _selectedSoundFont,
-            onChanged: (SoundFontType? newValue) {
-              if (newValue != null) {
-                setState(() {
-                  _selectedSoundFont = newValue;
-                  // Need to reload the page to change soundfont
-                  _showRestartDialog();
-                });
-              }
-            },
-            items: SoundFontType.values
-                .map<DropdownMenuItem<SoundFontType>>((SoundFontType font) {
-              return DropdownMenuItem<SoundFontType>(
-                value: font,
-                child: Text(font.displayName),
-              );
-            }).toList(),
-          ),
         ],
       ),
     );
@@ -338,26 +312,5 @@ class MidiExamplePageState extends State<MidiExamplePage> {
         Rest(RestType.quarter),
       ])
     ];
-  }
-
-  void _showRestartDialog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Restart Required'),
-          content: const Text(
-              'Changing the soundfont requires restarting the application to take effect.'),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('OK'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
-        );
-      },
-    );
   }
 }

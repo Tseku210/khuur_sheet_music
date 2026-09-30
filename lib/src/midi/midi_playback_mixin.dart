@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:simple_sheet_music/src/measure/measure.dart';
 import 'package:simple_sheet_music/src/midi/midi_player.dart';
-import 'package:simple_sheet_music/src/midi/soundfont_types.dart';
+import 'package:simple_sheet_music/src/midi/sound_font.dart';
 import 'package:simple_sheet_music/src/music_objects/interface/musical_symbol.dart';
 import 'package:simple_sheet_music/src/music_objects/key_signature/keysignature_type.dart';
 
@@ -17,17 +17,11 @@ mixin MidiPlaybackMixin<T extends StatefulWidget> on State<T> {
   /// The unique ID of the currently highlighted symbol
   String? _highlightedSymbolId;
 
-  /// Whether MIDI playback is enabled
-  bool get enableMidi;
-
   /// The tempo in beats per minute
   int get tempo;
 
-  /// The soundfont type to use
-  SoundFontType get soundFontType;
-
-  /// Optional custom path to a soundfont file
-  String? get customSoundFontPath;
+  /// The SoundFont to play with. MIDI playback is off when this is null.
+  SoundFont? get soundFont;
 
   /// The color to use for highlighting
   Color get highlightColor;
@@ -40,23 +34,19 @@ mixin MidiPlaybackMixin<T extends StatefulWidget> on State<T> {
 
   /// Initialize MIDI playback
   Future<void> initializeMidi() async {
-    if (!enableMidi) {
+    final soundFont = this.soundFont;
+    if (soundFont == null) {
       return;
     }
 
-    await _initializeMidiPlayer();
-  }
-
-  /// Initialize the MIDI player
-  Future<void> _initializeMidiPlayer() async {
     _midiPlayer = MidiPlayer(
+      soundFont: soundFont,
       tempo: tempo,
-      soundFontType: soundFontType,
       initialKeySignatureType: initialKeySignatureType,
     );
 
     try {
-      await _midiPlayer!.initialize(customSoundFontPath);
+      await _midiPlayer!.initialize();
       _midiPlayer!.loadMeasures(measures);
       _midiPlayer!.addListener(_updateHighlightedSymbol);
     } catch (e) {
