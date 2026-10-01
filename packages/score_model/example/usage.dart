@@ -106,7 +106,7 @@ class ComposerController {
   VoiceSlot inputVoice = VoiceSlot.one;
   bool chordMode = false;
 
-  /// A setting. `Overfill.refuse` gives Maestro's "need a bar line".
+  /// A setting. `Overfill.refuse` refuses a note that would cross the barline.
   Overfill overfill = Overfill.splitAndTie;
 
   /// The last refusal, shown as a toast ("this would split a triplet", or

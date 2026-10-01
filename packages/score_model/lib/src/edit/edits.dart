@@ -44,8 +44,8 @@ sealed class Edit {
 /// into the next bar under the same rule. Past the last bar, bars are
 /// appended with the last bar's meter, key and clefs. With
 /// [Overfill.refuse] the edit returns `Refused(WouldCrossBarline)` instead,
-/// which the app shows as Maestro's "need a bar line". Either way the bar
-/// is never overfull and never grows.
+/// which an app can show as "needs a bar line". Either way the bar is never
+/// overfull and never grows.
 ///
 /// Inside a tuplet, [value] is read in the tuplet's time (entering an eighth
 /// inside a triplet writes a triplet eighth), and the note must end inside

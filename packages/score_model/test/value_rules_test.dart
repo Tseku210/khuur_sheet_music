@@ -374,4 +374,51 @@ void main() {
       );
     });
   });
+
+  group('A score built in a debug build asserts its shape', () {
+    final score = blankScore(bars: 3);
+    final bars = score.measures;
+    Matcher fails(String message) => throwsA(
+      isA<AssertionError>().having((e) => e.message, 'message', message),
+    );
+
+    test('a measure id used twice', () {
+      expect(
+        () => score.copyWith(measures: Seq([bars[0], bars[1], bars[0]])),
+        fails('measure id ${bars[0].id} is used twice'),
+      );
+    });
+
+    test('a bar without the staves of the parts', () {
+      expect(
+        () => score.copyWith(
+          measures: bars.replaceAt(1, bars[1].copyWith(staves: Seq(const []))),
+        ),
+        fails('bar 2 does not list the staves of the parts in system order'),
+      );
+    });
+
+    test('a spanner on a bar the score lacks', () {
+      final slurred = withSlur(
+        score,
+        ScorePoint(bars[0].id, Moment.zero),
+        ScorePoint(bars[2].id, Moment.zero),
+      );
+      expect(
+        () => slurred.copyWith(measures: Seq([bars[0], bars[1]])),
+        fails('spanner 900 names a bar or staff the score lacks'),
+      );
+    });
+
+    test('a spanner that ends before it starts', () {
+      expect(
+        () => withSlur(
+          score,
+          ScorePoint(bars[1].id, Moment.zero),
+          ScorePoint(bars[0].id, Moment.zero),
+        ),
+        fails('spanner 900 ends before it starts'),
+      );
+    });
+  });
 }

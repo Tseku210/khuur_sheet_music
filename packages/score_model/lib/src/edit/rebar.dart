@@ -51,6 +51,7 @@ _Result _setMeter(Score score, SetMeter edit, _Ids ids, EditSession session) {
     measures: measures.replaceRange(start, end, [
       for (final section in sections) ...section.bars,
     ]),
+    spanners: const Seq.empty(),
   );
   final holding = {
     for (final section in sections)
@@ -64,6 +65,7 @@ _Result _setMeter(Score score, SetMeter edit, _Ids ids, EditSession session) {
 
   final spanners = _moveSpanners(
     rebarred,
+    score.spanners,
     first: (spanner) => onset(spanner.first),
     last: (spanner) {
       final section = holding[spanner.last.measure];

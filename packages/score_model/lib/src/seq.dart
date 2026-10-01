@@ -50,6 +50,7 @@ final class Seq<T> extends Iterable<T> {
 
   Seq<T> removeAt(int index) => Seq(List<T>.of(_items)..removeAt(index));
 
+  /// Replaces `[start, end)` with [values].
   Seq<T> replaceRange(int start, int end, Iterable<T> values) =>
       Seq(List<T>.of(_items)..replaceRange(start, end, values));
 

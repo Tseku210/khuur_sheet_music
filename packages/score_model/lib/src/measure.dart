@@ -362,7 +362,7 @@ final class Volta {
 /// - at the start of the bar: [Segno], [Coda];
 /// - at the end of the bar: [ToCoda], [Fine], [Jump].
 ///
-/// Playback honours all of them, codas included (Maestro ignores codas).
+/// Playback honours all of them, codas included.
 sealed class NavigationMark {
   const NavigationMark();
 

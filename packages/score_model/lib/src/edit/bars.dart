@@ -219,10 +219,12 @@ Score _deleteMeasures(Score score, int start, int end) {
   final before = start == 0 ? null : untied.measures[start - 1];
   final cut = untied.copyWith(
     measures: untied.measures.replaceRange(start, end, const []),
+    spanners: const Seq.empty(),
   );
   return cut.copyWith(
     spanners: _moveSpanners(
       cut,
+      untied.spanners,
       first: (spanner) =>
           gone.contains(spanner.first.measure) ? resume : spanner.first,
       last: (spanner) => !gone.contains(spanner.last.measure)
@@ -289,10 +291,12 @@ Score _setBarLength(Score score, int index, Length? length, _Ids ids) {
   final resume = next == null ? null : ScorePoint(next.id, Moment.zero);
   final cut = untied.copyWith(
     measures: untied.measures.replaceAt(index, resized),
+    spanners: const Seq.empty(),
   );
   return cut.copyWith(
     spanners: _moveSpanners(
       cut,
+      untied.spanners,
       first: (spanner) => removed(spanner.first) ? resume : spanner.first,
       last: (spanner) =>
           removed(spanner.last) ? _lastOnset(resized, spanner) : spanner.last,
@@ -399,19 +403,19 @@ Score _untieAt(Score score, int index, Moment from, MeasureColumn? next) {
       : score.copyWith(measures: score.measures.replaceAt(index, untied));
 }
 
-/// [score]'s spanners with their ends where [first] and [last] put them
-/// among [score]'s bars, which are the bars after the edit. An end with
-/// nowhere to go is null. A spanner that loses an end, or whose ends no
-/// longer fit its kind (see [_fits]), is dropped. The same object when
-/// nothing moves.
+/// [spanners] with their ends where [first] and [last] put them among the
+/// bars of [score], which are the bars after the edit. An end with nowhere
+/// to go is null. A spanner that loses an end, or whose ends no longer fit
+/// its kind (see [_fits]), is dropped. The same object when nothing moves.
 Seq<Spanner> _moveSpanners(
-  Score score, {
+  Score score,
+  Seq<Spanner> spanners, {
   required ScorePoint? Function(Spanner spanner) first,
   required ScorePoint? Function(Spanner spanner) last,
 }) {
   var moved = false;
   final kept = <Spanner>[];
-  for (final spanner in score.spanners) {
+  for (final spanner in spanners) {
     final from = first(spanner);
     final to = last(spanner);
     if (from == spanner.first && to == spanner.last) {
@@ -434,7 +438,7 @@ Seq<Spanner> _moveSpanners(
       kept.add(candidate);
     }
   }
-  return moved ? Seq(kept) : score.spanners;
+  return moved ? Seq(kept) : spanners;
 }
 
 /// Whether [spanner] can stand in [score]: in order, and past its first

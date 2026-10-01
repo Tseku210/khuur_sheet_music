@@ -13,6 +13,46 @@ import 'time.dart';
 import 'views.dart';
 import 'voice_walk.dart';
 
+/// What is wrong with how the pieces of a score fit together, or null.
+///
+/// Checked in debug builds only. `scoreFromJson` refuses the same always,
+/// and edits keep it by construction.
+String? _shapeProblem(
+  Seq<Part> parts,
+  Seq<MeasureColumn> measures,
+  Seq<Spanner> spanners,
+) {
+  final staves = [
+    for (final part in parts)
+      for (final staff in part.staves) staff.id,
+  ];
+  final indexOf = <MeasureId, int>{};
+  for (final (index, column) in measures.indexed) {
+    if (indexOf.containsKey(column.id)) {
+      return 'measure id ${column.id} is used twice';
+    }
+    indexOf[column.id] = index;
+    final listed = [for (final staff in column.staves) staff.staff];
+    if (listed.length != staves.length ||
+        listed.indexed.any((staff) => staves[staff.$1] != staff.$2)) {
+      return 'bar ${index + 1} does not list the staves of the parts in '
+          'system order';
+    }
+  }
+  for (final spanner in spanners) {
+    final first = indexOf[spanner.first.measure];
+    final last = indexOf[spanner.last.measure];
+    if (first == null || last == null || !staves.contains(spanner.staff)) {
+      return 'spanner ${spanner.id} names a bar or staff the score lacks';
+    }
+    if (first > last ||
+        first == last && spanner.first.offset > spanner.last.offset) {
+      return 'spanner ${spanner.id} ends before it starts';
+    }
+  }
+  return null;
+}
+
 /// An immutable score.
 ///
 /// Three children, each owning one kind of fact:
@@ -34,11 +74,11 @@ final class Score {
     required this.measures,
     this.spanners = const Seq.empty(),
   }) : assert(parts.isNotEmpty, 'a score has at least one part'),
-       assert(measures.isNotEmpty, 'a score has at least one measure');
-  // TODO(debug asserts): every column's `staves` lists exactly the staves of
-  // `parts`, in system order; measure ids unique; spanner endpoints name
-  // existing measures and staves, first <= last. Asserted here (debug only),
-  // enforced always by `scoreFromJson`. Commands keep them by construction.
+       assert(measures.isNotEmpty, 'a score has at least one measure'),
+       assert(
+         _shapeProblem(parts, measures, spanners) == null,
+         _shapeProblem(parts, measures, spanners),
+       );
 
   /// A score with [parts], [measureCount] empty bars of [meter] in [key], and
   /// a tempo mark at the start. Ids are allocated 1, 2, 3… in document order,

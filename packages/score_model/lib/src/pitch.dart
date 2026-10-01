@@ -22,8 +22,8 @@ enum Step {
 }
 
 /// A chromatic alteration in quarter tones: sharp is +2, flat is −2, and the
-/// odd values are the quarter-tone accidentals the Maestro feature list asks
-/// for. Range −4 (double flat) to +4 (double sharp).
+/// odd values are the quarter-tone accidentals. Range −4 (double flat) to +4
+/// (double sharp).
 extension type const Alter._(int quarterTones) {
   /// Validates the range; the only way to build an arbitrary value.
   factory Alter.fromQuarterTones(int quarterTones) {
@@ -296,9 +296,9 @@ final class KeySignature {
 
 enum ClefSign { g, f, c, percussion }
 
-/// Clefs from the Maestro feature list. A clef maps staff steps to written
-/// pitch. Staff step 0 is the bottom line of the staff, 1 the first space,
-/// and so on; negative steps are below the staff.
+/// A clef maps staff steps to written pitch. Staff step 0 is the bottom line
+/// of the staff, 1 the first space, and so on; negative steps are below the
+/// staff.
 ///
 /// A drum staff and a one-line percussion staff both use [percussion]; the
 /// line count lives on `Staff.lines`.
