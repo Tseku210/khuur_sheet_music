@@ -1,0 +1,13 @@
+analyzer:
+  exclude:
+    - build/**
+include: package:pedantic_mono/analysis_options.yaml
+
+linter:
+  rules:
+    lines_longer_than_80_chars: false
+    flutter_style_todos: false
+    # Classic constructors keep each field's doc comment on the field.
+    use_primary_constructors: false
+    use_declaring_parameters: false
+    unnecessary_type_name_in_constructor: false

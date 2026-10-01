@@ -6,6 +6,7 @@
 analyzer:
   exclude:
     - build/**
+    - docs/**
 include: package:pedantic_mono/analysis_options.yaml
 
 linter:

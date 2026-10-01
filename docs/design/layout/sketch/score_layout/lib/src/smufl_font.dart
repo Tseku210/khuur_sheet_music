@@ -1,0 +1,84 @@
+import 'bravura.g.dart';
+import 'glyphs.dart';
+
+/// A SMuFL font, which is the family the painter draws with and the metrics
+/// layout measures with. One object carries both, so the outlines on screen and
+/// the metrics in layout cannot come from different fonts.
+///
+/// Invariant: [glyphs] has an entry for every [Glyph], so `font[glyph]` is
+/// total. The generator guarantees it for [bravura], and
+/// [SmuflFont.fromMetadata] checks it at the boundary.
+///
+/// Two fonts are equal when they name the same family and hold the same
+/// metrics tables by identity. The const [bravura] is canonical, so it
+/// equals itself everywhere. A font from [SmuflFont.fromMetadata] equals
+/// only itself, so an app parses its metadata once and keeps the font.
+/// Parsing it again makes an unequal font, an unequal style and a full
+/// layout.
+final class SmuflFont {
+  const SmuflFont({
+    required this.family,
+    required this.glyphs,
+    required this.defaults,
+  });
+
+  /// Parses an app's own SMuFL font metadata (the `*_metadata.json` a SMuFL
+  /// font ships) for a font the app declares under [family].
+  ///
+  /// Applies the generator's four checks and throws one [FormatException] that
+  /// names every failure. The failures are a [Glyph] with no box, a [Glyph]
+  /// with no advance, an anchor name outside [GlyphAnchor], and a numeric
+  /// engraving default that [EngravingDefaults] lacks or the metadata lacks.
+  /// This is the only place font metadata is parsed at run time.
+  factory SmuflFont.fromMetadata({
+    required String family,
+    required Map<String, Object?> metadata,
+  }) => SmuflFont(
+    family: family,
+    glyphs: _glyphsFrom(metadata),
+    defaults: _defaultsFrom(metadata),
+  );
+
+  /// Bravura 1.392, shipped unmodified as the package font
+  /// `fonts/Bravura.otf`, with metrics generated from its metadata.
+  static const bravura = SmuflFont(
+    family: 'Bravura',
+    glyphs: bravuraGlyphs,
+    defaults: bravuraDefaults,
+  );
+
+  /// The font family name the painter asks the text engine for.
+  final String family;
+
+  final Map<Glyph, GlyphMetrics> glyphs;
+  final EngravingDefaults defaults;
+
+  GlyphMetrics operator [](Glyph glyph) => glyphs[glyph]!;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SmuflFont &&
+      other.family == family &&
+      identical(other.glyphs, glyphs) &&
+      identical(other.defaults, defaults);
+
+  @override
+  int get hashCode =>
+      Object.hash(family, identityHashCode(glyphs), identityHashCode(defaults));
+}
+
+Map<Glyph, GlyphMetrics> _glyphsFrom(Map<String, Object?> metadata) {
+  // TODO: the same reading as tool/generate_bravura.dart. For every Glyph,
+  // look up glyphBBoxes, glyphAdvanceWidths and glyphsWithAnchors by
+  // glyph.name, flip y, and collect each failure instead of throwing at
+  // the first one. The implementation shares one reader between this
+  // function and the generator.
+  throw UnimplementedError();
+}
+
+EngravingDefaults _defaultsFrom(Map<String, Object?> metadata) {
+  // TODO: every numeric entry of engravingDefaults must be a field of
+  // EngravingDefaults and every field must have an entry, as in the
+  // generator.
+  throw UnimplementedError();
+}

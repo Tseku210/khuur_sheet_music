@@ -1,0 +1,875 @@
+# Layout engine and painter
+
+The synthesized design. Its base is candidate C, with grafts from candidates A and B (see "Synthesis decision"). The sketch is in [sketch/](sketch/). It is two sibling packages that type-check. [sketch/score_layout/](sketch/score_layout/) is the pure-Dart engine and mirrors `packages/score_layout`. [sketch/simple_sheet_music/](sketch/simple_sheet_music/) is the Flutter shell and mirrors the rewritten `lib/`. [sketch/simple_sheet_music/example/usage.dart](sketch/simple_sheet_music/example/usage.dart) holds the call sites below.
+
+## Problem
+
+The rewrite needs a layout engine and painter that read the immutable `score_model` and replace the fused engine in `lib/`. The old engine computes layout during build, scales the score to fit a box, mixes pixel and font units, records positions while painting, and lays out again on every highlight tick ([grounding.md](grounding.md), "Old engine: what to keep and what to drop").
+
+The new engine has to meet several demands at once.
+- A one-note edit in a 500-bar, 4-staff score must not lay out the whole score.
+- Line breaking needs every bar's width before any system exists. Courtesy and system-start signatures change those widths.
+- Painting, hit testing, the cursor, the selection and playback all need the same geometry. Cursor moves and playback ticks must not cause a relayout.
+
+These constraints from the grounding shape the design:
+- `Score.changesSince` diffs by identity. It reports bars to relay out, but it never reports a width change, because the model cannot know widths. Detecting width changes is layout's job (grounding A15, B4).
+- Only `dart:ui` can measure text. Glyph metrics are pure numbers in staff spaces.
+- Fonts are SIL OFL 1.1 with a Reserved Font Name. Every package asset ships to every consuming app.
+- Targets are Android, iOS and macOS. `flutter analyze` must stay clean.
+- The old public API is replaced. `score_model` gains three small read helpers (see Model additions) and is otherwise unchanged.
+
+## Usage (caller's view)
+
+### README quickstart
+
+```dart
+import 'package:simple_sheet_music/simple_sheet_music.dart';
+
+// One import gives the score model and the view.
+SheetView(score: scoreFromJson(jsonDecode(saved)))
+```
+
+`SheetView` takes its width from its constraints and scrolls vertically. It draws at 8 logical pixels per staff space times the zoom. Its colours come from the ambient `Theme`. Give it a new `Score` after each edit, and it lays out only what the edit touched.
+
+### Call site 1: an editor
+
+The app owns the `EditSession`. A tap on a note selects it. A tap anywhere else enters a note there.
+
+```dart
+void _onTap(SheetHit hit) {
+  if (hit.target case ElementOwner(:final ref)) {
+    setState(() => _session = _session.select(ItemSelection(Seq([ref]))));
+    return;
+  }
+  final tone = _session.score.toneForStaffStep(hit.staff, hit.at, hit.staffStep);
+  if (tone == null) return;
+  _run(EnterNote(
+    at: VoicePoint(staff: hit.staff, voice: hit.voice, at: hit.at),
+    tone: tone,
+    value: _value,
+  ));
+}
+
+void _run(Edit edit) {
+  switch (_session.run(edit)) {
+    case Applied(:final session):
+      setState(() => _session = session);   // the sheet relays out 3 bars
+    case Refused(:final reason):
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$reason')));
+  }
+}
+
+SheetView(
+  score: _session.score,
+  cursor: _session.cursor,          // caret; scrolled into view when it moves
+  selection: _session.selection,
+  controller: _sheet,               // _sheet.zoom *= 1.25
+  onTap: _onTap,
+)
+```
+
+The hit names the voice, so the app does not look it up. The view asks the hit test about the cursor's voice.
+
+### Call site 2: playback
+
+The player publishes its position. The sheet highlights the sounding events and moves a playhead. The play button reads the player's status, so the app tracks no play state of its own.
+
+```dart
+late final _player = ScorePlayer(
+  soundFont: const AssetSoundFont('assets/soundfonts/piano.sf2'),
+  vsync: this,
+);
+
+SheetView(score: widget.score, playback: _player.position)
+
+ValueListenableBuilder(
+  valueListenable: _player.status,
+  builder: (context, status, _) => IconButton(
+    icon: Icon(status == PlayerStatus.playing ? Icons.pause : Icons.play_arrow),
+    onPressed: switch (status) {
+      PlayerStatus.playing => _player.pause,
+      PlayerStatus.paused => _player.resume,
+      PlayerStatus.idle => () => _player.play(widget.score, startAt: widget.from),
+      PlayerStatus.loading => null,
+    },
+  ),
+)
+
+Slider(value: _player.tempoScale, onChanged: (v) => setState(() => _player.tempoScale = v))
+```
+
+### Call site 3: the app's own overlay, and export
+
+The controller reports geometry in the view's local pixels, with scrolling applied. An app can place its own widgets over the sheet, such as a loupe or a delete badge.
+
+```dart
+ListenableBuilder(
+  listenable: _sheet,
+  builder: (context, child) {
+    final rect = switch (session.selection.singleEvent) {
+      final event? => _sheet.rectOf(event),
+      null => null,
+    };
+    return Stack(children: [
+      child!,
+      if (rect != null)
+        Positioned(left: rect.right, top: rect.top - 32, child: deleteButton),
+    ]);
+  },
+  child: SheetView(score: session.score, selection: session.selection, controller: _sheet),
+)
+
+final image = await _sheet.toImage(pixelRatio: 3);
+```
+
+### What replaces the API the example app uses today
+
+| Today | Replacement |
+|---|---|
+| `SimpleSheetMusic(measures, width, height, ...)` | `SheetView(score: ...)`, sized by constraints, scrolling |
+| `Measure([...], isNewLine:)` | A `Score` built with `Score.blank` and edits, or loaded with `scoreFromJson`. `isNewLine` becomes `SetBreak(id, LayoutBreak.system)` |
+| `Clef.treble()`, `KeySignature.dMajor()`, `TimeSignature.fourFour()` | `SetClef`, `SetKey`, `SetMeter`, or `Score.blank(key:, meter:)` |
+| `Note(Pitch.a4, ...)`, `ChordNote`, `Rest` | `EnterNote`, `AddToChord`, `EnterRest` |
+| `GlobalKey<SimpleSheetMusicState>` with `playMidi`, `pauseMidi`, `stopMidi`, `setTempo(int)` | `ScorePlayer.play`, `pause`, `resume`, `stop`, `tempoScale`, `status` |
+| `highlightColor` | `SheetPalette.playback` |
+| `onTap(symbol, offset)` | `onTap(SheetHit)` |
+| `FontType` | `EngravingStyle.font` (`SmuflFont`) |
+| `MidiPlayer`, `MidiPlayerStatus` | `ScorePlayer`, `PlayerStatus` |
+| `SoundFont`, `AssetSoundFont`, `FileSoundFont` | Unchanged |
+| Per-symbol `color` | `SheetView.tints` |
+| `debug`, `GlyphMetadata`, `GlyphPath`, `MeasureMetrics` exports | Deleted with nothing in their place |
+
+The example app's `midi_example.dart` is rewritten against the table. It builds its tune from `Score.blank` and a list of edits.
+
+## Shape
+
+### Module map
+
+```
+packages/score_model/        gains the additions B1, B2b, B2c, B3 and B4 below
+packages/score_layout/       pure Dart, no Flutter; depends on score_model
+  sheet_layout.dart          SheetLayout: the entry point, the cache, all geometry queries; LayoutDelta
+  bar_layout.dart            BarLayout, BarWidths, layoutBar (internal)
+  breaking.dart              BreakUnit, foldBars, SystemKey, SystemPlan, breakSystems, planSystem (internal)
+  assembly.dart              assembleSystem, frameUnits (internal)
+  spacing.dart               Slice, sliceTimes, spaceSlices, stretchFor, sliceXs (internal)
+  chords.dart                planChord, placeChord, graceItems, headAnchors, placeRest, placeRestRun (internal)
+  beams.dart                 beamStemSides, planBeam, placeBeam (internal)
+  marks.dart                 Skyline, markReach, articulationItems, ornamentItems, stringMarkItems,
+                             directionItems, systemMarkItems, tupletStubs, placeTuplet (internal)
+  signatures.dart            barHeads, clefChangeItems, placeBarlines, braceWidth, systemLead, placeLead
+                             (internal)
+  spanners.dart              tieEnds, placeTies, spannerPieces, pieceStart, pieceEnd, curveSide, placeSpanners,
+                             voltaStub, placeVoltas, curveBetween (internal)
+  lyrics.dart                lyricsOf, BarLyrics, LyricCarry, lyricRows, placeLyrics (internal)
+  bar_space.dart             BarAnchor, BarItem, BarFrame (internal)
+  system_layout.dart         SystemLayout, PlacedBar, PlacedStaff, TimeAxis, VoiceTimes
+  drawable.dart              Drawable (sealed), Owner (sealed), InkRole
+  hit.dart                   SheetHit; entryPoints, snapTime (internal)
+  glyphs.dart                Glyph (222 values), GlyphAnchor, GlyphMetrics, EngravingDefaults
+  smufl_font.dart            SmuflFont
+  bravura.g.dart             generated: the Bravura metrics table and engraving defaults
+  geometry.dart              SpPoint, Box, yOfStep, stepAtY, staffHeight
+  style.dart                 EngravingStyle, SpacingPolicy, the policy enums
+  text.dart                  TextMeasurer (port), TextSpec, TextRole
+  model_additions.dart       sketch only: stand-ins for B1, B2b and B2c. The package never has this file
+  tool/generate_bravura.dart writes bravura.g.dart from the font's metadata
+lib/ (simple_sheet_music)    Flutter shell; depends on both packages and flutter_midi_pro
+  sheet_view.dart            SheetView, SheetController
+  sheet_palette.dart         SheetPalette
+  painting.dart              SheetScale, GlyphPainter, HeaderPainter, SystemPainter, OverlayPainter (internal)
+  paragraph_measurer.dart    ParagraphMeasurer implements TextMeasurer (internal)
+  score_player.dart          ScorePlayer, PlayerStatus, PlaybackPosition
+  sound_font.dart            unchanged
+fonts/Bravura.otf, fonts/OFL.txt
+```
+
+Everything in `lib/src/` today is deleted in the same change that adds this, along with the old tests in `test/`, the four SVG and JSON assets, and the `svg_path_parser`, `xml` and `uuid` dependencies (per `outcome-oriented-execution`). The root `pubspec.yaml` raises its SDK floor to ^3.13.0, adds `packages/score_layout` to the workspace, and declares the font.
+
+The engine's files are split by notation concern, not by stage. Each concern file owns both halves of its notation, which are what a bar decides alone and what a system draws from it. `layoutBar` and `assembleSystem` only call them in order.
+
+### Data structures
+
+The engine is built around five immutable values. Each has one owner and one reason to change.
+
+- **`BarLayout`**, one per `MeasureId`. This is the unit of the cache. `layoutBar(view, style, text)` builds it from the bar's `MeasureView`, the style and the text measurer, and from nothing else. It takes no `Score` and keeps no view. So it stays valid exactly as long as `changesSince` leaves its bar out of `relayout`. It holds:
+  - time slices with spring ideals and rods;
+  - items fixed to a slice and a staff;
+  - three head variants (inline, system start, courtesy);
+  - beam plans and tuplet stubs;
+  - a stub for every piece that crosses the bar (tie ends, spanner pieces and the volta flag), each with resolved anchors and the room it reserved;
+  - per staff, how far the bar reaches above and below, cross-bar pieces included;
+  - per lyric lane, what the lane does at the bar's first event and what it leaves open at its end.
+  It holds no bar number, x offset or neighbour. The line-dependent choices are stored in every variant and chosen later. This is the invariant the cache rests on, and the type has no field that could break it.
+- **`BarWidths`**. Five numbers per bar, compared by value. They are the only thing line breaking reads.
+- **`SystemPlan`**, one per system, made at breaking time. It holds the system's `SystemKey`, its stretch, its staff tops, its lyric rows and its height. Everything in it comes from the bars' widths and extents. No drawable is needed to make one, so the sheet knows every system's place before any system is assembled.
+- **`SystemLayout`**. Drawables in system space, placed bars with a `TimeAxis`, and placed staves. It is assembled from a plan the first time someone asks for the system, and kept by the plan's key. It is shared by painting, hit testing and every overlay. Identity is the painter's cache key.
+- **`SheetLayout`**. The plans, their y offsets by prefix sum, the header, a `LayoutDelta` and the memo of assembled systems. It is the one entry point (`SheetLayout(...)` and `update(score, {width})`) and the one place geometry queries live. It has no public list of systems. It has `systemCount`, `tops`, `heightOf(i)` and `systemAt(i)`.
+
+Drawables form a sealed set of `GlyphDraw`, `LineDraw`, `PolygonDraw`, `CurveDraw`, `GlyphRunDraw` and `TextDraw`. The painter's switch over them is exhaustive, so a new kind fails compilation until it is painted (per `type-system-discipline`). Each drawable carries an `Owner?`, which is `ElementOwner(ElementRef)` or `SpannerOwner(SpannerId)`, plus an `InkRole`. Ownership is a sum type, not two optional fields, so a drawable cannot belong to a note and a spanner at once. Drawables are values and compare by value, which the tests and the painter's label comparison rely on.
+
+### Data flow
+
+```
+EditSession.run ─► Score ─► SheetView ─► SheetLayout.update(score, width:)
+   changesSince ─► layoutBar for the relayout ids                       (L1)
+   ─► breakSystems: starts resumed from the first dirty bar             (L2)
+                    one SystemPlan per system, reused by SystemKey      (L3)
+   ─► tops by prefix sum of planned heights, delta       no system is assembled
+SheetView ─► header tile, then a SliverVariedExtentList of system tiles (extent from the plan)
+   tile = Stack
+   ├─ RepaintBoundary ─ CustomPaint(SystemPainter)   systemAt(i): assembled on first use, kept by key
+   └─ CustomPaint(OverlayPainter)                    cursor, selection, tints as values; listens to playback
+tap ─► SheetScale.toSheet ─► SheetLayout.hitTest ─► SheetHit ─► onTap
+```
+
+### Decision 1. Where layout lives
+
+Layout lives in a new pure-Dart workspace package, `packages/score_layout`. The Flutter package `lib/` is a thin shell around it. The shell holds the widget, slivers, painters, gestures, the paragraph-backed text measurer and the player.
+
+The reasons:
+- The engine is pure functions over immutable values (per `boundary-discipline`). Tests run with `dart test` on any host, with no widget binding and no device.
+- The package boundary also enforces the units decision. The engine cannot name `Offset`, `Rect`, `Paint` or a pixel, because it does not depend on Flutter. The sketch proves this, since `sketch/score_layout` resolves and analyzes without Flutter.
+- The only thing the engine needs from the platform is text extents. They come through a one-method port, `TextMeasurer.measure(String, TextSpec)`.
+
+A render-object tree and an in-`lib/` Flutter-typed engine were both considered (see Alternatives).
+
+### Decision 2. The glyph source
+
+The package ships the unmodified Bravura 1.392 OTF as a package font (`fonts/Bravura.otf`, 512,924 bytes, recovered with `git show 1620e25^:assets/Bravura.otf`). It ships `OFL.txt` beside it and registers the license with `LicenseRegistry`. Glyphs are drawn as text. Metrics come from a const Dart table that `tool/generate_bravura.dart` writes from `bravura_metadata.json`.
+
+The reasons:
+- **License.** Shipping the unmodified file avoids the Modified Version reading that the converted SVGs carry under OFL clause 3. A scratch probe confirmed the font's facts:
+  - version 1.392, matching the metadata the repo already has;
+  - "Bravura" in name IDs 1 and 4;
+  - the OFL URL in name ID 14;
+  - CFF outlines;
+  - all 222 codepoints of the `Glyph` enum present in its cmap.
+  The generated metrics table is not the font. It holds numbers from the metadata, so the font itself stays unmodified.
+- **Size.** Package assets drop from 4,251,157 bytes (two SVGs, two JSONs) to about 517 KB (the OTF plus the license). The metadata JSON is a build input in `tool/`, not a runtime asset.
+- **Cost.** There is no runtime parse. A declared package font loads before the first frame. Metrics are const Dart, so the first layout is synchronous. The old engine parsed the SVG in 59 ms cold on every widget instance (grounding, Glyph sources).
+- **Placement.** A glyph is a `dart:ui` paragraph, cached per codepoint, pixel size and colour. It is drawn at `origin.y - paragraph.alphabeticBaseline` with a font size of 4 staff spaces. The SMuFL origin is the baseline, so there is no magic offset. This is the piece upstream never tried before `1620e25`, because the metadata arrived in that same commit.
+- **Petaluma** is dropped. Its SVG is a convertio conversion missing 349 optional glyphs, every ligature, and the small glyphs graces need. An app that wants another SMuFL font declares it and passes `SmuflFont.fromMetadata(family:, metadata:)`. That parse happens at the boundary, applies the generator's checks, and lists every failure at once.
+
+**The pipeline.** The sketch holds the real thing, not a sample.
+- `Glyph` is an enum of 222 values. Each value's name is its SMuFL name and each carries its codepoint.
+- `GlyphAnchor` has the 19 anchors the metadata uses on those glyphs. `EngravingDefaults` has the 28 numeric engraving defaults.
+- `tool/generate_bravura.dart` writes `bravura.g.dart`. It fails when a `Glyph` has no box, when a `Glyph` has no advance, when a glyph carries an anchor `GlyphAnchor` lacks, and when the metadata's numeric engraving defaults do not match `EngravingDefaults` field for field. So the enum, the class and the font cannot drift apart silently.
+- The metadata is in staff spaces already. The generator flips y once, into the y-down layout frame.
+- The table was generated in this worktree and is committed. A rerun reproduces it byte for byte.
+
+**213 and 222.** Candidate C wrote "213 single codepoints" where [glyphs.md](glyphs.md) says 222. Both numbers count single codepoints, and no glyph in either is a ligature or an alternate.
+- glyphs.md names 222 codepoints. The model can need 220 of them. The other two, `breathMarkComma` (U+E4CE) and `caesura` (U+E4D1), are listed under "Not in the model".
+- C's 213 came from a pattern that read one codepoint per mention. It missed the seven rests from U+E4E3 to U+E4E9, which glyphs.md writes as "restDoubleWhole E4E2 through rest128th E4EA". With them the count is 220.
+- The `Glyph` enum has 222 values. They are those 220 plus U+E272 and U+E273, the naturals with an arrow, which complete the Gould arrow family that `QuarterToneGlyphs.gouldArrows` (C4) selects. That this equals glyphs.md's total is a coincidence.
+- Every one of the 222 is one codepoint in SMuFL's primary range, U+E000 to U+F3FF. The probe found all 222 in the unmodified OTF's cmap, and the generator found a box and an advance for each. So every `Glyph` is drawn the same way, as one codepoint of text.
+- glyphs.md's remark that ligatures are "only reachable by name" is about the SVG font, where a ligature's `unicode` attribute is a component sequence. The metadata gives every ligature and alternate its own private-use codepoint, and the probe found all 201 ligature codepoints and all 518 optional codepoints in the OTF's cmap. So the cmap can be assumed to hold them, and a ligature or alternate added to `Glyph` later is still one codepoint. The enum needs none today. Grace notes are the normal glyphs at `graceScale`, not the small alternates.
+- The placement gate iterates `Glyph.values`, so it covers whatever the enum holds.
+
+**The placement gate.** Drawing music glyphs through the text stack is the one unproven piece every candidate shared. So it is proved first (decision 10, gate 1). Every `Glyph` is drawn from the unmodified OTF through `GlyphPainter`, at the sizes the view draws at, and its painted ink box is compared with its box in the generated table. Nothing else in the engine gets a body until that passes on the host, on Android and on iOS. `GlyphPainter` is the whole seam for the glyph source. If the gate fails, a path painter replaces that one class. A probe has already run the gate's measurement on the host for six glyphs. It found a rounded baseline in the paragraph, which the painter now corrects, and a whole-pixel snap in the rasteriser, which stays (decision 10).
+
+### Decision 3. Units and coordinate spaces
+
+The engine works only in staff spaces, with y down. There are three origins, and every stored value says which one it uses:
+- **Bar space.** x is relative to a slice. y is relative to the staff's top line, with `y = (8 - step) / 2`. That formula is in one function, `yOfStep`, which the bar layout, `PlacedStaff` and the hit test all call.
+- **System space.** The origin is the system band's top-left.
+- **Sheet space.** Systems are stacked below the header.
+
+Font units never reach runtime code. The metadata is in staff spaces, and the generator flips y once, so no runtime code negates y. Text sizes are in staff spaces too (`TextSpec.size`). So a bar's layout is the same at every zoom, and zoom never invalidates a `BarLayout`.
+
+Pixels exist only in the Flutter shell. The single conversion is `SheetScale`, with `px = origin + sp * spacePx`, where `spacePx = SheetView.staffSpace * controller.zoom` and `origin` folds in padding and scroll. Every pixel value comes from it. The old engine's unit mix-up, pixel margins added to font-unit widths, would need a second conversion site, and there is none.
+
+### Decision 4. The cache
+
+| Level | What | Key | Invalidated by |
+|---|---|---|---|
+| L1 | `BarLayout` per bar | `MeasureId` | `ScoreChanges.relayout` rebuilds it, `removed` drops it, a style change or a late font drops all |
+| L2 | System starts (`List<MeasureId>`) | the previous starts and the units' `BarWidths` | a dirty unit (re-run from the system that could see it until the starts resync), a width change in staff spaces or a new part list (full re-run over cached widths) |
+| L3 | `SystemPlan`, and the `SystemLayout` assembled from it on first use | `SystemKey`, which holds its bars by identity, the next system's first bar by identity, the width, the lead by identity, first, last, and the lyric carry at both ends by value | any key field. A memo entry is dropped when no system of the new layout has its key |
+| L4 | `SheetLayout` | none. It is recomputed per update | tops are O(systems). A bar-number label is made when its tile asks and is compared by value. The header is reused while the width and `score.meta` are unchanged, since `changesSince` ignores meta |
+| L5 | Each system's raster | a `RepaintBoundary` around the system's `CustomPaint` | `SystemPainter.shouldRepaint`, on the system's identity, the label's value, the glyph painter's identity, the palette and the scale |
+
+Building or updating a layout assembles nothing. A system's height and staff tops come from its bars' extents (`planSystem`), never from assembled drawables. `systemAt(i)` assembles system i the first time it is asked for and memoizes it by `SystemKey`. `update` carries the memo over for every key that is still some system's key, so a kept system is the same object and the painter keeps its picture. A query on a system that is not assembled (`hitTest`, `boundsOf`, `caretOf`) assembles that one system. There is no eviction. The memo holds at most one assembled system per system of the current layout.
+
+The overlay is its own layer. Each system tile is a `Stack`. Its first child is `RepaintBoundary(CustomPaint(painter: SystemPainter))`. Its second child is `CustomPaint(painter: OverlayPainter)`. A repaint of the overlay composites the base layer as it is. Candidate C put the overlay in `foregroundPainter` of the base's own `CustomPaint`. A `CustomPaint` paints both of its painters together, so there every cursor move and every playback tick re-recorded every visible system.
+
+Per event:
+- **Resize.** The width in staff spaces changes. Every L1 entry is reused. L2 runs fully over cached widths. Every key holds the width, so every plan is made again, which is sums and maxima over cached bars. The memo empties. Only the systems on screen are assembled, as their tiles ask.
+- **Zoom.** Same as a resize, since the width in staff spaces is the pixel width over `spacePx`. Every new `controller.zoom` breaks lines again at the next frame, and scroll anchoring keeps the anchor bar in place. The view has no pinch gesture of its own. An app that zooms by pinch sets the zoom when its gesture ends (see "Left out of the first version").
+- **Theme.** The palette changes. Visible systems re-record their picture. Nothing is laid out.
+- **Cursor move or selection.** The app rebuilds the view with a new cursor. `update` returns the same layout. Each visible `OverlayPainter` repaints, because the cursor is one of its values. No `SystemPainter` repaints. With `followCursor`, the view scrolls if needed.
+- **Playback tick.** No build runs. The visible `OverlayPainter`s listen to the playback listenable and repaint. No `SystemPainter` repaints.
+- **Scroll.** A tile entering the viewport asks `systemAt(i)`, which assembles the system once. A tile that left and comes back gets the memoized system and re-records its picture. The view itself builds nothing on a scroll. It listens to the controller's zoom only, and a scroll notifies the app's listeners of the controller.
+- **Style change.** A fresh `SheetLayout` and a fresh `GlyphPainter` replace the old ones. Everything is laid out again, and scroll anchoring keeps the anchor bar in place.
+- **Late font.** Flutter reports every font registered at run time, whoever loaded it. The view handles a burst of them once, after the frame. A fresh measurer measures again every text the old one was asked for. Only when an extent differs does a fresh `SheetLayout` replace the old one. The glyph painter is replaced either way, which repaints the systems on screen and lays nothing out.
+
+**Trace of one note entered in bar 250 of a 500-bar, 4-staff score.** Assume four bars per system, so 125 systems. Counting from 0, system 62 holds m249 to m252 and system 61 ends with m248.
+1. `session.run(EnterNote(...))` returns `Applied`. The app calls `setState` with the new session.
+2. `SheetView` records its scroll anchor and calls `layout.update(newScore, width: sameWidth)`.
+3. `newScore.changesSince(oldScore)` walks 500 columns by identity. It returns `relayout {m249, m250, m251}`, `removed {}` and `reflow false`. The neighbours are included because a view reads them.
+4. L1. 497 `BarLayout`s are reused by reference. Three `measureView` calls and three `layoutBar` calls run, each reading one bar of 4 staves. All three results are new objects. m249 and m251 usually come out with the same content as before, but a key compares bars by identity, so they count as changed.
+5. L2. Each bar's `BarWidths` is compared with its old value.
+   - If all are equal, which is typical when a note replaces a rest of the same length, no unit is dirty. `breakSystems` returns the old list of starts, the same object. Nothing is rebroken.
+   - If m250 grew, m250 is dirty. Greedy resumes at the start of the system that holds m249, the bar before the first dirty one, and stops at the first new start past m250 that was an old start. Systems 0 to 61 cannot move.
+6. L3. 125 keys are built and looked up among the old plans. Two keys are new. System 62 holds the three new bars. System 61 names m249 as its `next`, because m249 starts the system after it. Two plans are made, and 123 are reused by reference. In general up to three systems hold one of the three bars, when the bars straddle system ends, and one more key changes when m249 starts its system. If a lyric lane's carry-out changed, later keys change too, until the first system whose carry-in is equal again.
+7. L4. The header is reused. 125 tops are recomputed by prefix sum. The memo keeps every assembled system whose key survived. `delta` reports `relaid {m249, m250, m251}`, `rekeyed {61, 62}` and `rebroke false`.
+8. The view restores its scroll anchor. No top above it moved, so the scroll stays.
+9. L5. The visible tiles rebuild. `systemAt(62)` assembles system 62, and `systemAt(61)` assembles system 61 if it is on screen. Every other visible tile gets the same `SystemLayout` object as before and a label equal to the one before, so its `shouldRepaint` is false. If neither system is on screen, nothing is assembled and no base layer repaints.
+
+The total is 3 bar layouts, 2 system plans, at most 2 system assemblies, and work linear in the bar count that only compares. That is about 500 identity checks, 500 width comparisons and 125 key lookups. No other bar is measured.
+
+### Decision 5. Spacing and line breaking
+
+**Spacing** is a spring and rod model inside each bar (`spacing.dart`, `SpacingPolicy`).
+- Slices are the union of onsets over every visible staff and voice (`sliceTimes`). Graces get a slot before their principal. The last slice is the bar's end, whose rod is the end barline's width.
+- The spring after slice i follows the shortest note d sounding at that slice, on an absolute scale (`spaceSlices`). Its ideal is `quarterSpace * ratio^log2(d / quarter) * (Δt / d)`. This is Gourlay's rule, with the shortest-note reference made local and absolute. It depends on nothing outside the bar, which is what makes a bar cacheable alone.
+- Rods are the right reach of a slice plus the left reach of the next (accidentals, dots, flags, lyrics, chord symbols) plus `minGap`. Each concern reports its reach, through `ChordPlan.reach`, `restReach`, `markReach` and `Syllable.reach`.
+- Justification solves one stretch factor s per system, so that the sum over slices of `max(rod, ideal * s)` fills the width (`stretchFor`, real code). Items move with their slice and never stretch. The last system stays ragged when its natural width is under `justifyLastSystemFrom` (0.75) of the width.
+
+**Line breaking** is greedy first-fit over `BarWidths`, chosen over optimal breaking for stability. With greedy, a system's start depends only on the start before it and on the widths from there. So an edit can never move an earlier system, and the re-run after an edit stops at the first resync. An optimal breaker can reflow the whole score for one wider bar, which defeats the incremental goal and makes the page jump while someone is writing.
+- `breakBefore` forces a break. A page break is a system break, because the view has no pages.
+- A bar wider than the sheet sits alone and is compressed to its rods.
+- With `multiMeasureRests`, a run of rest-only bars is one unit. It is off by default, because an editor needs every bar visible to write into.
+
+`breakSystems` is real code in the sketch.
+- **The unit.** Breaking works on a sealed `BreakUnit`. It is a `SingleBar`, or a `RestRun` of rest-only bars that `foldBars` folds when `multiMeasureRests` is on. A unit exposes the same widths, slices, staff extents and edges as a bar, so breaking and planning never ask which kind they hold.
+- **Starts are `MeasureId`s, never indices.** An index shifts under an insertion. An id does not.
+- **Dirty units.** A unit is dirty when the old layout has no unit starting at its first bar, or when its last bar, its `BarWidths`, its `breakBefore`, the bar before it, the bar after it, or the courtesy width after it differs from before. A bar laid out again with equal widths is not dirty.
+- **Resume.** With no dirty unit the old starts stand, as the same list object. Otherwise every old system before the one that holds the unit before the first dirty unit is kept. Greedy resumes at that system's start, because that system is the earliest one whose end decision could read a dirty unit.
+- **Stop.** Greedy stops at the first new start that lies past the last dirty unit and was an old start. From there the units, their widths and the start are what they were, so greedy would repeat the old starts, and they are copied.
+- **Full re-run.** A new width or a new system lead (a changed part list) skips the resume. Every bar's cached widths are still valid.
+
+The dirty rule had to be made that precise. A scratch run compared resumed breaking with fresh breaking over 12,000 random updates (replace, insert, delete, toggle `breakBefore`, relay with equal widths) and found them equal in starts, keys, stretches and heights. The same run with the courtesy clause removed from the dirty rule failed, because a system's end decision reads the courtesy width of the bar after it. That run becomes test 6.
+
+**Planning** is real code too (`planSystem`). For each system it:
+- sums the fixed widths (indent, system head, inline heads, leads, the next bar's courtesy) and solves the stretch for the rest;
+- takes, per staff, the largest reach above and below over the system's bars, and widens it by the next bar's courtesy head;
+- adds the bar number's measured height above the top staff when `barNumbers` is on;
+- adds a lyric row per lane with a syllable in the system or an open carry-in (`lyricRows`);
+- stacks the staves and returns the tops and the height.
+
+**A bar's width is known before its system** because a bar stores every width it could take (`BarWidths`):
+- `inlineHead`, the changes printed mid-system;
+- `systemHead`, the clef, key and meter printed at a system start;
+- `courtesy`, the key and meter courtesy the previous system ends with when this bar starts a system;
+- `body` and `minBody`.
+
+A system from bar i to bar j is `systemHead(i) + Σ body + Σ inlineHead(i+1..j) + courtesy(j+1) + indent` wide. Breaking reads these sums and never builds a system. That is also why a courtesy width belongs to the system before its bar, and why the resume starts one unit early.
+
+### Decision 6. Cross-bar and cross-system layout
+
+A piece that crosses a barline is decided by the bar and drawn by the system. Each `BarLayout` stores a stub for every piece that passes through it, resolved from its own view alone. `assembleSystem` joins the stubs of consecutive bars and draws each piece inside its own system. Nothing reads another system. Everything a system depends on is in its `SystemKey`.
+
+**The band invariant.** Assembly never draws outside the band its plan reserved, which is the box from (0, 0) to (`plan.width`, `plan.height`). The sheet stacks systems by planned height alone, so a breach would overlap the next system. Three rules keep it:
+- A bar reserves room in its staff's `Skyline` for every piece that crosses it, after all of its own marks. So the bar's extents, and through them the planned height, already hold the piece. The order is fixed. Ties come first, then slurs, then lines by kind, then the volta.
+- A stub stores both edges of the room it reserved (`SpannerPiece.clear` and `limit`, and for a tie its side and `tieRise`). Assembly reads that room. It does not work it out again.
+- A slur has one side for its whole length (`curveSide`, real code). The side comes from the spanner alone. It is above, and below in voices two and four. A side taken from the stems would differ between bars, because a bar sees only its own stems. A slur over a barline between a stems-up bar and a stems-down bar would then have room reserved on neither side (open question C11).
+- A curve is fitted into its room (`curveBetween`). A slur's arc is raised until its middle half lies outside the outermost `clear` of its pieces, so it passes over the notes under it. It never passes their outermost `limit`. A tie rises `tieRise` at most. A long slur is therefore flatter than an engraver would draw it.
+
+`assembleSystem` asserts the invariant on every drawable, and test 7 checks it over random scores. Both allow `bandTolerance`, a millionth of a staff space. A slice's x is a sum of stretched springs, so the last barline meets the plan's width only to rounding. A scratch run over 200,000 random systems found the sum past the width in 25.9% of them, by at most 5.7e-14 staff spaces.
+
+- **Ties** (`tieEnds`, `placeTies`). A bar's ties are a sealed set:
+  - `TieWithin` has both heads in the bar and is one whole tie;
+  - `TieLeaving` has its target in the next bar. The system draws a whole tie when the next bar is on it, and a half tie to its end otherwise;
+  - `TieArriving` comes from `StaffView.tiedIn`. It draws only when the bar starts a system, as the incoming half;
+  - `TieOpen` has a null `to` and is a let-ring stub.
+  A grace tie is drawn inside its own column by `graceItems` (see B5 under Model additions).
+- **Slurs, glissandi, trill lines, hairpins, octave, pedal and tempo lines** (`spannerPieces`, `placeSpanners`).
+  - A bar makes one `SpannerPiece` per `SpannerSegment`, with `startsHere` and `endsHere`.
+  - A piece ends where `pieceEnd` says (real code). It applies the model's two rules to the bar's own view. A slur, glissando or trill line ends on the event sounding at `to` in its voice, as `Score.anchorAt` finds it. A line ends at the end of the voice-one event `to` falls in, as `Score.lineEnd` finds it. So an 8va whose last segment is `from 0, to 0` still runs over the dotted half that starts there, and the bar needs no `Score` to know it.
+  - Pieces of one spanner in consecutive bars of a system form one run. A run starts at its anchor when its first piece `startsHere`, and at the system's content start otherwise. It ends the same way.
+  - A line is straight across its run, at the outermost baseline its pieces ask for.
+  - Octave lines restate "(8va)" on a continuation. Pedal lines use pedal glyphs. Tempo lines print `TempoLine.text`.
+- **Voltas** (`voltaStub`, `placeVoltas`). Each bar under a bracket stores a stub with the label and whether the bracket starts, ends or stays open there. The label prints only at the start. A continuation is open at the left.
+- **Tuplets** (`tupletStubs`, `placeTuplet`). A tuplet lies inside one bar. The bar stores the number, the bracket's end anchors and its side, and the system draws them at the stretched x.
+- **Beams** (`planBeam`, `placeBeam`). The model has no beams across a barline or across staves, so beams stay inside a bar. The bar fixes the end stems and the slope. Assembly places the end stems at their final x and draws inner stems to the line between them, so a stretched system keeps every stem on its beam.
+- **Lyric hyphens and extenders** (`lyricsOf`, `lyricRows`, `placeLyrics`). The open state per lane (staff, voice, verse) is a fold over bars, not over assembled systems.
+  - A bar stores, per lane, a `LaneStart` (syllable, rest or held note at its first event), a `LaneEnd` (closed, hyphen, extender, or unchanged from before) and whether its first syllable joins a word (`joins`, for `Syllabic.middle` and `Syllabic.end`).
+  - `BarLyrics.after(carry)` is the forward step. `breakSystems` folds it over the bars in order, which gives what every bar leaves open.
+  - A hyphen joins two syllables of one word. So a second pass, backward, finds the lanes whose next syllable joins a word, and `LyricCarry.closing` drops every hyphen that nothing joins. A word left unfinished draws one hyphen after its syllable and is carried nowhere.
+  - Without that pass a `begin` syllable with no successor kept its hyphen open to the end of the score, and that is every state between two typed syllables. A probe put one such syllable in bar 10 of 200. It rekeyed 48 of 50 systems and added a lyric row to 47 of them.
+  - Each system's key holds the carry at its start and at its end, compared by value. So a system's lyrics need no other system to be assembled, and a change in one lane rekeys exactly the systems whose carry differs.
+  - A one-bar lookahead (`key.next`, each lane's `LaneStart`) decides whether an open extender stops at the system's last note or continues.
+  - An extender ends at the last note before the verse's next syllable or a rest (`ExtenderEnd.beforeNextSyllable`, open question C3). It needs no syllable to end at, so with neither after it, it runs to the end of the score. That is right for a final melisma. It also means an extender typed over notes already entered underlines all of them until the next syllable is typed.
+
+### Where each element is drawn
+
+"Bar" means `layoutBar` calls the function and the result is cached with the bar. "System" means `assembleSystem` calls it for an assembled system.
+
+| Element | Stage and function | Source in the model |
+|---|---|---|
+| Heads, drum heads, ledger lines, accidentals, dots, flags, stems, tremolo strokes | Bar, in `planChord` and `placeChord` | `VoiceView.events`, `StaffView.accidentals`, `NoteHead` |
+| Grace notes and grace ties | Bar, in `graceItems` | `ChordEvent.graces`, `GraceChord.notes[i].tie` |
+| Rests, measure rests | Bar, in `placeRest` | `RestEvent`, `MeasureRest` |
+| Multi-measure rests | Breaking, in `foldBars`. System, in `placeRestRun` | `MeasureView.isRestOnly` |
+| Articulations, fermatas | Bar, in `articulationItems` | `ChordEvent` fields |
+| Ornaments | Bar, in `ornamentItems` | `ChordEvent` fields |
+| Bowing, fingering, string numbers | Bar, in `stringMarkItems` | `ChordEvent` and `PitchedNote` fields |
+| Dynamics, text marks, chord symbols | Bar, in `directionItems` | `StaffDirection` |
+| Tempo marks, rehearsal marks, segno, coda, fine, jumps | Bar, above the top staff, in `systemMarkItems` | `TempoMark`, `rehearsal`, `NavigationMark`, B2c |
+| Lyrics | Bar, in `lyricsOf`. Planning, in `lyricRows`. System, in `placeLyrics`, with hyphens and extenders | `Lyric`, `LyricCarry` |
+| Clefs, keys, meters, courtesy signatures | Bar, in `barHeads` (three head variants). System, in `assembleSystem`, which draws the variant its place calls for | `MeasureView` signature fields |
+| Clef changes inside a bar | Bar, in `clefChangeItems` | `StaffView.clefChanged`, clef changes |
+| Barlines, repeat signs, repeat counts | Bar, as `BarEdges`. System, in `placeBarlines` | `Barline`, `repeatStart`, `RepeatEnd` |
+| Beams | Bar, in `beamStemSides` and `planBeam`. System, in `placeBeam` | `BeamGroup`, B2b |
+| Tuplet brackets and numbers | Bar, in `tupletStubs`. System, in `placeTuplet` | `TupletView`, `TupletBracket` |
+| Ties | Bar, in `tieEnds`. System, in `placeTies` | `TieView`, `StaffView.tiedIn` |
+| Slurs, glissandi, trill lines, hairpins, octave, pedal and tempo lines | Bar, in `spannerPieces` and `pieceEnd`. System, in `placeSpanners` | `SpannerSegment`, `StaffView.voices` |
+| Voltas | Bar, in `voltaStub`. System, in `placeVoltas` | `voltaStarts`, `voltaEnds`, `Volta` |
+| Staff lines | System, in `assembleSystem` | `Staff.lines` |
+| Braces, systemic barline, part names | Once per part list, in `systemLead`. System, in `placeLead` | `Part.staves`, `Part.name` |
+| Bar numbers | Sheet, in `SheetLayout.labelOf` | B2c |
+| Title, subtitle, credits | Sheet, as `SheetLayout.header` | `ScoreMeta` |
+
+### Decision 7. Shared geometry and the hit type
+
+Every reader uses `SystemLayout`:
+- `drawables` for painting;
+- `bars` (a `TimeAxis` maps any `Moment` to x, piecewise linearly between slices, with the bar end included);
+- `staves` (`PlacedStaff.yOf(step)` and `stepAt(y)`);
+- `drawablesOf(Owner)`, where an event's drawables include its notes'.
+
+`SheetLayout` answers the queries in sheet space, which are `hitTest`, `boundsOf`, `caretOf`, `selectionBoxes` and `playheadAt`. Each has a per-system form (`caretIn`, `selectionIn`, `playheadIn`) that a system tile's overlay asks for its own system. Nothing records positions while painting. Hit testing and overlay geometry live with the layout that owns the placement, not in separate modules that would repeat the system and bar lookup.
+
+```dart
+final class SheetHit {
+  final StaffId staff;     // the visible staff nearest the tap
+  final VoiceSlot voice;   // the voice of the event under the tap, else the asked voice
+  final ScorePoint at;     // a start the model allows in `voice`
+  final int staffStep;     // Score.toneForStaffStep convention; 0 = bottom line
+  final Owner? target;     // ElementOwner(NoteRef | EventRef) or SpannerOwner
+}
+```
+
+`voice` is the voice of the note or event under the tap when there is one. Otherwise it is the voice the caller asked about. So a tap on a voice-two note selects in voice two, and the app looks nothing up. `at` is snapped in that same voice. So `VoicePoint(staff: hit.staff, voice: hit.voice, at: hit.at)` is one consistent place, also for a tap on a voice-two rest inside a triplet that voice one does not have.
+
+Snapping works per voice, in this order (`snapTime`, real code):
+1. An onset of the hit's voice within one staff space of the tap wins. A tap on a note lands on that note whatever the grid.
+2. Otherwise the nearest grid point wins (`entryPoints`, real code). Outside a tuplet the grid is the multiples of `tapGrid` in the bar. Inside a tuplet it is the multiples of `tapGrid` in the tuplet's written time, mapped to sounding time by `duration / written`. A triplet of eighths on a sixteenth grid has six points, a twenty-fourth of a whole note apart. Where a tuplet holds a deeper one, the deeper one's points replace its own.
+3. It is never the bar end.
+
+The tuplet rule follows the model. `EnterNote` checks `startProblem` in the tuplet's written time (`lane_writer.dart:324`, `rules.dart:68`), so a start is legal when it lies a whole number of 128ths into the written time. All three candidates snapped to existing tuplet onsets or to the bar's own grid. The first cannot split a triplet member, and the second is refused.
+
+`at` is a legal start. It is not a promise about a note value. Inside a tuplet `EnterNote` refuses a value that runs past the tuplet's end (`WouldSplitTuplet`), at this point as at any other. A scratch run entered seven values at every entry point of four scores. Every point accepted some value. In a triplet of eighths on a sixteenth grid, a sixteenth was accepted at all six points, and a half note at none.
+
+`tapGrid` is a `DurationBase` and defaults to a sixteenth. Its type has no value finer than a 128th, which is the finest start the model accepts.
+
+A one-line staff keeps the five-line step map, with its line at step 4 (C1). `Clef.naturalAt` never reads `Staff.lines`, so a step means the same on every staff.
+
+The target follows the drawable under the point:
+- a notehead gives a `NoteRef`;
+- a rest, stem or flag gives an `EventRef`;
+- a grace head gives its principal's `EventRef`, since graces have no ref;
+- an element wins over a spanner;
+- a drawable is hit within a finger's reach of its box (`reach`, the view's touch slop in staff spaces), so a stem a tenth of a staff space wide can be hit;
+- a slur or a tie is hit near its line, not anywhere in its box. Its box covers every note under the arc, and a tap on the staff there has no target and enters a note.
+
+A point in the gap between two systems belongs to the nearer one. A point up to half a system gap above the first system or below the last belongs to that system, because a band ends where its content does and a ledger position can lie outside it. Only the header above that and the paper below give no hit. A tap on a clef, a key or a time signature snaps to its bar's first point, like a tap on empty staff.
+
+A selection tap reads `target` and never `at`, so it is not snapped to anything.
+
+### Decision 8. The public surface
+
+The app sees five things:
+- `SheetView`, a widget that takes the values `score`, `cursor`, `selection`, `tints`, `playback`, `onTap`, `controller`, `style`, `palette`, `staffSpace`, `tapGrid`, `followCursor`, `followPlayback` and `padding`;
+- `SheetController`, with zoom, `hitTest(Offset)`, `rectOf`, `caretOf`, `rectsOf`, `ensureVisible`, `systemCount` and `toImage(from:, to:)`, all in the view's local pixels;
+- `SheetPalette`, derived from the theme by default;
+- `EngravingStyle`, for everything that changes layout;
+- `ScorePlayer`.
+
+`simple_sheet_music.dart` re-exports `score_model` and the few `score_layout` types an app names. So one import is enough. `SheetLayout`, `SystemLayout` and `LayoutDelta` are not among them.
+
+**How an app runs an edit and sees the relayout.** It calls `session.run(edit)`. On `Applied` it stores the session with `setState`. `SheetView` receives the new `score` and calls `layout.update(score)`. That call returns the same object when the score is identical, so an unrelated rebuild costs nothing. The app never sees `ScoreChanges`, a cache or a relayout call.
+
+**Scroll anchoring.** An update can move what the user is looking at, through a rebreak or a system above the viewport that changed height. The view keeps one bar in place across every update (`_SheetViewState._anchorIn` and `_keepInPlace`).
+- Before the update it records an anchor bar and where the top of that bar's system sits. With `followCursor` on, the anchor is the cursor's bar when any part of its system is in the viewport. Otherwise it is the first bar of the system at the top of the viewport. A cursor the user scrolled away from is no anchor, because holding it still would move what they are reading. `SheetLayout.firstBarOf` names the bar without assembling anything.
+- After the update it finds the system that now holds the anchor bar. If that system's top moved, the scroll moves by the same amount, so the system keeps its offset from the viewport top. This covers `delta.rebroke`, a zoom, a resize and a changed height above the viewport with one rule.
+- The correction runs before the viewport lays out and does not notify, so the frame paints at the corrected offset.
+- The correction holds while the scroll is idle, dragged or flung. A scroll the view animates itself, for `ensureVisible` or to follow playback, writes its own offsets on the next tick. A probe saw a 250 pixel correction undone one frame later. So the view remembers the bar such a scroll is going to and starts it again after a correction.
+- A deleted anchor bar leaves the scroll alone.
+- The scroll extent is the layout's height from the first frame. A sliver list guesses its extent from the tiles laid out so far, even when every tile's extent is known. A probe saw 9,450 reported for a true 27,450. The tiles' delegate (`_SystemTiles`) reports the sum, and the same probe then reads 27,450 at the top.
+
+Theming is split by effect:
+- `SheetPalette` maps each `InkRole` to a colour and holds the overlay colours. It only repaints.
+- `EngravingStyle` holds layout policy. It compares by value, and a different style relays out. Its font compares by `SmuflFont ==`, which is the family and the identity of the metrics tables. The bundled Bravura is a const, so it equals itself everywhere. A font from `SmuflFont.fromMetadata` equals only itself, so an app parses once and keeps the font.
+
+The interface is deep. Behind `SheetView(score:)` sit identity diffing, three cache levels, line breaking, justification, cross-system spanners, lazy assembly, scroll anchoring and picture reuse. The controller exists because some app needs (overlays, other gestures, export) cannot be callbacks. Its methods add the pixel and scroll conversion that only the view knows, so none of them is a pass-through.
+
+The controller notifies the app's listeners when a scroll, a zoom or a new layout moves the geometry. The view is not one of those listeners. It listens to the zoom alone, so a scroll frame builds nothing in the view.
+
+`toImage` renders a range of systems. One image cannot hold a long score. A hundred systems at pixel ratio 3 are over 100,000 device pixels tall, far past a GPU texture. A range taller than `SheetController.maxImageHeight` (8,192 device pixels) throws an `ArgumentError`, and an app exports a long score as several images.
+
+### Decision 9. Playback position on screen
+
+The sheet shows both an event highlight and a moving playhead, and follows playback by scrolling (`followPlayback`).
+- `ScorePlayer` has one script clock and two readers of it. The clock maps wall time to script seconds from one anchor (`_ScriptClock`). A one-shot timer sleeps until the next note of `notesBetween` and sends it. It needs no frame, so sound goes on when nothing repaints. It does run on the UI isolate, because the plugin's `playNote` takes no timestamp, so a note is late by as long as the isolate is busy when the note is due (see Tradeoffs). The timer also ends playback and wraps a loop, because a ticker is muted while the app's tickers are off. A `Ticker` publishes `PlaybackPosition(seconds, point, sounding)` once per frame. A new `tempoScale`, a pause, a resume and a loop's wrap each move the anchor to the present first. So the position never jumps, the note timer is set again from the same anchor, and the sound and the playhead cannot drift apart.
+- Each visible `OverlayPainter` listens to that listenable directly, as its `repaint` argument. A tick marks only the overlays for paint. No widget builds, no state changes, and nothing notifies during a build.
+- `sounding` comes from `PlaybackScript.sourcesAt`. The overlay redraws those events' drawables in the playback colour over the base layer. A ref with no drawables is skipped, which covers hidden staves (B3). The base ink stays under the highlight (see Tradeoffs).
+- `point` comes from the new `PlaybackScript.pointAt` (B1). The overlay draws the playhead at `TimeAxis.xAtWholeNotes(point.offset)` in the bar of `point.bar`. Its `pass` lets an app show "2nd time".
+- The cursor, the selection and the tints are values of the painter and are compared in `shouldRepaint`. They change through a build, not through a notifier.
+
+Neither path lays anything out. A tick costs one overlay repaint per visible system and composites the base layers.
+
+### Decision 10. Gates and first tests
+
+Two gates come before any layout code.
+
+- **Gate 1. Glyph placement.** A `flutter test` on the host draws every value of `Glyph.values` through `GlyphPainter` into an image and compares the painted ink with the glyph's box in the generated table.
+  - **The font.** `flutter test` registers no font from a pubspec. A scratch test measured a package font's text at the fallback's width under the bare family, under the `packages/` family and under a family that does not exist. So the test loads the unmodified `Bravura.otf` with a `FontLoader` under exactly the family `GlyphPainter.family` asks for. Every other test that paints a `SheetView` does the same.
+  - **The sizes.** 8 and 16 logical pixels per staff space, each at device pixel ratios 1, 2 and 3. Those are the sizes the view draws at. One more run at 64 pixels per staff space checks the table itself.
+  - **The origins.** Each glyph is drawn at origins an eighth of a device pixel apart in both directions, because where the origin falls inside a pixel decides the error.
+  - **The ink.** The ink box is read by coverage. An edge is the outermost row or column the ink touches, moved in by the part of that pixel the ink leaves empty. The same reader gives 0.00 on every edge of a rectangle drawn with `drawRect`, so it adds no error of its own.
+  - **What is checked.** Placement and size, apart, in device pixels.
+    - The centre of the ink box is within 1 device pixel of the centre of the table's box vertically, and within 0.25 horizontally.
+    - The ink box's width and height are each within 1 device pixel of the table's.
+    - At 64 pixels per staff space every edge is within 0.05 staff spaces, which checks the table and the generator's one y flip.
+
+    A rasteriser thickens ink by a fraction of a pixel on every side. That moves edges and leaves the centre. So the centre says where the glyph is, and the size says what the rasteriser did to it. One tolerance on edges cannot tell the two apart.
+  - **What a probe already found.** The measurement ran on the macOS host for six glyphs, which were the half and whole rests, the black and whole noteheads, the sharp and the G clef.
+    - As first sketched, the painter failed. At the default size the vertical centre was off by 1.07, 1.59 and 1.95 device pixels at ratios 1, 2 and 3, which is up to 0.13 staff spaces.
+    - One cause is the paragraph. It draws a line's baseline on the nearest whole logical pixel and reports the baseline unrounded. Bravura's ascent is 2.012 em, so at the default size the reported baseline is 64.38 and the drawn one is 64. Nine font sizes all showed the drawn baseline at the reported one, rounded. `GlyphPainter` now rounds what it subtracts.
+    - The other cause is the rasteriser. Glyph ink lands on whole device pixels vertically. Horizontally it is placed to a fraction of a pixel, and the centre is within 0.04.
+    - With the rounding, the vertical centre is within 0.83 device pixels and the size within 0.62, at both sizes and all three ratios. At 300 device pixels of font size and above, the engine fills outlines and every edge is within 0.3.
+    - So a tolerance of 0.05 staff spaces at the view's sizes could never pass on a text stack. One device pixel is 0.125 staff spaces at ratio 1 and 0.04 at ratio 3.
+  - **The staff line.** A staff line is geometry and is not snapped. So the centre check is also the distance between a head and its line, and that alignment is what a reader sees (see Tradeoffs).
+  - **The table.** The test reads the generated table, not the JSON.
+  - **The devices.** The same test then runs as an integration test on an Android device and an iOS device. There it also reports the raster time of a frame that shows 3,000 glyphs while an overlay repaints over them (`FrameTiming.rasterDuration`). Every glyph is its own `drawParagraph`, the engine replays them whenever the frame changes, and nothing else measures raster cost before the widget exists. The rounded baseline is in the text layout every platform shares. The pixel snap and the thickening belong to each platform's rasteriser, so the probe's numbers are the host's only.
+  Nothing else in the engine gets a body until the gate passes on all three. If it fails, or if that raster time is over 8 ms on a device, which is half a frame at 60 Hz, the fallback is a path painter behind the same `GlyphPainter` seam.
+- **Gate 2. First layout cost.** A benchmark lays out a 500-bar, 4-staff score with the fake measurer. Every bar has notes, with beams, two voices on one staff, a lyric verse, dynamics and slurs, because a score of whole-bar rests would meet any budget. It is compiled ahead of time with `dart compile exe`, warmed up, and reports the median of its runs, because a JIT run measures the compiler as much as the code. The budget on the development host is 50 ms for `SheetLayout(score, ...)`, which is 100 microseconds per bar of four staves, and 1 ms for the update after one entered note. A mid-range phone is taken as four times slower, which gives 200 ms once when a large score opens and 4 ms per edit.
+  - A second fixture has 2,000 bars and 2,500 spanners, with four times the first-layout budget. `Score.measureView` reads `spannersTouching`, which is linear in the spanner count, so a first layout is bars times spanners. A scratch run measured 500 `measureView` calls on empty bars at 2.2 ms with no spanner and 13.5 ms with 2,500. If this fixture misses, the model indexes its spanners by bar.
+  - Every engine unit reruns the benchmark and must stay inside the budget. So the cost of spanners, marks and lyrics is counted when each lands, not assumed from an engine that lacks them.
+  - The fake measurer leaves out the one platform call a layout makes, which is a paragraph per distinct text. So unit 11 measures the first layout once on a device with `ParagraphMeasurer` and 1,500 distinct syllables, against the phone's 200 ms.
+  - The widget is not built until the complete engine meets the budget. If it misses, bars are laid out in visible order, with widths for the rest computed first.
+
+Tests 1 to 8 run with `dart test` in `packages/score_layout`. They use the generated Bravura table and a fixed-pitch fake `TextMeasurer`, so results are identical on every host. They assert work through `delta.relaid`, `delta.rekeyed`, `delta.rebroke`, the identity of `systemAt(i)` and the identity of `update`'s result. There are no counters.
+
+1. **Incremental equals fresh.** Build a 500-bar, 4-staff score and lay it out. Enter a note in bar 250 through `EditSession`. Then:
+   - `layout.update(next)` equals `SheetLayout(next)` in system starts, stretches, tops and, system by system, drawables by value;
+   - `delta.relaid` is exactly `{m249, m250, m251}`;
+   - for every index outside `delta.rekeyed`, `systemAt(i)` is `identical` to the object the layout before gave for that system;
+   - `layout.update(layout.score)` is `identical` to `layout`.
+   Repeat after `InsertMeasures` and after `SetBreak` to cover `reflow`.
+2. **Breaking.**
+   - A bar with `breakBefore` starts a system.
+   - No system's natural width exceeds the sheet width unless it holds a single bar.
+   - Each system is first-fit, so adding its next bar would overflow.
+   - A key change at a system's first bar puts the courtesy key at the end of the previous system, and `noCourtesy` removes it.
+   - A wider bar mid-score leaves every earlier system's start unchanged, and `delta.rebroke` is false when no width changed.
+3. **Alignment and proportion.**
+   - Events with the same onset on different staves and voices share an x.
+   - x is strictly increasing in onset within a staff.
+   - In a bar of one quarter and two eighths, the space after the quarter exceeds the space after an eighth, and is less than twice it.
+4. **Hit round trip.** On single-staff scores with treble, bass, alto, percussion and one-line percussion staves, on the first, a middle and the last system, for each step from -6 to 14, hit-test the y of `PlacedStaff.yOf(step)` and check:
+   - `staffStep == step`, with the one-line staff's line at step 4;
+   - `toneForStaffStep(hit.staff, hit.at, step)` equals the tone whose head layout drew at that y (treble step 0 is E4, bass step 0 is G2);
+   - a tap on a notehead gives its `NoteRef`, a tap on a voice-two note gives `voice == VoiceSlot.two`, and a tap on a grace head gives the principal's `EventRef`;
+   - a tap inside a triplet of eighths, at an x that is no existing onset, gives an `at` at which `EnterNote` of a sixteenth returns `Applied`;
+   - a tap on a voice-two rest, in a bar where only voice two has a triplet, gives `voice == VoiceSlot.two` and an `at` on the triplet's grid;
+   - a tap on the staff under a slur's arc has no target, and a tap within reach of a stem gives its `EventRef`;
+   - a tap in the gap between two systems gives a hit on the nearer one;
+   - between two staves of one system, a tap nearer the lower staff's middle line gives the lower staff.
+5. **Overlays need no layout.**
+   - `caretOf`, `selectionBoxes` and `playheadAt` return boxes for a cursor, an item selection and a range whose `to` is a bar end, and leave the layout `identical`.
+   - A range across a system break gives one box per system.
+   - A sounding ref on a hidden staff gives no box.
+   - A range whose `to` is offset 0 of the first bar of the next system gives no box on that system.
+   - A ref made before `SetMeter` moved its event to another bar, on another system, still gives the event's box.
+6. **Seeded random edits.** Over seeded random edits (reusing `packages/score_model/test/random_edits.dart`) and random widths, the layout reached by `update` equals a fresh one in system starts, stretches and drawables. It runs with `multiMeasureRests` off and on, since rest runs are off by default and nothing else would fold a bar.
+7. **The band.** Over the scores of test 6, every drawable of every assembled system lies inside the box from (0, 0) to its plan's width and height, within `bandTolerance`, with `multiMeasureRests` off and on. The scores include a slur over a barline between a stems-up bar and a stems-down bar, and a slur over a note higher than both of its ends. That slur's curve lies outside the high note's box.
+8. **One assertion per notation.** Tests 6 and 7 are properties that a notation drawing nothing passes. So each notation has one named assertion on its drawables, and its unit is not done without it:
+   - a grace head is drawn at `graceScale` to the left of its principal, and an acciaccatura has its slash;
+   - a two-staff part has a brace over both staves, `braceWidth` wide on a short system and on a tall one, and barlines that join them;
+   - a hidden part draws no staff, no name and no brace;
+   - a `DrumNote` head sits at its step on a one-line staff, with the line at step 4;
+   - a quarter-tone note draws the glyph of the style's `QuarterToneGlyphs`;
+   - a volta has its label and both hooks, and its continuation after a system break has neither a left hook nor a label;
+   - a `RestRun` of n bars draws the number n over an H-bar;
+   - a system that starts with a pickup bar is labelled 0;
+   - every stem of a beamed group ends on its beam at stretches 1, 2 and 3;
+   - in a chord, no accidental's box overlaps a head's box, and the heads of a second do not overlap;
+   - no two mark boxes of one bar overlap;
+   - a new syllable that joins a word several systems back rekeys exactly the systems between them, by `delta.rekeyed`;
+   - a `begin` syllable with no later syllable in its lane rekeys only its own system and draws one hyphen after its text.
+
+Three widget tests run with `flutter test` in the shell. Each loads the font as gate 1 does.
+
+9. **The base layer repaints only for what changed.** Pump a `SheetView` with a `ValueNotifier` for playback and bar numbers on. Count `SystemPainter.paint` calls. The count is unchanged, and the `OverlayPainter` count grew, after each of:
+   - a new playback position;
+   - a new cursor;
+   - an edit in a bar outside the viewport, which makes a new layout and a new label object for every tile.
+   A scroll calls `build` on the view zero times.
+10. **The anchor bar stays.** An edit above the viewport that changes a system's height leaves the anchor bar's offset from the viewport's top unchanged. So does a new zoom. With the cursor's system scrolled out of view, a new zoom keeps the system at the top of the viewport in place. A correction during `ensureVisible` still ends with the target system in view. `maxScrollExtent` equals the layout's height on the first frame.
+11. **One clock.** With a fake MIDI output and fake time, `position.seconds` is continuous across a new `tempoScale`, a pause and a resume, and every note is sent at its own script second after each of them. With tickers muted, playback still ends and the status goes idle.
+
+### Model additions
+
+Each addition is proposed for `score_model`, with its exact signature. The sketch declares stand-ins in [model_additions.dart](sketch/score_layout/lib/src/model_additions.dart) so it type-checks. The additions land before the engine package needs them (unit 3), so the package never has that file.
+
+**B1. `PlaybackScript.pointAt`.**
+
+```dart
+final class PlaybackPoint {
+  const PlaybackPoint({required this.bar, required this.offset});
+  final PlayedBar bar;   // measure and pass
+  final double offset;   // whole notes into the bar, continuous
+}
+PlaybackPoint? pointAt(double seconds);   // null outside [0, totalSeconds)
+```
+
+It inverts the bar's `_ClockStep`:
+- a steady pace gives `wholes = seconds * rate`;
+- a moving pace gives `wholes = rate * (exp(slope * seconds) - 1) / slope`;
+- a fermata's stretch divides the seconds first;
+- `_Bar.from` is added back for range playback.
+
+Could layout compute it? No. `_Clock` is private. Interpolating between `PlayedBar.start` and `end` is wrong under fermatas, tempo lines and mid-bar tempo marks, and `secondsAt` covers only the first pass. Without B1 the playhead would be wrong, not just approximate. So B1 lands before the playhead does, and the event highlight works without it.
+
+**B2a is withdrawn.** The synthesis proposed `SpannerSegment.until`, a field for where a piece ends in its bar, on the premise that layout could compute it only with the `Score`. The review found the premise false.
+- `Score.lineEnd` reads one thing, the voice-one event that the spanner's last point falls in. `Score.anchorAt` reads the event sounding at a point in a voice, else in voice one. Both events are in the last bar, and `StaffView.voices` holds every event of that bar with its onset and duration.
+- So `pieceEnd` in `spanners.dart` applies the two rules to the bar's own view. It is real code in the sketch and it type-checks against the model.
+- The proposed field's text was also wrong for slurs. It said a slur's `until` is `to`. The exporter uses the onset of the event `anchorAt` finds, which differs whenever `to` is not an onset.
+- The rule now has two homes, the model's two methods and `pieceEnd`. A test holds them together. Over the scores of test 6, `pieceEnd` agrees with `Score.lineEnd` and `Score.anchorAt` for every spanner.
+
+**B2b. `BeamGroup.joins`.**
+
+```dart
+enum BeamJoin { begin, continued, end, forwardHook, backwardHook }
+final List<List<BeamJoin>> joins;   // per event, per level, level 1 first
+```
+
+This is the exporter's `_beams`. Could layout compute it? Yes, from durations and `secondaryBreaks`. It is proposed for the model for the same single-rule reason. It is low cost, because the model already computes it privately.
+
+**B2c. `Jump.label` and `Score.barNumberOf`.**
+
+```dart
+String get label;                 // on Jump: text ?? "D.C." / "D.S." + " al Fine" / " al Coda"
+int barNumberOf(MeasureId id);    // on Score: a short first bar is the pickup, numbered 0
+```
+
+Layout could compute both easily. They are proposed for the model so export and display agree. If the owner declines, layout implements them, and nothing else changes.
+
+**B3. `sourcesAt` documentation.** The doc should say the result includes events on hidden staves. Layout does not need a filter, because a ref with no drawables is skipped. Only the contract changes.
+
+**B4. `ScoreChanges.reflow` documentation.** The doc should say `reflow` reports structural changes only, and that width changes are layout's to detect. Layout already compares `BarWidths`. Only the contract changes.
+
+**B5 is withdrawn.** C proposed listing grace ties in `StaffView.ties`. That cannot work. A `GraceChord` has an `EventId` and its notes have ids, but no `ElementRef` resolves to a grace, so `TieView.to` cannot name the next grace. A grace tie joins heads inside one event's column, so `graceItems` in `chords.dart` draws it from `GraceChord.notes[i].tie`. The matching rule is that a tied grace note joins the note with the same `Note.tone` in the next grace chord of the same principal, or in the principal when the grace chord is the last one. With no such note it is a let-ring stub.
+
+Layout computes the rest itself, because no other consumer needs them:
+- where a spanner's piece ends in its last bar (`pieceEnd`);
+- the written previous key (`part.instrument.writtenKey(view.previousKey!)`);
+- the order of sharps and flats;
+- stem directions, collisions and skylines.
+
+### Red-flag screen
+
+Each design red flag, and what changed because of it. The first entries under each flag are candidate C's. The entries marked "Synthesis" were found when the grafted result was screened again.
+
+- **Shallow module.**
+  - The first draft exposed the stages as public types for the shell to coordinate, namely a bar cache, a breaker and an assembler. It now exposes `SheetLayout` with two entry points, and `changesSince` is called inside `update`.
+  - `update` first returned a `(layout, report)` record, which every caller had to destructure. The report became the `delta` field.
+  - A separate `resize(width)` merged into `update(score, {width})`.
+  - Synthesis. `SheetLayout.systems` and `labels` were public raw lists, which a lazy layout cannot honour and which let a reader depend on eager assembly. They became `systemCount`, `systemAt(i)`, `heightOf(i)` and `labelOf(i)`.
+  - Synthesis. `SheetOverlay` was a notifier whose only job was to carry the view's values to the painters. The painters now take the values, and the class is gone.
+  - Synthesis. `entryPoints` and `snapTime` are not exported. An app sees `SheetHit` only.
+- **Information leakage.**
+  - `SmuflFont` first carried the Flutter package name where the bundled OTF lives. That put an asset-layout fact of the shell into the pure engine. Now `GlyphPainter`, in the package that bundles the font, maps the bundled Bravura to its package-prefixed family, and `SmuflFont` holds only a family.
+  - The staff-step formula is one function, used by bar layout, placed staves and the hit test.
+  - Text sizes live once, in `TextSpec`. `TextDraw` carries its measured bounds, so the painter never measures again.
+  - The beam-join, jump-label and bar-number rules are shared with the exporter (B2b, B2c), not copied. The spanner-end rule is the model's `anchorAt` and `lineEnd`, applied to a bar's view by `pieceEnd` and held to them by a test.
+  - Synthesis. `BarLayout.view` carried the whole `MeasureView` into assembly, and `layoutBar` took the `Score`. Both are gone. The bar stores resolved stubs, and assembly reads no model fact through the layout type.
+  - Synthesis. The room of a cross-bar piece was about to be known twice, by the bar that reserves it and by the system that draws in it. The stub now carries the reserved edge (`SpannerPiece.limit`), so the rule has one home in `spannerPieces` and assembly only reads the result.
+  - Synthesis. That a text font loaded late is a fact of the Flutter shell. It stays there. The engine's `TextMeasurer` port gained no font key.
+  - Synthesis. The lyric carry rule is one method, `BarLyrics.after`. Planning folds it, and assembly reads the result from the key.
+- **Temporal decomposition.**
+  - The cache levels follow execution order, so each was checked for repeated knowledge.
+  - Bar layout owns notation inside a bar. Breaking owns only the fit policy, and reads only `BarWidths`. Planning owns justification and vertical room. Assembly owns placement on the line. `SheetLayout` owns stacking and queries.
+  - Hit testing and overlay geometry were first planned as their own modules after assembly. They moved into `SheetLayout`, because they would repeat its system and bar lookup.
+  - Synthesis. `layoutBar` was one eight-step list and `assembleSystems` one five-step list, both organised by stage. The code is now split by notation concern. `spanners.dart` owns `spannerPieces` and `placeSpanners`, `lyrics.dart` owns `lyricsOf`, `lyricRows` and `placeLyrics`, and so on. The two functions that run at different times and protect the same decision sit in one file.
+  - Synthesis. The lyric carry was a fold over assembled systems, so system n needed system n - 1 assembled first. It is now a fold over bars.
+- **Pass-through method.**
+  - `SheetController`'s geometry methods forward to `SheetLayout`, but each adds the pixel and scroll conversion only the view knows, so they stay.
+  - `ScorePlayer.play` wraps `PlaybackCompiler.compile` with loading, scheduling and the ticker, so it stays.
+  - `BarLayout.build`, a factory that only forwarded its arguments, became the internal function `layoutBar`.
+  - Synthesis. `SheetOverlay.set` and `play` forwarded their arguments to fields the painter then read. They went with the class.
+  - Synthesis. `SheetLayout.caretOf`, `selectionBoxes` and `playheadAt` call the per-system forms and add the system's top. They stay, because the sheet-space form is what the controller needs and the per-system form is what a tile needs.
+
+## Synthesis decision
+
+**The base is candidate C.** Two judges on different models and the picker chose it independently. It has the deepest public surface, made of one widget, one controller that returns rects, one style, one palette and one player. It has the most precise cache contract, with a `SystemKey` of bars by identity, the next bar and the lyric carry, bar numbers outside the systems, and a `delta` the view and the tests read. Its model additions survived checking against the model's code. Its weaknesses were mechanical and each had a graft.
+
+All three candidates independently chose a Flutter-free core, the unmodified OTF drawn as text, greedy breaking and a per-bar cache with role widths. Those four choices are taken as settled by agreement.
+
+**Grafts.**
+
+| Graft | From | The defect it fixes |
+|---|---|---|
+| G1. The generated metrics pipeline, which is the generator with its four failure checks, the 222-value `Glyph` enum, 19 anchors, 28 engraving defaults and the real table | A | C sketched two table entries and a generator that did not exist. Its count of 213 was unreconciled with glyphs.md's 222 |
+| G2. Lazy assembly with heights known at planning | B | C assembled every system before the first frame and on every resize. Its lyric carry-out was stored nowhere, so the fold needed assembled systems |
+| G3. Real code for breaking, with resume, stop and a sealed break unit | A | C's resync rule was prose. Writing it as code and testing it showed the rule needs the courtesy width after a unit in its dirty test |
+| G4. The overlay as its own layer per tile | B's goal, the picker's shape | C and A painted the overlay in `foregroundPainter` of the base's `CustomPaint`, so a playback tick re-recorded every visible system. C's `painting.dart` and decision 4 claimed otherwise. `SheetOverlay.set` also notified during build |
+| G5. Per-concern modules with named functions | A | C's `layoutBar` and `assembleSystems` were two step lists organised by stage, with no named home for any notation |
+| G6. A bar built from its view alone | the judges | C's `layoutBar` took the `Score` and `BarLayout` kept the view, against its own invariant |
+| G7. The hit's voice, and snapping in the tuplet's written time | B for `voice` and the one-space column radius | C's hit test took a voice and returned none. All three candidates snapped inside tuplets in a way the model refuses or that cannot split a member |
+| G8. `SmuflFont ==` over family and metrics identity | the judges | `EngravingStyle ==` used `identical(font)` |
+| G9. Late fonts handled in the shell | the picker | C required every font to be loaded before the first `SheetView` |
+| G10. The glyph-placement gate first, then a first-layout benchmark with a budget | A's test 5, B's next step | Text-drawn glyphs were unproven on every platform in all three, and nobody had measured a first layout |
+| G11. Scroll anchoring specified | none | All three left it as a TODO |
+| G12. `LayoutDelta.rekeyed` | the picker | `rebuilt` has no meaning when nothing is built eagerly |
+| G13. The seeded incremental-equals-fresh test | B | C's tests had no random coverage of the resume rule |
+
+The synthesis also fixed one defect no judge listed. C's `SheetScale` had no `==`, and `SystemPainter.shouldRepaint` compared scales, so every build repainted every visible system. `SheetScale` now compares by value.
+
+**Declined.**
+- B's affine `X` (a natural x plus a per-stretch part). It cannot express `max(rod, ideal * s)`, so rods would stretch.
+- A's reading of the next bar's view for a bar's closing. The model puts the courtesy flag on the bar that starts the system, and C's `SystemKey.next` already covers it.
+- A's `OpenSpan` threading between systems. C draws every piece inside its own system from bar stubs, so no system depends on another's geometry.
+- B's core in `lib/src` by convention, its runtime metadata JSON, Petaluma kept, its exported second tier, and its title block as Flutter widgets. The package boundary is the proof of purity, the const table has no runtime parse, and the header is engine drawables so `toImage` includes it.
+- B's single marks layer above the scroll view. It repaints on every scroll frame. The per-tile overlay repaints only when an overlay input changes.
+- B's LRU of 64 assembled systems. A memo by `SystemKey` that `update` prunes is simpler and bounded by the system count.
+- A's `Sp` and B's `Ss` unit brands. The engine package cannot name a pixel, points and boxes are already typed (`SpPoint`, `Box`), and the shell converts at one site (`SheetScale`).
+- A's `LineBreaker` interface with one implementation, and A's `HitSnap` modes. A selection tap reads `target`, not `at`.
+- B's `LayoutStats` counters. Tests assert through `delta` and identity (G12).
+- A's `TextMeasurer.fontKey`. The shell owns the measurer and replaces it (G9).
+- B's fixed `curveAllowance` and its accepted collisions. A bar reserves the real room of each piece in its skyline, and curves clamp to it.
+
+**Conflicts settled.**
+- Overlay placement. One judge preferred B's single layer and the other a nested repaint boundary. The per-tile `Stack` won, because it leaves the base rasters alone and does not repaint on scroll.
+- Late fonts. Both judges proposed A's `fontKey`. The shell listener won, because the engine's port stays one method and pure.
+- Work counters. Both judges proposed B's `LayoutStats`. `delta` and identity won, because they are not mutable state on a value type.
+- Spanner ends. `Score.spannerEnds` (C), `SpannerSegment.until` (A) and `SpannerSegment.lineEnd` (B) became one field, `until`, on the segment. The review then withdrew the field (see "Changed by review").
+- The lyric carry-out. One judge proposed storing it on the assembled system. A fold over bars won, because lazy assembly has no assembled system to read.
+- System plans. A's item indices lost to `MeasureId` starts, which do not shift under insertion.
+- The tap grid. A sixteenth by default (B, C), a 128th floor (A), and B's column radius applied first.
+- The one-line staff. A and C's fixed step map won over B's `yOfStep(lines:)`, because `Clef.naturalAt` ignores `Staff.lines`.
+
+**Changed by review.** Three reviewers on different models read the synthesis against the model's code and ran their own probes. What held under test: resumed breaking against fresh breaking over 120,000, 48,000 and 12,000 random edit steps, with rest runs off and on, and with three mutants of the rule each caught; `stretchFor` and `sliceXs` by brute force; `changesSince` covering every bar whose view differs; `entryPoints` against the real lane writer; and both sketch packages against the current model. What changed:
+
+| Change | The defect it fixes |
+|---|---|
+| A slur's side comes from the spanner (`curveSide`) | The side was taken per bar from that bar's stems. A slur over a barline between a stems-up and a stems-down bar had two sides and room on neither |
+| A piece stores `clear` beside `limit`, and `curveBetween` raises the arc outside `clear` | The curve was only clamped from outside. Nothing kept it off the notes under it |
+| B2a withdrawn, `pieceEnd` in layout | Its premise was false and its text for slurs contradicted the exporter |
+| Drawables compare by value | The doc said they did and no class had `==`. A bar-number label is made per layout, so every visible system repainted after every edit, and tests 1 and 6 could not compare drawables |
+| The view listens to the zoom only | It listened to its own controller, which notified on every scroll tick and after every layout. Every scroll frame rebuilt the view |
+| Live pinch zoom removed | It was promised with no mechanism, no unit and no test. Slivers cannot be scaled in place |
+| One script clock in `ScorePlayer` | Two clocks had no shared anchor, and `start + scale * elapsed` jumps when the scale changes |
+| Late fonts are handled once per frame, and relay out only when a measured extent changed | Any font any package registered relaid the whole score, once per registration |
+| The glyph painter is replaced, not cleared, its cache is bounded, and painters compare it | The cache grew with every zoom and tint, and a cleared cache did not repaint |
+| The hit's `at` is snapped in the hit's `voice` | `voice` came from the target and `at` from the asked voice, so the documented `VoicePoint` mixed two voices |
+| Targets are hit within a finger's reach, and curves near their line | A stem was one pixel wide, and a slur's box swallowed every tap under its arc |
+| A tap in a system gap belongs to the nearer system, and one just above the first system or below the last to that system | 48 pixels under every system gave no hit, and a ledger position outside a band could not be tapped |
+| `bandTolerance` in the band assert and test 7 | The right edge equals the plan's width only to rounding, and the strict comparison failed in a fifth to a quarter of random systems |
+| `LineDraw.bounds` is the line's ink, and a staff's reach is at least half a staff line | The bounds were not defined. With ink bounds, the outer lines of a staff with no reach left its band |
+| `toImage` takes a range and has a height limit | One image cannot hold a long score |
+| Gate 1 names its sizes, origins, ink reading and font loading, checks placement and size apart in device pixels, and measures raster time on devices | 0.05 staff spaces is 0.4 pixels at the default size, `flutter test` registers no pubspec font, and nothing measured paint cost |
+| `GlyphPainter` rounds the baseline it subtracts | The paragraph draws its baseline on a whole pixel and reports it unrounded. Glyphs sat up to 0.13 staff spaces off their lines at the default size |
+| Gate 2 runs compiled, has a large fixture with spanners, and is rerun with a budget by every engine unit | It ran under JIT, could not see the bars-times-spanners cost of `measureView`, and passed before spanners, marks and lyrics existed |
+| Test 8, one assertion per notation, and tests 10 and 11 | Graces, braces, drum heads, quarter tones, voltas, rest runs, pickup numbers, beams and the player had no check that a notation drawing nothing would fail |
+| A hyphen is carried only to a syllable that joins its word, and the key holds the carry at both ends | An unfinished word kept its hyphen open to the end of the score, so typing one syllable rekeyed every later system and gave each a lyric row |
+| The cursor is the scroll anchor only while its system is on screen, an animated scroll is started again after a correction, and the tiles report their true extent | A zoom moved what the user was reading to hold an off-screen cursor still, a correction was undone by the next tick of `ensureVisible`, and the scroll extent was a guess a third of the truth |
+| A brace has one width and is stretched to its part (`GlyphDraw.stretch`, `braceWidth`) | Scaled evenly, a brace was as wide as its part was tall, and the lead's indent is one value for every system |
+| `pieceStart` beside `pieceEnd` | A spanner's first point can lie inside an event too, once an overwrite lengthens the note under it |
+| A ref is resolved by `Score.lookup` (`systemOfRef`), and a tint by its event's id | A ref's measure is a hint. After `SetMeter` a held ref named the old bar, and its tint and its box vanished |
+| A range that ends at the start of a system shades nothing of it | It shaded that system's clef and key |
+| What a line starts with is in its slice's reach (`markReach`) | A tempo line that started on a system's last beat drew its text past the right edge |
+| The player's timer owns the end and the loop, and a note's lateness is stated | "Sound never waits for a frame" was false for a timer on the UI isolate, and a muted ticker never ended playback |
+| Units reordered and split | Gate 1 needed the glyph table of a later unit, a unit's test could not reach `layoutBar` past functions of later units, the shell and the player shared one unit, and the last unit's check did not run the packages' tests |
+
+The review also raised points that stay as they are, each recorded where it belongs. The highlight's fringe, the bar number's placement, the glyph snap and the timer on the UI isolate are under Tradeoffs. A tall note beside a slur's low end is under Risks. An octave line drawn to the end of its last event while `toneForStaffStep` shifts by onset is consistent, because an entry inside that event shortens the event and the line with it.
+
+## Tradeoffs accepted
+
+- We accept greedy breaking, which can leave one system looser than an optimal breaker would, in exchange for edits that never move earlier systems and a re-break that stops at the first resync.
+- We accept spacing on an absolute duration scale per bar, so a bar of whole notes beside a bar of sixteenths is less uniform than Gourlay over a whole system, in exchange for bars that are laid out and cached alone.
+- We accept beam slopes fixed at natural spacing, so justification flattens them slightly, in exchange for beams that never force a bar to be laid out again for a new system width.
+- We accept three head variants and the courtesy items stored in every bar, in exchange for widths that are known before line breaking.
+- We accept that every bar reserves vertical room for the pieces that cross it, at stretch 1 and without seeing its neighbours, so a system can be a little taller than a whole-system solve would make it, in exchange for heights that are known before any system is assembled.
+- We accept slurs clamped to the room their bars reserved, so a long slur is flatter than an engraver would draw it, in exchange for the band invariant.
+- We accept a slur's side taken from its voice alone, so a slur over stems-up notes in a single voice lies above them where an engraver would put it below, in exchange for one side per slur and room that every bar reserves on that side (C11).
+- We accept a highlighted or tinted glyph drawn over its base ink, so an anti-aliased edge keeps a thin dark fringe under a light colour, in exchange for a playback tick and a new tint that repaint no base layer. If the fringe shows on a device, the base layer skips the tinted owners, at the cost of one base repaint per change of the sounding set.
+- We accept the bar number placed against its own bar's reach, so a bracket or a line that a later bar pushed outward can cross it, in exchange for a number that stays beside its staff.
+- We accept glyph ink that the rasteriser puts on whole device pixels vertically, beside staff lines that are not snapped. On the host a head sits up to 0.83 device pixels from its line, which at the default size is 0.1 staff spaces at device pixel ratio 1 and 0.035 at ratio 3. When half a staff space is not a whole number of device pixels, heads on different steps can differ by a pixel. In exchange the unmodified font is drawn as text. If it shows, the staff space is fitted to the pixel grid in the shell (`SheetScale`), with no engine change.
+- We accept notes sent from a timer on the UI isolate, so a note is late by the build or the layout that is running when it is due. That is about 4 ms for an edit on the reference phone, and a full break when the sheet is resized during playback. In exchange a tempo change is immediate, any range loops, parts are muted per note, and no MIDI file stands between the script and the sound. `flutter_midi_pro` also has a native sequencer that plays a Standard MIDI File (`loadMidiData`, `playMidi`, `setMidiTempo`). Feeding it is the alternative if the lateness is audible.
+- We accept a memo inside a `SheetLayout` that is otherwise immutable. The memo is not observable, because `systemAt(i)` returns an equal system whether or not it was cached. In exchange only visible systems are assembled.
+- We accept work linear in the bar count on every update (identity checks, width comparisons, key lookups, one map copy), in exchange for code with no index bookkeeping. For the trace score that is about 500 comparisons.
+- We accept text measured with the platform's font, so lyric widths and line breaks may differ between iOS and Android, in exchange for bundling no text font. An app that wants identical breaks sets `TextSpec.family` to a font it bundles.
+- We accept glyphs drawn through the text stack, with no outlines in Dart, so hit testing uses metadata boxes rather than outlines, in exchange for an unmodified font, a 3.7 MB smaller bundle and no runtime parse.
+- We accept that a system scrolled back into view re-records its picture, in exchange for relying on `RepaintBoundary` and keeping no picture cache of our own. Its assembled drawables are still in the memo.
+- We accept that re-exporting `score_model` makes `Interval` and `Step` ambiguous with Flutter's when an app uses both, in exchange for one import.
+- We accept layout on the UI isolate, synchronously, in exchange for no async gap between an edit and its picture. The first layout of a large score is the cost to watch (gate 2).
+- `LayoutDelta` may look like test scaffolding. It also tells the tests what an update touched without counters, and `rebroke` names the case scroll anchoring exists for.
+
+## Alternatives considered
+
+**Flutter render objects as the layout** (`RenderSheet`, then `RenderSystem`, then `RenderBar`). Flutter would give relayout boundaries, `markNeedsLayout`, repaint boundaries and semantics for free.
+- It lost because invalidation here comes from the model diff, not from constraints. Each `changesSince` would have to be translated into `markNeedsLayout` calls on render objects found by `MeasureId`, which is a second reconciliation.
+- Line breaking needs every bar's width before systems exist. That inverts the parent-gives-constraints protocol and pushes the engine onto intrinsic-size passes.
+- Interface depth is worse. The engine would expose a render object per bar and the Flutter lifecycle to its own tests, and hit results would come back in render-box coordinates.
+- What it hides well (repaint boundaries) this design gets anyway, with one boundary per system.
+
+**A galley.** Lay the whole score out as one infinite line with a global time-to-x map, then cut it into systems and re-justify each.
+- It gives the most even spacing, since one spacing solve sees every bar.
+- It lost on incrementality. One wider note shifts every later x. Cut points are re-found on every edit. Courtesy and system-start widths depend on where the cuts fall, which makes cutting iterative.
+- It hides spacing well, but it exposes O(score) work to every keystroke.
+
+**Bars baked to pictures and composed by translation only.** Each bar is recorded once at natural width, and systems are bars placed side by side, ragged right.
+- It is the cheapest incremental shape.
+- It lost on quality and on cross-bar notation. Without justification every system is ragged. Ties, slurs and hairpins across bars would need a separate layer that knows bar positions anyway, which recreates system assembly.
+
+Also weighed, as variations and not whole shapes:
+- An engine in `lib/src` typed with `Offset` and `Rect`. It lost the pure-Dart tests and the unit boundary.
+- Layout on a background isolate. `dart:ui` paragraphs cannot be measured there, and the incremental update is small enough for the UI isolate. Revisit only if gate 2 fails.
+
+## Implementation reconciliation
+
+## Open questions and risks
+
+Owner questions. Each is a parameter with a default, so the architecture does not wait:
+- **C1.** Is a one-line staff's line the middle line (step 4) of a five-line staff? That is the default, and it keeps taps and heads on one step convention. It puts the showcase snare at C5, above the line, and the bass drum at F4, below it.
+- **C2.** Should chord symbols on a transposing staff print as stored (`ChordSymbolSpelling.asStored`, the default) or as written?
+- **C3.** Should an extender run to the last note before the next syllable or rest (`ExtenderEnd.beforeNextSyllable`, the default) or over ties and slurs only? The answer defines `Lyric.extend` for MusicXML import too. With the default, an extender typed over notes already entered underlines every later note up to the next rest until the next syllable is typed, and each system it crosses gains a lyric row meanwhile.
+- **C4.** Should quarter tones use Stein-Zimmermann (the default, MusicXML's mapping) or Gould arrows?
+- **C5.** Is the platform text font acceptable for lyrics and text, given that breaks may then differ by platform? Mongolian Cyrillic renders with platform fonts. Should BravuraText be used for inline metronome marks?
+- **C6.** May Petaluma be dropped, with Bravura the only bundled font and `SmuflFont.fromMetadata` for others? Is the unmodified OTF plus `OFL.txt` and a `LicenseRegistry` entry the license posture the owner accepts?
+- **C7.** Should restating the meter on every system be offered? It is offered as `meterEverySystem`, off by default.
+- **C8.** Should string numbers be circled digits (the default) or Roman numerals?
+- **C9.** Is a brace per multi-staff part with a systemic barline, and no brackets across parts, acceptable until the model has staff groups?
+- **C10.** Should spanners become selectable through a new `ElementRef` case? `SheetHit.target` can already report `SpannerOwner`, so the hit type does not change either way. Should a tap read earlier accidentals in the bar? That belongs in `toneForStaffStep`, not in layout.
+- **C11.** Is a slur always above its notes, and below them in voices two and four, acceptable until the model can carry a slur's placement? An engraver puts a slur on the head side of stems-up notes.
+- Are model additions B1, B2b, B2c, B3 and B4 accepted? B1 is needed for the playhead. B2b and B2c can fall back to layout-side rules with no change to this shape.
+
+Left out of the first version, on purpose:
+- **No semantics tree.** A canvas-drawn score is invisible to screen readers. A `Semantics` label per system tile is the cheap first step. Is that enough for the first release?
+- **A grace note cannot be removed by a tap.** A hit on a grace head reports its principal, and the model has `AddGrace` but no edit that removes one grace. This is a model unit to add later, not a layout change.
+- **No print or PDF path.** `toImage` renders a range of systems of the scrolling sheet. Pages would be a second breaker over system heights, which the plans already give.
+- **No pinch gesture.** The controller's zoom is the size control, and each new zoom breaks lines again. A live pinch needs a transform above the viewport during the gesture, a scale recogniser that shares the arena with the scroll drag, a focal-point anchor and one relayout when the gesture ends. That is its own unit with its own test, after the view exists.
+
+Risks:
+- **Glyph placement through text on each platform.** Text layout of private-use codepoints and the baseline must agree on Android, iOS and macOS. The host passes with the rounded baseline. Android's and iOS's rasterisers are unmeasured. Gate 1 proves it before any layout code exists. If it fails, a path painter replaces `GlyphPainter`. That brings back an outline asset and the Reserved Font Name question.
+- **Raster cost.** Every glyph is its own `drawParagraph`, and the engine replays a visible system's glyphs on every frame that changes, such as a scroll frame or a playback tick. Gate 1 measures it on the devices against a stated budget.
+- **First layout of a large score.** It is unmeasured, and `Score.measureView` alone costs bars times spanners. Gate 2 measures both fixtures against a stated budget before the widget is built. If the small one misses, bars are laid out in visible order, with widths for the rest computed first. If the large one misses, the model indexes spanners by bar.
+- **Text measurer purity.** A text font that loads after the first measurement would leave fallback widths in the measurer's cache and in every bar. The shell handles it, because the shell owns the measurer. `_SheetViewState` listens to `PaintingBinding.instance.systemFonts`, which fires for every font registered at run time, whichever package loaded it. The listener runs once per frame. It measures again every text the old measurer was asked for, and replaces the measurer and the layout only when an extent differs (`_afterFontsChanged` in the sketch). The cost is one pass of measurements per frame with a registration, and one full layout per late font the sheet's text uses.
+- **Platform text font.** Lyrics and text use the platform font, so line breaks may differ per platform (C5). On-device goldens need a bundled text font.
+- **Memo growth.** The memo holds every system that was ever looked at and still exists. After a full scroll through a long score that is every system. It is bounded by the system count and pruned on update, but it is not bounded by the viewport. Measure it on the 500-bar score before adding an eviction rule.
+- **Limits of the band.** A bar reserves room without seeing its neighbours. Two lines over one staff can cross when one is pushed outward by a bar the other does not cover. A slur is raised over the notes under its middle half only, so a tall note beside a low end note can touch it. A system holding one bar wider than the sheet has a plan wider than the sheet. All of these stay inside the band. Are they acceptable until a system-level pass is worth its cost?
+- **Publishing.** `score_layout` and `score_model` would have to be published before `simple_sheet_music` could go on pub.dev.
+
+## Next implementation step
+
+Prove glyph placement with gate 1 before writing any layout body.
+
+The units, in order. Each ends in a check. No unit adds a function without its body. `layoutBar` and `assembleSystem` gain the call to a concern in the unit that implements it, so a test never has to pass a function that throws.
+
+1. **Gate 1, glyph placement.** Create `packages/score_layout` with `geometry.dart`, `glyphs.dart`, `smufl_font.dart`, the generator and the generated table. Add `fonts/Bravura.otf`, and `SheetScale` and `GlyphPainter` with bodies. The check is that the generator reproduces the committed table byte for byte, and that gate 1's test passes for all 222 glyphs under `flutter test` on the host, then on an Android device and an iOS device, with the raster time reported.
+2. **Gate 2, the benchmark harness.** Build both fixtures, the fake measurer and the compiled benchmark. The check is that it reports the floor that exists today (`changesSince` and the `measureView` calls) for both fixtures, and that it fails above the budget of decision 10.
+3. **Model additions B1, B2b, B2c and the two doc changes.** The check is that `dart test` in `packages/score_model` passes with the exporter's tests unchanged and three new ones. `pointAt(secondsAt(p))` gives back p on every pass of a score with a repeat, a fermata, a tempo line and a tempo mark inside a bar. `barNumberOf` is 0 for a pickup. `Jump.label` is what the exporter writes.
+4. **Spacing and chords.** `spacing.dart`, `chords.dart`, `beams.dart`, and `layoutBar` for notes and rests. The check is test 3 and test 8's lines for graces, drum heads, quarter tones, chords and beams.
+5. **Signatures and breaking.** `signatures.dart`, `breaking.dart`. The check is test 2 and test 6's comparison of starts and stretches, both run on `breakSystems` with and without `previous`, since `SheetLayout` arrives in the next unit, and gate 2.
+6. **Assembly.** `assembly.dart`, `SheetLayout` with the memo. The check is tests 1 and 7, test 8's lines for braces, hidden parts, rest runs and pickup numbers, and gate 2.
+7. **Spanners.** Ties, spanner pieces, `pieceStart` and `pieceEnd`, voltas, the skyline reservations. The check is test 7 with its two slur cases, test 6 on drawables, test 8's volta line, the agreement of `pieceStart` and `pieceEnd` with the model, and gate 2.
+8. **Marks.** Articulations, ornaments, string marks, directions, system marks, tuplets. The check is test 8's line for marks, test 7 and gate 2.
+9. **Lyrics.** Syllables, rows, the two carry passes, hyphens and extenders. The check is test 8's two lines for the carry, and gate 2 on the now complete engine.
+10. **Hit and overlay queries.** The check is tests 4 and 5.
+11. **The view.** `SheetView`, the painters, the measurer, scroll anchoring, the font listener and `toImage`. The check is tests 9 and 10 and gate 1 still passing, plus two more widget tests. A late font the sheet's text uses replaces the layout once, and one it does not use leaves the layout identical. `toImage` of a range has the planned height times the pixel ratio, and a range over the limit throws. The first layout is measured once on a device with `ParagraphMeasurer` (gate 2).
+12. **The player.** `ScorePlayer` over a MIDI output seam, with a hand-written fake in `test/mock/`. The check is test 11.
+13. **The example app rewrite and the deletion of the old engine.** The check is that `flutter analyze` at the root reports no issues, that `flutter test` at the root and `dart test` in `packages/score_model` and `packages/score_layout` pass, that both gates pass, and that the example runs on macOS. `CLAUDE.md` gains the new package's commands and layout in the same change.

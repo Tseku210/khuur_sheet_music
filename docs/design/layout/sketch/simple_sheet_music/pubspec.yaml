@@ -1,0 +1,21 @@
+name: simple_sheet_music
+description: >-
+  Type sketch of the Flutter shell of the layout design: the widget, the
+  painters, gestures and the player. It mirrors the rewritten lib/ of
+  simple_sheet_music.
+publish_to: none
+
+environment:
+  sdk: ^3.13.0
+  flutter: ">=3.27.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  score_layout:
+    path: ../score_layout
+  score_model:
+    path: ../../../../../packages/score_model
+
+dev_dependencies:
+  pedantic_mono: ^1.38.1
