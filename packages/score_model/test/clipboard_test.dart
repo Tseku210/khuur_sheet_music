@@ -7,12 +7,11 @@ RangeSelection range(
   Score score,
   (int, Moment) from,
   (int, Moment) to, {
-  int top = 0,
   int bottom = 0,
 }) => RangeSelection(
   from: pointAt(score, from.$1, from.$2),
   to: pointAt(score, to.$1, to.$2),
-  top: score.staves[top].id,
+  top: score.staves.first.id,
   bottom: score.staves[bottom].id,
 );
 
@@ -215,7 +214,7 @@ void main() {
       ]);
       final clip = copyOf(session, (1, Moment.zero), (1, at(1, 2)));
 
-      final next = applied(paste(session, clip, 0, at(1, 2)));
+      final next = pasted(session, clip, 0, at(1, 2));
 
       expect(bar(next.score, 0), ['F4/half', 'F4/half']);
     });
@@ -237,7 +236,7 @@ void main() {
       ]);
       final clip = copyOf(session, (2, Moment.zero), (2, at(1, 2)));
 
-      final next = applied(paste(session, clip, 1, Moment.zero));
+      final next = pasted(session, clip, 1, Moment.zero);
 
       expect(bar(next.score, 0), ['G4/half', 'F4/half']);
     });

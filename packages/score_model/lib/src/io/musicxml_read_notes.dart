@@ -195,21 +195,19 @@ extension on _BarReader {
       if (rest == null || inTuplet) {
         at.refuse('no note value has this duration');
       }
-    } else {
-      if (lane.frames.isEmpty && modification != null) {
-        lane.frames.add(
-          _Frame(
-            id: TupletId(part.ids.take()),
-            ratio: modification.ratio,
-            unit: modification.unit ?? value,
-            bracket: TupletBracket.auto,
-            onset: onset,
-            source: modification.source,
-            number: null,
-            scale: scale,
-          ),
-        );
-      }
+    } else if (lane.frames.isEmpty && modification != null) {
+      lane.frames.add(
+        _Frame(
+          id: TupletId(part.ids.take()),
+          ratio: modification.ratio,
+          unit: modification.unit ?? value,
+          bracket: TupletBracket.auto,
+          onset: onset,
+          source: modification.source,
+          number: null,
+          scale: scale,
+        ),
+      );
     }
 
     end = _storable(end, at);

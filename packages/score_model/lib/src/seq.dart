@@ -17,7 +17,6 @@
 /// ever matters; no caller would change.
 final class Seq<T> extends Iterable<T> {
   Seq(Iterable<T> items) : _items = List<T>.unmodifiable(items);
-  Seq._(List<T> owned) : _items = List<T>.unmodifiable(owned);
 
   const Seq.empty() : _items = const <Never>[];
 
@@ -43,20 +42,20 @@ final class Seq<T> extends Iterable<T> {
   Seq<T> replaceAt(int index, T value) {
     final copy = List<T>.of(_items);
     copy[index] = value;
-    return Seq._(copy);
+    return Seq(copy);
   }
 
   Seq<T> insertAt(int index, T value) =>
-      Seq._(List<T>.of(_items)..insert(index, value));
+      Seq(List<T>.of(_items)..insert(index, value));
 
   Seq<T> insertAllAt(int index, Iterable<T> values) =>
-      Seq._(List<T>.of(_items)..insertAll(index, values));
+      Seq(List<T>.of(_items)..insertAll(index, values));
 
-  Seq<T> removeAt(int index) => Seq._(List<T>.of(_items)..removeAt(index));
+  Seq<T> removeAt(int index) => Seq(List<T>.of(_items)..removeAt(index));
 
   /// Replaces `[start, end)` with [values].
   Seq<T> replaceRange(int start, int end, Iterable<T> values) =>
-      Seq._(List<T>.of(_items)..replaceRange(start, end, values));
+      Seq(List<T>.of(_items)..replaceRange(start, end, values));
 
-  Seq<T> append(T value) => Seq._(List<T>.of(_items)..add(value));
+  Seq<T> append(T value) => Seq(List<T>.of(_items)..add(value));
 }

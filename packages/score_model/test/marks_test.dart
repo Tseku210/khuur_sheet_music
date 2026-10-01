@@ -3,18 +3,17 @@ import 'package:test/test.dart';
 
 import 'support.dart';
 
-List<String> marksIn(Score score, int bar, {int staff = 0}) => [
-  for (final d in score.measures[bar].staves[staff].directions) mark(d),
+List<String> marksIn(Score score, int bar) => [
+  for (final d in score.measures[bar].staves.first.directions) mark(d),
 ];
 
 EditOutcome setDirections(
   Score score,
   int bar,
-  List<StaffDirection> directions, {
-  int staff = 0,
-}) => EditSession.start(score).run(
+  List<StaffDirection> directions,
+) => EditSession.start(score).run(
   SetDirections(
-    staff: score.staves[staff].id,
+    staff: score.staves.first.id,
     measure: score.measures[bar].id,
     directions: Seq(directions),
   ),

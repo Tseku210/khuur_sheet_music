@@ -140,8 +140,7 @@ final class _Section {
   ScorePoint? get resume =>
       next == null ? null : ScorePoint(next!.id, Moment.zero);
 
-  ScorePoint get end =>
-      ScorePoint(bars.last.id, Moment.zero + bars.last.length);
+  ScorePoint get end => ScorePoint(bars.last.id, _barEnd(bars.last));
 
   /// Where [point], in one of [old], is now. Null when its time was cut.
   ScorePoint? moved(ScorePoint point) {
@@ -336,22 +335,11 @@ final class _Stream {
     final opening = openingEvent(next, staff, slot)?.event;
     if (items.lastOrNull case (final Content item, final origin)
         when opening is ChordEvent) {
-      final event = _lastEvent(item);
+      final event = _eventsIn(item).last;
       bool meets(Note note) =>
           note.tie && opening.notes.any((n) => n.tone == note.tone);
       if (event is ChordEvent && event.notes.any(meets)) {
-        items.last = (
-          _replaceEvent(
-            item,
-            event.copyWith(
-              notes: Seq([
-                for (final note in event.notes)
-                  meets(note) ? note.copyWith(tie: false) : note,
-              ]),
-            ),
-          ),
-          origin,
-        );
+        items.last = (_replaceEvent(item, _untied(event, meets)), origin);
       }
     }
   }
@@ -364,11 +352,6 @@ bool _elastic(VoiceItem item) => switch (item) {
   RestEvent(:final articulations) ||
   MeasureRest(:final articulations) => articulations.isEmpty,
   ChordEvent() || Tuplet() => false,
-};
-
-Event _lastEvent(Content item) => switch (item) {
-  Event() => item,
-  Tuplet(:final members) => _lastEvent(members.last),
 };
 
 /// [items], laid end to end from the start of a section, cut into [count]

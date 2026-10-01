@@ -58,11 +58,7 @@ const morinKhuur = PartTemplate(name: 'Морин хуур', instrument: fiddle)
 
 /// A one-staff score whose single bar holds [items] in voice one. Ids in
 /// [items] must stay below 100; the scaffolding uses 100 and up.
-Score scoreWith(
-  List<VoiceItem> items, {
-  Meter meter = Meter.fourFour,
-  KeySignature key = KeySignature.cMajor,
-}) => Score(
+Score scoreWith(List<VoiceItem> items) => Score(
   meta: const ScoreMeta(),
   parts: Seq([
     Part(
@@ -75,8 +71,8 @@ Score scoreWith(
   measures: Seq([
     MeasureColumn(
       id: const MeasureId(102),
-      meter: meter,
-      key: key,
+      meter: Meter.fourFour,
+      key: KeySignature.cMajor,
       staves: Seq([
         StaffMeasure(
           staff: const StaffId(101),
@@ -132,12 +128,11 @@ EditSession enterAt(
   ),
 );
 
-ChordEvent chord(int id, Pitch pitch, NoteValue value, {bool tie = false}) =>
-    ChordEvent(
-      id: EventId(id),
-      value: value,
-      notes: Seq([PitchedNote(id: NoteId(id + 50), pitch: pitch, tie: tie)]),
-    );
+ChordEvent chord(int id, Pitch pitch, NoteValue value) => ChordEvent(
+  id: EventId(id),
+  value: value,
+  notes: Seq([PitchedNote(id: NoteId(id + 50), pitch: pitch)]),
+);
 
 Event firstEvent(Score score, int barIndex) =>
     voiceOf(score, barIndex).items.first as Event;
@@ -231,11 +226,11 @@ Score withOctaveLine(
   ]),
 );
 
-/// [score] with part [index] hidden, or shown again.
-Score hidePart(Score score, int index, {bool hidden = true}) => applied(
+/// [score] with part [index] hidden.
+Score hidePart(Score score, int index) => applied(
   EditSession.start(
     score,
-  ).run(SetPartHidden(score.parts[index].id, hidden: hidden)),
+  ).run(SetPartHidden(score.parts[index].id, hidden: true)),
 ).score;
 
 Score blankScore({

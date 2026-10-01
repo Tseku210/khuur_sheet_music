@@ -22,9 +22,6 @@ const offGrid = [
   NoteValue(DurationBase.thirtySecond, dots: 3),
 ];
 
-PartTemplate partOf(Instrument instrument) =>
-    PartTemplate(name: 'Test', instrument: instrument);
-
 void main() {
   group('Edits refuse values the save format refuses', () {
     final session = enterAt(blank(), 0, Moment.zero);
@@ -201,7 +198,10 @@ void main() {
             ),
             const Instrument(key: 'x', program: 0, highest: Pitch(Step.c, 10)),
           ])
-            invalid(session, AddPart(partOf(instrument))),
+            invalid(
+              session,
+              AddPart(PartTemplate(name: 'Test', instrument: instrument)),
+            ),
         ],
         [midi, 'a bank is 0 or more', midi, range, range, range],
       );

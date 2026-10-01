@@ -340,10 +340,8 @@ enum Clef {
 
   /// The natural written pitch at [staffStep]. The caller applies the key
   /// and any accidental; `Score.toneForStaffStep` does all of that.
-  Pitch naturalAt(int staffStep) {
-    final diatonic = _anchor + staffStep - 2 * (line - 1);
-    return Pitch(Step.values[diatonic % 7], (diatonic - diatonic % 7) ~/ 7);
-  }
+  Pitch naturalAt(int staffStep) =>
+      _natural(_anchor + staffStep - 2 * (line - 1));
 
   /// The staff step a written pitch sits on.
   int staffStepOf(Pitch written) => written.diatonic - _anchor + 2 * (line - 1);

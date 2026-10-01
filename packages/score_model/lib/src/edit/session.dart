@@ -217,7 +217,7 @@ final class EditSession {
         score.staves.any((staff) => staff.id == at.staff) &&
         score.contains(point.measure) &&
         !point.offset.isNegative &&
-        point.offset <= Moment.zero + score.column(point.measure).length;
+        point.offset <= _barEnd(score.column(point.measure));
     final snapped = inside ? _normalize(score, point) : null;
     if (snapped == null) {
       throw ArgumentError.value(at, 'at', 'not a cursor position in the score');
@@ -342,7 +342,7 @@ final class EditSession {
 /// length.
 ScorePoint? _normalize(Score score, ScorePoint point) {
   final index = score.indexOf(point.measure);
-  if (point.offset < Moment.zero + score.measures[index].length) {
+  if (point.offset < _barEnd(score.measures[index])) {
     return point;
   }
   return index + 1 < score.measures.length
@@ -395,7 +395,7 @@ VoicePoint _revalidateCursor(VoicePoint cursor, Score before, Score score) {
   final measure = cursor.at.measure;
   if (staffAlive &&
       score.contains(measure) &&
-      cursor.at.offset < Moment.zero + score.column(measure).length) {
+      cursor.at.offset < _barEnd(score.column(measure))) {
     return cursor;
   }
   return VoicePoint(
@@ -520,7 +520,6 @@ final class Refused extends EditOutcome {
   final EditRefusal reason;
 }
 
-/// What is selected.
 sealed class Selection {
   const Selection();
 

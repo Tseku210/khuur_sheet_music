@@ -348,20 +348,18 @@ void main() {
     });
 
     test('pads a lengthened bar and clears a tie that now meets rests', () {
-      final voices = EditSession.start(
-        fill(
-          sessionWith([
-            [chordOf(20, 'F4', value: NoteValue.whole, tie: true)],
-            [chordOf(30, 'F4', value: NoteValue.whole)],
-          ]).score,
-          0,
-          [chordOf(40, 'D4', value: NoteValue.half), Gap(len(1, 2))],
-          slot: VoiceSlot.two,
-        ),
+      final voices = fill(
+        sessionWith([
+          [chordOf(20, 'F4', value: NoteValue.whole, tie: true)],
+          [chordOf(30, 'F4', value: NoteValue.whole)],
+        ]).score,
+        0,
+        [chordOf(40, 'D4', value: NoteValue.half), Gap(len(1, 2))],
+        slot: VoiceSlot.two,
       );
       final session = EditSession.start(
         fill(
-          voices.score,
+          voices,
           0,
           [chordOf(50, 'C4', value: NoteValue.whole)],
           slot: VoiceSlot.three,

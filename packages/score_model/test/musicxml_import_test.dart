@@ -45,13 +45,12 @@ String opening({
   int divisions = 4,
   int fifths = 0,
   int beats = 4,
-  int beatType = 4,
   String clef = '<clef><sign>G</sign><line>2</line></clef>',
   String more = '',
 }) => [
   '<attributes><divisions>$divisions</divisions>',
   '<key><fifths>$fifths</fifths></key>',
-  '<time><beats>$beats</beats><beat-type>$beatType</beat-type></time>',
+  '<time><beats>$beats</beats><beat-type>4</beat-type></time>',
   '$clef$more</attributes>',
 ].join();
 
@@ -82,17 +81,11 @@ String note(String pitch, num duration, String type, [String more = '']) {
       '<type>$type</type>$more</note>';
 }
 
-/// An `<unpitched>` note at [step] and [octave], with [more] children.
-String unpitched(
-  String step,
-  int octave,
-  num duration,
-  String type, [
-  String more = '',
-]) =>
+/// An `<unpitched>` note at [step] and [octave].
+String unpitched(String step, int octave, num duration, String type) =>
     '<note><unpitched><display-step>$step</display-step>'
     '<display-octave>$octave</display-octave></unpitched>'
-    '<duration>$duration</duration><type>$type</type>$more</note>';
+    '<duration>$duration</duration><type>$type</type></note>';
 
 String _pitch(Pitch pitch) {
   final quarterTones = pitch.alter.quarterTones;
@@ -109,6 +102,10 @@ String direction(List<String> types, {String more = ''}) => [
   for (final type in types) '<direction-type>$type</direction-type>',
   '$more</direction>',
 ].join();
+
+String metronome(int bpm) =>
+    '<metronome><beat-unit>quarter</beat-unit>'
+    '<per-minute>$bpm</per-minute></metronome>';
 
 String backup(num duration) =>
     '<backup><duration>$duration</duration></backup>';
@@ -130,8 +127,8 @@ List<String> items(
   VoiceSlot slot = VoiceSlot.one,
 }) => describe(score.measures[bar].staves[staff].voice(slot)!.items);
 
-List<ChordEvent> chordsIn(Score score, int bar, {int staff = 0}) => [
-  for (final voice in score.measures[bar].staves[staff].voices)
+List<ChordEvent> chordsIn(Score score, int bar) => [
+  for (final voice in score.measures[bar].staves.first.voices)
     for (final item in voice.items)
       if (item case final ChordEvent chord) chord,
 ];
@@ -864,9 +861,6 @@ void main() {
     });
 
     test('keeps one tempo mark per time when every part writes it', () {
-      String metronome(int bpm) =>
-          '<metronome><beat-unit>quarter</beat-unit>'
-          '<per-minute>$bpm</per-minute></metronome>';
       final andante = direction([
         '<words>Andante</words>',
         metronome(90),
@@ -907,9 +901,6 @@ void main() {
     });
 
     test('keeps the tempo of the part above where two parts state one', () {
-      String metronome(int bpm) =>
-          '<metronome><beat-unit>quarter</beat-unit>'
-          '<per-minute>$bpm</per-minute></metronome>';
       List<String> bar(int bpm) => [
         opening(),
         direction([metronome(bpm)]),
@@ -1200,19 +1191,13 @@ void main() {
         ]),
       );
 
-      expect(
-        [
-          for (final chord in chordsIn(score, 0))
-            (chord.notes.single as PitchedNote).accidental,
-        ],
-        [
-          AccidentalRequest.auto,
-          AccidentalRequest.always,
-          AccidentalRequest.cautionary,
-          AccidentalRequest.auto,
-          AccidentalRequest.auto,
-        ],
-      );
+      expect(requestsIn(score, 0), [
+        AccidentalRequest.auto,
+        AccidentalRequest.always,
+        AccidentalRequest.cautionary,
+        AccidentalRequest.auto,
+        AccidentalRequest.auto,
+      ]);
     });
 
     test('keeps an accidental printed on a note tied in from the bar before', () {

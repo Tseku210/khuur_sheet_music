@@ -23,7 +23,7 @@ _Result _enterTuplet(
   );
   final write = _overwrite(score, at, [tuplet], ids, Overfill.refuse);
   return _Result(
-    _untieInto(write.score, at, const {}, ids),
+    _untieInto(write.score, at, const {}),
     cursor: at,
     selection: Selection.event(write.first),
   );

@@ -1526,23 +1526,12 @@ void main() {
     });
 
     test('stretch a fermata under them', () {
-      var score = changeBar(
-        at60(1),
-        0,
-        (column) => column.withStaff(
-          column.staves.first.withVoice(
-            Voice(
-              slot: VoiceSlot.one,
-              items: Seq([
-                quarters(11, 'C4'),
-                withMarks(quarters(12, 'C4'), {Articulation.fermata}),
-                quarters(13, 'C4'),
-                quarters(14, 'C4'),
-              ]),
-            ),
-          ),
-        ),
-      );
+      var score = fill(at60(1), 0, [
+        quarters(11, 'C4'),
+        withMarks(quarters(12, 'C4'), {Articulation.fermata}),
+        quarters(13, 'C4'),
+        quarters(14, 'C4'),
+      ]);
       score = withTempoLine(score, 0.5, (0, Moment.zero), (0, at(3, 4)));
 
       expect(

@@ -23,9 +23,9 @@ VoicePoint on(EditSession session, int staff, int bar, Moment offset) =>
       at: pointAt(session.score, bar, offset),
     );
 
-NoteRef noteOf(EditSession session, int event, [int index = 0]) => NoteRef(
+NoteRef noteOf(EditSession session, int event) => NoteRef(
   eventRef(session, event),
-  chordIn(session, event).notes[index].id,
+  chordIn(session, event).notes.first.id,
 );
 
 String refused(EditOutcome outcome) =>
@@ -47,7 +47,6 @@ void main() {
       );
 
       expect(bar(next.score, 1).first, 'Side stick/half');
-      expect(voiceOf(next.score, 1).items.first, isA<ChordEvent>());
       expect(
         (voiceOf(next.score, 1).items.first as ChordEvent).notes.single,
         isA<DrumNote>(),

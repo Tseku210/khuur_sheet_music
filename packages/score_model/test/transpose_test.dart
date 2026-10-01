@@ -22,12 +22,11 @@ RangeSelection range(
   EditSession session,
   (int, Moment) from,
   (int, Moment) to, {
-  int top = 0,
   int bottom = 0,
 }) => RangeSelection(
   from: pointAt(session.score, from.$1, from.$2),
   to: pointAt(session.score, to.$1, to.$2),
-  top: session.score.staves[top].id,
+  top: session.score.staves.first.id,
   bottom: session.score.staves[bottom].id,
 );
 

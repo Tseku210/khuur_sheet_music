@@ -400,7 +400,6 @@ void main() {
       );
 
       expect(next.cursor, point(next.score, 0, at(1, 2)));
-      expect(next.selection.singleEvent, isNotNull);
       expect(
         next.score.lookup(next.selection.singleEvent!)!.onset,
         at(1, 2),

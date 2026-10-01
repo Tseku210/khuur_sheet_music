@@ -456,7 +456,6 @@ Score _withFittingSpanners(Score score) {
       : score.copyWith(spanners: Seq(kept));
 }
 
-/// Whether [a] comes before [b] in [score].
 bool _precedes(Score score, ScorePoint a, ScorePoint b) {
   final i = score.indexOf(a.measure);
   final j = score.indexOf(b.measure);

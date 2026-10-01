@@ -39,7 +39,7 @@ _LaneWrite _overwrite(
       !score.staves.any((staff) => staff.id == at.staff)) {
     throw _Refuse(StaleReference(at));
   }
-  final lane = _Lane(score, at.staff, at.voice, ids);
+  final lane = _Lane(score, at.staff, at.voice);
   var i = score.indexOf(at.at.measure);
   var o = at.at.offset;
   if (o.isNegative || o >= lane.end(i)) {
@@ -50,7 +50,7 @@ _LaneWrite _overwrite(
       i++;
       o = Moment.zero;
       if (i == lane.columns.length) {
-        lane.appendBar();
+        lane.appendBar(ids);
       }
     }
   }
@@ -169,10 +169,10 @@ _Result _enter(
   Overfill overfill,
 ) {
   final write = _overwrite(score, at, [event], ids, overfill);
-  var entered = _untieInto(write.score, at, _tones(event), ids);
+  var entered = _untieInto(write.score, at, _tones(event));
   var end = write.end;
   final bar = entered.column(end.at.measure);
-  if (end.at.offset == Moment.zero + bar.length) {
+  if (end.at.offset == _barEnd(bar)) {
     final added = _barAfter(bar, ids);
     entered = entered.copyWith(measures: entered.measures.append(added));
     end = VoicePoint(
@@ -186,8 +186,8 @@ _Result _enter(
 
 /// [score] with the tie into [at] cleared on every note whose tone is not
 /// in [kept], for new music written at [at].
-Score _untieInto(Score score, VoicePoint at, Set<Tone> kept, _Ids ids) {
-  final lane = _Lane(score, at.staff, at.voice, ids)
+Score _untieInto(Score score, VoicePoint at, Set<Tone> kept) {
+  final lane = _Lane(score, at.staff, at.voice)
     ..untieInto(score.indexOf(at.at.measure), at.at.offset, kept);
   return score.copyWith(measures: Seq(lane.columns));
 }
@@ -220,15 +220,13 @@ MeasureColumn _barAfter(MeasureColumn last, _Ids ids) => emptyBar(
 /// The columns of a score while one voice lane of one staff is written.
 /// Columns the write does not reach stay the same objects.
 final class _Lane {
-  _Lane(Score score, this.staff, this.slot, this.ids)
-    : columns = List.of(score.measures);
+  _Lane(Score score, this.staff, this.slot) : columns = List.of(score.measures);
 
   final List<MeasureColumn> columns;
   final StaffId staff;
   final VoiceSlot slot;
-  final _Ids ids;
 
-  Moment end(int i) => Moment.zero + columns[i].length;
+  Moment end(int i) => _barEnd(columns[i]);
 
   /// The lane's items in bar [i]; a whole-bar gap where the voice is absent.
   Seq<VoiceItem> items(int i) {
@@ -251,7 +249,7 @@ final class _Lane {
     );
   }
 
-  void appendBar() => columns.add(_barAfter(columns.last, ids));
+  void appendBar(_Ids ids) => columns.add(_barAfter(columns.last, ids));
 
   /// A tie from the event that ends at [offset] of bar [i] (or at the end
   /// of the bar before, for offset 0) now leads into new music. Clears it on

@@ -9,8 +9,10 @@ MeasureView viewOf(Score score, int bar) =>
 StaffView staffOf(Score score, int bar, {int staff = 0}) =>
     viewOf(score, bar).staves[staff];
 
-VoiceView voiceView(Score score, int bar, {VoiceSlot slot = VoiceSlot.one}) =>
-    staffOf(score, bar).voices.firstWhere((voice) => voice.slot == slot);
+VoiceView voiceView(Score score, int bar) => staffOf(
+  score,
+  bar,
+).voices.firstWhere((voice) => voice.slot == VoiceSlot.one);
 
 List<ChordEvent> run(
   int firstId,

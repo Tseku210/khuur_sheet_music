@@ -141,7 +141,7 @@ int _gcd(int a, int b) {
     y = x % y;
     x = t;
   }
-  return x == 0 ? 1 : x;
+  return x;
 }
 
 /// The undotted shape of a note or rest.

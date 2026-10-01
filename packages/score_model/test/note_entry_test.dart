@@ -294,7 +294,7 @@ void main() {
         point(session.score, 0, at(1, 6)),
       );
 
-      final reason = (outcome as Refused).reason as WouldSplitTuplet;
+      final reason = refusal(outcome) as WouldSplitTuplet;
       expect(reason.tuplet, const TupletId(1));
       expect(reason.measure, const MeasureId(102));
     });
@@ -376,7 +376,7 @@ void main() {
 
       final outcome = enter(session, gone);
 
-      expect(((outcome as Refused).reason as StaleReference).target, gone);
+      expect((refusal(outcome) as StaleReference).target, gone);
     });
 
     test('an offset at the barline is outside the measure', () {
@@ -385,7 +385,7 @@ void main() {
 
       final outcome = enter(session, end);
 
-      expect(((outcome as Refused).reason as OutsideMeasure).at, end.at);
+      expect((refusal(outcome) as OutsideMeasure).at, end.at);
     });
 
     test('a point off the 128th-note grid is an invalid value', () {
@@ -394,7 +394,7 @@ void main() {
       final outcome = enter(session, point(session.score, 0, at(1, 192)));
 
       expect(
-        ((outcome as Refused).reason as InvalidValue).message,
+        (refusal(outcome) as InvalidValue).message,
         'a note starts a whole number of 128th notes into its bar or tuplet',
       );
     });
@@ -422,7 +422,7 @@ void main() {
       );
 
       expect(
-        ((outcome as Refused).reason as InvalidValue).message,
+        (refusal(outcome) as InvalidValue).message,
         'a note starts a whole number of 128th notes into its bar or tuplet',
       );
     });

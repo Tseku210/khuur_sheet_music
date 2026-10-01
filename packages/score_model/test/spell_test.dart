@@ -12,9 +12,6 @@ List<String> spell(
   for (final value in meter.spell(offset, length, rest: rest)) '$value',
 ];
 
-Length len(int numerator, int denominator) =>
-    Length(Fraction(numerator, denominator));
-
 const sevenEight = Meter([3, 2, 2], 8);
 const twelveEight = Meter([12], 8);
 

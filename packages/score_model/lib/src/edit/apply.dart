@@ -341,7 +341,7 @@ TimedEvent? _previous(Score score, TimedEvent timed) {
       return null;
     }
     index--;
-    end = Moment.zero + score.measures[index].length;
+    end = _barEnd(score.measures[index]);
   }
   final column = score.measures[index];
   final voice = column.staff(timed.ref.staff).voice(timed.voice);
@@ -440,7 +440,7 @@ void _staff(Score score, StaffId staff) {
 
 /// Refuses [point] when it does not lie inside [column].
 void _inside(MeasureColumn column, ScorePoint point) {
-  if (point.offset.isNegative || point.offset >= Moment.zero + column.length) {
+  if (point.offset.isNegative || point.offset >= _barEnd(column)) {
     throw _Refuse(OutsideMeasure(point));
   }
 }

@@ -169,26 +169,13 @@ void main() {
         [rest(30, NoteValue.whole)],
         [chordOf(40, 'G4', value: NoteValue.whole)],
       ]);
-      final blank = changeBar(
-        session.score,
-        1,
-        (c) => c.withStaff(
-          c.staves.first.copyWith(
-            voices: Seq([
-              Voice(
-                slot: VoiceSlot.one,
-                items: Seq([
-                  const MeasureRest(
-                    id: EventId(30),
-                    span: Length.whole,
-                    articulations: {Articulation.fermata},
-                  ),
-                ]),
-              ),
-            ]),
-          ),
+      final blank = fill(session.score, 1, [
+        const MeasureRest(
+          id: EventId(30),
+          span: Length.whole,
+          articulations: {Articulation.fermata},
         ),
-      );
+      ]);
       final start = EditSession.start(blank);
 
       final threeFour = rebarred(start, Meter.threeFour);
@@ -914,14 +901,13 @@ void main() {
   });
 
   group('SetMeter keeping bars', () {
-    EditOutcome keep(EditSession session, Meter meter, {int from = 0}) =>
-        session.run(
-          SetMeter(
-            from: idOf(session, from),
-            meter: meter,
-            content: MeterContent.keepBars,
-          ),
-        );
+    EditOutcome keep(EditSession session, Meter meter) => session.run(
+      SetMeter(
+        from: idOf(session, 0),
+        meter: meter,
+        content: MeterContent.keepBars,
+      ),
+    );
 
     test('pads each bar where it is', () {
       final session = EditSession.start(

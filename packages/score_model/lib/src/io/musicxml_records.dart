@@ -377,9 +377,6 @@ sealed class Anchor {
   const Anchor(this.bar);
 
   final int bar;
-
-  /// Its time in the bar.
-  Moment get at;
 }
 
 /// An end written on an event's note.
@@ -390,9 +387,6 @@ final class EventAnchor extends Anchor {
 
   /// Which `<note>` of the part carries it, counted in document order.
   final int note;
-
-  @override
-  Moment get at => event.onset;
 }
 
 /// An end written as a direction on a staff at a time.
@@ -400,8 +394,6 @@ final class TimeAnchor extends Anchor {
   const TimeAnchor(super.bar, this.staff, this.at);
 
   final int staff;
-
-  @override
   final Moment at;
 }
 

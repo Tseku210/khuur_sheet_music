@@ -203,8 +203,8 @@ void main() {
           final before = score;
           score = randomEdit(before, random);
           final changes = score.changesSince(before);
-          final beforeIds = [for (final c in before.measures) c.id];
-          final afterIds = [for (final c in score.measures) c.id];
+          final beforeIds = barIds(before);
+          final afterIds = barIds(score);
           final where = 'seed $seed, step $step';
 
           expect(

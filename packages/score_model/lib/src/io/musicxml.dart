@@ -55,7 +55,6 @@ const _prologue =
     '"-//Recordare//DTD MusicXML 4.0 Partwise//EN" '
     '"http://www.musicxml.org/dtds/partwise.dtd">\n';
 
-/// A time in the score: bar index and offset in that bar.
 /// A spanner end: its bar, its time there, and the stream it is written in
 /// within the bar's part, staff by staff and voice by voice.
 typedef _At = ({int bar, int stream, Moment at});
@@ -676,16 +675,11 @@ final class _Export {
     final staves = score.partOf(spanner.staff).staves;
     final staffIndex = staves.indexWhere((staff) => staff.id == spanner.staff);
     int stream(VoiceSlot voice) => staffIndex * 4 + voice.index;
-    (TimedEvent, int) eventAt(VoiceSlot voice, ScorePoint point) =>
-        switch (score.eventAt(
-          VoicePoint(staff: spanner.staff, voice: voice, at: point),
-        )) {
-          final timed? => (timed, stream(voice)),
-          null => (
-            score.anchorAt(spanner.staff, VoiceSlot.one, point)!,
-            stream(VoiceSlot.one),
-          ),
-        };
+    (TimedEvent, int) eventAt(VoiceSlot voice, ScorePoint point) {
+      final timed = score.anchorAt(spanner.staff, voice, point)!;
+      return (timed, stream(timed.voice));
+    }
+
     final firstBar = score.indexOf(spanner.first.measure);
     final lastBar = score.indexOf(spanner.last.measure);
     switch (spanner.kind) {
