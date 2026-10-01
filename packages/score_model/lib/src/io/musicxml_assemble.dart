@@ -138,9 +138,7 @@ final class _Assembly {
     final end = Moment.zero + length;
 
     final tempos = <Moment, TempoMark>{};
-    for (final tempo in movedTempos) {
-      tempos.putIfAbsent(Moment.zero, () => tempo);
-    }
+    final carried = movedTempos;
     final rehearsals = movedRehearsals;
     movedTempos = [];
     movedRehearsals = [];
@@ -179,6 +177,11 @@ final class _Assembly {
       for (var k = 0; k < part.staves.length; k++) {
         staves.add(_staff(bar, p, k, end, moved));
       }
+    }
+    // A tempo the bar opens with is written after one the bar before ends
+    // with, so it is the one that holds.
+    for (final tempo in carried) {
+      tempos.putIfAbsent(Moment.zero, () => tempo);
     }
 
     final first = parts.first.bars[bar];
@@ -515,9 +518,7 @@ final class _Voices {
             ).where((event) => event.onset.isZero).firstOrNull
           : null;
     } else {
-      target = eventsIn(
-        lane.items,
-      ).where((event) => event.onset == chord.end).firstOrNull;
+      target = lane.startingAt[chord.end];
     }
     return target is ChordRecord ? target.notes : const [];
   }

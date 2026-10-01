@@ -362,10 +362,11 @@ final class _Decoder {
           span: length,
           articulations: _restMarks(json),
         ),
-        _ => _content(json, instrument),
+        _ => _content(json, instrument, 0),
       };
 
-  Content _content(_In json, Instrument instrument) =>
+  /// [around] is how many tuplets hold the content.
+  Content _content(_In json, Instrument instrument, int around) =>
       switch (json.oneOf(const ['chord', 'rest', 'tuplet'])) {
         'chord' => _chord(json, instrument),
         'rest' => RestEvent(
@@ -374,7 +375,7 @@ final class _Decoder {
           articulations: _restMarks(json),
           hidden: json.maybe('hidden')?.flag ?? false,
         ),
-        _ => _tuplet(json, instrument),
+        _ => _tuplet(json, instrument, around),
       };
 
   ChordEvent _chord(_In json, Instrument instrument) => ChordEvent(
@@ -465,7 +466,10 @@ final class _Decoder {
     );
   }
 
-  Tuplet _tuplet(_In json, Instrument instrument) {
+  Tuplet _tuplet(_In json, Instrument instrument, int around) {
+    if (tupletDepthProblem(around + 1) case final problem?) {
+      json.fail(problem);
+    }
     final id = TupletId(_claim(_tuplets, json['tuplet']));
     final terms = [
       for (final term in json['ratio'].list) term.kept(ratioTermProblem),
@@ -475,7 +479,8 @@ final class _Decoder {
     }
     final unit = json['unit'].noteValue;
     final members = [
-      for (final member in json['members'].list) _content(member, instrument),
+      for (final member in json['members'].list)
+        _content(member, instrument, around + 1),
     ];
     final written = Length.sum(members.map((member) => member.span));
     final expected = unit.length * Fraction(terms[0]);

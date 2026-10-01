@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:score_model/score_model.dart';
 import 'package:test/test.dart';
 
@@ -219,6 +221,124 @@ void main() {
           ),
         ),
       );
+    });
+  });
+
+  group('Tuplets nest at most 16 deep', () {
+    const deep = 'tuplets nest at most 16 deep';
+    var session = blank(bars: 1);
+    final start = point(session.score, 0, Moment.zero);
+    final nest = EnterTuplet(
+      at: start,
+      ratio: TupletRatio.triplet,
+      unit: NoteValue.quarter,
+    );
+    for (var level = 0; level < 16; level++) {
+      session = applied(session.run(nest));
+    }
+    final innermost =
+        r'$.measures[0].staves[0].voices[0].items[0]' + '.members[0]' * 15;
+
+    test('entered', () {
+      expect(invalid(session, nest), deep);
+    });
+
+    test('pasted', () {
+      final bar = session.score.measures[0];
+      final clip = session
+          .select(
+            RangeSelection(
+              from: ScorePoint(bar.id, Moment.zero),
+              to: ScorePoint(bar.id, at(1, 2)),
+              top: start.staff,
+              bottom: start.staff,
+            ),
+          )
+          .copy()!;
+      final thirdOfOutermost = VoicePoint(
+        staff: start.staff,
+        voice: VoiceSlot.one,
+        at: ScorePoint(bar.id, at(1, 3)),
+      );
+
+      expect(invalid(session, Paste(clip, at: thirdOfOutermost)), deep);
+    });
+
+    test('loaded', () {
+      final json = jsonDecode(
+        jsonEncode(scoreToJson(session.score)),
+      ) as Map<String, Object?>;
+      final bar = (json['measures']! as List).first as Map;
+      final staff = (bar['staves'] as List).first as Map;
+      final voice = (staff['voices'] as List).first as Map;
+      var items = voice['items'] as List;
+      for (var level = 0; level < 15; level++) {
+        items = (items.first as Map)['members'] as List;
+      }
+      (items.first as Map)['members'] = [
+        {
+          'tuplet': 9000,
+          'ratio': [3, 2],
+          'unit': 'quarter',
+          'members': [
+            for (final id in [9001, 9002, 9003])
+              {'rest': id, 'value': 'quarter'},
+          ],
+        },
+        {'rest': 9004, 'value': 'quarter'},
+      ];
+
+      expect(
+        () => scoreFromJson(json),
+        throwsA(
+          isA<ScoreFormatException>()
+              .having((e) => e.path, 'path', '$innermost.members[0]')
+              .having((e) => e.message, 'message', deep),
+        ),
+      );
+    });
+
+    test('imported', () {
+      const one =
+          '<tuplet-number>1</tuplet-number><tuplet-type>quarter</tuplet-type>';
+      String start(int number) =>
+          '<tuplet type="start" number="$number">'
+          '<tuplet-actual>$one</tuplet-actual>'
+          '<tuplet-normal>$one</tuplet-normal></tuplet>';
+      final starts = [
+        for (var number = 1; number <= 17; number++) start(number),
+      ].join();
+      final xml =
+          '<score-partwise><part-list><score-part id="P1">'
+          '<part-name>Flute</part-name></score-part></part-list>'
+          '<part id="P1"><measure number="1">'
+          '<attributes><divisions>1</divisions></attributes>'
+          '<note><rest/><duration>1</duration><type>quarter</type>'
+          '<notations>$starts</notations></note>'
+          '</measure></part></score-partwise>';
+
+      expect(
+        () => scoreFromMusicXml(xml),
+        throwsA(
+          isA<ScoreFormatException>()
+              .having(
+                (e) => e.path,
+                'path',
+                '/score-partwise/part/measure/note/notations/tuplet[17]',
+              )
+              .having((e) => e.message, 'message', deep),
+        ),
+      );
+    });
+
+    test('and 16 deep is kept by both file formats', () {
+      final json = jsonDecode(
+        jsonEncode(scoreToJson(session.score)),
+      ) as Map<String, Object?>;
+      final xml = scoreToMusicXml(session.score);
+
+      expect(scoreToJson(scoreFromJson(json)), scoreToJson(session.score));
+      expect(scoreToMusicXml(scoreFromMusicXml(xml)), xml);
     });
   });
 

@@ -93,7 +93,7 @@ _LaneWrite _overwrite(
         i,
         items.replaceAt(
           inside.index,
-          _writeInTuplet(inside.tuplet, inside.at, item, ids, column.id),
+          _writeInTuplet(inside.tuplet, inside.at, item, ids, column.id, 1),
         ),
       );
       placed([item]);
@@ -300,13 +300,16 @@ final class _Lane {
 }
 
 /// Writes [item] at [at] (in [tuplet]'s written time) into the innermost
-/// tuplet that holds [at]. Refused when [item] would run past its end.
+/// tuplet that holds [at]. Refused when [item] would run past its end, or
+/// when its own tuplets would nest too deep there. [depth] counts [tuplet]
+/// and every tuplet around it.
 Tuplet _writeInTuplet(
   Tuplet tuplet,
   Moment at,
   Content item,
   _Ids ids,
   MeasureId measure,
+  int depth,
 ) {
   final nested = _tupletAt(tuplet.members, at);
   if (nested != null) {
@@ -314,11 +317,11 @@ Tuplet _writeInTuplet(
       tuplet,
       tuplet.members.replaceAt(
         nested.index,
-        _writeInTuplet(nested.tuplet, nested.at, item, ids, measure),
+        _writeInTuplet(nested.tuplet, nested.at, item, ids, measure, depth + 1),
       ),
     );
   }
-  _check(startProblem(at));
+  _check(tupletDepthProblem(depth + _levels(item)) ?? startProblem(at));
   final written = tuplet.unit.length * Fraction(tuplet.ratio.actual);
   if (at + item.span > Moment.zero + written) {
     throw _Refuse(WouldSplitTuplet(tuplet.id, measure));
@@ -340,6 +343,12 @@ Tuplet _writeInTuplet(
       },
   ]);
 }
+
+/// How deep the tuplets of [item] nest: 0 for an event.
+int _levels(Content item) => switch (item) {
+  Event() => 0,
+  Tuplet(:final members) => 1 + members.map(_levels).fold(0, max),
+};
 
 Tuplet _refill(Tuplet tuplet, Iterable<Content> members) => Tuplet(
   id: tuplet.id,

@@ -1377,6 +1377,66 @@ void main() {
       expect(score.spanners.single.voice, VoiceSlot.two);
     });
 
+    test('reads back two slurs of a second voice where the later one ends '
+        'on a note of voice one', () {
+      var score = blankScore(bars: 1);
+      score = fill(score, 0, [chordOf(1, 'C4', value: NoteValue.whole)]);
+      score = fill(score, 0, slot: VoiceSlot.two, [
+        chordOf(2, 'D4'),
+        chordOf(3, 'E4'),
+        chordOf(4, 'F4'),
+        Gap(len(1, 4)),
+      ]);
+      score = withSlur(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(1, 4)),
+        voice: VoiceSlot.two,
+      );
+      score = withSlur(
+        score,
+        pointAt(score, 0, at(1, 2)),
+        pointAt(score, 0, at(3, 4)),
+        voice: VoiceSlot.two,
+      );
+
+      final back = scoreFromMusicXml(scoreToMusicXml(score));
+
+      expect(spannersOf(back), ['slur 0@0-0@1/4', 'slur 0@1/2-0@3/4']);
+    });
+
+    test('reads its own file back to itself where a slur of a second voice '
+        'starts in a gap, on the note of voice one another slur starts '
+        'under', () {
+      var score = blankScore();
+      score = fill(score, 0, [chordOf(1, 'C4', value: NoteValue.whole)]);
+      score = fill(score, 0, slot: VoiceSlot.two, [
+        chordOf(2, 'D4'),
+        chordOf(3, 'E4'),
+        Gap(len(1, 2)),
+      ]);
+      score = fill(score, 1, [chordOf(4, 'C4', value: NoteValue.whole)]);
+      score = fill(score, 1, slot: VoiceSlot.two, [
+        chordOf(5, 'G4'),
+        Gap(len(3, 4)),
+      ]);
+      score = withSlur(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(1, 4)),
+        voice: VoiceSlot.two,
+      );
+      score = withSlur(
+        score,
+        pointAt(score, 0, at(1, 2)),
+        pointAt(score, 1, Moment.zero),
+        voice: VoiceSlot.two,
+      );
+      final text = scoreToMusicXml(score);
+
+      expect(scoreToMusicXml(scoreFromMusicXml(text)), text);
+    });
+
     test('leaves a slur stop that nothing opened out of the next slur', () {
       const start = '<notations><slur type="start"/></notations>';
       const stop = '<notations><slur type="stop"/></notations>';
@@ -1424,6 +1484,31 @@ void main() {
         ' 1.0 1@1/2-1@3/4',
       ]);
       expect([marksIn(score, 0), marksIn(score, 1)], [isEmpty, isEmpty]);
+    });
+
+    test("keeps a bar's own opening tempo over one the bar before ends "
+        'with', () {
+      final whole = note('C5', 16, 'whole');
+      final score = imported(
+        flute([
+          [
+            opening(),
+            whole,
+            direction([metronome(80)]),
+          ],
+          [
+            direction([metronome(120)]),
+            whole,
+          ],
+        ]),
+      );
+
+      expect(
+        [for (final mark in score.measures[1].tempos) mark.tempo.bpm],
+        [
+          120,
+        ],
+      );
     });
 
     test('moves what a bar ends with to the next bar, and drops it after the '

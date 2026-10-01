@@ -352,6 +352,9 @@ extension on _BarReader {
     Moment onset,
   ) {
     final at = Source(tuplet);
+    if (tupletDepthProblem(lane.frames.length + 1) case final problem?) {
+      at.refuse(problem);
+    }
     final actual = tuplet.getElement('tuplet-actual');
     final normal = tuplet.getElement('tuplet-normal');
     final TupletRatio ratio;

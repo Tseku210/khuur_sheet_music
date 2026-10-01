@@ -255,8 +255,10 @@ final class _Placing {
 /// [placed] in an order that the exporter writes back as the file had it.
 /// The exporter writes the marks that share a place in list order, and
 /// numbers the spanners that start together in list order, so each such
-/// group constrains the list. Where nothing constrains two spanners, the
-/// one that starts first in the file comes first.
+/// group constrains the list. A slur starts with the event that carries
+/// its start, which for one that starts in a gap of its voice is earlier
+/// than its first point. Where nothing constrains two spanners, the one
+/// that starts first in the file comes first.
 List<_Placed> _inWritingOrder(List<_Placed> placed) {
   int byStart(int a, int b) =>
       placed[a].record.start.index - placed[b].record.start.index;
@@ -281,7 +283,8 @@ List<_Placed> _inWritingOrder(List<_Placed> placed) {
   final stops = <EventId?, List<({int spanner, int rank})>>{};
   final starts = <(StaffId, ScorePoint), List<({int spanner, int rank})>>{};
   final onNote = <(int, Type), List<({int spanner, int rank})>>{};
-  final together = <(Type, ScorePoint), List<({int spanner, int rank})>>{};
+  final together =
+      <(Type, MeasureId, Moment), List<({int spanner, int rank})>>{};
   for (final (i, spanner) in placed.indexed) {
     final _Pair(:kind, :number, :start, :stop) = spanner.record;
     final type = kind.runtimeType;
@@ -309,7 +312,12 @@ List<_Placed> _inWritingOrder(List<_Placed> placed) {
           rank: stop.index,
         ));
     }
-    together.putIfAbsent((type, spanner.first), () => []).add((
+    final ScorePoint(:measure, :offset) = spanner.first;
+    final startsAt = switch (start.anchor) {
+      EventAnchor(:final event) => event.onset,
+      TimeAnchor() => offset,
+    };
+    together.putIfAbsent((type, measure, startsAt), () => []).add((
       spanner: i,
       rank: number,
     ));

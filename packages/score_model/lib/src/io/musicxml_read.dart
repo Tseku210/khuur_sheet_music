@@ -610,7 +610,7 @@ final class _BarReader {
   int _voice(XmlElement parent, int staff) {
     final voice = parent.getElement('voice');
     if (voice == null) {
-      return 1 + 4 * staff;
+      return voiceNumber(staff, VoiceSlot.one);
     }
     final number = integerOf(voice.innerText);
     if (number == null || number < 1) {

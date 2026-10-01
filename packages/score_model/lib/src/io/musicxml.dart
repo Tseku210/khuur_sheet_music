@@ -68,6 +68,12 @@ bool _writtenBefore(_At a, _At b) => a.bar != b.bar
     ? a.stream < b.stream
     : a.at < b.at;
 
+_At _firstWritten(_Ends line) =>
+    _writtenBefore(line.stop, line.start) ? line.stop : line.start;
+
+_At _lastWritten(_Ends line) =>
+    _writtenBefore(line.stop, line.start) ? line.start : line.stop;
+
 /// Where a spanner's ends are written. A spanner written on notes has the
 /// events that carry its ends in `from` and `to`; a direction spanner has
 /// neither.
@@ -345,7 +351,7 @@ final class _Export {
   }
 
   static int _voice(int staffIndex, VoiceView voice) =>
-      staffIndex * 4 + voice.slot.index + 1;
+      voiceNumber(staffIndex, voice.slot);
 
   static XmlElement? _staff(StaffView staff, int k) =>
       staff.part.staves.length > 1 ? _text('staff', '${k + 1}') : null;
@@ -639,7 +645,7 @@ final class _Export {
       }),
       OctaveLine(:final shift) => _el('octave-shift', const [], {
         'type': start ? (shift.octaves > 0 ? 'down' : 'up') : 'stop',
-        'size': '${shift.octaves.abs() * 7 + 1}',
+        'size': '${octaveShiftSize(shift)}',
         'number': number,
       }),
       PedalLine() => _el('pedal', const [], {
@@ -674,7 +680,7 @@ final class _Export {
   _Ends _endsOf(Spanner spanner) {
     final staves = score.partOf(spanner.staff).staves;
     final staffIndex = staves.indexWhere((staff) => staff.id == spanner.staff);
-    int stream(VoiceSlot voice) => staffIndex * 4 + voice.index;
+    int stream(VoiceSlot voice) => voiceNumber(staffIndex, voice);
     (TimedEvent, int) eventAt(VoiceSlot voice, ScorePoint point) {
       final timed = score.anchorAt(spanner.staff, voice, point)!;
       return (timed, stream(timed.voice));
@@ -713,9 +719,12 @@ final class _Export {
     }
   }
 
-  /// Numbers each spanner with the lowest number no overlapping spanner of
-  /// the same kind in its part holds. Spanners overlap when one stops at or
-  /// after the other starts.
+  /// Numbers each spanner with the lowest number no spanner of its kind
+  /// and part still holds when it starts. A spanner holds its number until
+  /// it has stopped and both its marks are written, so a reader that pairs
+  /// the marks of a number in document order meets one spanner at a time.
+  /// A slur's stop can be written before its start, which is why its
+  /// marks are compared and not only its ends.
   Map<SpannerId, int> _numbers() {
     final numbers = <SpannerId, int>{};
     final groups = <(PartId, Type), List<_Ends>>{};
@@ -729,13 +738,15 @@ final class _Export {
         group,
         (a, b) => _compare(a.start, b.start),
       )) {
-        open.removeWhere(
-          (other) =>
-              _compare(other.stop, line.start) < 0 &&
-              _writtenBefore(other.stop, line.start),
-        );
+        open.removeWhere((other) => other.stop.bar < line.start.bar);
+        final held = {
+          for (final other in open)
+            if (_compare(other.stop, line.start) >= 0 ||
+                !_writtenBefore(_lastWritten(other), _firstWritten(line)))
+              numbers[other.spanner.id],
+        };
         var number = 1;
-        while (open.any((other) => numbers[other.spanner.id] == number)) {
+        while (held.contains(number)) {
           number++;
         }
         numbers[line.spanner.id] = number;
@@ -797,16 +808,7 @@ XmlElement _navigation(NavigationMark mark, XmlElement? staff) {
     Fine() => ([_text('words', 'Fine')], {'fine': 'yes'}),
     Jump(:final target, :final then, :final text) => (
       [
-        _text(
-          'words',
-          text ??
-              '${target == JumpTarget.start ? 'D.C.' : 'D.S.'}'
-                  '${switch (then) {
-                    JumpThen.toEnd => '',
-                    JumpThen.toFine => ' al Fine',
-                    JumpThen.toCoda => ' al Coda',
-                  }}',
-        ),
+        _text('words', text ?? jumpWords(target, then)),
       ],
       target == JumpTarget.start ? {'dacapo': 'yes'} : {'dalsegno': 'segno'},
     ),

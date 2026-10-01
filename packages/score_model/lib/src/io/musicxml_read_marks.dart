@@ -82,16 +82,16 @@ extension on _BarReader {
 
   OctaveLine _octaveLine(XmlElement shift, {required bool down}) {
     final size = shift.getAttributeNode('size');
-    final octaves = switch (size == null ? 8 : integerOf(size.value)) {
-      8 => 1,
-      15 => 2,
-      22 => 3,
-      _ => Source(size!).refuse('size is 8, 15 or 22'),
-    };
+    final written = size == null ? 8 : integerOf(size.value);
     return OctaveLine(
-      OctaveShift.values.firstWhere(
-        (shift) => shift.octaves == (down ? octaves : -octaves),
-      ),
+      OctaveShift.values
+              .where(
+                (shift) =>
+                    octaveShiftSize(shift) == written &&
+                    shift.octaves > 0 == down,
+              )
+              .firstOrNull ??
+          Source(size!).refuse('size is 8, 15 or 22'),
     );
   }
 
@@ -233,14 +233,11 @@ Jump _jump(JumpTarget target, String? words) {
       : lower.contains('al coda')
       ? JumpThen.toCoda
       : JumpThen.toEnd;
-  final usual =
-      '${target == JumpTarget.start ? 'D.C.' : 'D.S.'}'
-      '${switch (then) {
-        JumpThen.toEnd => '',
-        JumpThen.toFine => ' al Fine',
-        JumpThen.toCoda => ' al Coda',
-      }}';
-  return Jump(target, then: then, text: words == usual ? null : words);
+  return Jump(
+    target,
+    then: then,
+    text: words == jumpWords(target, then) ? null : words,
+  );
 }
 
 /// The tempo of the first metronome among [types] that states one, else of

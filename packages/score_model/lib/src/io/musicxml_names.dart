@@ -10,7 +10,27 @@ library;
 import '../events.dart';
 import '../measure.dart';
 import '../pitch.dart';
+import '../refs.dart';
+import '../score.dart';
 import '../time.dart';
+
+/// The `<voice>` export gives [slot] on the staff at index [staff] of its
+/// part. Import takes a note without one as the first voice of its staff.
+int voiceNumber(int staff, VoiceSlot slot) => staff * 4 + slot.index + 1;
+
+VoiceSlot slotOfVoice(int voice) => VoiceSlot.values[(voice - 1) % 4];
+
+/// The `size` of an octave shift: 8, 15 or 22.
+int octaveShiftSize(OctaveShift shift) => shift.octaves.abs() * 7 + 1;
+
+/// The words a jump prints when it has none of its own.
+String jumpWords(JumpTarget target, JumpThen then) =>
+    '${target == JumpTarget.start ? 'D.C.' : 'D.S.'}'
+    '${switch (then) {
+      JumpThen.toEnd => '',
+      JumpThen.toFine => ' al Fine',
+      JumpThen.toCoda => ' al Coda',
+    }}';
 
 String typeName(DurationBase base) => switch (base) {
   DurationBase.breve => 'breve',

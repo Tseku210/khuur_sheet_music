@@ -14,6 +14,10 @@ const _units = {1, 2, 4, 8, 16, 32, 64, 128};
 /// its length, so the length is capped.
 final _longest = Length(Fraction(64));
 
+/// The deepest tuplets nest. Reading a voice recurses once per level of
+/// nesting, so the depth is capped.
+const _deepest = 16;
+
 String? midiProblem(int number) =>
     number >= 0 && number <= 127 ? null : 'a MIDI number is 0 to 127';
 
@@ -37,6 +41,10 @@ String? fingerProblem(int finger) =>
 
 String? ratioTermProblem(int term) =>
     term > 0 ? null : 'ratio terms are above 0';
+
+/// [depth] counts a tuplet and every tuplet around it.
+String? tupletDepthProblem(int depth) =>
+    depth <= _deepest ? null : 'tuplets nest at most $_deepest deep';
 
 String? unitProblem(int unit) =>
     _units.contains(unit) ? null : 'the unit is a power of two up to 128';

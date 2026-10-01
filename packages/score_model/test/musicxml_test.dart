@@ -1272,6 +1272,37 @@ void main() {
       ]);
     });
 
+    test('numbers a slur whose stop is written first apart from a slur '
+        'written between its ends', () {
+      var score = blankScore(bars: 1);
+      score = fill(score, 0, [chordOf(1, 'C4', value: NoteValue.whole)]);
+      score = fill(score, 0, slot: VoiceSlot.two, [
+        chordOf(2, 'D4'),
+        chordOf(3, 'E4'),
+        chordOf(4, 'F4'),
+        Gap(len(1, 4)),
+      ]);
+      score = withSlur(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(1, 4)),
+        voice: VoiceSlot.two,
+      );
+      score = withSlur(
+        score,
+        pointAt(score, 0, at(1, 2)),
+        pointAt(score, 0, at(3, 4)),
+        voice: VoiceSlot.two,
+      );
+
+      expect(placedAs(read(exported(score)).children, 'slur'), [
+        'P1 m0 @0 <slur type="stop" number="2"/>',
+        'P1 m0 @0 <slur type="start" number="1"/>',
+        'P1 m0 @1/4 <slur type="stop" number="1"/>',
+        'P1 m0 @1/2 <slur type="start" number="2"/>',
+      ]);
+    });
+
     test('keeps a number until its stop is written', () {
       var score = blankScore(parts: const [piano]);
       score = fill(score, 1, staff: 1, [

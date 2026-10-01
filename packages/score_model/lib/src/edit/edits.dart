@@ -169,8 +169,9 @@ final class SetValue extends Edit {
 /// Creates a tuplet at [at] filled with rests of [unit], overwriting like
 /// [EnterNote]. A tuplet never crosses a barline: refused with
 /// [WouldSplitTuplet] if it does not fit in the bar. Inside a tuplet it
-/// nests, and must fit in that tuplet. The cursor stays at [at] and the
-/// first rest is selected, so the notes entered next fill the tuplet.
+/// nests, and must fit in that tuplet. Tuplets nest at most 16 deep, and
+/// one more is refused with [InvalidValue]. The cursor stays at [at] and
+/// the first rest is selected, so the notes entered next fill the tuplet.
 final class EnterTuplet extends Edit {
   const EnterTuplet({
     required this.at,
@@ -653,7 +654,7 @@ final class SetMeterDisplay extends Edit {
 /// selection and the cursor stays. Refused with [StaleReference] for a gone
 /// bar or staff, [OutsideMeasure] for a point outside its bar, and
 /// [InvalidValue] for a note that does not suit the staff it lands on, as
-/// for [EnterNote].
+/// for [EnterNote], or for a tuplet that would nest more than 16 deep.
 final class Paste extends Edit {
   const Paste(
     this.clip, {

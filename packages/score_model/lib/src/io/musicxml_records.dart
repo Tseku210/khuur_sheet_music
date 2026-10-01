@@ -12,6 +12,7 @@ import '../refs.dart';
 import '../score.dart';
 import '../time.dart';
 import 'json.dart';
+import 'musicxml_names.dart';
 
 /// The element or attribute a record came from. Its path is built only
 /// when a refusal names it.
@@ -193,7 +194,7 @@ final class LaneRecord {
     required this.voice,
     required this.staff,
     required this.voiceSource,
-  }) : slot = VoiceSlot.values[(voice - 1) % 4];
+  }) : slot = slotOfVoice(voice);
 
   final int voice;
 
@@ -207,6 +208,11 @@ final class LaneRecord {
 
   /// Events and tuplets, in time order.
   final List<LaneItem> items = [];
+
+  /// The first event that starts at each time, once the lane is read.
+  late final Map<Moment, EventRecord> startingAt = {
+    for (final event in eventsIn(items).toList().reversed) event.onset: event,
+  };
 
   /// Where the last item ends.
   Moment end = Moment.zero;
