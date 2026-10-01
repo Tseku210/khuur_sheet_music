@@ -604,6 +604,27 @@ void main() {
       expect(printed(staffOf(score, 0)), ['F4 n', 'Bb4 b', 'C#5', 'A4']);
     });
 
+    test('respell a written pitch past a double accidental', () {
+      final score = fill(blankScore(parts: const [clarinet]), 0, [
+        chordOf(100, 'Ex4'),
+        chordOf(101, 'Ex4'),
+        chordOf(102, 'Fx4'),
+        chordOf(103, 'Bx4'),
+      ]);
+
+      expect(printed(staffOf(score, 0)), ['G#4 #', 'G#4', 'Gx4 x', 'D#5 #']);
+    });
+
+    test('respell past a double accidental in the written key', () {
+      final score = fill(
+        blankScore(parts: const [clarinet], key: const KeySignature(-4)),
+        0,
+        [chordOf(100, 'Ex4', value: NoteValue.whole)],
+      );
+
+      expect(printed(staffOf(score, 0)), ['Ab4 b']);
+    });
+
     test('cover quarter tones', () {
       final score = fill(blankScore(), 0, [
         chordOf(100, 'F+4'),

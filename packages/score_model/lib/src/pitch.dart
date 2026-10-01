@@ -122,15 +122,13 @@ final class Pitch extends Tone {
   /// Transposes by a spelled interval: the letter moves by
   /// [Interval.steps], and the alteration is whatever makes the distance
   /// exactly [Interval.semitones]. C4 up a major third is E4; C4 up a
-  /// diminished fourth is Fb4.
-  Pitch transpose(Interval interval) {
-    final target = diatonic + interval.steps;
-    final step = Step.values[target % 7];
-    final octave = (target - target % 7) ~/ 7;
-    final natural = Pitch(step, octave);
-    final quarterTones =
-        _quarterTones + interval.semitones * 2 - natural._quarterTones;
-    return Pitch(step, octave, Alter.fromQuarterTones(quarterTones));
+  /// diminished fourth is Fb4. When that would need more than a double
+  /// sharp or flat, the same sound is spelled as [key] spells it, so
+  /// concert E𝄪 on a B♭ clarinet reads G♯ rather than F with three sharps.
+  Pitch transpose(Interval interval, {KeySignature key = KeySignature.cMajor}) {
+    final quarterTones = _quarterTones + interval.semitones * 2;
+    return _spelledAt(diatonic + interval.steps, quarterTones) ??
+        _spell(quarterTones, key);
   }
 
   PitchName get name => PitchName(step, alter);

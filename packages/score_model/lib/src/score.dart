@@ -296,6 +296,7 @@ final class Score {
     );
     return written.transpose(
       Interval.octave * context.octaveShift + instrument.transposition,
+      key: context.key,
     );
   }
 

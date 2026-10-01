@@ -423,7 +423,12 @@ final class _Export {
 
     List<XmlElement> head(Note note) => switch (note) {
       PitchedNote(:final pitch) => [
-        _pitch(pitch.transpose(-part.instrument.transposition)),
+        _pitch(
+          pitch.transpose(
+            -part.instrument.transposition,
+            key: staff.writtenKey,
+          ),
+        ),
       ],
       DrumNote(:final drum) => [
         _el('unpitched', [

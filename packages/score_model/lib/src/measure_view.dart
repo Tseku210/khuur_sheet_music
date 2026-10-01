@@ -93,6 +93,7 @@ StaffView _staffView(
     return switch (note) {
       PitchedNote(:final pitch) => pitch.transpose(
         -(part.instrument.transposition + Interval.octave * octaves),
+        key: writtenKey,
       ),
       DrumNote(:final drum) => part.instrument.soundOf(drum)!.position,
     };

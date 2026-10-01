@@ -485,6 +485,15 @@ void main() {
       ]);
     });
 
+    test('respells a written pitch past a double accidental', () {
+      var score = blankScore(parts: const [clarinet], bars: 1);
+      score = fill(score, 0, [chordOf(1, 'Ex4', value: NoteValue.whole)]);
+
+      expect(each(measure(exported(score), 'P1', 0), 'pitch'), [
+        '<pitch><step>G</step><alter>1</alter><octave>4</octave></pitch>',
+      ]);
+    });
+
     test('names every accidental the staff prints', () {
       ChordEvent note(int id, Pitch pitch, {bool cautionary = false}) =>
           ChordEvent(
