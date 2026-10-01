@@ -30,8 +30,6 @@ sealed class Edit {
   String get label;
 }
 
-// --- Note entry -----------------------------------------------------------
-
 /// Writes a note of [value] (written) playing [tone] at [at], replacing
 /// whatever sounded in that voice from `at` for the note's length.
 ///
@@ -236,8 +234,6 @@ final class Erase extends Edit {
   String get label => 'Delete';
 }
 
-// --- Marks ------------------------------------------------------------------
-
 /// Adds or removes one articulation. Idempotent, so "toggle" is decided by
 /// the caller from what it sees.
 final class SetArticulation extends Edit {
@@ -374,8 +370,6 @@ final class RemoveSpanner extends Edit {
   String get label => 'Remove line';
 }
 
-// --- Context ----------------------------------------------------------------
-
 /// Changes the meter from bar [from] onward (access pattern 8).
 ///
 /// Scope: [from] and every following bar that carried the same meter as
@@ -480,8 +474,6 @@ final class SetTempoMarks extends Edit {
   @override
   String get label => 'Tempo';
 }
-
-// --- Bars -------------------------------------------------------------------
 
 /// Inserts [count] empty bars before [before] (at the end when null). New
 /// bars copy meter, key and closing clefs from the bar before the insertion
@@ -637,8 +629,6 @@ final class SetMeterDisplay extends Edit {
   String get label => 'Time signature display';
 }
 
-// --- Clipboard and bulk -----------------------------------------------------
-
 /// Replaces the music from [at] for the clip's length with [clip], on the
 /// staves from [at]'s staff down. What was there goes as [Erase] clears a
 /// range: every voice, the directions and the spanners inside. Each voice
@@ -692,8 +682,6 @@ final class Transpose extends Edit {
   String get label => 'Transpose';
 }
 
-// --- Parts ------------------------------------------------------------------
-
 /// Adds a part made from [template] at part [index], or at the bottom when
 /// null, with a [MeasureRest] on each new staff in every bar. The cursor
 /// and selection stay. Refused with [InvalidValue] for an index outside 0
@@ -736,8 +724,6 @@ final class SetPartHidden extends Edit {
   String get label => hidden ? 'Hide instrument' : 'Show instrument';
 }
 
-// --- Grouping ---------------------------------------------------------------
-
 /// Runs [edits] in order as one undo step. Each edit sees the score, cursor
 /// and selection the one before it left. All or nothing: if any edit is
 /// refused, the batch is refused and the score is unchanged.
@@ -752,8 +738,6 @@ final class Batch extends Edit {
   @override
   final String label;
 }
-
-// --- Refusals ---------------------------------------------------------------
 
 /// Why an edit did not apply. Expected outcomes, not errors: the app shows
 /// them as a message and the session is unchanged.

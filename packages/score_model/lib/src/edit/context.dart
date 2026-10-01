@@ -1,8 +1,5 @@
 part of 'session.dart';
 
-// Key and clef propagate forward through the run of bars that carried the
-// old value. See [_propagate] and [_setClef].
-
 _Result _setKey(Score score, MeasureId from, KeySignature key) {
   _check(keyProblem(key.fifths));
   final start = _barIndex(score, from);
@@ -115,7 +112,7 @@ Score _setTempoMarks(Score score, MeasureId measure, Seq<TempoMark> marks) {
 /// Replaces the value carried by a run of bars: bar [start] and every
 /// following bar for which [carries] holds, stopping at the first that does
 /// not. This is how "a change applies until the next change" works when each
-/// bar stores its own context. One `replaceRange` over the run.
+/// bar stores its own context.
 Seq<MeasureColumn> _propagate(
   Seq<MeasureColumn> measures,
   int start, {

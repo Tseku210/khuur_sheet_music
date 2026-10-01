@@ -35,12 +35,6 @@ final class _Result {
   final Selection? selection;
 }
 
-/// Pure core of the edit engine: one switch, one case per edit.
-///
-/// Every case follows the same path: resolve targets (throwing
-/// [StaleReference] if gone), rebuild the touched columns bottom-up
-/// (event → voice → staff measure → column), and splice them into the
-/// column list with one `Seq.replaceRange`. Untouched columns are shared.
 _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
   return switch (edit) {
     EnterNote(:final at, :final tone, :final value, :final overfill) => _enter(

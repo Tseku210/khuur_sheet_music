@@ -83,10 +83,8 @@ final class MeasureColumn {
   /// Barline at the end of this bar.
   final Barline barline;
 
-  /// A start-repeat sign at the beginning of this bar.
   final bool repeatStart;
 
-  /// An end-repeat sign at the end of this bar.
   final RepeatEnd? repeatEnd;
 
   /// The ending bracket this bar belongs to, if any. Consecutive columns
@@ -101,21 +99,18 @@ final class MeasureColumn {
   /// Rehearsal letter or number, printed above the bar.
   final String? rehearsal;
 
-  /// Tempo marks inside this bar, ascending by offset. The tempo in effect
-  /// is derived by playback's fold over the columns.
+  /// Tempo marks inside this bar, ascending by offset.
   final Seq<TempoMark> tempos;
 
-  /// One per staff of the score, in system order. `Score` checks the order.
+  /// One per staff of the score, in system order.
   final Seq<StaffMeasure> staves;
 
   /// A break before this bar, so that it starts a new system or page. Null
   /// lets layout choose. The first bar starts both anyway.
   final LayoutBreak? breakBefore;
 
-  /// How the key signature prints at the start of this bar.
   final SignatureDisplay keyDisplay;
 
-  /// How the time signature prints at the start of this bar.
   final SignatureDisplay meterDisplay;
 
   /// Capacity every voice must fill.
@@ -169,8 +164,6 @@ final class MeasureColumn {
     meterDisplay: meterDisplay ?? this.meterDisplay,
   );
 
-  /// Returns a column with [staff] replaced. The single step every note edit
-  /// takes on its way back up the tree.
   MeasureColumn withStaff(StaffMeasure staff) {
     final index = staves.indexWhere((s) => s.staff == staff.staff);
     if (index < 0) {
@@ -213,7 +206,6 @@ final class StaffMeasure {
 
   Clef get clefAtEnd => clefChanges.isEmpty ? clef : clefChanges.last.clef;
 
-  /// Clef in effect at [offset].
   Clef clefAt(Moment offset) {
     var current = clef;
     for (final change in clefChanges) {
@@ -374,7 +366,6 @@ final class Volta {
 sealed class NavigationMark {
   const NavigationMark();
 
-  /// Whether the mark takes effect at the start of its bar, not at its end.
   bool get atBarStart => switch (this) {
     Segno() || Coda() => true,
     ToCoda() || Fine() || Jump() => false,
@@ -443,7 +434,7 @@ final class TempoMark {
   final Moment offset;
   final Tempo tempo;
 
-  /// "Allegro", "Тайван". Full Unicode.
+  /// "Allegro", "Тайван".
   final String? text;
 
   final bool showMetronome;

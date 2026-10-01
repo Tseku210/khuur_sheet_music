@@ -9,14 +9,12 @@ import 'random_edits.dart';
 import 'showcase.dart';
 import 'support.dart';
 
-/// [score] saved as JSON text and loaded again.
 Score reloaded(Score score) =>
     scoreFromJson(jsonDecode(jsonEncode(scoreToJson(score))));
 
 String saved(Score score) =>
     '${const JsonEncoder.withIndent('  ').convert(scoreToJson(score))}\n';
 
-/// Every bar of [score] as layout reads it.
 List<String> views(Score score) => [
   for (final column in score.measures)
     describeView(score.measureView(column.id)),

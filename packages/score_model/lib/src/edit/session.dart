@@ -44,14 +44,13 @@ part 'transpose.dart';
 /// before this edit" is just the previous session, and undo is swapping
 /// back to a stored score.
 ///
-/// Undo memory: each history entry holds a whole [Score], but consecutive
-/// scores share every column the edit did not touch. One note edit costs
-/// one new event, voice, staff measure and column, plus a copy of the
-/// column pointer list (about 4 KB at 500 bars). History entries hold a
-/// fresh `Score` wrapper around the shared children, so the lazily built
-/// indexes of a score (`indexOf`, `locate`) are not kept alive per step;
-/// an undone-to score rebuilds them on first use. If 4 KB per step ever
-/// matters, `Seq` can become a chunked trie without any caller changing.
+/// Each history entry holds a whole [Score], but consecutive scores share
+/// every column the edit did not touch. One note edit costs one new event,
+/// voice, staff measure and column, plus a copy of the column pointer list
+/// (about 4 KB at 500 bars). History entries hold a fresh `Score` wrapper
+/// around the shared children, so the lazily built indexes of a score
+/// (`indexOf`, `locate`) are not kept alive per step. An undone-to score
+/// rebuilds them on first use.
 final class EditSession {
   const EditSession._(
     this.score,
@@ -350,7 +349,6 @@ ScorePoint? _normalize(Score score, ScorePoint point) {
       : null;
 }
 
-/// Every id in [score], for seeding the counter.
 Iterable<int> _ids(Score score) sync* {
   for (final part in score.parts) {
     yield part.id.value;
@@ -528,7 +526,7 @@ sealed class Selection {
   factory Selection.event(EventRef event) => ItemSelection(Seq([event]));
 
   /// The one selected event, when exactly one event (or one head of one
-  /// chord) is selected. Point edits (add to chord, articulation) use it.
+  /// chord) is selected.
   EventRef? get singleEvent;
 
   bool get isEmpty;

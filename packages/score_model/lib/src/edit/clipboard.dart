@@ -14,7 +14,6 @@ final class Clip {
   /// Sounding length of the copied range.
   final Length length;
 
-  /// Number of staves the clip spans.
   final int staffCount;
 
   final List<_ClipLane> _lanes;

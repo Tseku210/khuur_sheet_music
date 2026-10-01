@@ -10,7 +10,6 @@ Set<MeasureId> bars(Score score, List<int> indices) => {
   for (final i in indices) score.measures[i].id,
 };
 
-/// An empty bar with [like]'s meter, key and closing clefs.
 MeasureColumn emptyLike(MeasureColumn like, int id) => MeasureColumn(
   id: MeasureId(id),
   meter: like.meter,

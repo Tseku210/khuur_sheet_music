@@ -630,7 +630,6 @@ final class _In {
   _In operator [](String key) =>
       _In(_as<Map<String, Object?>>('an object')[key], '$path.$key');
 
-  /// The member [key], or null when it is missing.
   _In? maybe(String key) {
     final member = this[key];
     return member.value == null ? null : member;

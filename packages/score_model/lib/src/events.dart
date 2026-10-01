@@ -95,7 +95,7 @@ final class ChordEvent extends Event {
   /// Single-note tremolo strokes through the stem. 0 for none.
   final int tremolo;
 
-  /// One entry per verse. Full Unicode text.
+  /// One entry per verse.
   final Seq<Lyric> lyrics;
 
   @override

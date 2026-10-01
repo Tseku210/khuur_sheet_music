@@ -343,7 +343,6 @@ enum Clef {
   Pitch naturalAt(int staffStep) =>
       _natural(_anchor + staffStep - 2 * (line - 1));
 
-  /// The staff step a written pitch sits on.
   int staffStepOf(Pitch written) => written.diatonic - _anchor + 2 * (line - 1);
 }
 

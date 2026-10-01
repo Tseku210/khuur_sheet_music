@@ -131,8 +131,6 @@ final class Score {
   /// top to bottom. Every column's `staves` follows this order.
   late final List<Staff> staves = [for (final part in parts) ...part.staves];
 
-  /// Derived from [measures] once per score value. Rebuilding it after an
-  /// edit costs one pass over ~500 ids.
   late final Map<MeasureId, int> _indexById = {
     for (var i = 0; i < measures.length; i++) measures[i].id: i,
   };
@@ -278,7 +276,6 @@ final class Score {
     );
   }
 
-  /// The last tempo mark at or before [offset] of bar [index].
   Tempo _tempoAt(int index, Moment offset) {
     for (var i = index; i >= 0; i--) {
       final mark = measures[i].tempos
@@ -453,7 +450,6 @@ final class Part {
 
   final PartId id;
 
-  /// Full Unicode.
   final String name;
   final String shortName;
   final Instrument instrument;
@@ -524,7 +520,6 @@ final class Instrument {
 
   bool get isPercussion => drums.isNotEmpty;
 
-  /// The sound [drum] names, or null when the kit has none.
   DrumSound? soundOf(Drum drum) =>
       drums.where((sound) => sound.name == drum.name).firstOrNull;
 
@@ -650,7 +645,7 @@ final class TempoLine extends SpannerKind {
   static const ritardando = TempoLine(text: 'rit.', factor: 0.75);
   static const accelerando = TempoLine(text: 'accel.', factor: 4 / 3);
 
-  /// What prints, as "rit." or "poco accel.". Full Unicode.
+  /// What prints, as "rit." or "poco accel.".
   final String text;
 
   /// The tempo the line reaches, as a share of the tempo at its start, when

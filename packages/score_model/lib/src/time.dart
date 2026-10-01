@@ -117,10 +117,8 @@ extension type const Length(Fraction wholeNotes) {
   Length operator +(Length other) => Length(wholeNotes + other.wholeNotes);
   Length operator -(Length other) => Length(wholeNotes - other.wholeNotes);
 
-  /// Scales by an exact factor, such as [TupletRatio.scale].
   Length operator *(Fraction factor) => Length(wholeNotes * factor);
 
-  /// How many times [unit] fits in this length, exactly.
   Fraction operator /(Length unit) => wholeNotes / unit.wholeNotes;
 
   bool operator <(Length other) => wholeNotes < other.wholeNotes;
@@ -266,8 +264,7 @@ final class Meter {
   bool get isCompound =>
       groups.length == 1 && numerator % 3 == 0 && numerator > 3 && unit >= 4;
 
-  /// Offsets from the bar start where a beat begins. Used by beaming, by the
-  /// cursor's beat-snap, and by [spell].
+  /// Offsets from the bar start where a beat begins.
   List<Moment> get beatOffsets {
     final step = isCompound ? 3 : 1;
     final beats = groups.length > 1
@@ -350,7 +347,6 @@ final class Tempo {
   final double bpm;
   final NoteValue beat;
 
-  /// Seconds that [length] (whole-note units) lasts at this tempo.
   double secondsFor(Length length) =>
       (length / beat.length).toDouble() * 60 / bpm;
 

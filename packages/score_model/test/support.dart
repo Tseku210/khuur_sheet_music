@@ -226,7 +226,6 @@ Score withOctaveLine(
   ]),
 );
 
-/// [score] with part [index] hidden.
 Score hidePart(Score score, int index) => applied(
   EditSession.start(
     score,

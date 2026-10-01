@@ -1,6 +1,3 @@
-// The caller's view, written before the type sketch. The sketch is derived
-// from these call sites; when the two disagree, the sketch changes.
-//
 // # score_model quickstart
 //
 // A `Score` is an immutable value shaped like a MusicXML "score-timewise"
@@ -90,10 +87,8 @@ void main() {
   assert(loaded.measures.first.id == bar1);
 }
 
-// ---------------------------------------------------------------------------
 // Composer screen controller. In the app this extends ChangeNotifier and is
 // read with context.watch; here a plain listener list stands in for it.
-// ---------------------------------------------------------------------------
 
 /// What the layout engine's hit test returns for a tap on a staff. Owned by
 /// the layout package, not by the model; mirrored here as a record.
@@ -228,7 +223,6 @@ class ComposerController {
   // ties it into the next bar. With `Overfill.refuse` the same tap comes back
   // as `Refused(WouldCrossBarline)`, handled in `_run`.
 
-  // Palette actions a composer needs.
   void toggleArticulation(Articulation articulation) {
     final target = selection.singleEvent;
     if (target == null) {
@@ -282,10 +276,8 @@ class ComposerController {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Layout-engine consumer (pattern 5). Caches one layout per measure id and
 // relays out only what `changesSince` reports.
-// ---------------------------------------------------------------------------
 
 /// Stand-in for the layout engine's per-measure result.
 typedef MeasureLayout = List<String>;
@@ -384,10 +376,8 @@ class LayoutCache {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Playback consumer (pattern 6). The compiler is long-lived so it can keep
 // its per-measure fragment cache across edits.
-// ---------------------------------------------------------------------------
 
 class PlayerSketch {
   final PlaybackCompiler _compiler = PlaybackCompiler();

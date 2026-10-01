@@ -477,7 +477,6 @@ final class _Lane {
   final graces = <_PendingGrace>[];
 }
 
-/// Reads one `<measure>` of one part.
 final class _BarReader {
   _BarReader(this.part, this.bar);
 

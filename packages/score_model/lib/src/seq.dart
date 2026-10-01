@@ -11,10 +11,8 @@
 /// relies on this: an unchanged subtree is the *same object* in the old and
 /// the new score, and comparing pointers is O(1).
 ///
-/// Representation: a flat unmodifiable array. Replacing one element copies
-/// one array of pointers. For the 500-entry column list that is about 4 KB per
-/// edit. A chunked trie can replace the array behind this API if undo memory
-/// ever matters; no caller would change.
+/// Replacing one element copies one flat array of pointers. For a 500-entry
+/// column list that is about 4 KB per edit.
 final class Seq<T> extends Iterable<T> {
   Seq(Iterable<T> items) : _items = List<T>.unmodifiable(items);
 
@@ -36,7 +34,6 @@ final class Seq<T> extends Iterable<T> {
 
   T operator [](int index) => _items[index];
 
-  /// Index of the first element matching [test], or -1.
   int indexWhere(bool Function(T element) test) => _items.indexWhere(test);
 
   Seq<T> replaceAt(int index, T value) {
@@ -53,7 +50,6 @@ final class Seq<T> extends Iterable<T> {
 
   Seq<T> removeAt(int index) => Seq(List<T>.of(_items)..removeAt(index));
 
-  /// Replaces `[start, end)` with [values].
   Seq<T> replaceRange(int start, int end, Iterable<T> values) =>
       Seq(List<T>.of(_items)..replaceRange(start, end, values));
 

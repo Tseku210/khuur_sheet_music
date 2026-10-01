@@ -495,7 +495,6 @@ Event _piece(
   ),
 };
 
-/// [chord] with the ties of the notes that [clears] removed.
 ChordEvent _untied(ChordEvent chord, bool Function(Note note) clears) =>
     chord.copyWith(
       notes: Seq([

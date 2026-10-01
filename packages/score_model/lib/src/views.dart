@@ -126,7 +126,7 @@ final class StaffView {
   final StaffMeasure source;
   final Part part;
 
-  /// Clef in effect at the bar start (same as `source.clef`).
+  /// Clef in effect at the bar start.
   Clef get clef => source.clef;
 
   /// Print the clef at the start of this bar.
@@ -187,7 +187,7 @@ final class VoiceView {
   final List<TupletView> tuplets;
 }
 
-/// An event placed in time. Returned by the views and by `Score.lookup`.
+/// An event placed in time.
 final class TimedEvent {
   const TimedEvent({
     required this.ref,
@@ -307,7 +307,6 @@ final class ScoreChanges {
   /// include a neighbour that turns out identical.
   final Set<MeasureId> relayout;
 
-  /// Measures that no longer exist.
   final Set<MeasureId> removed;
 
   /// The sequence of measures changed (insert, delete, re-bar), the parts

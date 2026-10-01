@@ -188,7 +188,6 @@ final class PlaybackCompiler {
   }
 }
 
-/// Where a staff's notes go and how loud its part plays.
 typedef _Sound = ({int channel, Instrument instrument, _Loudness loudness});
 
 /// Channels for pitched parts, in order. Channel 9 is General MIDI's
