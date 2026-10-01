@@ -1,0 +1,849 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 4.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+<score-partwise version="4.0">
+  <work>
+    <work-title>Showcase</work-title>
+  </work>
+  <identification>
+    <creator type="composer">Anon.</creator>
+    <creator type="lyricist">Anon.</creator>
+    <rights>CC0</rights>
+    <encoding>
+      <software>simple_sheet_music</software>
+      <supports element="accidental" type="yes"/>
+      <supports element="beam" type="yes"/>
+      <supports element="print" attribute="new-page" type="yes" value="yes"/>
+      <supports element="print" attribute="new-system" type="yes" value="yes"/>
+    </encoding>
+  </identification>
+  <credit page="1">
+    <credit-type>subtitle</credit-type>
+    <credit-words>for testing</credit-words>
+  </credit>
+  <part-list>
+    <score-part id="P1">
+      <part-name>Violin</part-name>
+      <part-abbreviation>Vln.</part-abbreviation>
+      <score-instrument id="P1-I1">
+        <instrument-name>Violin</instrument-name>
+      </score-instrument>
+      <midi-instrument id="P1-I1">
+        <midi-program>41</midi-program>
+      </midi-instrument>
+    </score-part>
+    <score-part id="P2">
+      <part-name>Clarinet in B♭</part-name>
+      <score-instrument id="P2-I1">
+        <instrument-name>Clarinet in B♭</instrument-name>
+      </score-instrument>
+      <midi-instrument id="P2-I1">
+        <midi-program>72</midi-program>
+      </midi-instrument>
+    </score-part>
+    <score-part id="P3">
+      <part-name>Drums</part-name>
+      <score-instrument id="P3-I1">
+        <instrument-name>Snare</instrument-name>
+      </score-instrument>
+      <score-instrument id="P3-I2">
+        <instrument-name>Side stick</instrument-name>
+      </score-instrument>
+      <score-instrument id="P3-I3">
+        <instrument-name>Bass drum</instrument-name>
+      </score-instrument>
+      <midi-instrument id="P3-I1">
+        <midi-channel>10</midi-channel>
+        <midi-bank>129</midi-bank>
+        <midi-program>1</midi-program>
+        <midi-unpitched>39</midi-unpitched>
+      </midi-instrument>
+      <midi-instrument id="P3-I2">
+        <midi-channel>10</midi-channel>
+        <midi-bank>129</midi-bank>
+        <midi-program>1</midi-program>
+        <midi-unpitched>38</midi-unpitched>
+      </midi-instrument>
+      <midi-instrument id="P3-I3">
+        <midi-channel>10</midi-channel>
+        <midi-bank>129</midi-bank>
+        <midi-program>1</midi-program>
+        <midi-unpitched>37</midi-unpitched>
+      </midi-instrument>
+    </score-part>
+  </part-list>
+  <part id="P1">
+    <measure number="0" implicit="yes">
+      <barline location="left">
+        <bar-style>heavy-light</bar-style>
+        <repeat direction="forward"/>
+      </barline>
+      <attributes>
+        <divisions>18</divisions>
+        <key>
+          <fifths>2</fifths>
+          <mode>major</mode>
+        </key>
+        <time symbol="common">
+          <beats>4</beats>
+          <beat-type>4</beat-type>
+        </time>
+        <clef>
+          <sign>G</sign>
+          <line>2</line>
+        </clef>
+      </attributes>
+      <direction placement="above">
+        <direction-type>
+          <rehearsal>A</rehearsal>
+        </direction-type>
+      </direction>
+      <direction placement="above">
+        <direction-type>
+          <segno/>
+        </direction-type>
+        <sound segno="segno"/>
+      </direction>
+      <direction placement="above">
+        <direction-type>
+          <words>Allegro</words>
+        </direction-type>
+        <direction-type>
+          <metronome>
+            <beat-unit>quarter</beat-unit>
+            <per-minute>120</per-minute>
+          </metronome>
+        </direction-type>
+        <sound tempo="120"/>
+      </direction>
+      <direction placement="below">
+        <direction-type>
+          <dynamics>
+            <mf/>
+          </dynamics>
+        </direction-type>
+        <sound dynamics="71.111"/>
+      </direction>
+      <direction placement="below">
+        <direction-type>
+          <words>dolce</words>
+        </direction-type>
+      </direction>
+      <direction placement="below">
+        <direction-type>
+          <wedge type="crescendo" number="1"/>
+        </direction-type>
+      </direction>
+      <direction placement="below">
+        <direction-type>
+          <pedal type="start" line="yes" number="1"/>
+        </direction-type>
+      </direction>
+      <note>
+        <grace/>
+        <pitch>
+          <step>E</step>
+          <octave>4</octave>
+        </pitch>
+        <voice>1</voice>
+        <type>eighth</type>
+      </note>
+      <note>
+        <pitch>
+          <step>F</step>
+          <alter>1</alter>
+          <octave>4</octave>
+        </pitch>
+        <duration>18</duration>
+        <voice>1</voice>
+        <type>quarter</type>
+        <stem>up</stem>
+        <notations>
+          <ornaments>
+            <trill-mark/>
+            <tremolo type="single">2</tremolo>
+          </ornaments>
+          <technical>
+            <down-bow/>
+            <fingering>1</fingering>
+            <string>3</string>
+          </technical>
+          <articulations>
+            <staccato/>
+            <accent/>
+          </articulations>
+        </notations>
+        <lyric number="1">
+          <syllabic>begin</syllabic>
+          <text>la</text>
+          <extend/>
+        </lyric>
+        <lyric number="2">
+          <syllabic>single</syllabic>
+          <text>Тай</text>
+        </lyric>
+      </note>
+      <note>
+        <chord/>
+        <pitch>
+          <step>A</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>18</duration>
+        <tie type="start"/>
+        <voice>1</voice>
+        <type>quarter</type>
+        <accidental parentheses="yes">natural</accidental>
+        <stem>up</stem>
+        <notehead>diamond</notehead>
+        <notations>
+          <tied type="start"/>
+        </notations>
+      </note>
+      <backup>
+        <duration>9</duration>
+      </backup>
+      <harmony>
+        <root>
+          <root-step>D</root-step>
+        </root>
+        <kind text="maj7">major-seventh</kind>
+        <bass>
+          <bass-step>E</bass-step>
+          <bass-alter>-2</bass-alter>
+        </bass>
+      </harmony>
+      <backup>
+        <duration>9</duration>
+      </backup>
+      <forward>
+        <duration>9</duration>
+        <voice>2</voice>
+      </forward>
+      <note print-object="no">
+        <rest/>
+        <duration>9</duration>
+        <voice>2</voice>
+        <type>eighth</type>
+      </note>
+    </measure>
+    <measure number="1">
+      <print new-system="yes"/>
+      <barline location="left">
+        <ending number="1" type="start">1.</ending>
+      </barline>
+      <attributes>
+        <time symbol="common">
+          <beats>4</beats>
+          <beat-type>4</beat-type>
+        </time>
+      </attributes>
+      <direction placement="above">
+        <direction-type>
+          <words>pizz.</words>
+        </direction-type>
+      </direction>
+      <note>
+        <pitch>
+          <step>A</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>6</duration>
+        <tie type="stop"/>
+        <voice>1</voice>
+        <type>eighth</type>
+        <time-modification>
+          <actual-notes>3</actual-notes>
+          <normal-notes>2</normal-notes>
+        </time-modification>
+        <notations>
+          <tied type="stop"/>
+          <slur type="start" number="1" line-type="dashed"/>
+          <tuplet type="start" number="1" bracket="yes">
+            <tuplet-actual>
+              <tuplet-number>3</tuplet-number>
+              <tuplet-type>eighth</tuplet-type>
+            </tuplet-actual>
+            <tuplet-normal>
+              <tuplet-number>2</tuplet-number>
+              <tuplet-type>eighth</tuplet-type>
+            </tuplet-normal>
+          </tuplet>
+        </notations>
+      </note>
+      <note>
+        <rest/>
+        <duration>6</duration>
+        <voice>1</voice>
+        <type>eighth</type>
+        <time-modification>
+          <actual-notes>3</actual-notes>
+          <normal-notes>2</normal-notes>
+        </time-modification>
+        <notations>
+          <fermata/>
+        </notations>
+      </note>
+      <note>
+        <pitch>
+          <step>B</step>
+          <alter>-1</alter>
+          <octave>4</octave>
+        </pitch>
+        <duration>2</duration>
+        <voice>1</voice>
+        <type>16th</type>
+        <accidental>flat</accidental>
+        <time-modification>
+          <actual-notes>9</actual-notes>
+          <normal-notes>4</normal-notes>
+        </time-modification>
+        <beam number="1">begin</beam>
+        <beam number="2">begin</beam>
+        <notations>
+          <tuplet type="start" number="2">
+            <tuplet-actual>
+              <tuplet-number>3</tuplet-number>
+              <tuplet-type>16th</tuplet-type>
+            </tuplet-actual>
+            <tuplet-normal>
+              <tuplet-number>2</tuplet-number>
+              <tuplet-type>16th</tuplet-type>
+            </tuplet-normal>
+          </tuplet>
+        </notations>
+      </note>
+      <note>
+        <pitch>
+          <step>C</step>
+          <alter>0.5</alter>
+          <octave>5</octave>
+        </pitch>
+        <duration>2</duration>
+        <voice>1</voice>
+        <type>16th</type>
+        <accidental>quarter-sharp</accidental>
+        <time-modification>
+          <actual-notes>9</actual-notes>
+          <normal-notes>4</normal-notes>
+        </time-modification>
+        <beam number="1">end</beam>
+        <beam number="2">end</beam>
+      </note>
+      <note>
+        <rest/>
+        <duration>2</duration>
+        <voice>1</voice>
+        <type>16th</type>
+        <time-modification>
+          <actual-notes>9</actual-notes>
+          <normal-notes>4</normal-notes>
+        </time-modification>
+        <notations>
+          <tuplet type="stop" number="2"/>
+          <tuplet type="stop" number="1"/>
+        </notations>
+      </note>
+      <note>
+        <pitch>
+          <step>B</step>
+          <alter>-0.5</alter>
+          <octave>4</octave>
+        </pitch>
+        <duration>54</duration>
+        <voice>1</voice>
+        <type>half</type>
+        <dot/>
+        <accidental>quarter-flat</accidental>
+        <notations>
+          <slur type="stop" number="1"/>
+          <ornaments>
+            <trill-mark/>
+            <wavy-line type="start" number="1"/>
+            <wavy-line type="stop" number="1"/>
+          </ornaments>
+        </notations>
+      </note>
+      <note>
+        <chord/>
+        <pitch>
+          <step>C</step>
+          <alter>1.5</alter>
+          <octave>5</octave>
+        </pitch>
+        <duration>54</duration>
+        <voice>1</voice>
+        <type>half</type>
+        <dot/>
+        <accidental>three-quarters-sharp</accidental>
+      </note>
+      <backup>
+        <duration>36</duration>
+      </backup>
+      <attributes>
+        <clef>
+          <sign>C</sign>
+          <line>3</line>
+        </clef>
+      </attributes>
+      <direction placement="below">
+        <direction-type>
+          <wedge type="diminuendo" number="2"/>
+        </direction-type>
+      </direction>
+      <forward>
+        <duration>36</duration>
+      </forward>
+      <direction placement="below">
+        <direction-type>
+          <wedge type="stop" number="1"/>
+        </direction-type>
+      </direction>
+      <direction placement="below">
+        <direction-type>
+          <wedge type="stop" number="2"/>
+        </direction-type>
+      </direction>
+      <direction placement="below">
+        <direction-type>
+          <pedal type="stop" line="yes" number="1"/>
+        </direction-type>
+      </direction>
+      <direction placement="above">
+        <direction-type>
+          <words>To Coda</words>
+        </direction-type>
+        <sound tocoda="coda"/>
+      </direction>
+      <direction placement="above">
+        <direction-type>
+          <words>D.S. al Coda</words>
+        </direction-type>
+        <sound dalsegno="segno"/>
+      </direction>
+      <backup>
+        <duration>72</duration>
+      </backup>
+      <forward>
+        <duration>36</duration>
+        <voice>2</voice>
+      </forward>
+      <note>
+        <pitch>
+          <step>G</step>
+          <octave>4</octave>
+        </pitch>
+        <duration>36</duration>
+        <voice>2</voice>
+        <type>half</type>
+        <stem>down</stem>
+        <notations>
+          <glissando type="start" number="1"/>
+        </notations>
+      </note>
+      <barline location="right">
+        <bar-style>light-light</bar-style>
+        <ending number="1" type="stop"/>
+        <repeat direction="backward" times="3"/>
+      </barline>
+    </measure>
+    <measure number="2">
+      <barline location="left">
+        <ending number="2, 3" type="start">2, 3.</ending>
+      </barline>
+      <attributes>
+        <key>
+          <fifths>-3</fifths>
+          <mode>minor</mode>
+        </key>
+        <time>
+          <beats>6</beats>
+          <beat-type>8</beat-type>
+        </time>
+      </attributes>
+      <direction placement="above">
+        <direction-type>
+          <metronome print-object="no">
+            <beat-unit>quarter</beat-unit>
+            <beat-unit-dot/>
+            <per-minute>60</per-minute>
+          </metronome>
+        </direction-type>
+        <sound tempo="90"/>
+      </direction>
+      <direction placement="below">
+        <direction-type>
+          <dynamics>
+            <p/>
+          </dynamics>
+        </direction-type>
+        <sound dynamics="46.667"/>
+      </direction>
+      <direction placement="above">
+        <direction-type>
+          <octave-shift type="down" size="8" number="1"/>
+        </direction-type>
+      </direction>
+      <direction placement="above">
+        <direction-type>
+          <words>poco rit.</words>
+        </direction-type>
+        <direction-type>
+          <dashes type="start" number="1"/>
+        </direction-type>
+      </direction>
+      <note>
+        <rest measure="yes"/>
+        <duration>54</duration>
+        <voice>1</voice>
+      </note>
+      <backup>
+        <duration>27</duration>
+      </backup>
+      <direction placement="above">
+        <direction-type>
+          <metronome>
+            <beat-unit>quarter</beat-unit>
+            <beat-unit-dot/>
+            <per-minute>66.5</per-minute>
+          </metronome>
+        </direction-type>
+        <sound tempo="99.75"/>
+      </direction>
+      <barline location="right">
+        <ending number="2, 3" type="discontinue"/>
+      </barline>
+    </measure>
+    <measure number="3">
+      <print new-page="yes"/>
+      <attributes>
+        <key>
+          <fifths>-3</fifths>
+          <mode>minor</mode>
+        </key>
+        <time>
+          <beats>3+2+2</beats>
+          <beat-type>8</beat-type>
+        </time>
+        <clef>
+          <sign>G</sign>
+          <line>2</line>
+        </clef>
+      </attributes>
+      <direction placement="above">
+        <direction-type>
+          <coda/>
+        </direction-type>
+        <sound coda="coda"/>
+      </direction>
+      <note>
+        <pitch>
+          <step>F</step>
+          <alter>2</alter>
+          <octave>4</octave>
+        </pitch>
+        <duration>54</duration>
+        <voice>1</voice>
+        <type>half</type>
+        <dot/>
+        <accidental>double-sharp</accidental>
+        <notations>
+          <glissando type="stop" number="1"/>
+        </notations>
+      </note>
+      <note>
+        <chord/>
+        <pitch>
+          <step>A</step>
+          <alter>-1.5</alter>
+          <octave>4</octave>
+        </pitch>
+        <duration>54</duration>
+        <voice>1</voice>
+        <type>half</type>
+        <dot/>
+        <accidental>three-quarters-flat</accidental>
+      </note>
+      <direction placement="above">
+        <direction-type>
+          <octave-shift type="stop" size="8" number="1"/>
+        </direction-type>
+      </direction>
+      <note>
+        <rest/>
+        <duration>9</duration>
+        <voice>1</voice>
+        <type>eighth</type>
+      </note>
+      <direction placement="above">
+        <direction-type>
+          <dashes type="stop" number="1"/>
+        </direction-type>
+      </direction>
+      <direction placement="above">
+        <direction-type>
+          <words>Fine</words>
+        </direction-type>
+        <sound fine="yes"/>
+      </direction>
+      <barline location="right">
+        <bar-style>light-heavy</bar-style>
+      </barline>
+    </measure>
+  </part>
+  <part id="P2">
+    <measure number="0" implicit="yes">
+      <barline location="left">
+        <bar-style>heavy-light</bar-style>
+        <repeat direction="forward"/>
+      </barline>
+      <attributes>
+        <divisions>18</divisions>
+        <key>
+          <fifths>4</fifths>
+          <mode>major</mode>
+        </key>
+        <time symbol="common">
+          <beats>4</beats>
+          <beat-type>4</beat-type>
+        </time>
+        <clef>
+          <sign>G</sign>
+          <line>2</line>
+        </clef>
+        <staff-details print-object="no"/>
+        <transpose>
+          <diatonic>-1</diatonic>
+          <chromatic>-2</chromatic>
+        </transpose>
+      </attributes>
+      <note>
+        <rest measure="yes"/>
+        <duration>18</duration>
+        <voice>1</voice>
+        <notations>
+          <fermata/>
+        </notations>
+      </note>
+    </measure>
+    <measure number="1">
+      <print new-system="yes"/>
+      <barline location="left">
+        <ending number="1" type="start">1.</ending>
+      </barline>
+      <attributes>
+        <time symbol="common">
+          <beats>4</beats>
+          <beat-type>4</beat-type>
+        </time>
+      </attributes>
+      <note>
+        <rest measure="yes"/>
+        <duration>72</duration>
+        <voice>1</voice>
+      </note>
+      <barline location="right">
+        <bar-style>light-light</bar-style>
+        <ending number="1" type="stop"/>
+        <repeat direction="backward" times="3"/>
+      </barline>
+    </measure>
+    <measure number="2">
+      <barline location="left">
+        <ending number="2, 3" type="start">2, 3.</ending>
+      </barline>
+      <attributes>
+        <key>
+          <fifths>-1</fifths>
+          <mode>minor</mode>
+        </key>
+        <time>
+          <beats>6</beats>
+          <beat-type>8</beat-type>
+        </time>
+      </attributes>
+      <note>
+        <rest measure="yes"/>
+        <duration>54</duration>
+        <voice>1</voice>
+      </note>
+      <barline location="right">
+        <ending number="2, 3" type="discontinue"/>
+      </barline>
+    </measure>
+    <measure number="3">
+      <print new-page="yes"/>
+      <attributes>
+        <key>
+          <fifths>-1</fifths>
+          <mode>minor</mode>
+        </key>
+        <time>
+          <beats>3+2+2</beats>
+          <beat-type>8</beat-type>
+        </time>
+      </attributes>
+      <note>
+        <rest measure="yes"/>
+        <duration>63</duration>
+        <voice>1</voice>
+      </note>
+      <barline location="right">
+        <bar-style>light-heavy</bar-style>
+      </barline>
+    </measure>
+  </part>
+  <part id="P3">
+    <measure number="0" implicit="yes">
+      <barline location="left">
+        <bar-style>heavy-light</bar-style>
+        <repeat direction="forward"/>
+      </barline>
+      <attributes>
+        <divisions>18</divisions>
+        <key>
+          <fifths>0</fifths>
+        </key>
+        <time symbol="common">
+          <beats>4</beats>
+          <beat-type>4</beat-type>
+        </time>
+        <clef>
+          <sign>percussion</sign>
+        </clef>
+        <staff-details>
+          <staff-lines>1</staff-lines>
+        </staff-details>
+      </attributes>
+      <note>
+        <grace slash="yes"/>
+        <unpitched>
+          <display-step>C</display-step>
+          <display-octave>5</display-octave>
+        </unpitched>
+        <instrument id="P3-I1"/>
+        <voice>1</voice>
+        <type>16th</type>
+      </note>
+      <note>
+        <unpitched>
+          <display-step>F</display-step>
+          <display-octave>4</display-octave>
+        </unpitched>
+        <duration>18</duration>
+        <instrument id="P3-I3"/>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note>
+      <note>
+        <chord/>
+        <unpitched>
+          <display-step>C</display-step>
+          <display-octave>5</display-octave>
+        </unpitched>
+        <duration>18</duration>
+        <instrument id="P3-I1"/>
+        <voice>1</voice>
+        <type>quarter</type>
+      </note>
+    </measure>
+    <measure number="1">
+      <print new-system="yes"/>
+      <barline location="left">
+        <ending number="1" type="start">1.</ending>
+      </barline>
+      <attributes>
+        <time symbol="common">
+          <beats>4</beats>
+          <beat-type>4</beat-type>
+        </time>
+      </attributes>
+      <note>
+        <unpitched>
+          <display-step>C</display-step>
+          <display-octave>5</display-octave>
+        </unpitched>
+        <duration>36</duration>
+        <instrument id="P3-I2"/>
+        <voice>1</voice>
+        <type>half</type>
+        <notehead>x</notehead>
+      </note>
+      <note>
+        <rest/>
+        <duration>36</duration>
+        <voice>1</voice>
+        <type>half</type>
+      </note>
+      <barline location="right">
+        <bar-style>light-light</bar-style>
+        <ending number="1" type="stop"/>
+        <repeat direction="backward" times="3"/>
+      </barline>
+    </measure>
+    <measure number="2">
+      <barline location="left">
+        <ending number="2, 3" type="start">2, 3.</ending>
+      </barline>
+      <attributes>
+        <key>
+          <fifths>0</fifths>
+        </key>
+        <time>
+          <beats>6</beats>
+          <beat-type>8</beat-type>
+        </time>
+      </attributes>
+      <note>
+        <unpitched>
+          <display-step>F</display-step>
+          <display-octave>4</display-octave>
+        </unpitched>
+        <duration>27</duration>
+        <instrument id="P3-I3"/>
+        <voice>1</voice>
+        <type>quarter</type>
+        <dot/>
+        <notations>
+          <slur type="start" number="1"/>
+        </notations>
+      </note>
+      <note>
+        <unpitched>
+          <display-step>C</display-step>
+          <display-octave>5</display-octave>
+        </unpitched>
+        <duration>27</duration>
+        <instrument id="P3-I1"/>
+        <voice>1</voice>
+        <type>quarter</type>
+        <dot/>
+        <notations>
+          <slur type="stop" number="1"/>
+        </notations>
+      </note>
+      <barline location="right">
+        <ending number="2, 3" type="discontinue"/>
+      </barline>
+    </measure>
+    <measure number="3">
+      <print new-page="yes"/>
+      <attributes>
+        <key>
+          <fifths>0</fifths>
+        </key>
+        <time>
+          <beats>3+2+2</beats>
+          <beat-type>8</beat-type>
+        </time>
+      </attributes>
+      <note>
+        <rest measure="yes"/>
+        <duration>63</duration>
+        <voice>1</voice>
+      </note>
+      <barline location="right">
+        <bar-style>light-heavy</bar-style>
+      </barline>
+    </measure>
+  </part>
+</score-partwise>
