@@ -56,10 +56,18 @@ const _prologue =
     '"http://www.musicxml.org/dtds/partwise.dtd">\n';
 
 /// A time in the score: bar index and offset in that bar.
-typedef _At = ({int bar, Moment at});
+/// A spanner end: its bar, its time there, and the stream it is written in
+/// within the bar's part, staff by staff and voice by voice.
+typedef _At = ({int bar, int stream, Moment at});
 
 int _compare(_At a, _At b) =>
     a.bar != b.bar ? a.bar - b.bar : a.at.compareTo(b.at);
+
+bool _writtenBefore(_At a, _At b) => a.bar != b.bar
+    ? a.bar < b.bar
+    : a.stream != b.stream
+    ? a.stream < b.stream
+    : a.at < b.at;
 
 /// Where a spanner's ends are written. A spanner written on notes has the
 /// events that carry its ends in `from` and `to`; a direction spanner has
@@ -666,33 +674,47 @@ final class _Export {
   }
 
   _Ends _endsOf(Spanner spanner) {
-    TimedEvent eventAt(VoiceSlot voice, ScorePoint point) =>
-        score.eventAt(
+    final staves = score.partOf(spanner.staff).staves;
+    final staffIndex = staves.indexWhere((staff) => staff.id == spanner.staff);
+    int stream(VoiceSlot voice) => staffIndex * 4 + voice.index;
+    (TimedEvent, int) eventAt(VoiceSlot voice, ScorePoint point) =>
+        switch (score.eventAt(
           VoicePoint(staff: spanner.staff, voice: voice, at: point),
-        ) ??
-        score.eventAt(
-          VoicePoint(staff: spanner.staff, voice: VoiceSlot.one, at: point),
-        )!;
+        )) {
+          final timed? => (timed, stream(voice)),
+          null => (
+            score.anchorAt(spanner.staff, VoiceSlot.one, point)!,
+            stream(VoiceSlot.one),
+          ),
+        };
     final firstBar = score.indexOf(spanner.first.measure);
     final lastBar = score.indexOf(spanner.last.measure);
     switch (spanner.kind) {
       case Slur() || Glissando() || TrillLine():
         final voice = spanner.voice ?? VoiceSlot.one;
-        final from = eventAt(voice, spanner.first);
-        final to = eventAt(voice, spanner.last);
+        final (from, fromStream) = eventAt(voice, spanner.first);
+        final (to, toStream) = eventAt(voice, spanner.last);
         return (
           spanner: spanner,
-          start: (bar: firstBar, at: from.onset),
-          stop: (bar: lastBar, at: to.onset),
+          start: (bar: firstBar, stream: fromStream, at: from.onset),
+          stop: (bar: lastBar, stream: toStream, at: to.onset),
           from: from.event.id,
           to: to.event.id,
         );
       case Hairpin() || OctaveLine() || PedalLine() || TempoLine():
-        final last = eventAt(VoiceSlot.one, spanner.last);
+        final (last, _) = eventAt(VoiceSlot.one, spanner.last);
         return (
           spanner: spanner,
-          start: (bar: firstBar, at: spanner.first.offset),
-          stop: (bar: lastBar, at: last.onset + last.duration),
+          start: (
+            bar: firstBar,
+            stream: stream(VoiceSlot.one),
+            at: spanner.first.offset,
+          ),
+          stop: (
+            bar: lastBar,
+            stream: stream(VoiceSlot.one),
+            at: last.onset + last.duration,
+          ),
           from: null,
           to: null,
         );
@@ -717,7 +739,11 @@ final class _Export {
         });
       final open = <_Ends>[];
       for (final (_, line) in ordered) {
-        open.removeWhere((other) => _compare(other.stop, line.start) < 0);
+        open.removeWhere(
+          (other) =>
+              _compare(other.stop, line.start) < 0 &&
+              _writtenBefore(other.stop, line.start),
+        );
         var number = 1;
         while (open.any((other) => numbers[other.spanner.id] == number)) {
           number++;

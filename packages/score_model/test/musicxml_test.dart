@@ -186,7 +186,8 @@ List<String> placedAs(List<Placed> children, String name) => [
 ];
 
 /// Checks that each start of spanner element [name] meets a stop of the
-/// same number later in its part, before that number starts again.
+/// same number later in its part's document, before that number starts
+/// again. A reader pairs them in that order.
 void expectPaired(List<Placed> children, String name, {String reason = ''}) {
   final open = <String, String>{};
   final found = [
@@ -194,19 +195,7 @@ void expectPaired(List<Placed> children, String name, {String reason = ''}) {
       for (final element in child.element.findAllElements(name))
         (child, element),
   ];
-  final ordered = [...found.indexed]
-    ..sort((a, b) {
-      final (i, (x, _)) = a;
-      final (j, (y, _)) = b;
-      return x.part != y.part
-          ? x.part.compareTo(y.part)
-          : x.bar != y.bar
-          ? x.bar - y.bar
-          : x.at != y.at
-          ? x.at.compareTo(y.at)
-          : i - j;
-    });
-  for (final (_, (child, found)) in ordered) {
+  for (final (child, found) in found) {
     final key = '${child.part} ${found.getAttribute('number')}';
     final where = '$reason, $name $key in bar ${child.bar} @${child.at}';
     if (found.getAttribute('type') == 'stop') {
@@ -1235,6 +1224,65 @@ void main() {
         'P1 m0 @3/4 <slur type="start" number="1"/>',
         'P1 m1 @0 <slur type="stop" number="1"/>',
       ]);
+    });
+
+    test('reuses a number its spanner freed in an earlier bar', () {
+      var score = sessionWith([
+        for (final bar in [0, 1])
+          [
+            for (final i in [1, 2, 3, 4]) chordOf(bar * 10 + i, 'G4'),
+          ],
+      ]).score;
+      score = withSlur(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(3, 4)),
+      );
+      score = withSlur(
+        score,
+        pointAt(score, 1, Moment.zero),
+        pointAt(score, 1, at(3, 4)),
+      );
+
+      expect(placedAs(read(exported(score)).children, 'slur'), [
+        'P1 m0 @0 <slur type="start" number="1"/>',
+        'P1 m0 @3/4 <slur type="stop" number="1"/>',
+        'P1 m1 @0 <slur type="start" number="1"/>',
+        'P1 m1 @3/4 <slur type="stop" number="1"/>',
+      ]);
+    });
+
+    test('keeps a number until its stop is written', () {
+      var score = blankScore(parts: const [piano]);
+      score = fill(score, 1, staff: 1, [
+        for (var i = 0; i < 4; i++) chordOf(10 + i, 'C3'),
+      ]);
+      Spanner hairpin(int id, int staff, ScorePoint first, ScorePoint last) =>
+          Spanner(
+            id: SpannerId(id),
+            kind: const Hairpin(crescendo: true),
+            staff: score.staves[staff].id,
+            first: first,
+            last: last,
+          );
+      score = score.copyWith(
+        spanners: Seq([
+          hairpin(
+            1,
+            1,
+            pointAt(score, 0, Moment.zero),
+            pointAt(score, 1, Moment.zero),
+          ),
+          hairpin(
+            2,
+            0,
+            pointAt(score, 1, at(1, 2)),
+            pointAt(score, 1, at(3, 4)),
+          ),
+        ]),
+      );
+
+      expectPaired(read(exported(score)).children, 'wedge');
     });
 
     test('writes an octave line with its size and direction', () {

@@ -495,6 +495,7 @@ Three models reviewed the edits, view, playback and file formats before MusicXML
 - **`Pitch.parse` reads every spelling `Pitch.toString` writes**, including `db` and `#+` for three-quarter flat and sharp.
 - **A written pitch is always spellable.** Concert E𝄪 on a B♭ clarinet would be written as F with three sharps, which `Alter` can't hold, so the measure view and the export threw. `Pitch.transpose` now spells such a note as the reader's key spells the same sound, G♯ in a sharp key and A♭ in a flat one. The `Transpose` edit still refuses a note it would push past a double accidental, because there the user chose the interval and can choose another.
 - **A slur or glissando joins two events.** Its ends are times, so both can fall inside one held note, as when the slur starts on a quarter note that `SetValue` lengthens to a half. Such a slur has nothing to join, and MusicXML can't write a start and a stop on one note. `AddSpanner` refuses it, an edit that leaves one drops it, and the loader refuses it at `to`. An end resolves to the event sounding in the spanner's voice, else in voice one. A trill line or a hairpin may still lie within one note.
+- **MusicXML spanner numbers follow document order.** Export frees a slur or wedge number only when the stop that frees it is written before the next start. The two can sit at one time in different voices or staves, and the stop's voice may be written later in the bar. Reusing the number there gave two open spanners one number.
 
 ### Scope: a general library
 
