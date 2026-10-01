@@ -387,6 +387,45 @@ void main() {
 
       expect(((outcome as Refused).reason as OutsideMeasure).at, end.at);
     });
+
+    test('a point off the 128th-note grid is an invalid value', () {
+      final session = blank();
+
+      final outcome = enter(session, point(session.score, 0, at(1, 192)));
+
+      expect(
+        ((outcome as Refused).reason as InvalidValue).message,
+        'a note starts a whole number of 128th notes into its bar or tuplet',
+      );
+    });
+
+    test('a point off the written grid of a tuplet is an invalid value', () {
+      final session = EditSession.start(
+        scoreWith([
+          Tuplet(
+            id: const TupletId(1),
+            ratio: TupletRatio.duplet,
+            unit: NoteValue.quarter,
+            members: Seq([
+              rest(2, NoteValue.quarter),
+              rest(3, NoteValue.quarter),
+            ]),
+          ),
+          rest(4, NoteValue.quarter),
+        ]),
+      );
+
+      final outcome = enter(
+        session,
+        point(session.score, 0, at(1, 8)),
+        value: NoteValue.sixteenth,
+      );
+
+      expect(
+        ((outcome as Refused).reason as InvalidValue).message,
+        'a note starts a whole number of 128th notes into its bar or tuplet',
+      );
+    });
   });
 
   group('history', () {

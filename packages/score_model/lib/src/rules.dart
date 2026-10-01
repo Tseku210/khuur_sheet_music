@@ -57,6 +57,10 @@ String? valueProblem(NoteValue value) => _onGrid(value.length)
     ? null
     : 'a value lasts a whole number of 128th notes';
 
+String? startProblem(Moment at) => _onGrid(Moment.zero.until(at))
+    ? null
+    : 'a note starts a whole number of 128th notes into its bar or tuplet';
+
 bool _onGrid(Length length) =>
     (length / DurationBase.oneTwentyEighth.length).denominator == 1;
 

@@ -500,6 +500,7 @@ Three models reviewed the edits, view, playback and file formats before MusicXML
 - **Paste clears a let-ring tie that a pasted head would end.** A let-ring tie rings out into nothing. When a paste puts a head of the same tone right after it, the tie would join them, which the user never asked for. Paste now clears it, also when the tie sits at the end of the bar before the paste, as it already cleared ties leading out of the pasted music.
 - **A session starts on the first shown staff.** A score whose first part is hidden put the cursor on a staff that isn't drawn.
 - **A shortened bar shortens the range selected in it.** `SetBarLength` can cut off the end of a selected range. The range end now moves back to the bar's new end, and a range that lay wholly in the cut part is dropped. Before, the range pointed past its bar and `copy` returned null. A range selected past a bar's end without an edit is still not copied.
+- **A note starts on the 128th-note grid.** Note entry, rest entry, tuplets and paste refuse with `InvalidValue` a start that isn't a whole number of 128th notes into its bar, or into the written time of the tuplet that holds it. An eighth into a duplet of quarters is a twelfth of a whole note in written time, so nothing can start there. Before, such a write threw from the spelling code instead of returning `Refused`.
 
 ### Scope: a general library
 

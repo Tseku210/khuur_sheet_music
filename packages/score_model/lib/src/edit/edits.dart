@@ -55,6 +55,11 @@ sealed class Edit {
 /// would cover only part of a tuplet from outside replaces the whole tuplet
 /// with rests first.
 ///
+/// The note starts a whole number of 128th notes into its bar, or into the
+/// written time of the tuplet that holds it, or the edit is refused with
+/// [InvalidValue]. An eighth into a duplet of quarters is a twelfth of a
+/// whole note in written time, so no note can start there.
+///
 /// Afterwards the cursor sits at the end of the note (offset 0 of the next
 /// bar if it ended on a barline, with an empty bar appended if it ended the
 /// score) and the new event is selected.

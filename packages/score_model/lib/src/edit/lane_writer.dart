@@ -99,6 +99,7 @@ _LaneWrite _overwrite(
       placed([item]);
       continue;
     }
+    _check(startProblem(o));
     switch (item) {
       case Tuplet(:final id, :final span):
         if (o + span > lane.end(i)) {
@@ -319,6 +320,7 @@ Tuplet _writeInTuplet(
       ),
     );
   }
+  _check(startProblem(at));
   final written = tuplet.unit.length * Fraction(tuplet.ratio.actual);
   if (at + item.span > Moment.zero + written) {
     throw _Refuse(WouldSplitTuplet(tuplet.id, measure));
