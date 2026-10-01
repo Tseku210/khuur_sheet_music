@@ -139,7 +139,7 @@ Clip? _copy(Score score, RangeSelection range) {
               offset: offset,
               item: _eventsIn(item).fold(
                 item,
-                (content, event) => switch (_leavingTies(
+                (content, event) => switch (_crossingTies(
                   score,
                   timed[event.id]!,
                   inside,
@@ -316,7 +316,7 @@ _Result _paste(
       inRange(ScorePoint(event.ref.measure, event.onset));
   var untied = pasted;
   for (
-    var bar = pasted.indexOf(range.from.measure);
+    var bar = max(0, pasted.indexOf(range.from.measure) - 1);
     bar <= pasted.indexOf(range.to.measure);
     bar++
   ) {
@@ -328,10 +328,7 @@ _Result _paste(
           measure: column.id,
           staff: staff,
         )) {
-          if (!inside(event)) {
-            continue;
-          }
-          if (_leavingTies(pasted, event, inside) case final chord?) {
+          if (_crossingTies(pasted, event, inside) case final chord?) {
             untied = _replace(untied, event, chord);
           }
         }
@@ -341,9 +338,10 @@ _Result _paste(
   return _Result(untied, selection: range);
 }
 
-/// [timed]'s chord without the ties that lead out of the music [inside]
-/// holds and onto a head, or null when it keeps its ties.
-ChordEvent? _leavingTies(
+/// [timed]'s chord without the ties that lead into or out of the music
+/// [inside] holds and onto a head, or null when it keeps its ties. A
+/// let-ring tie before pasted music would otherwise end on a pasted head.
+ChordEvent? _crossingTies(
   Score score,
   TimedEvent timed,
   bool Function(TimedEvent timed) inside,
@@ -353,11 +351,11 @@ ChordEvent? _leavingTies(
     return null;
   }
   final next = _next(score, timed);
-  if (next == null || inside(next)) {
+  if (next == null || inside(next) == inside(timed)) {
     return null;
   }
-  bool leaves(Note note) => _tieMoves(note, next, null);
-  return chord.notes.any(leaves) ? _untied(chord, leaves) : null;
+  bool crosses(Note note) => _tieMoves(note, next, null);
+  return chord.notes.any(crosses) ? _untied(chord, crosses) : null;
 }
 
 /// [items] in runs that each follow on without a hole.

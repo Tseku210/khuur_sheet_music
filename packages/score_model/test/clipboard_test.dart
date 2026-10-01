@@ -201,6 +201,47 @@ void main() {
   });
 
   group('Paste', () {
+    test('clears a let-ring tie that a pasted head of its tone would '
+        'end', () {
+      final session = sessionWith([
+        [
+          chordOf(1, 'F4', value: NoteValue.half, tie: true),
+          chordOf(2, 'G4', value: NoteValue.half),
+        ],
+        [
+          chordOf(3, 'F4', value: NoteValue.half),
+          chordOf(4, 'A4', value: NoteValue.half),
+        ],
+      ]);
+      final clip = copyOf(session, (1, Moment.zero), (1, at(1, 2)));
+
+      final next = applied(paste(session, clip, 0, at(1, 2)));
+
+      expect(bar(next.score, 0), ['F4/half', 'F4/half']);
+    });
+
+    test('clears a let-ring tie in the bar before the paste', () {
+      final session = sessionWith([
+        [
+          chordOf(1, 'G4', value: NoteValue.half),
+          chordOf(2, 'F4', value: NoteValue.half, tie: true),
+        ],
+        [
+          chordOf(3, 'G4', value: NoteValue.half),
+          chordOf(4, 'A4', value: NoteValue.half),
+        ],
+        [
+          chordOf(5, 'F4', value: NoteValue.half),
+          chordOf(6, 'A4', value: NoteValue.half),
+        ],
+      ]);
+      final clip = copyOf(session, (2, Moment.zero), (2, at(1, 2)));
+
+      final next = applied(paste(session, clip, 1, Moment.zero));
+
+      expect(bar(next.score, 0), ['G4/half', 'F4/half']);
+    });
+
     test('writes a copied bar over another with new ids', () {
       final grace = GraceChord(
         id: const EventId(5),
