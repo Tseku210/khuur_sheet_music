@@ -379,6 +379,10 @@ void main() {
         chordOf(22, 'A4'),
         chordOf(23, 'B4'),
       ]);
+      score = fill(score, 1, [
+        chordOf(24, 'F4', value: NoteValue.half),
+        chordOf(25, 'G4', value: NoteValue.half),
+      ]);
       score = changeBar(
         score,
         0,

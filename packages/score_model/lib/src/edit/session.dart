@@ -144,10 +144,13 @@ final class EditSession {
   /// and its history untouched. Throws [_Refuse].
   EditSession _advance(Edit edit, _Ids ids) {
     final result = _apply(score, edit, ids, this);
+    final next = identical(result.score, score)
+        ? score
+        : _withFittingSpanners(result.score);
     return EditSession._(
-      result.score,
-      result.cursor ?? _revalidateCursor(cursor, score, result.score),
-      result.selection ?? _revalidateSelection(selection, result.score),
+      next,
+      result.cursor ?? _revalidateCursor(cursor, score, next),
+      result.selection ?? _revalidateSelection(selection, next),
       _past,
       _future,
       _nextId,

@@ -410,7 +410,8 @@ final class _Decoder {
     final bars = {for (final (i, column) in measures.indexed) column.id: i};
     final meta = json.maybe('meta');
     String text(String key) => meta?.maybe(key)?.string ?? '';
-    return Score(
+    final spanners = json.maybe('spanners')?.list ?? const <_In>[];
+    final score = Score(
       meta: ScoreMeta(
         title: text('title'),
         subtitle: text('subtitle'),
@@ -421,10 +422,16 @@ final class _Decoder {
       parts: Seq(parts),
       measures: Seq(measures),
       spanners: Seq([
-        for (final spanner in json.maybe('spanners')?.list ?? const <_In>[])
+        for (final spanner in spanners)
           _spanner(spanner, measures, bars, {for (final (id, _) in staves) id}),
       ]),
     );
+    for (final (i, spanner) in score.spanners.indexed) {
+      if (score.isCollapsed(spanner)) {
+        spanners[i]['to'].fail('a slur or glissando ends after it starts');
+      }
+    }
+    return score;
   }
 
   Part _part(_In json) {

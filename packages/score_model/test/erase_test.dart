@@ -413,6 +413,9 @@ void main() {
         DynamicMark(at(1, 2), Dynamic.f),
       ]);
       score = withMarks(score, 1, [const TextMark(Moment.zero, 'dolce')]);
+      score = fill(score, 0, [
+        for (var i = 0; i < 4; i++) chordOf(100 + i, 'C5'),
+      ]);
       for (final (first, last) in [
         ((0, Moment.zero), (0, at(1, 4))),
         ((0, at(1, 4)), (0, at(1, 2))),
@@ -445,12 +448,13 @@ void main() {
     });
 
     test('leaves the staves outside it alone', () {
-      var score = blankScore(parts: const [piano]);
-      for (final staff in [0, 1]) {
-        score = fill(score, 0, [
-          chordOf(1 + staff, 'F4', value: NoteValue.whole),
-        ], staff: staff);
-      }
+      var score = fill(blankScore(parts: const [piano]), 0, [
+        chordOf(1, 'F4', value: NoteValue.half),
+        chordOf(2, 'F4', value: NoteValue.half),
+      ]);
+      score = fill(score, 0, [
+        chordOf(3, 'F4', value: NoteValue.whole),
+      ], staff: 1);
       score = withSlur(
         score,
         pointAt(score, 0, Moment.zero),
@@ -470,7 +474,7 @@ void main() {
       List<String> staff(int index) => describe(
         next.score.measures[0].staves[index].voice(VoiceSlot.one)!.items,
       );
-      expect(staff(0), ['F4/whole']);
+      expect(staff(0), ['F4/half', 'F4/half']);
       expect(staff(1), ['measure-rest']);
       expect(next.score.spanners, hasLength(1));
     });

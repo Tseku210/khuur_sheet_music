@@ -408,29 +408,42 @@ Seq<Spanner> _moveSpanners(
       continue;
     }
     moved = true;
-    if (from == null || to == null || !_fits(score, spanner.kind, from, to)) {
+    if (from == null || to == null) {
       continue;
     }
-    kept.add(
-      Spanner(
-        id: spanner.id,
-        kind: spanner.kind,
-        staff: spanner.staff,
-        voice: spanner.voice,
-        first: from,
-        last: to,
-      ),
+    final candidate = Spanner(
+      id: spanner.id,
+      kind: spanner.kind,
+      staff: spanner.staff,
+      voice: spanner.voice,
+      first: from,
+      last: to,
     );
+    if (_fits(score, candidate)) {
+      kept.add(candidate);
+    }
   }
   return moved ? Seq(kept) : score.spanners;
 }
 
-/// Whether a [kind] spanner can run from [first] to [last] in [score]: in
-/// order, and past its first event when it joins notes.
-bool _fits(Score score, SpannerKind kind, ScorePoint first, ScorePoint last) =>
-    kind.joinsNotes
-    ? _precedes(score, first, last)
-    : !_precedes(score, last, first);
+/// Whether [spanner] can stand in [score]: in order, and past its first
+/// event when it joins notes.
+bool _fits(Score score, Spanner spanner) => spanner.kind.joinsNotes
+    ? _precedes(score, spanner.first, spanner.last) &&
+          !score.isCollapsed(spanner)
+    : !_precedes(score, spanner.last, spanner.first);
+
+/// [score] without the spanners an edit has left unable to stand, such as a
+/// slur whose notes a longer note has replaced.
+Score _withFittingSpanners(Score score) {
+  final kept = [
+    for (final spanner in score.spanners)
+      if (_fits(score, spanner)) spanner,
+  ];
+  return kept.length == score.spanners.length
+      ? score
+      : score.copyWith(spanners: Seq(kept));
+}
 
 /// Whether [a] comes before [b] in [score].
 bool _precedes(Score score, ScorePoint a, ScorePoint b) {

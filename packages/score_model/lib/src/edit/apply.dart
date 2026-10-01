@@ -976,7 +976,15 @@ _Result _marks(Score score, Edit edit, _Ids ids) {
       for (final end in [first, last]) {
         _inside(score.measures[_barIndex(score, end.measure)], end);
       }
-      if (!_fits(score, kind, first, last)) {
+      final spanner = Spanner(
+        id: ids.spanner(),
+        kind: kind,
+        staff: staff,
+        voice: kind.joinsNotes ? voice ?? VoiceSlot.one : null,
+        first: first,
+        last: last,
+      );
+      if (!_fits(score, spanner)) {
         throw _Refuse(
           InvalidValue(
             kind.joinsNotes
@@ -986,18 +994,7 @@ _Result _marks(Score score, Edit edit, _Ids ids) {
         );
       }
       return _Result(
-        score.copyWith(
-          spanners: score.spanners.append(
-            Spanner(
-              id: ids.spanner(),
-              kind: kind,
-              staff: staff,
-              voice: kind.joinsNotes ? voice ?? VoiceSlot.one : null,
-              first: first,
-              last: last,
-            ),
-          ),
-        ),
+        score.copyWith(spanners: score.spanners.append(spanner)),
       );
     case RemoveSpanner(:final spanner):
       final index = score.spanners.indexWhere((s) => s.id == spanner);

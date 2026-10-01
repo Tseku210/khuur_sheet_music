@@ -264,6 +264,52 @@ void main() {
       }
     });
 
+    test('refuses a slur or glissando inside one note', () {
+      final score = fill(blankScore(), 0, [
+        chordOf(100, 'C5', value: NoteValue.half),
+        chordOf(101, 'D5', value: NoteValue.half),
+      ]);
+      final first = pointAt(score, 0, Moment.zero);
+      final last = pointAt(score, 0, at(1, 4));
+
+      for (final kind in const [Slur(), Glissando()]) {
+        expect(
+          refusal(addSpanner(score, kind, first, last)),
+          isA<InvalidValue>(),
+        );
+      }
+      expect(
+        applied(addSpanner(score, const TrillLine(), first, last))
+            .score
+            .spanners,
+        hasLength(1),
+      );
+    });
+
+    test('lets a slur join two notes of its voice over one note in voice '
+        'one', () {
+      var score = fill(blankScore(), 0, [
+        chordOf(100, 'C5', value: NoteValue.whole),
+      ]);
+      score = fill(score, 0, [
+        chordOf(110, 'E4'),
+        chordOf(111, 'F4'),
+        chordOf(112, 'G4', value: NoteValue.half),
+      ], slot: VoiceSlot.two);
+
+      final next = applied(
+        addSpanner(
+          score,
+          const Slur(),
+          pointAt(score, 0, Moment.zero),
+          pointAt(score, 0, at(1, 4)),
+          voice: VoiceSlot.two,
+        ),
+      );
+
+      expect(next.score.spanners.single.voice, VoiceSlot.two);
+    });
+
     test('refuses ends in the wrong order', () {
       final score = blankScore();
 
@@ -324,6 +370,11 @@ void main() {
   group('RemoveSpanner', () {
     test('removes the spanner and keeps the others', () {
       var score = blankScore();
+      for (final bar in [0, 1]) {
+        score = fill(score, bar, [
+          for (var i = 0; i < 4; i++) chordOf(100 + 10 * bar + i, 'C5'),
+        ]);
+      }
       for (final (first, last) in [
         (pointAt(score, 0, Moment.zero), pointAt(score, 0, at(1, 2))),
         (pointAt(score, 0, at(1, 2)), pointAt(score, 0, at(3, 4))),
@@ -357,6 +408,28 @@ void main() {
   });
 
   group('A spanner left on one event', () {
+    test('goes when a longer note swallows a slur', () {
+      var score = fill(blankScore(), 0, [
+        for (var i = 0; i < 4; i++) chordOf(100 + i, 'C5'),
+      ]);
+      score = withSlur(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(1, 4)),
+      );
+      final ref = EventRef(
+        staff: score.staves.first.id,
+        measure: score.measures.first.id,
+        id: const EventId(100),
+      );
+
+      final next = applied(
+        EditSession.start(score).run(SetValue(ref, NoteValue.half)),
+      ).score;
+
+      expect(next.spanners, isEmpty);
+    });
+
     test('stays when it is a line and goes when it is a slur', () {
       var score = blankScore(bars: 4);
       final first = pointAt(score, 1, Moment.zero);

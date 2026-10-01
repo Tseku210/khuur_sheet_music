@@ -498,6 +498,9 @@ void main() {
         TextMark(at(1, 4), 'dolce'),
         TextMark(at(3, 4), 'rit.'),
       ]);
+      score = fill(score, 0, [
+        for (var i = 0; i < 4; i++) chordOf(100 + i, 'C5'),
+      ]);
       for (final (first, last) in [
         ((0, Moment.zero), (0, at(1, 2))),
         ((0, at(1, 4)), (0, at(1, 2))),
@@ -532,12 +535,14 @@ void main() {
     });
 
     test('puts the clip on the staves from the one it is pasted at', () {
-      var score = blankScore(parts: const [piano]);
-      for (final staff in [0, 1]) {
-        score = fill(score, 0, [
-          chordOf(1 + staff, staff == 0 ? 'C5' : 'C3', value: NoteValue.whole),
-        ], staff: staff);
-      }
+      var score = fill(blankScore(parts: const [piano]), 0, [
+        chordOf(1, 'C5', value: NoteValue.half),
+        chordOf(2, 'D5', value: NoteValue.half),
+      ]);
+      score = fill(score, 0, [
+        chordOf(3, 'C3', value: NoteValue.half),
+        chordOf(4, 'D3', value: NoteValue.half),
+      ], staff: 1);
       score = changeBar(
         score,
         0,
@@ -568,7 +573,7 @@ void main() {
         next.score.measures[1].staves[index].voice(VoiceSlot.one)!.items,
       );
       expect(staff(0), ['measure-rest']);
-      expect(staff(1), ['C5/whole']);
+      expect(staff(1), ['C5/half', 'D5/half']);
       expect(
         [
           for (final s in next.score.measures[1].staves) s.directions.length,

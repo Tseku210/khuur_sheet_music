@@ -233,6 +233,22 @@ final class Score {
         .firstOrNull;
   }
 
+  /// The event a slur, glissando or trill line on [staff] attaches to at
+  /// [at]: the one sounding there in [voice], else in voice one.
+  TimedEvent? anchorAt(StaffId staff, VoiceSlot voice, ScorePoint at) =>
+      eventAt(VoicePoint(staff: staff, voice: voice, at: at)) ??
+      eventAt(VoicePoint(staff: staff, voice: VoiceSlot.one, at: at));
+
+  /// Whether [spanner] joins notes but starts and ends on one event.
+  bool isCollapsed(Spanner spanner) {
+    if (!spanner.kind.joinsNotes) {
+      return false;
+    }
+    final voice = spanner.voice ?? VoiceSlot.one;
+    return anchorAt(spanner.staff, voice, spanner.first)?.event.id ==
+        anchorAt(spanner.staff, voice, spanner.last)?.event.id;
+  }
+
   /// Everything in effect at a point on a staff.
   ScoreContext contextAt(StaffId staff, ScorePoint at) {
     final index = indexOf(at.measure);

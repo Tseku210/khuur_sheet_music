@@ -324,9 +324,10 @@ final broken = <Broken>[
   bad(r'$.spanners[5].factor', 0, 'a factor is a finite number above 0'),
   bad(r'$.spanners[0].voice', missing, 'a slur or glissando names its voice'),
   bad(r'$.spanners[1].voice', 2, 'only a slur or glissando names a voice'),
-  badAt(r'$.spanners[0].to', 'a slur or glissando ends after it starts', {
-    r'$.spanners[0].to': {'measure': 30, 'at': '0'},
-  }),
+  for (final at in ['0', '1/16'])
+    badAt(r'$.spanners[0].to', 'a slur or glissando ends after it starts', {
+      r'$.spanners[0].to': {'measure': 30, 'at': at},
+    }),
   badAt(r'$.spanners[1].to', 'a line cannot end before it starts', {
     r'$.spanners[1].from': {'measure': 60, 'at': '0'},
   }),

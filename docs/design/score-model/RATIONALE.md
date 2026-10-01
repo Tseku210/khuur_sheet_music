@@ -494,6 +494,7 @@ Three models reviewed the edits, view, playback and file formats before MusicXML
 - **An edit on a removed staff is stale.** A note entered or changed on a staff that `RemovePart` removed is refused as `StaleReference`, like an edit on a removed bar.
 - **`Pitch.parse` reads every spelling `Pitch.toString` writes**, including `db` and `#+` for three-quarter flat and sharp.
 - **A written pitch is always spellable.** Concert E𝄪 on a B♭ clarinet would be written as F with three sharps, which `Alter` can't hold, so the measure view and the export threw. `Pitch.transpose` now spells such a note as the reader's key spells the same sound, G♯ in a sharp key and A♭ in a flat one. The `Transpose` edit still refuses a note it would push past a double accidental, because there the user chose the interval and can choose another.
+- **A slur or glissando joins two events.** Its ends are times, so both can fall inside one held note, as when the slur starts on a quarter note that `SetValue` lengthens to a half. Such a slur has nothing to join, and MusicXML can't write a start and a stop on one note. `AddSpanner` refuses it, an edit that leaves one drops it, and the loader refuses it at `to`. An end resolves to the event sounding in the spanner's voice, else in voice one. A trill line or a hairpin may still lie within one note.
 
 ### Scope: a general library
 
