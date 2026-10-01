@@ -682,6 +682,33 @@ void main() {
       ]);
     });
 
+    test('keeps a string only where the instrument has it', () {
+      final session = EditSession.start(
+        fill(blankScore(parts: const [morinKhuur, clarinet]), 0, [
+          ChordEvent(
+            id: const EventId(1),
+            value: NoteValue.whole,
+            notes: Seq([
+              PitchedNote(id: const NoteId(10), pitch: f4, string: 0),
+            ]),
+          ),
+        ]),
+      );
+      final clip = copyOf(session, (0, Moment.zero), (0, at(1, 1)));
+      int? stringAt(int staff) {
+        final next = applied(
+          paste(session, clip, 1, Moment.zero, staff: staff),
+        );
+        final chord =
+            next.score.measures[1].staves[staff].voices.first.items.first
+                as ChordEvent;
+        return (chord.notes.single as PitchedNote).string;
+      }
+
+      expect(stringAt(0), 0);
+      expect(stringAt(1), isNull);
+    });
+
     test('refuses to cross a barline when told to', () {
       final session = sessionWith([
         [chordOf(1, 'F4', value: NoteValue.half), rest(2, NoteValue.half)],

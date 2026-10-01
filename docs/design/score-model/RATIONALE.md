@@ -501,6 +501,7 @@ Three models reviewed the edits, view, playback and file formats before MusicXML
 - **A session starts on the first shown staff.** A score whose first part is hidden put the cursor on a staff that isn't drawn.
 - **A shortened bar shortens the range selected in it.** `SetBarLength` can cut off the end of a selected range. The range end now moves back to the bar's new end, and a range that lay wholly in the cut part is dropped. Before, the range pointed past its bar and `copy` returned null. A range selected past a bar's end without an edit is still not copied.
 - **A note starts on the 128th-note grid.** Note entry, rest entry, tuplets and paste refuse with `InvalidValue` a start that isn't a whole number of 128th notes into its bar, or into the written time of the tuplet that holds it. An eighth into a duplet of quarters is a twelfth of a whole note in written time, so nothing can start there. Before, such a write threw from the spelling code instead of returning `Refused`.
+- **Paste keeps a string only where the instrument has it.** A fiddle note on its first string, pasted onto a clarinet, kept its string index, and the save then failed to load. Paste now drops a string the instrument it lands on lacks.
 
 ### Scope: a general library
 

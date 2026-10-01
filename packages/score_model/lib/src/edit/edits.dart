@@ -647,7 +647,8 @@ final class SetMeterDisplay extends Edit {
 /// [WouldSplitTuplet]. Bars are appended first when the score is too short.
 ///
 /// Every pasted entity gets a new id. Voices keep their slots, and staves
-/// beyond the bottom of the score are dropped. A tie into the pasted music,
+/// beyond the bottom of the score are dropped. A head keeps its string only
+/// when the instrument it lands on has that string. A tie into the pasted music,
 /// or out of it onto a head, is cleared. The pasted range becomes the
 /// selection and the cursor stays. Refused with [StaleReference] for a gone
 /// bar or staff, [OutsideMeasure] for a point outside its bar, and

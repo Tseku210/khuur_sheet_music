@@ -264,6 +264,7 @@ _Result _paste(
         }
       }
     }
+    final strings = score.partOf(staves[lane.staff]).instrument.strings.length;
     for (final run in _runs(lane.items)) {
       pasted = _overwrite(
         pasted,
@@ -272,7 +273,7 @@ _Result _paste(
           voice: lane.voice,
           at: place(run.offset),
         ),
-        [for (final item in run.items) _remint(item, ids)],
+        [for (final item in run.items) _remint(item, ids, strings)],
         ids,
         overfill,
       ).score;
@@ -374,10 +375,19 @@ List<({Moment offset, List<Content> items})> _runs(
   return runs;
 }
 
-/// [item] with a new id on every event, note, grace and tuplet in it.
-Content _remint(Content item, _Ids ids) {
-  Seq<Note> notes(Seq<Note> notes) =>
-      Seq([for (final note in notes) note.copyWith(id: ids.note())]);
+/// [item] with a new id on every event, note, grace and tuplet in it, and
+/// no string index past the [strings] of the instrument it lands on.
+Content _remint(Content item, _Ids ids, int strings) {
+  Seq<Note> notes(Seq<Note> notes) => Seq([
+    for (final note in notes)
+      switch (note) {
+        PitchedNote(:final string?) when string >= strings => note.copyWith(
+          id: ids.note(),
+          string: () => null,
+        ),
+        _ => note.copyWith(id: ids.note()),
+      },
+  ]);
   return switch (item) {
     ChordEvent(:final graces) => item.copyWith(
       id: ids.event(),
@@ -403,7 +413,9 @@ Content _remint(Content item, _Ids ids) {
       id: ids.tuplet(),
       ratio: ratio,
       unit: unit,
-      members: Seq([for (final member in members) _remint(member, ids)]),
+      members: Seq([
+        for (final member in members) _remint(member, ids, strings),
+      ]),
       bracket: bracket,
     ),
   };
