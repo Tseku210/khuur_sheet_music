@@ -5,3 +5,4 @@ library;
 export 'src/geometry.dart';
 export 'src/glyphs.dart';
 export 'src/smufl_font.dart';
+export 'src/text.dart';

@@ -545,6 +545,12 @@ Two gates come before any layout code.
   Nothing else in the engine gets a body until the gate passes on all three. If it fails, or if that raster time is over 8 ms on a device, which is half a frame at 60 Hz, the fallback is a path painter behind the same `GlyphPainter` seam.
 - **Gate 2. First layout cost.** A benchmark lays out a 500-bar, 4-staff score with the fake measurer. Every bar has notes, with beams, two voices on one staff, a lyric verse, dynamics and slurs, because a score of whole-bar rests would meet any budget. It is compiled ahead of time with `dart compile exe`, warmed up, and reports the median of its runs, because a JIT run measures the compiler as much as the code. The budget on the development host is 50 ms for `SheetLayout(score, ...)`, which is 100 microseconds per bar of four staves, and 1 ms for the update after one entered note. A mid-range phone is taken as four times slower, which gives 200 ms once when a large score opens and 4 ms per edit.
   - A second fixture has 2,000 bars and 2,500 spanners, with four times the first-layout budget. `Score.measureView` reads `spannersTouching`, which is linear in the spanner count, so a first layout is bars times spanners. A scratch run measured 500 `measureView` calls on empty bars at 2.2 ms with no spanner and 13.5 ms with 2,500. If this fixture misses, the model indexes its spanners by bar.
+  - **What the harness found.** Unit 2 measured the floor under any engine, which is the model reads a layout has to make. They are one `measureView` per bar for a first layout, and `changesSince` plus a `measureView` per bar to lay out again for an update. Medians on the development Mac, compiled:
+    - the dense score reads in 13 ms of its 50, and an update in 0.09 ms of its 1;
+    - the spanner score reads in 95 ms of its 200, and an update in 0.19 ms;
+    - the scan of every spanner for every bar is 56 ms of those 95, at 11 ns per pair, which agrees with the scratch run's 9;
+    - a bar of real music costs 18 microseconds to read against 3 for an empty one, which the scratch run on empty bars could not see.
+    So the engine has 37 ms for the dense score and 105 ms for the spanner score, which is 74 and 52 microseconds per bar. The spanner score is the tighter one. Indexing spanners by bar in the model would give it back about 55 ms.
   - Every engine unit reruns the benchmark and must stay inside the budget. So the cost of spanners, marks and lyrics is counted when each lands, not assumed from an engine that lacks them.
   - The fake measurer leaves out the one platform call a layout makes, which is a paragraph per distinct text. So unit 11 measures the first layout once on a device with `ParagraphMeasurer` and 1,500 distinct syllables, against the phone's 200 ms.
   - The widget is not built until the complete engine meets the budget. If it misses, bars are laid out in visible order, with widths for the rest computed first.
@@ -843,6 +849,16 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
 - `assets/petaluma_metadata.json` does not pass the reader. It has no `glyphAdvanceWidths` table, no `hBarThickness` and no box for `legerLine`. A font with a numeric engraving default the engine does not know is refused too. Both follow from the checks the design gave the reader, and both bear on C6.
 - The gate's images are one row of origins each, so no image is taller than a glyph. One image of all 64 origins reached 4,160 pixels at 64 pixels per staff space, which is past the texture size of an old phone.
 - The device runs on Android and iOS are open. The macOS run passes.
+
+**Unit 2.**
+- The benchmark is `packages/score_layout/benchmark/layout_benchmark.dart`. Its two functions, `firstLayout` and `update`, hold the floor today. The unit that adds `SheetLayout` replaces their bodies and nothing else.
+- The spanner score is the dense score's music for 2,000 bars, with a slur in every bar and a hairpin over every fourth barline. The design gave it four times the budget for four times the bars, which only holds for the same content. The dense score so has 625 spanners.
+- The model has no instrument catalogue, so the fixtures name three plain instruments themselves, a voice, a violin and a piano.
+- The fixtures are built with the model's public constructors, not through edits. Both build in under 40 ms, and each is checked by a save and a load, which is the model's own validity check.
+- Bar 250 is the bar's number, counted from 1. The entered note changes bars 249, 250 and 251, as test 1 expects.
+- Every timed first layout gets a fresh copy of the score. A score builds its indexes on first use, and a first layout pays for them.
+- The fake measurer makes a character 0.6 of the size wide, with an ascent of 0.8 and a descent of 0.2. Nothing measures text yet, so the benchmark does not use it until lyrics land.
+- The design names no update budget for the spanner score, so that number is reported and not judged.
 
 ## Open questions and risks
 

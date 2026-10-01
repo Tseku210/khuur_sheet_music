@@ -7,6 +7,10 @@ environment:
 
 resolution: workspace
 
+dependencies:
+  score_model:
+    path: ../score_model
+
 dev_dependencies:
   pedantic_mono: ^1.38.1
   test: ^1.26.0
