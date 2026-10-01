@@ -99,17 +99,7 @@ StaffView _staffView(
     };
   }
 
-  final heads = [
-    for (final (_, events) in lanes)
-      for (final timed in events)
-        if (timed.event case ChordEvent(:final graces, :final notes)) ...[
-          for (final grace in graces)
-            for (final note in grace.notes)
-              (onset: timed.onset, grace: true, note: note),
-          for (final note in notes)
-            (onset: timed.onset, grace: false, note: note),
-        ],
-  ];
+  final heads = accidentalHeads([for (final (_, events) in lanes) events]);
   final writtenPitches = {
     for (final head in heads) head.note.id: written(head.note, head.onset),
   };
@@ -143,7 +133,7 @@ StaffView _staffView(
           tuplets: _tuplets(voice, events),
         ),
     ],
-    accidentals: _accidentals(
+    accidentals: foldAccidentals(
       heads,
       writtenPitches,
       tiedIn.toSet(),
@@ -256,18 +246,49 @@ List<TupletView> _tuplets(Voice voice, List<TimedEvent> events) {
   return views;
 }
 
-typedef _Head = ({Moment onset, bool grace, Note note});
+typedef AccidentalHead = ({Moment onset, bool grace, Note note});
 
+/// Every note head of a staff's [lanes], each lane's events in time order,
+/// graces included.
+List<AccidentalHead> accidentalHeads(Iterable<List<TimedEvent>> lanes) => [
+  for (final events in lanes)
+    for (final timed in events)
+      if (timed.event case ChordEvent(:final graces, :final notes)) ...[
+        for (final grace in graces)
+          for (final note in grace.notes)
+            (onset: timed.onset, grace: true, note: note),
+        for (final note in notes)
+          (onset: timed.onset, grace: false, note: note),
+      ],
+];
+
+/// The request [note] states. [autoPrints] says whether the auto rule
+/// would print an accidental on it.
+typedef AccidentalRequestOf = AccidentalRequest Function(
+  PitchedNote note, {
+  required bool autoPrints,
+});
+
+AccidentalRequest _stated(PitchedNote note, {required bool autoPrints}) =>
+    note.accidental;
+
+/// The accidental each of [heads] prints, given [written] pitches, the
+/// notes [tiedIn] from the bar before, and the staff's [key].
+///
 /// Heads are read in time order, grace notes before the chords they
 /// ornament. An alteration holds at its written staff position until the
 /// barline. A note tied in from the previous bar prints nothing and leaves
 /// the state alone, so the next note at that position reprints.
-Map<NoteId, AccidentalMark> _accidentals(
-  List<_Head> heads,
+///
+/// [request] decides each head's request in that order, after the heads
+/// before it, which is how import recovers the requests a file prints.
+Map<NoteId, AccidentalMark> foldAccidentals(
+  List<AccidentalHead> heads,
   Map<NoteId, Pitch> written,
   Set<NoteId> tiedIn,
-  KeySignature key,
-) {
+  KeySignature key, {
+  AccidentalRequestOf request = _stated,
+}) {
   // List.sort is not stable, so the index breaks ties to keep voice order.
   final order = [for (var i = 0; i < heads.length; i++) i]
     ..sort((a, b) {
@@ -288,7 +309,11 @@ Map<NoteId, AccidentalMark> _accidentals(
       continue;
     }
     final pitch = written[note.id]!;
-    switch (note.accidental) {
+    final tied = tiedIn.contains(note.id);
+    final autoPrints =
+        !tied &&
+        pitch.alter != (state[pitch.diatonic] ?? key.alterFor(pitch.step));
+    switch (request(note, autoPrints: autoPrints)) {
       case AccidentalRequest.never:
         continue;
       case AccidentalRequest.always:
@@ -296,11 +321,10 @@ Map<NoteId, AccidentalMark> _accidentals(
       case AccidentalRequest.cautionary:
         marks[note.id] = AccidentalMark(pitch.alter, cautionary: true);
       case AccidentalRequest.auto:
-        if (tiedIn.contains(note.id)) {
+        if (tied) {
           continue;
         }
-        final expected = state[pitch.diatonic] ?? key.alterFor(pitch.step);
-        if (pitch.alter != expected) {
+        if (autoPrints) {
           marks[note.id] = AccidentalMark(pitch.alter);
         }
     }

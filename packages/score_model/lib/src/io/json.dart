@@ -81,7 +81,8 @@ Score scoreFromJson(Object? json) => _Decoder().score(_In(json, r'$'));
 final class ScoreFormatException implements Exception {
   const ScoreFormatException(this.path, this.message);
 
-  /// JSON path of the offending value, such as `$.measures[12].staves[0]`.
+  /// A JSON path or a MusicXML element path to the offending value, such as
+  /// `$.measures[12].staves[0]` or `/score-partwise/part/measure[3]/note[2]`.
   final String path;
   final String message;
 

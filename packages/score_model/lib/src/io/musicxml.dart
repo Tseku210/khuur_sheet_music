@@ -34,6 +34,7 @@ import '../score.dart';
 import '../seq.dart';
 import '../time.dart';
 import '../views.dart';
+import 'musicxml_names.dart';
 
 /// [score] as a MusicXML 4.0 partwise document.
 String scoreToMusicXml(Score score) {
@@ -46,8 +47,6 @@ String scoreToMusicXml(Score score) {
   );
   return '$_prologue$text\n';
 }
-
-Score scoreFromMusicXml(String xml) => throw UnimplementedError();
 
 const _prologue =
     '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -477,7 +476,7 @@ final class _Export {
           '${enclosing.fold(1, (n, t) => n * t.ratio.normal)}',
         ),
         if (unit != value) ...[
-          _text('normal-type', _typeName(unit.base)),
+          _text('normal-type', typeName(unit.base)),
           for (var i = 0; i < unit.dots; i++) _el('normal-dot'),
         ],
       ]);
@@ -494,7 +493,7 @@ final class _Export {
       );
       final ornaments = [
         if (chord?.ornament case final Ornament ornament when first)
-          _el(_ornamentName(ornament)),
+          _el(ornamentName(ornament)),
         if (trillStarts && chord?.ornament != Ornament.trill) _el('trill-mark'),
         for (final (spanner, start) in onEvent)
           if (spanner.kind is TrillLine) _spannerMark(spanner, start: start),
@@ -515,7 +514,7 @@ final class _Export {
         if (first)
           for (final articulation in Articulation.values)
             if (event.articulations.contains(articulation))
-              if (_articulationName(articulation) case final String name)
+              if (articulationName(articulation) case final String name)
                 _el(name),
       ];
       final children = [
@@ -840,7 +839,7 @@ XmlElement _tempo(TempoMark mark, XmlElement? staff) {
       _el(
         'metronome',
         [
-          _text('beat-unit', _typeName(beat.base)),
+          _text('beat-unit', typeName(beat.base)),
           for (var i = 0; i < beat.dots; i++) _el('beat-unit-dot'),
           _text('per-minute', _number(mark.tempo.bpm)),
         ],
@@ -878,7 +877,7 @@ XmlElement _staffDirection(StaffDirection direction, XmlElement? staff) =>
           if (root.alter != Alter.natural)
             _text('root-alter', _number(root.alter.quarterTones / 2)),
         ]),
-        _text('kind', _kinds[quality] ?? 'other', {'text': quality}),
+        _text('kind', chordKinds[quality] ?? 'other', {'text': quality}),
         if (bass != null)
           _el('bass', [
             _text('bass-step', bass.step.name.toUpperCase()),
@@ -888,31 +887,6 @@ XmlElement _staffDirection(StaffDirection direction, XmlElement? staff) =>
         ?staff,
       ]),
     };
-
-/// MusicXML's name for a chord quality, where it has one.
-const _kinds = {
-  '': 'major',
-  'm': 'minor',
-  'aug': 'augmented',
-  'dim': 'diminished',
-  '7': 'dominant',
-  'maj7': 'major-seventh',
-  'm7': 'minor-seventh',
-  'dim7': 'diminished-seventh',
-  'aug7': 'augmented-seventh',
-  'm7b5': 'half-diminished',
-  'mMaj7': 'major-minor',
-  '6': 'major-sixth',
-  'm6': 'minor-sixth',
-  '9': 'dominant-ninth',
-  'maj9': 'major-ninth',
-  'm9': 'minor-ninth',
-  '11': 'dominant-11th',
-  '13': 'dominant-13th',
-  'sus2': 'suspended-second',
-  'sus4': 'suspended-fourth',
-  '5': 'power',
-};
 
 XmlElement _direction(
   List<XmlElement> types, {
@@ -947,15 +921,10 @@ XmlElement? _leftBarline(MeasureView view) {
 
 XmlElement? _rightBarline(MeasureView view) {
   final column = view.column;
-  final style = switch (column.barline) {
-    Barline.regular => column.repeatEnd == null ? null : 'light-heavy',
-    Barline.doubleBar => 'light-light',
-    Barline.finalBar => 'light-heavy',
-    Barline.dashed => 'dashed',
-    Barline.dotted => 'dotted',
-    Barline.heavy => 'heavy',
-    Barline.invisible => 'none',
-  };
+  final style = barStyleName(
+    column.barline,
+    repeats: column.repeatEnd != null,
+  );
   final children = [
     if (style != null) _text('bar-style', style),
     if (column.volta case final Volta volta when view.voltaEnds)
@@ -997,12 +966,7 @@ XmlElement _time(Meter meter) => _el(
 XmlElement _clef(Clef clef, int? number) => _el(
   'clef',
   [
-    _text('sign', switch (clef.sign) {
-      ClefSign.g => 'G',
-      ClefSign.f => 'F',
-      ClefSign.c => 'C',
-      ClefSign.percussion => 'percussion',
-    }),
+    _text('sign', clefSignName(clef.sign)),
     if (clef.sign != ClefSign.percussion) _text('line', '${clef.line}'),
     if (clef.octave != 0) _text('clef-octave-change', '${clef.octave}'),
   ],
@@ -1028,67 +992,19 @@ XmlElement _pitch(Pitch pitch) => _el('pitch', [
 ]);
 
 List<XmlElement> _type(NoteValue value) => [
-  _text('type', _typeName(value.base)),
+  _text('type', typeName(value.base)),
   for (var i = 0; i < value.dots; i++) _el('dot'),
-];
-
-String _typeName(DurationBase base) => switch (base) {
-  DurationBase.breve => 'breve',
-  DurationBase.whole => 'whole',
-  DurationBase.half => 'half',
-  DurationBase.quarter => 'quarter',
-  DurationBase.eighth => 'eighth',
-  DurationBase.sixteenth => '16th',
-  DurationBase.thirtySecond => '32nd',
-  DurationBase.sixtyFourth => '64th',
-  DurationBase.oneTwentyEighth => '128th',
-};
-
-/// Accidental names by alteration, from double flat up.
-const _accidentals = [
-  'flat-flat',
-  'three-quarters-flat',
-  'flat',
-  'quarter-flat',
-  'natural',
-  'quarter-sharp',
-  'sharp',
-  'three-quarters-sharp',
-  'double-sharp',
 ];
 
 XmlElement? _accidental(AccidentalMark? mark) => mark == null
     ? null
-    : _text('accidental', _accidentals[mark.alter.quarterTones + 4], {
+    : _text('accidental', accidentalNames[mark.alter.quarterTones + 4], {
         'parentheses': mark.cautionary ? 'yes' : null,
       });
 
-XmlElement? _notehead(NoteHead head) => switch (head) {
-  NoteHead.normal => null,
-  NoteHead.cross => _text('notehead', 'x'),
-  NoteHead.diamond => _text('notehead', 'diamond'),
-  NoteHead.slash => _text('notehead', 'slash'),
-  NoteHead.triangle => _text('notehead', 'triangle'),
-  NoteHead.circleCross => _text('notehead', 'circle-x'),
-};
-
-String _ornamentName(Ornament ornament) => switch (ornament) {
-  Ornament.trill => 'trill-mark',
-  Ornament.mordent => 'mordent',
-  Ornament.invertedMordent => 'inverted-mordent',
-  Ornament.turn => 'turn',
-  Ornament.invertedTurn => 'inverted-turn',
-};
-
-/// The `<articulations>` child for [articulation], or null for the two
-/// written elsewhere.
-String? _articulationName(Articulation articulation) => switch (articulation) {
-  Articulation.staccato => 'staccato',
-  Articulation.staccatissimo => 'staccatissimo',
-  Articulation.accent => 'accent',
-  Articulation.marcato => 'strong-accent',
-  Articulation.tenuto => 'tenuto',
-  Articulation.fermata || Articulation.harmonic => null,
+XmlElement? _notehead(NoteHead head) => switch (noteheadName(head)) {
+  final String name => _text('notehead', name),
+  null => null,
 };
 
 XmlElement _tuplet(TupletView view, {required bool start}) {
@@ -1098,7 +1014,7 @@ XmlElement _tuplet(TupletView view, {required bool start}) {
     return _el('tuplet', const [], {'type': 'stop', 'number': number});
   }
   List<XmlElement> unit() => [
-    _text('tuplet-type', _typeName(tuplet.unit.base)),
+    _text('tuplet-type', typeName(tuplet.unit.base)),
     for (var i = 0; i < tuplet.unit.dots; i++) _el('tuplet-dot'),
   ];
   return _el(
