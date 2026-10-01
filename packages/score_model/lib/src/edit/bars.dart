@@ -1,104 +1,127 @@
 part of 'session.dart';
 
-/// Edits to the bars themselves: adding and removing them, their length,
-/// and the marks on their barlines. Each resolves its bars before changing
-/// anything, so a stale id is refused. An edit that changes nothing returns
-/// the same score.
-_Result _bars(Score score, Edit edit, _Ids ids) {
-  switch (edit) {
-    case InsertMeasures(:final before, :final count):
-      final index = before == null
-          ? score.measures.length
-          : _barIndex(score, before);
-      return _Result(_insertMeasures(score, index, count, ids));
-    case DeleteMeasures(:final first, :final last):
-      final (start, end) = _barSpan(score, first, last);
-      return _Result(_deleteMeasures(score, start, end));
-    case SetBarLength(:final measure, :final length):
-      return _Result(
-        _setBarLength(score, _barIndex(score, measure), length, ids),
-      );
-    case SetBarline(:final measure, :final barline):
-      return _changeBars(
-        score,
-        measure,
-        measure,
-        (c) => c.barline == barline ? c : c.copyWith(barline: barline),
-      );
-    case SetRepeatStart(:final measure, :final start):
-      return _changeBars(
-        score,
-        measure,
-        measure,
-        (c) => c.repeatStart == start ? c : c.copyWith(repeatStart: start),
-      );
-    case SetRepeatEnd(:final measure, :final end):
-      if (end != null) {
-        _check(repeatProblem(end.times));
-      }
-      return _changeBars(
-        score,
-        measure,
-        measure,
-        (c) => c.repeatEnd == end ? c : c.copyWith(repeatEnd: () => end),
-      );
-    case SetVolta(:final first, :final last, :final volta):
-      if (volta != null && !_countsPasses(volta.endings)) {
-        throw const _Refuse(
-          InvalidValue('an ending lists its passes from 1, in order'),
-        );
-      }
-      return _changeBars(
-        score,
-        first,
-        last,
-        (c) => c.volta == volta ? c : c.copyWith(volta: () => volta),
-      );
-    case SetNavigation(:final measure, :final marks):
-      return _changeBars(
-        score,
-        measure,
-        measure,
-        (c) => _same(c.navigation, marks) ? c : c.copyWith(navigation: marks),
-      );
-    case SetRehearsal(:final measure, :final text):
-      final rehearsal = text == null || text.isEmpty ? null : text;
-      return _changeBars(
-        score,
-        measure,
-        measure,
-        (c) => c.rehearsal == rehearsal
-            ? c
-            : c.copyWith(rehearsal: () => rehearsal),
-      );
-    case SetBreak(:final measure, :final layoutBreak):
-      return _changeBars(
-        score,
-        measure,
-        measure,
-        (c) => c.breakBefore == layoutBreak
-            ? c
-            : c.copyWith(breakBefore: () => layoutBreak),
-      );
-    case SetKeyDisplay(:final measure, :final display):
-      return _changeBars(
-        score,
-        measure,
-        measure,
-        (c) => c.keyDisplay == display ? c : c.copyWith(keyDisplay: display),
-      );
-    case SetMeterDisplay(:final measure, :final display):
-      return _changeBars(
-        score,
-        measure,
-        measure,
-        (c) =>
-            c.meterDisplay == display ? c : c.copyWith(meterDisplay: display),
-      );
-    default:
-      throw StateError('not a bar edit: $edit');
-  }
+// Edits to the bars themselves: adding and removing them, their length,
+// and the marks on their barlines. Each resolves its bars before changing
+// anything, so a stale id is refused. An edit that changes nothing returns
+// the same score.
+
+_Result _insertMeasuresBefore(
+  Score score,
+  MeasureId? before,
+  int count,
+  _Ids ids,
+) {
+  final index = before == null
+      ? score.measures.length
+      : _barIndex(score, before);
+  return _Result(_insertMeasures(score, index, count, ids));
 }
+
+_Result _deleteMeasuresBetween(Score score, MeasureId first, MeasureId last) {
+  final (start, end) = _barSpan(score, first, last);
+  return _Result(_deleteMeasures(score, start, end));
+}
+
+_Result _setBarline(Score score, MeasureId measure, Barline barline) =>
+    _changeBars(
+      score,
+      measure,
+      measure,
+      (c) => c.barline == barline ? c : c.copyWith(barline: barline),
+    );
+
+_Result _setRepeatStart(Score score, MeasureId measure, bool start) =>
+    _changeBars(
+      score,
+      measure,
+      measure,
+      (c) => c.repeatStart == start ? c : c.copyWith(repeatStart: start),
+    );
+
+_Result _setRepeatEnd(Score score, MeasureId measure, RepeatEnd? end) {
+  if (end != null) {
+    _check(repeatProblem(end.times));
+  }
+  return _changeBars(
+    score,
+    measure,
+    measure,
+    (c) => c.repeatEnd == end ? c : c.copyWith(repeatEnd: () => end),
+  );
+}
+
+_Result _setVolta(
+  Score score,
+  MeasureId first,
+  MeasureId last,
+  Volta? volta,
+) {
+  if (volta != null && !_countsPasses(volta.endings)) {
+    throw const _Refuse(
+      InvalidValue('an ending lists its passes from 1, in order'),
+    );
+  }
+  return _changeBars(
+    score,
+    first,
+    last,
+    (c) => c.volta == volta ? c : c.copyWith(volta: () => volta),
+  );
+}
+
+_Result _setNavigation(
+  Score score,
+  MeasureId measure,
+  Seq<NavigationMark> marks,
+) => _changeBars(
+  score,
+  measure,
+  measure,
+  (c) => _same(c.navigation, marks) ? c : c.copyWith(navigation: marks),
+);
+
+_Result _setRehearsal(Score score, MeasureId measure, String? text) {
+  final rehearsal = text == null || text.isEmpty ? null : text;
+  return _changeBars(
+    score,
+    measure,
+    measure,
+    (c) =>
+        c.rehearsal == rehearsal ? c : c.copyWith(rehearsal: () => rehearsal),
+  );
+}
+
+_Result _setBreak(Score score, MeasureId measure, LayoutBreak? layoutBreak) =>
+    _changeBars(
+      score,
+      measure,
+      measure,
+      (c) => c.breakBefore == layoutBreak
+          ? c
+          : c.copyWith(breakBefore: () => layoutBreak),
+    );
+
+_Result _setKeyDisplay(
+  Score score,
+  MeasureId measure,
+  SignatureDisplay display,
+) => _changeBars(
+  score,
+  measure,
+  measure,
+  (c) => c.keyDisplay == display ? c : c.copyWith(keyDisplay: display),
+);
+
+_Result _setMeterDisplay(
+  Score score,
+  MeasureId measure,
+  SignatureDisplay display,
+) => _changeBars(
+  score,
+  measure,
+  measure,
+  (c) => c.meterDisplay == display ? c : c.copyWith(meterDisplay: display),
+);
 
 int _barIndex(Score score, MeasureId id) =>
     score.contains(id) ? score.indexOf(id) : throw _Refuse(StaleReference(id));

@@ -61,37 +61,141 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
       ids,
       overfill,
     ),
-    SetValue() || EnterTuplet() => _rhythm(score, edit, ids),
-    AddToChord() ||
-    RemoveNote() ||
-    SetTone() ||
-    AddGrace() ||
-    SetTie() ||
-    SetArticulation() ||
-    SetOrnament() ||
-    SetBowing() ||
-    SetFingering() ||
-    SetString() ||
-    SetAccidental() ||
-    SetLyric() => _pointEdit(score, edit, ids),
+    AddToChord(:final event, :final tone) => _addToChord(
+      score,
+      event,
+      tone,
+      ids,
+    ),
+    RemoveNote(:final note) => _Result(
+      _removeNote(score, _targetHead(score, note)),
+    ),
+    SetTone(:final note, :final tone) => _setNoteTone(score, note, tone),
+    SetValue(:final event, :final value) => _Result(
+      _setValue(score, _target(score, event), _checked(value), ids),
+    ),
+    EnterTuplet(:final at, :final ratio, :final unit) => _enterTuplet(
+      score,
+      at,
+      ratio,
+      unit,
+      ids,
+    ),
+    AddGrace(:final event, :final tone, :final kind, :final value) => _addGrace(
+      score,
+      event,
+      tone,
+      kind,
+      value,
+      ids,
+    ),
+    SetTie(:final note, :final tied) => _setTie(score, note, tied),
     Erase(:final selection) => _Result(_erase(score, selection, ids)),
-    SetDirections() ||
-    AddSpanner() ||
-    RemoveSpanner() => _marks(score, edit, ids),
+    SetArticulation(:final event, :final articulation, :final present) =>
+      _setArticulation(score, event, articulation, present),
+    SetOrnament(:final event, :final ornament) => _setOrnament(
+      score,
+      event,
+      ornament,
+    ),
+    SetBowing(:final event, :final bowing) => _setBowing(score, event, bowing),
+    SetFingering(:final note, :final finger) => _setFingering(
+      score,
+      note,
+      finger,
+    ),
+    SetString(:final note, :final string) => _setString(score, note, string),
+    SetAccidental(:final note, :final request) => _setAccidental(
+      score,
+      note,
+      request,
+    ),
+    SetLyric(:final event, :final verse, :final lyric) => _setLyric(
+      score,
+      event,
+      verse,
+      lyric,
+    ),
+    SetDirections(:final staff, :final measure, :final directions) => _Result(
+      _setDirections(score, staff, measure, directions),
+    ),
+    AddSpanner(
+      :final kind,
+      :final staff,
+      :final voice,
+      :final first,
+      :final last,
+    ) =>
+      _addSpanner(score, kind, staff, voice, first, last, ids),
+    RemoveSpanner(:final spanner) => _removeSpanner(score, spanner),
     SetMeter() => _setMeter(score, edit, ids, session),
-    SetKey() || SetClef() || SetTempoMarks() => _context(score, edit),
-    InsertMeasures() ||
-    DeleteMeasures() ||
-    SetBarline() ||
-    SetRepeatStart() ||
-    SetRepeatEnd() ||
-    SetVolta() ||
-    SetNavigation() ||
-    SetRehearsal() ||
-    SetBreak() ||
-    SetKeyDisplay() ||
-    SetMeterDisplay() ||
-    SetBarLength() => _bars(score, edit, ids),
+    SetKey(:final from, :final key) => _setKey(score, from, key),
+    SetClef(:final staff, :final at, :final clef) => _Result(
+      _setClef(score, staff, at, clef),
+    ),
+    SetTempoMarks(:final measure, :final marks) => _Result(
+      _setTempoMarks(score, measure, marks),
+    ),
+    InsertMeasures(:final before, :final count) => _insertMeasuresBefore(
+      score,
+      before,
+      count,
+      ids,
+    ),
+    DeleteMeasures(:final first, :final last) => _deleteMeasuresBetween(
+      score,
+      first,
+      last,
+    ),
+    SetBarline(:final measure, :final barline) => _setBarline(
+      score,
+      measure,
+      barline,
+    ),
+    SetRepeatStart(:final measure, :final start) => _setRepeatStart(
+      score,
+      measure,
+      start,
+    ),
+    SetRepeatEnd(:final measure, :final end) => _setRepeatEnd(
+      score,
+      measure,
+      end,
+    ),
+    SetVolta(:final first, :final last, :final volta) => _setVolta(
+      score,
+      first,
+      last,
+      volta,
+    ),
+    SetNavigation(:final measure, :final marks) => _setNavigation(
+      score,
+      measure,
+      marks,
+    ),
+    SetRehearsal(:final measure, :final text) => _setRehearsal(
+      score,
+      measure,
+      text,
+    ),
+    SetBarLength(:final measure, :final length) => _Result(
+      _setBarLength(score, _barIndex(score, measure), length, ids),
+    ),
+    SetBreak(:final measure, :final layoutBreak) => _setBreak(
+      score,
+      measure,
+      layoutBreak,
+    ),
+    SetKeyDisplay(:final measure, :final display) => _setKeyDisplay(
+      score,
+      measure,
+      display,
+    ),
+    SetMeterDisplay(:final measure, :final display) => _setMeterDisplay(
+      score,
+      measure,
+      display,
+    ),
     Paste(:final clip, :final at, :final overfill) => _paste(
       score,
       clip,
@@ -114,147 +218,166 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
   };
 }
 
-/// Edits that change one event in place: resolve the reference, rebuild
-/// that event, and walk back up. Touches one column, except [SetTone] on a
-/// tie chain and [RemoveNote] when it clears a tie from the bar before. An
-/// edit that changes nothing returns the same score.
-_Result _pointEdit(Score score, Edit edit, _Ids ids) {
-  switch (edit) {
-    case AddToChord(:final event, :final tone):
-      return _addToChord(score, event, tone, ids);
-    case RemoveNote(:final note):
-      return _Result(_removeNote(score, _targetHead(score, note)));
-    case SetTone(:final note, :final tone):
-      _checkTone(score, note.event.staff, tone);
-      return _Result(_setTone(score, _targetHead(score, note), tone));
-    case SetTie(:final note, :final tied):
-      final head = _targetHead(score, note);
-      return _changeNote(
-        score,
-        head,
-        head.note.tie == tied ? head.note : head.note.copyWith(tie: tied),
-      );
-    case SetFingering(:final note, :final finger):
-      if (finger != null) {
-        _check(fingerProblem(finger));
-      }
-      final head = _targetHead(score, note);
-      final pitched = _pitchedOnly(head, 'fingering');
-      return _changeNote(
-        score,
-        head,
-        pitched.fingering == finger
-            ? pitched
-            : pitched.copyWith(fingering: () => finger),
-      );
-    case SetString(:final note, :final string):
-      final head = _targetHead(score, note);
-      final pitched = _pitchedOnly(head, 'string');
-      final strings = score.partOf(head.timed.ref.staff).instrument.strings;
-      if (string != null && (string < 0 || string >= strings.length)) {
-        throw const _Refuse(InvalidValue('the instrument has no such string'));
-      }
-      return _changeNote(
-        score,
-        head,
-        pitched.string == string
-            ? pitched
-            : pitched.copyWith(string: () => string),
-      );
-    case SetAccidental(:final note, :final request):
-      final head = _targetHead(score, note);
-      final pitched = _pitchedOnly(head, 'accidental');
-      return _changeNote(
-        score,
-        head,
-        pitched.accidental == request
-            ? pitched
-            : pitched.copyWith(accidental: request),
-      );
-    case AddGrace(:final event, :final tone, :final kind, :final value):
-      final timed = _target(score, event);
-      return _changeEvent(
-        score,
-        timed,
-        _chordOnly(
-          timed.event,
-          clears: false,
-          change: (chord) => chord.copyWith(
-            graces: chord.graces.append(
-              GraceChord(
-                id: ids.event(),
-                kind: kind,
-                value: _checked(value),
-                notes: Seq([_noteOn(score, event.staff, ids.note(), tone)]),
-              ),
-            ),
+// Edits that change one event in place: resolve the reference, rebuild
+// that event, and walk back up. Touches one column, except [SetTone] on a
+// tie chain and [RemoveNote] when it clears a tie from the bar before. An
+// edit that changes nothing returns the same score.
+
+_Result _setNoteTone(Score score, NoteRef note, Tone tone) {
+  _checkTone(score, note.event.staff, tone);
+  return _Result(_setTone(score, _targetHead(score, note), tone));
+}
+
+_Result _setTie(Score score, NoteRef note, bool tied) {
+  final head = _targetHead(score, note);
+  return _changeNote(
+    score,
+    head,
+    head.note.tie == tied ? head.note : head.note.copyWith(tie: tied),
+  );
+}
+
+_Result _setFingering(Score score, NoteRef note, int? finger) {
+  if (finger != null) {
+    _check(fingerProblem(finger));
+  }
+  final head = _targetHead(score, note);
+  final pitched = _pitchedOnly(head, 'fingering');
+  return _changeNote(
+    score,
+    head,
+    pitched.fingering == finger
+        ? pitched
+        : pitched.copyWith(fingering: () => finger),
+  );
+}
+
+_Result _setString(Score score, NoteRef note, int? string) {
+  final head = _targetHead(score, note);
+  final pitched = _pitchedOnly(head, 'string');
+  final strings = score.partOf(head.timed.ref.staff).instrument.strings;
+  if (string != null && (string < 0 || string >= strings.length)) {
+    throw const _Refuse(InvalidValue('the instrument has no such string'));
+  }
+  return _changeNote(
+    score,
+    head,
+    pitched.string == string ? pitched : pitched.copyWith(string: () => string),
+  );
+}
+
+_Result _setAccidental(Score score, NoteRef note, AccidentalRequest request) {
+  final head = _targetHead(score, note);
+  final pitched = _pitchedOnly(head, 'accidental');
+  return _changeNote(
+    score,
+    head,
+    pitched.accidental == request
+        ? pitched
+        : pitched.copyWith(accidental: request),
+  );
+}
+
+_Result _addGrace(
+  Score score,
+  EventRef event,
+  Tone tone,
+  GraceKind kind,
+  NoteValue value,
+  _Ids ids,
+) {
+  final timed = _target(score, event);
+  return _changeEvent(
+    score,
+    timed,
+    _chordOnly(
+      timed.event,
+      clears: false,
+      change: (chord) => chord.copyWith(
+        graces: chord.graces.append(
+          GraceChord(
+            id: ids.event(),
+            kind: kind,
+            value: _checked(value),
+            notes: Seq([_noteOn(score, event.staff, ids.note(), tone)]),
           ),
         ),
-      );
-    case SetArticulation(:final event, :final articulation, :final present):
-      final timed = _target(score, event);
-      final marks = timed.event.articulations;
-      if (marks.contains(articulation) == present) {
-        return _Result(score);
-      }
-      if (present &&
-          timed.event is! ChordEvent &&
-          !_restMarks.contains(articulation)) {
-        throw const _Refuse(InvalidValue('a rest holds only a fermata'));
-      }
-      return _changeEvent(
-        score,
-        timed,
-        _withArticulations(
-          timed.event,
-          present ? {...marks, articulation} : marks.difference({articulation}),
-        ),
-      );
-    case SetOrnament(:final event, :final ornament):
-      final timed = _target(score, event);
-      return _changeEvent(
-        score,
-        timed,
-        _chordOnly(
-          timed.event,
-          clears: ornament == null,
-          change: (chord) => chord.ornament == ornament
-              ? chord
-              : chord.copyWith(ornament: () => ornament),
-        ),
-      );
-    case SetBowing(:final event, :final bowing):
-      final timed = _target(score, event);
-      return _changeEvent(
-        score,
-        timed,
-        _chordOnly(
-          timed.event,
-          clears: bowing == null,
-          change: (chord) => chord.bowing == bowing
-              ? chord
-              : chord.copyWith(bowing: () => bowing),
-        ),
-      );
-    case SetLyric(:final event, :final verse, :final lyric):
-      if (verse < 1 || (lyric != null && lyric.verse != verse)) {
-        throw const _Refuse(
-          InvalidValue('a lyric is set in its own verse, counted from 1'),
-        );
-      }
-      final timed = _target(score, event);
-      return _changeEvent(
-        score,
-        timed,
-        _chordOnly(
-          timed.event,
-          clears: lyric == null,
-          change: (chord) => _withLyric(chord, verse, lyric),
-        ),
-      );
-    default:
-      throw StateError('not a point edit: $edit');
+      ),
+    ),
+  );
+}
+
+_Result _setArticulation(
+  Score score,
+  EventRef event,
+  Articulation articulation,
+  bool present,
+) {
+  final timed = _target(score, event);
+  final marks = timed.event.articulations;
+  if (marks.contains(articulation) == present) {
+    return _Result(score);
   }
+  if (present &&
+      timed.event is! ChordEvent &&
+      !_restMarks.contains(articulation)) {
+    throw const _Refuse(InvalidValue('a rest holds only a fermata'));
+  }
+  return _changeEvent(
+    score,
+    timed,
+    _withArticulations(
+      timed.event,
+      present ? {...marks, articulation} : marks.difference({articulation}),
+    ),
+  );
+}
+
+_Result _setOrnament(Score score, EventRef event, Ornament? ornament) {
+  final timed = _target(score, event);
+  return _changeEvent(
+    score,
+    timed,
+    _chordOnly(
+      timed.event,
+      clears: ornament == null,
+      change: (chord) => chord.ornament == ornament
+          ? chord
+          : chord.copyWith(ornament: () => ornament),
+    ),
+  );
+}
+
+_Result _setBowing(Score score, EventRef event, Bowing? bowing) {
+  final timed = _target(score, event);
+  return _changeEvent(
+    score,
+    timed,
+    _chordOnly(
+      timed.event,
+      clears: bowing == null,
+      change: (chord) =>
+          chord.bowing == bowing ? chord : chord.copyWith(bowing: () => bowing),
+    ),
+  );
+}
+
+_Result _setLyric(Score score, EventRef event, int verse, Lyric? lyric) {
+  if (verse < 1 || (lyric != null && lyric.verse != verse)) {
+    throw const _Refuse(
+      InvalidValue('a lyric is set in its own verse, counted from 1'),
+    );
+  }
+  final timed = _target(score, event);
+  return _changeEvent(
+    score,
+    timed,
+    _chordOnly(
+      timed.event,
+      clears: lyric == null,
+      change: (chord) => _withLyric(chord, verse, lyric),
+    ),
+  );
 }
 
 /// A resolved note head: the event holding it, as a chord, and the head.
@@ -582,37 +705,35 @@ _Result _addToChord(Score score, EventRef ref, Tone tone, _Ids ids) {
   }
 }
 
-/// Edits that rewrite a lane's rhythm through the lane writer.
-_Result _rhythm(Score score, Edit edit, _Ids ids) {
-  switch (edit) {
-    case SetValue(:final event, :final value):
-      return _Result(
-        _setValue(score, _target(score, event), _checked(value), ids),
-      );
-    case EnterTuplet(:final at, :final ratio, :final unit):
-      _check(
-        ratioTermProblem(ratio.actual) ??
-            ratioTermProblem(ratio.normal) ??
-            valueProblem(unit),
-      );
-      final tuplet = Tuplet(
-        id: ids.tuplet(),
-        ratio: ratio,
-        unit: unit,
-        members: Seq([
-          for (var k = 0; k < ratio.actual; k++)
-            RestEvent(id: ids.event(), value: unit),
-        ]),
-      );
-      final write = _overwrite(score, at, [tuplet], ids, Overfill.refuse);
-      return _Result(
-        _untieInto(write.score, at, const {}, ids),
-        cursor: at,
-        selection: Selection.event(write.first),
-      );
-    default:
-      throw StateError('not a rhythm edit: $edit');
-  }
+// Edits that rewrite a lane's rhythm through the lane writer.
+
+_Result _enterTuplet(
+  Score score,
+  VoicePoint at,
+  TupletRatio ratio,
+  NoteValue unit,
+  _Ids ids,
+) {
+  _check(
+    ratioTermProblem(ratio.actual) ??
+        ratioTermProblem(ratio.normal) ??
+        valueProblem(unit),
+  );
+  final tuplet = Tuplet(
+    id: ids.tuplet(),
+    ratio: ratio,
+    unit: unit,
+    members: Seq([
+      for (var k = 0; k < ratio.actual; k++)
+        RestEvent(id: ids.event(), value: unit),
+    ]),
+  );
+  final write = _overwrite(score, at, [tuplet], ids, Overfill.refuse);
+  return _Result(
+    _untieInto(write.score, at, const {}, ids),
+    cursor: at,
+    selection: Selection.event(write.first),
+  );
 }
 
 /// [timed] rewritten at [value] from its onset. It keeps its ids, its marks
@@ -956,57 +1077,51 @@ Score _retie(Score before, Score after, Set<(int, StaffId)> lanes) {
   return retied;
 }
 
-/// Directions and spanners. Directions are replaced per staff and bar;
-/// spanners are added or removed whole.
-_Result _marks(Score score, Edit edit, _Ids ids) {
-  switch (edit) {
-    case SetDirections(:final staff, :final measure, :final directions):
-      return _Result(_setDirections(score, staff, measure, directions));
-    case AddSpanner(
-      :final kind,
-      :final staff,
-      :final voice,
-      :final first,
-      :final last,
-    ):
-      _staff(score, staff);
-      if (kind case TempoLine(:final factor)) {
-        _check(factorProblem(factor));
-      }
-      for (final end in [first, last]) {
-        _inside(score.measures[_barIndex(score, end.measure)], end);
-      }
-      final spanner = Spanner(
-        id: ids.spanner(),
-        kind: kind,
-        staff: staff,
-        voice: kind.joinsNotes ? voice ?? VoiceSlot.one : null,
-        first: first,
-        last: last,
-      );
-      if (!_fits(score, spanner)) {
-        throw _Refuse(
-          InvalidValue(
-            kind.joinsNotes
-                ? 'a ${kind.runtimeType} must end after it starts'
-                : 'a ${kind.runtimeType} cannot end before it starts',
-          ),
-        );
-      }
-      return _Result(
-        score.copyWith(spanners: score.spanners.append(spanner)),
-      );
-    case RemoveSpanner(:final spanner):
-      final index = score.spanners.indexWhere((s) => s.id == spanner);
-      if (index < 0) {
-        throw _Refuse(StaleReference(spanner));
-      }
-      return _Result(
-        score.copyWith(spanners: score.spanners.removeAt(index)),
-      );
-    default:
-      throw StateError('not a mark edit: $edit');
+// Directions and spanners. Directions are replaced per staff and bar;
+// spanners are added or removed whole.
+
+_Result _addSpanner(
+  Score score,
+  SpannerKind kind,
+  StaffId staff,
+  VoiceSlot? voice,
+  ScorePoint first,
+  ScorePoint last,
+  _Ids ids,
+) {
+  _staff(score, staff);
+  if (kind case TempoLine(:final factor)) {
+    _check(factorProblem(factor));
   }
+  for (final end in [first, last]) {
+    _inside(score.measures[_barIndex(score, end.measure)], end);
+  }
+  final spanner = Spanner(
+    id: ids.spanner(),
+    kind: kind,
+    staff: staff,
+    voice: kind.joinsNotes ? voice ?? VoiceSlot.one : null,
+    first: first,
+    last: last,
+  );
+  if (!_fits(score, spanner)) {
+    throw _Refuse(
+      InvalidValue(
+        kind.joinsNotes
+            ? 'a ${kind.runtimeType} must end after it starts'
+            : 'a ${kind.runtimeType} cannot end before it starts',
+      ),
+    );
+  }
+  return _Result(score.copyWith(spanners: score.spanners.append(spanner)));
+}
+
+_Result _removeSpanner(Score score, SpannerId spanner) {
+  final index = score.spanners.indexWhere((s) => s.id == spanner);
+  if (index < 0) {
+    throw _Refuse(StaleReference(spanner));
+  }
+  return _Result(score.copyWith(spanners: score.spanners.removeAt(index)));
 }
 
 /// [score] with [staff]'s directions in bar [measure] replaced by
@@ -1055,34 +1170,26 @@ void _inside(MeasureColumn column, ScorePoint point) {
   }
 }
 
-/// Key, clef and tempo. Key and clef propagate forward through the run of
-/// bars that carried the old value; see [_propagate] and [_setClef].
-_Result _context(Score score, Edit edit) {
-  switch (edit) {
-    case SetKey(:final from, :final key):
-      _check(keyProblem(key.fifths));
-      final start = _barIndex(score, from);
-      final old = score.measures[start].key;
-      if (old == key) {
-        return _Result(score);
-      }
-      return _Result(
-        score.copyWith(
-          measures: _propagate(
-            score.measures,
-            start,
-            carries: (column) => column.key == old,
-            update: (column) => column.copyWith(key: key),
-          ),
-        ),
-      );
-    case SetClef(:final staff, :final at, :final clef):
-      return _Result(_setClef(score, staff, at, clef));
-    case SetTempoMarks(:final measure, :final marks):
-      return _Result(_setTempoMarks(score, measure, marks));
-    default:
-      throw StateError('not a context edit: $edit');
+// Key, clef and tempo. Key and clef propagate forward through the run of
+// bars that carried the old value; see [_propagate] and [_setClef].
+
+_Result _setKey(Score score, MeasureId from, KeySignature key) {
+  _check(keyProblem(key.fifths));
+  final start = _barIndex(score, from);
+  final old = score.measures[start].key;
+  if (old == key) {
+    return _Result(score);
   }
+  return _Result(
+    score.copyWith(
+      measures: _propagate(
+        score.measures,
+        start,
+        carries: (column) => column.key == old,
+        update: (column) => column.copyWith(key: key),
+      ),
+    ),
+  );
 }
 
 /// [score] with [clef] on [staff] from [at]. The clef the bar now ends in
