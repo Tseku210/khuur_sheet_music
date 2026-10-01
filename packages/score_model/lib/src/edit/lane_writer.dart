@@ -443,9 +443,9 @@ List<Event> _split(Event event, List<NoteValue> values, _Ids ids) => [
 ];
 
 /// One piece of [event], of [value]. The [first] piece keeps [event]'s ids
-/// and marks, and the others get fresh ids. A chord's notes are tied on when
-/// [tied], and otherwise keep their own ties. Every piece of a hidden rest
-/// stays hidden.
+/// and marks, and the others get fresh ids. Every note keeps its string.
+/// A chord's notes are tied on when [tied], and otherwise keep their own
+/// ties. Every piece of a hidden rest stays hidden.
 Event _piece(
   Event event,
   NoteValue value,
@@ -463,10 +463,11 @@ Event _piece(
     notes: Seq([
       for (final n in notes)
         switch (n) {
-          PitchedNote(:final pitch, :final head) => PitchedNote(
+          PitchedNote(:final pitch, :final head, :final string) => PitchedNote(
             id: ids.note(),
             pitch: pitch,
             head: head,
+            string: string,
             tie: tied || n.tie,
           ),
           DrumNote(:final drum) => DrumNote(

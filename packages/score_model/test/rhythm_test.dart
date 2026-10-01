@@ -175,6 +175,36 @@ void main() {
       expect(firstEvent(next.score, 1).id, isNot(const EventId(2)));
     });
 
+    test('keeps the string on every piece and the fingering on the first', () {
+      var session = sessionWith([
+        [rest(1, NoteValue.half.dotted), chordOf(2, 'F4')],
+        [chordOf(3, 'G4', value: NoteValue.whole)],
+      ]);
+      final note = NoteRef(eventRef(session, 2), const NoteId(20));
+      session = applied(session.run(SetString(note, 1)));
+      session = applied(session.run(SetFingering(note, 2)));
+
+      final next = valueSet(session, 2, NoteValue.half);
+      final pieces = [
+        chordIn(next, 2),
+        firstEvent(next.score, 1) as ChordEvent,
+      ];
+
+      expect(
+        [
+          for (final piece in pieces)
+            switch (piece.notes.single) {
+              PitchedNote(:final string, :final fingering) => (
+                string,
+                fingering,
+              ),
+              DrumNote() => null,
+            },
+        ],
+        [(1, 2), (1, null)],
+      );
+    });
+
     test('spells a rest that now crosses the barline as rests', () {
       final session = sessionWith([
         [
