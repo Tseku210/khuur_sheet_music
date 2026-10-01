@@ -55,15 +55,15 @@ final class EditSession {
     this._historyLimit,
   );
 
-  /// Starts a session with the cursor at the start of the first staff's
-  /// first bar, nothing selected, and empty history. The id counter starts
-  /// one past the largest id in [score], so ids loaded from JSON are never
-  /// reissued.
+  /// Starts a session with the cursor at the start of the first shown
+  /// staff's first bar, nothing selected, and empty history. The id
+  /// counter starts one past the largest id in [score], so ids loaded from
+  /// JSON are never reissued.
   factory EditSession.start(Score score, {int historyLimit = 200}) =>
       EditSession._(
         score,
         VoicePoint(
-          staff: score.staves.first.id,
+          staff: score.parts.firstWhere((part) => !part.hidden).staves.first.id,
           voice: VoiceSlot.one,
           at: ScorePoint(score.measures.first.id, Moment.zero),
         ),

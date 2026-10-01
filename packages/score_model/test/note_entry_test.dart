@@ -34,6 +34,15 @@ void main() {
       expect(session.canUndo, isFalse);
     });
 
+    test('puts the cursor on the first shown staff', () {
+      final score = hidePart(
+        blankScore(parts: const [morinKhuur, clarinet]),
+        0,
+      );
+
+      expect(EditSession.start(score).cursor.staff, score.staves[1].id);
+    });
+
     test('mints ids above every id in a loaded score', () {
       final session = EditSession.start(
         scoreWith([chord(40, f4, NoteValue.whole)]),
