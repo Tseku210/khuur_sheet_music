@@ -25,8 +25,15 @@ import 'edits.dart';
 part 'apply.dart';
 part 'bars.dart';
 part 'clipboard.dart';
+part 'context.dart';
+part 'directions.dart';
+part 'erase.dart';
 part 'lane_writer.dart';
+part 'notes.dart';
+part 'parts.dart';
 part 'rebar.dart';
+part 'rhythm.dart';
+part 'transpose.dart';
 
 /// An immutable editing session: the current score, where the cursor is,
 /// what is selected, the undo and redo stacks, and the id counter.

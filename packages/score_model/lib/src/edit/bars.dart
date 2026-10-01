@@ -1,9 +1,7 @@
 part of 'session.dart';
 
-// Edits to the bars themselves: adding and removing them, their length,
-// and the marks on their barlines. Each resolves its bars before changing
-// anything, so a stale id is refused. An edit that changes nothing returns
-// the same score.
+// Each edit here resolves its bars before changing anything, so a stale id
+// is refused. An edit that changes nothing returns the same score.
 
 _Result _insertMeasuresBefore(
   Score score,
