@@ -58,12 +58,10 @@ Score _setDirections(
   for (final direction in directions) {
     _inside(column, ScorePoint(measure, direction.offset));
   }
-  final order = [...directions.indexed]
-    ..sort((a, b) {
-      final byTime = a.$2.offset.compareTo(b.$2.offset);
-      return byTime != 0 ? byTime : a.$1 - b.$1;
-    });
-  final sorted = [for (final (_, direction) in order) direction];
+  final sorted = stableSorted(
+    directions,
+    (a, b) => a.offset.compareTo(b.offset),
+  );
   final old = column.staff(staff);
   if (_same(sorted, old.directions)) {
     return score;

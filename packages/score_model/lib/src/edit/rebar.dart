@@ -119,14 +119,12 @@ bool _splits(MeasureColumn before, MeasureColumn bar) =>
     bar.irregularLength != null ||
     before.barline != Barline.regular ||
     before.repeatEnd != null ||
-    before.navigation.any((mark) => !_opensBar(mark)) ||
+    before.navigation.any((mark) => !mark.atBarStart) ||
     bar.repeatStart ||
     bar.rehearsal != null ||
-    bar.navigation.any(_opensBar) ||
+    bar.navigation.any((mark) => mark.atBarStart) ||
     bar.key != before.key ||
     bar.volta != before.volta;
-
-bool _opensBar(NavigationMark mark) => mark is Segno || mark is Coda;
 
 /// A run of bars re-barred together: the bars it had and the bars that
 /// replace them.
@@ -287,9 +285,9 @@ _Section _rebar(
         repeatStart: k == 0 && first.repeatStart,
         rehearsal: k == 0 ? first.rehearsal : null,
         navigation: Seq([
-          if (k == 0) ...first.navigation.where(_opensBar),
+          if (k == 0) ...first.navigation.where((mark) => mark.atBarStart),
           if (k == count - 1)
-            ...last.navigation.where((mark) => !_opensBar(mark)),
+            ...last.navigation.where((mark) => !mark.atBarStart),
         ]),
         barline: k == count - 1 ? last.barline : Barline.regular,
         repeatEnd: k == count - 1 ? last.repeatEnd : null,
@@ -335,7 +333,7 @@ final class _Stream {
     if (trimmed == padded || next == null) {
       return;
     }
-    final opening = _opening(next, staff, slot)?.event;
+    final opening = openingEvent(next, staff, slot)?.event;
     if (items.lastOrNull case (final Content item, final origin)
         when opening is ChordEvent) {
       final event = _lastEvent(item);

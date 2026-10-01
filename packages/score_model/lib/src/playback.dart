@@ -18,6 +18,7 @@ import 'pitch.dart';
 import 'refs.dart';
 import 'score.dart';
 import 'seq.dart';
+import 'stable_sort.dart';
 import 'time.dart';
 import 'views.dart';
 import 'voice_walk.dart';
@@ -176,7 +177,7 @@ final class PlaybackCompiler {
     }
     return PlaybackScript._(
       timeline,
-      _stableSorted(
+      stableSorted(
         [for (final note in sounding) note.played],
         (a, b) => a.start.compareTo(b.start),
       ),
@@ -453,17 +454,6 @@ final class _Sounding {
     channel: channel,
     source: source,
   );
-}
-
-/// [items] sorted by [compare], keeping their order where it finds them
-/// equal.
-List<T> _stableSorted<T>(List<T> items, int Function(T a, T b) compare) {
-  final order = [for (var i = 0; i < items.length; i++) i]
-    ..sort((a, b) {
-      final by = compare(items[a], items[b]);
-      return by != 0 ? by : a.compareTo(b);
-    });
-  return [for (final i in order) items[i]];
 }
 
 /// The first index in `[0, length)` where [reached] holds, given that it

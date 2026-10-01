@@ -40,9 +40,9 @@ final class _Loudness {
         }
       }
     }
-    final written = _stableSorted(marks, (a, b) => a.$1.compareTo(b.$1));
+    final written = stableSorted(marks, (a, b) => a.$1.compareTo(b.$1));
     final levels = [...written];
-    final hairpins = _stableSorted(
+    final hairpins = stableSorted(
       [
         for (final spanner in score.spanners)
           if (spanner.kind case Hairpin(:final crescendo)
@@ -57,14 +57,7 @@ final class _Loudness {
     );
     final ramps = <_Ramp>[];
     for (final (:from, :spanner, :crescendo) in hairpins) {
-      final last = score.eventAt(
-        VoicePoint(
-          staff: spanner.staff,
-          voice: VoiceSlot.one,
-          at: spanner.last,
-        ),
-      )!;
-      final end = place(spanner.last.measure, last.onset + last.duration);
+      final end = place(spanner.last.measure, score.lineEnd(spanner));
       final start = _levelAt(levels, from);
       final arrival = written
           .where((l) => from < l.$1 && l.$1 <= end)

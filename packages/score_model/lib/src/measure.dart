@@ -374,6 +374,12 @@ final class Volta {
 sealed class NavigationMark {
   const NavigationMark();
 
+  /// Whether the mark takes effect at the start of its bar, not at its end.
+  bool get atBarStart => switch (this) {
+    Segno() || Coda() => true,
+    ToCoda() || Fine() || Jump() => false,
+  };
+
   /// Marks without fields are equal when they are the same kind.
   @override
   bool operator ==(Object other) => other.runtimeType == runtimeType;

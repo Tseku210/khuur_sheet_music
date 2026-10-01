@@ -17,6 +17,7 @@ import '../rules.dart';
 import '../score.dart';
 import '../seq.dart';
 import '../spelling.dart';
+import '../stable_sort.dart';
 import '../time.dart';
 import '../views.dart';
 import '../voice_walk.dart';

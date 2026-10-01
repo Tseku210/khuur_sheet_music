@@ -364,7 +364,7 @@ Score _untieAt(Score score, int index, Moment from, MeasureColumn? next) {
     for (final voice in staff.voices) {
       final following = next == null
           ? null
-          : _opening(next, staff.staff, voice.slot);
+          : openingEvent(next, staff.staff, voice.slot);
       var items = voice.items;
       for (final timed in timedEvents(
         voice,
@@ -397,16 +397,6 @@ Score _untieAt(Score score, int index, Moment from, MeasureColumn? next) {
   return identical(untied, column)
       ? score
       : score.copyWith(measures: score.measures.replaceAt(index, untied));
-}
-
-/// The event that opens [column] in [slot] of [staff]. Null when that voice
-/// is absent or opens with a gap.
-TimedEvent? _opening(MeasureColumn column, StaffId staff, VoiceSlot slot) {
-  final voice = column.staff(staff).voice(slot);
-  final first = voice == null
-      ? null
-      : timedEvents(voice, measure: column.id, staff: staff).firstOrNull;
-  return first != null && first.onset.isZero ? first : null;
 }
 
 /// [score]'s spanners with their ends where [first] and [last] put them

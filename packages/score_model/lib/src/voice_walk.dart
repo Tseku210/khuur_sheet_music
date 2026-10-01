@@ -44,3 +44,13 @@ Iterable<TimedEvent> timedEvents(
 
   return walk(voice.items, Moment.zero, Fraction.one, const []);
 }
+
+/// The event that opens [column] in [slot] of [staff]. Null when that voice
+/// is absent or opens with a gap.
+TimedEvent? openingEvent(MeasureColumn column, StaffId staff, VoiceSlot slot) {
+  final voice = column.staff(staff).voice(slot);
+  final first = voice == null
+      ? null
+      : timedEvents(voice, measure: column.id, staff: staff).firstOrNull;
+  return first != null && first.onset.isZero ? first : null;
+}

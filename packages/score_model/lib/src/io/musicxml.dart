@@ -32,6 +32,7 @@ import '../pitch.dart';
 import '../refs.dart';
 import '../score.dart';
 import '../seq.dart';
+import '../stable_sort.dart';
 import '../time.dart';
 import '../views.dart';
 import 'musicxml_names.dart';
@@ -388,7 +389,7 @@ final class _Export {
             ),
           ),
         for (final mark in column.navigation)
-          if (_opensBar(mark))
+          if (mark.atBarStart)
             (Moment.zero, _navigation(mark, _staff(staff, k))),
         for (final tempo in column.tempos)
           (tempo.offset, _tempo(tempo, _staff(staff, k))),
@@ -400,15 +401,10 @@ final class _Export {
           (line.start.at, _line(line, start: true, staff: _staff(staff, k))),
       if (marks)
         for (final mark in column.navigation)
-          if (!_opensBar(mark))
+          if (!mark.atBarStart)
             (Moment.zero + column.length, _navigation(mark, _staff(staff, k))),
     ];
-    final ordered = [...items.indexed]
-      ..sort((a, b) {
-        final byTime = a.$2.$1.compareTo(b.$2.$1);
-        return byTime != 0 ? byTime : a.$1 - b.$1;
-      });
-    return [for (final (_, item) in ordered) item];
+    return stableSorted(items, (a, b) => a.$1.compareTo(b.$1));
   }
 
   /// Writes the `<note>`s of each event of [voice] on staff [k] of part
@@ -705,7 +701,6 @@ final class _Export {
           to: to.event.id,
         );
       case Hairpin() || OctaveLine() || PedalLine() || TempoLine():
-        final (last, _) = eventAt(VoiceSlot.one, spanner.last);
         return (
           spanner: spanner,
           start: (
@@ -716,7 +711,7 @@ final class _Export {
           stop: (
             bar: lastBar,
             stream: stream(VoiceSlot.one),
-            at: last.onset + last.duration,
+            at: score.lineEnd(spanner),
           ),
           from: null,
           to: null,
@@ -735,13 +730,11 @@ final class _Export {
       (groups[(part, line.spanner.kind.runtimeType)] ??= []).add(line);
     }
     for (final group in groups.values) {
-      final ordered = [...group.indexed]
-        ..sort((a, b) {
-          final byStart = _compare(a.$2.start, b.$2.start);
-          return byStart != 0 ? byStart : a.$1 - b.$1;
-        });
       final open = <_Ends>[];
-      for (final (_, line) in ordered) {
+      for (final line in stableSorted(
+        group,
+        (a, b) => _compare(a.start, b.start),
+      )) {
         open.removeWhere(
           (other) =>
               _compare(other.stop, line.start) < 0 &&
@@ -801,8 +794,6 @@ final class _Export {
 /// A slur, glissando or trill line end on an event: the spanner, and
 /// whether it starts there.
 typedef _Mark = (Spanner, bool);
-
-bool _opensBar(NavigationMark mark) => mark is Segno || mark is Coda;
 
 XmlElement _navigation(NavigationMark mark, XmlElement? staff) {
   final (types, sound) = switch (mark) {

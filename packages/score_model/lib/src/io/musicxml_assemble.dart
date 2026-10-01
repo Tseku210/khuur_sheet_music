@@ -9,6 +9,7 @@ import '../refs.dart';
 import '../rules.dart';
 import '../score.dart';
 import '../seq.dart';
+import '../stable_sort.dart';
 import '../time.dart';
 import 'musicxml_names.dart';
 import 'musicxml_records.dart';
@@ -302,15 +303,10 @@ final class _Assembly {
       openingClefs.add(clef);
     }
 
-    final own = [
+    final own = stableSorted([
       for (final (:staff, :direction) in record.directions)
         if (staff == k && direction.offset < end) direction,
-    ];
-    final order = [for (var i = 0; i < own.length; i++) i]
-      ..sort((a, b) {
-        final byOffset = own[a].offset.compareTo(own[b].offset);
-        return byOffset != 0 ? byOffset : a - b;
-      });
+    ], (a, b) => a.offset.compareTo(b.offset));
 
     final lanes = [
       for (final lane in record.lanes)
@@ -324,7 +320,7 @@ final class _Assembly {
       directions: Seq([
         for (final (:staff, :direction) in moved)
           if (staff == k) direction,
-        for (final i in order) own[i],
+        ...own,
       ]),
       voices: Seq(voices.of(lanes, record.source)),
     );
@@ -532,7 +528,7 @@ final class _Voices {
     List<NoteRecord> records, {
     required List<NoteRecord> tiesTo,
   }) {
-    final notes = [
+    final notes = stableSorted([
       for (final record in records)
         _note(
           record,
@@ -541,16 +537,11 @@ final class _Voices {
               (record.tieStart &&
                   tiesTo.any((to) => to.tieStop && _sameTone(to, record))),
         ),
-    ];
-    final order = [for (var i = 0; i < notes.length; i++) i]
-      ..sort((a, b) {
-        final byTone = notes[a].tone.compareTo(notes[b].tone);
-        return byTone != 0 ? byTone : a - b;
-      });
+    ], (a, b) => a.tone.compareTo(b.tone));
     final kept = <Note>[];
-    for (final i in order) {
-      if (kept.lastOrNull?.tone.compareTo(notes[i].tone) != 0) {
-        kept.add(notes[i]);
+    for (final note in notes) {
+      if (kept.lastOrNull?.tone.compareTo(note.tone) != 0) {
+        kept.add(note);
       }
     }
     return kept;

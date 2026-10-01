@@ -239,6 +239,16 @@ final class Score {
       eventAt(VoicePoint(staff: staff, voice: voice, at: at)) ??
       eventAt(VoicePoint(staff: staff, voice: VoiceSlot.one, at: at));
 
+  /// Where a hairpin, octave line, pedal line or tempo line stops in its
+  /// last bar: the end of the voice-one event its last point falls in. The
+  /// line covers that event.
+  Moment lineEnd(Spanner spanner) {
+    final last = eventAt(
+      VoicePoint(staff: spanner.staff, voice: VoiceSlot.one, at: spanner.last),
+    )!;
+    return last.onset + last.duration;
+  }
+
   /// Whether [spanner] joins notes but starts and ends on one event.
   bool isCollapsed(Spanner spanner) {
     if (!spanner.kind.joinsNotes) {

@@ -7,6 +7,7 @@ import 'measure.dart';
 import 'pitch.dart';
 import 'refs.dart';
 import 'score.dart';
+import 'stable_sort.dart';
 import 'time.dart';
 import 'views.dart';
 import 'voice_walk.dart';
@@ -113,7 +114,7 @@ StaffView _staffView(
           if (last.event case final ChordEvent chord)
             for (final (_, to) in _tieEnds(
               chord,
-              _openingEvent(column, id, voice.slot),
+              openingEvent(column, id, voice.slot),
             ))
               ?to?.note,
   ];
@@ -183,7 +184,7 @@ List<TieView> _ties(
         final following = events.elementAtOrNull(i + 1);
         final crosses = end == barEnd;
         final target = crosses
-            ? _openingEvent(next, id, voice.slot)
+            ? (next == null ? null : openingEvent(next, id, voice.slot))
             : (following?.onset == end ? following : null);
         for (final (from, to) in _tieEnds(chord, target)) {
           ties.add(
@@ -198,17 +199,6 @@ List<TieView> _ties(
     }
   }
   return ties;
-}
-
-/// The event that starts voice [slot] of staff [id] in [column], or null
-/// when that voice is absent or opens with a gap.
-TimedEvent? _openingEvent(MeasureColumn? column, StaffId id, VoiceSlot slot) {
-  final voice = column?.staff(id).voice(slot);
-  if (column == null || voice == null) {
-    return null;
-  }
-  final first = timedEvents(voice, measure: column.id, staff: id).first;
-  return first.onset.isZero ? first : null;
 }
 
 /// Tuplets in pre-order: an outer tuplet before the tuplets it holds.
@@ -289,22 +279,16 @@ Map<NoteId, AccidentalMark> foldAccidentals(
   KeySignature key, {
   AccidentalRequestOf request = _stated,
 }) {
-  // List.sort is not stable, so the index breaks ties to keep voice order.
-  final order = [for (var i = 0; i < heads.length; i++) i]
-    ..sort((a, b) {
-      final byOnset = heads[a].onset.compareTo(heads[b].onset);
-      if (byOnset != 0) {
-        return byOnset;
-      }
-      if (heads[a].grace != heads[b].grace) {
-        return heads[a].grace ? -1 : 1;
-      }
-      return a - b;
-    });
+  final ordered = stableSorted(heads, (a, b) {
+    final byOnset = a.onset.compareTo(b.onset);
+    if (byOnset != 0) {
+      return byOnset;
+    }
+    return a.grace == b.grace ? 0 : (a.grace ? -1 : 1);
+  });
   final state = <int, Alter>{};
   final marks = <NoteId, AccidentalMark>{};
-  for (final i in order) {
-    final note = heads[i].note;
+  for (final AccidentalHead(:note) in ordered) {
     if (note is! PitchedNote) {
       continue;
     }

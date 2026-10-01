@@ -11,6 +11,7 @@ import '../pitch.dart';
 import '../refs.dart';
 import '../rules.dart';
 import '../score.dart';
+import '../stable_sort.dart';
 import '../time.dart';
 import 'musicxml_names.dart';
 import 'musicxml_records.dart';
@@ -293,12 +294,12 @@ _PartReader _header(
     }
     final tunings = details.findElements('staff-tuning').toList();
     if (strings == null && tunings.isNotEmpty) {
-      final byLine = [
+      final byLine = stableSorted([
         for (final (i, tuning) in tunings.indexed)
-          (integerOf(tuning.getAttribute('line')) ?? i + 1, i, tuning),
-      ]..sort((a, b) => a.$1 != b.$1 ? a.$1 - b.$1 : a.$2 - b.$2);
+          (integerOf(tuning.getAttribute('line')) ?? i + 1, tuning),
+      ], (a, b) => a.$1 - b.$1);
       strings = [
-        for (final (_, _, tuning) in byLine)
+        for (final (_, tuning) in byLine)
           _soundingPitch(tuning, prefix: 'tuning-'),
       ];
     }

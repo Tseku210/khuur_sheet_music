@@ -16,7 +16,7 @@ final class _TempoMap {
         for (final TempoMark(:offset, :tempo) in column.tempos)
           _TempoPiece.steady(place(column.id, offset), tempo),
     ];
-    final lines = _stableSorted(
+    final lines = stableSorted(
       [
         for (final spanner in score.spanners)
           if (spanner.kind case TempoLine(:final factor))
@@ -34,14 +34,7 @@ final class _TempoMap {
       for (; next < marks.length && marks[next].from <= from; next++) {
         pieces.add(marks[next]);
       }
-      final last = score.eventAt(
-        VoicePoint(
-          staff: spanner.staff,
-          voice: VoiceSlot.one,
-          at: spanner.last,
-        ),
-      )!;
-      final end = place(spanner.last.measure, last.onset + last.duration);
+      final end = place(spanner.last.measure, score.lineEnd(spanner));
       final start = pieces.last.tempoAt(from);
       final arrival = next < marks.length && marks[next].from <= end
           ? marks[next]
