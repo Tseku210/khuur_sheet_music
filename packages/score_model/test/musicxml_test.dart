@@ -410,6 +410,26 @@ void main() {
       );
     });
 
+    test('writes a change of mode alone as a key that does not print', () {
+      final dMajor = blankScore(key: const KeySignature(2, KeyMode.major));
+      final score = applied(
+        EditSession.start(dMajor).run(
+          SetKey(
+            from: dMajor.measures[1].id,
+            key: const KeySignature(2, KeyMode.minor),
+          ),
+        ),
+      ).score;
+      final xml = exported(score);
+
+      expect(each(measure(xml, 'P1', 1), 'attributes'), [
+        joined('''
+          <attributes><key print-object="no"><fifths>2</fifths>
+          <mode>minor</mode></key></attributes>
+        '''),
+      ]);
+    });
+
     test('writes cut time, an octave clef and the staves of a grand staff', () {
       var score = blankScore(parts: const [piano], bars: 1);
       score = changeBar(

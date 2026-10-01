@@ -491,7 +491,7 @@ final class _BarReader {
   _Last? last;
   _PendingGrace? lastGrace;
 
-  KeySignature? key;
+  ({KeySignature key, bool printed})? key;
   ({Meter meter, Source source})? meter;
   final clefs = <({int staff, Moment at, Clef clef})>[];
   final directions = <({int staff, StaffDirection direction})>[];
@@ -674,7 +674,10 @@ final class _BarReader {
           }
           part.perWhole = perWhole;
         case 'key':
-          key ??= _key(child);
+          key ??= (
+            key: _key(child),
+            printed: child.getAttribute('print-object') != 'no',
+          );
         case 'time':
           meter ??= (meter: _time(child), source: Source(child));
         case 'clef':

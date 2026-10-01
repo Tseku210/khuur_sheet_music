@@ -94,9 +94,9 @@ final class _Assembly {
 
   MeasureColumn column(int bar) {
     var keyDisplay = SignatureDisplay.auto;
-    if (reference.bars[bar].key case final written?) {
+    if (reference.bars[bar].key case (key: final written, :final printed)?) {
       final stated = _concertKey(written);
-      if (bar > 0 && stated.fifths == key.fifths) {
+      if (bar > 0 && printed && stated.fifths == key.fifths) {
         keyDisplay = SignatureDisplay.restated;
       }
       key = stated;

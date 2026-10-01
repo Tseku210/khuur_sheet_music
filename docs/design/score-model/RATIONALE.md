@@ -483,6 +483,7 @@ Implemented in Phase D, unit 21, from the owner's decision of 2026-10-01 above. 
 - **A pickup bar is numbered 0 and marked implicit.** The other bars number from 1, as engravers count them.
 - **One divisions value covers the whole score.** It is the least common multiple of every time and length, and each part writes it in its first bar.
 - **Open strings are written as staff tunings.** Each staff of a part with strings lists them as `staff-tuning` elements in the first bar, the instrument's first string on line 1, so the string numbers on notes keep their meaning for a reader.
+- **A change of mode alone is written as a key that does not print.** D major to B minor keeps two sharps, so no signature is drawn, but another app must still read B minor. The bar writes `<key print-object="no">`. Import reads such a key as a change of mode, and a printed key with the same sharps or flats as a restated signature.
 - **Some fields have no MusicXML home and are left out.** These are an instrument's key, range and clef, a tempo line's factor, `SignatureDisplay.noCourtesy`, `AccidentalRequest.never` and a tie from a grace note. Import will fall back to defaults for them.
 
 ### Unit 22: MusicXML import

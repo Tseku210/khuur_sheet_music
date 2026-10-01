@@ -1113,6 +1113,33 @@ void main() {
       expect(second.clefChanges, isEmpty);
     });
 
+    test('reads a key that does not print as a change of mode, not a restated '
+        'signature', () {
+      String key(String mode, [String attributes = '']) =>
+          '<attributes><key$attributes><fifths>2</fifths><mode>$mode</mode>'
+          '</key></attributes>';
+      final whole = note('C5', 16, 'whole');
+      final score = imported(
+        flute([
+          [opening(fifths: 2), whole],
+          [key('minor', ' print-object="no"'), whole],
+          [key('minor'), whole],
+        ]),
+      );
+
+      expect(
+        [
+          for (final column in score.measures)
+            (column.key.fifths, column.key.mode, column.keyDisplay),
+        ],
+        [
+          (2, KeyMode.none, SignatureDisplay.auto),
+          (2, KeyMode.minor, SignatureDisplay.auto),
+          (2, KeyMode.minor, SignatureDisplay.restated),
+        ],
+      );
+    });
+
     test('reads the concert key and pitches of a transposing part', () {
       const transpose =
           '<transpose><diatonic>-1</diatonic>'

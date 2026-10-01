@@ -151,8 +151,9 @@ final class BarRecord {
 
   final List<LaneRecord> lanes;
 
-  /// The written key stated at the bar start.
-  final KeySignature? key;
+  /// The written key stated at the bar start, and whether the file prints
+  /// its signature.
+  final ({KeySignature key, bool printed})? key;
 
   final ({Meter meter, Source source})? meter;
   final List<({int staff, Moment at, Clef clef})> clefs;

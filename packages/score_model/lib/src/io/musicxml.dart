@@ -249,7 +249,11 @@ final class _Export {
     final strings = part.instrument.strings;
     final children = [
       if (bar == 0) _text('divisions', '$divisions'),
-      if (view.printsKey) _key(staves.first.writtenKey),
+      if (view.printsKey)
+        _key(staves.first.writtenKey)
+      else if (bar > 0 &&
+          score.measures[bar - 1].key.mode != view.column.key.mode)
+        _key(staves.first.writtenKey, printed: false),
       if (view.printsMeter) _time(view.column.meter),
       if (bar == 0 && multi) _text('staves', '${part.staves.length}'),
       for (final (k, staff) in staves.indexed)
@@ -943,10 +947,16 @@ XmlElement? _rightBarline(MeasureView view) {
       : _el('barline', children, {'location': 'right'});
 }
 
-XmlElement _key(KeySignature key) => _el('key', [
-  _text('fifths', '${key.fifths}'),
-  if (key.mode != KeyMode.none) _text('mode', key.mode.name),
-]);
+/// A key that is not [printed] changes the mode alone, which draws no new
+/// signature.
+XmlElement _key(KeySignature key, {bool printed = true}) => _el(
+  'key',
+  [
+    _text('fifths', '${key.fifths}'),
+    if (key.mode != KeyMode.none) _text('mode', key.mode.name),
+  ],
+  {'print-object': printed ? null : 'no'},
+);
 
 XmlElement _time(Meter meter) => _el(
   'time',

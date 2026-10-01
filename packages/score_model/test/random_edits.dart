@@ -228,7 +228,13 @@ Score randomEdit(Score score, Random random) {
     case 4:
       return edited(
         score,
-        SetKey(from: id, key: KeySignature(random.nextInt(5) - 2)),
+        SetKey(
+          from: id,
+          key: KeySignature(
+            random.nextInt(5) - 2,
+            pick(random, KeyMode.values),
+          ),
+        ),
       );
     case 5:
       return edited(
