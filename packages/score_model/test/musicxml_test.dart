@@ -376,7 +376,13 @@ void main() {
           <attributes><divisions>18</divisions>
           <key><fifths>2</fifths><mode>major</mode></key>
           <time symbol="common"><beats>4</beats><beat-type>4</beat-type></time>
-          <clef><sign>G</sign><line>2</line></clef></attributes>
+          <clef><sign>G</sign><line>2</line></clef>
+          <staff-details>
+          <staff-tuning line="1"><tuning-step>G</tuning-step><tuning-octave>3</tuning-octave></staff-tuning>
+          <staff-tuning line="2"><tuning-step>D</tuning-step><tuning-octave>4</tuning-octave></staff-tuning>
+          <staff-tuning line="3"><tuning-step>A</tuning-step><tuning-octave>4</tuning-octave></staff-tuning>
+          <staff-tuning line="4"><tuning-step>E</tuning-step><tuning-octave>5</tuning-octave></staff-tuning>
+          </staff-details></attributes>
         '''),
       ]);
       expect(each(measure(xml, 'P1', 1), 'attributes'), [
@@ -1130,7 +1136,35 @@ void main() {
       expect(each(measure(xml, 'P2', 0), 'staff-details'), [
         '<staff-details print-object="no"/>',
       ]);
-      expect(each(measure(xml, 'P1', 0), 'staff-details'), isEmpty);
+      expect(
+        [
+          for (final details in measure(xml, 'P1', 0).findAllElements(
+            'staff-details',
+          ))
+            details.getAttribute('print-object'),
+        ],
+        [null],
+      );
+    });
+
+    test('writes the open strings of a string instrument, lowest first', () {
+      final xml = exported(blankScore());
+
+      expect(each(measure(xml, 'P1', 0), 'staff-details'), [
+        joined('''
+          <staff-details>
+            <staff-tuning line="1">
+              <tuning-step>F</tuning-step>
+              <tuning-octave>3</tuning-octave>
+            </staff-tuning>
+            <staff-tuning line="2">
+              <tuning-step>B</tuning-step>
+              <tuning-alter>-1</tuning-alter>
+              <tuning-octave>3</tuning-octave>
+            </staff-tuning>
+          </staff-details>'''),
+      ]);
+      expect(each(measure(xml, 'P1', 1), 'staff-details'), isEmpty);
     });
 
     test('attaches slurs, glissandi and trill lines to notes', () {

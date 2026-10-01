@@ -17,8 +17,10 @@
 /// first point and a stop after the event its last point falls in. Numbers
 /// are reused once a spanner of the same element in the part has stopped.
 ///
+/// A string instrument's open strings are its staves' tunings.
+///
 /// Some of the model has no MusicXML home and is left out: an instrument's
-/// key, strings, range and clef, a tempo line's factor, a
+/// key, range and clef, a tempo line's factor, a
 /// [SignatureDisplay.noCourtesy], and an [AccidentalRequest.never].
 library;
 
@@ -237,6 +239,7 @@ final class _Export {
     final part = score.parts[p];
     final multi = part.staves.length > 1;
     final transposition = part.instrument.transposition;
+    final strings = part.instrument.strings;
     final children = [
       if (bar == 0) _text('divisions', '$divisions'),
       if (view.printsKey) _key(staves.first.writtenKey),
@@ -246,10 +249,26 @@ final class _Export {
         if (staff.clefChanged) _clef(staff.clef, multi ? k + 1 : null),
       if (bar == 0)
         for (final (k, staff) in part.staves.indexed)
-          if (staff.lines != 5 || part.hidden)
+          if (staff.lines != 5 || part.hidden || strings.isNotEmpty)
             _el(
               'staff-details',
-              [if (staff.lines != 5) _text('staff-lines', '${staff.lines}')],
+              [
+                if (staff.lines != 5) _text('staff-lines', '${staff.lines}'),
+                for (final (i, string) in strings.indexed)
+                  _el(
+                    'staff-tuning',
+                    [
+                      _text('tuning-step', string.step.name.toUpperCase()),
+                      if (string.alter != Alter.natural)
+                        _text(
+                          'tuning-alter',
+                          _number(string.alter.quarterTones / 2),
+                        ),
+                      _text('tuning-octave', '${string.octave}'),
+                    ],
+                    {'line': '${i + 1}'},
+                  ),
+              ],
               {
                 'number': multi ? '${k + 1}' : null,
                 'print-object': part.hidden ? 'no' : null,
