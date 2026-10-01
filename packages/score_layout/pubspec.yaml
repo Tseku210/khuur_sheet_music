@@ -1,0 +1,12 @@
+name: score_layout
+description: Lays a score out as systems of positioned drawables, in staff spaces. Pure Dart, no Flutter.
+publish_to: none
+
+environment:
+  sdk: ^3.13.0
+
+resolution: workspace
+
+dev_dependencies:
+  pedantic_mono: ^1.38.1
+  test: ^1.26.0

@@ -168,6 +168,7 @@ packages/score_layout/       pure Dart, no Flutter; depends on score_model
   hit.dart                   SheetHit; entryPoints, snapTime (internal)
   glyphs.dart                Glyph (222 values), GlyphAnchor, GlyphMetrics, EngravingDefaults
   smufl_font.dart            SmuflFont
+  smufl_metadata.dart        readSmuflMetadata, the one reader of a font's metadata (internal)
   bravura.g.dart             generated: the Bravura metrics table and engraving defaults
   geometry.dart              SpPoint, Box, yOfStep, stepAtY, staffHeight
   style.dart                 EngravingStyle, SpacingPolicy, the policy enums
@@ -520,7 +521,7 @@ Two gates come before any layout code.
   - **The origins.** Each glyph is drawn at origins an eighth of a device pixel apart in both directions, because where the origin falls inside a pixel decides the error.
   - **The ink.** The ink box is read by coverage. An edge is the outermost row or column the ink touches, moved in by the part of that pixel the ink leaves empty. The same reader gives 0.00 on every edge of a rectangle drawn with `drawRect`, so it adds no error of its own.
   - **What is checked.** Placement and size, apart, in device pixels.
-    - The centre of the ink box is within 1 device pixel of the centre of the table's box vertically, and within 0.25 horizontally.
+    - The centre of the ink box is within 1 device pixel of the centre of the table's box vertically, and within 0.5 horizontally.
     - The ink box's width and height are each within 1 device pixel of the table's.
     - At 64 pixels per staff space every edge is within 0.05 staff spaces, which checks the table and the generator's one y flip.
 
@@ -531,9 +532,16 @@ Two gates come before any layout code.
     - The other cause is the rasteriser. Glyph ink lands on whole device pixels vertically. Horizontally it is placed to a fraction of a pixel, and the centre is within 0.04.
     - With the rounding, the vertical centre is within 0.83 device pixels and the size within 0.62, at both sizes and all three ratios. At 300 device pixels of font size and above, the engine fills outlines and every edge is within 0.3.
     - So a tolerance of 0.05 staff spaces at the view's sizes could never pass on a text stack. One device pixel is 0.125 staff spaces at ratio 1 and 0.04 at ratio 3.
+  - **What the full run found.** Unit 1 ran the gate for all 222 glyphs, under `flutter test` and as a macOS app that takes the font from the package's own declaration.
+    - Every glyph passes. The vertical centre is within 1.00 device pixels and the size within 0.77, at the view's sizes. At 64 pixels per staff space every edge is within 0.02 staff spaces.
+    - The vertical bound has no margin. The worst glyph, a narrow double flat at 8 pixels per staff space and ratio 3, is 0.998 pixels off. The engine puts ink on whole device pixels, and an origin half way between two can go either way, so the worst case moves by hundredths with where on the canvas the glyph sits. An earlier run with the same glyphs elsewhere in the image read 0.91. A device may read a hair over 1 for the same reason.
+    - The horizontal centre is within 0.34 device pixels, not the 0.04 of the six probe glyphs, so that bound is 0.5 and not 0.25. The worst are glyphs pointed on one side, such as the arrow accidentals and the p of a dynamic. The offset is the same number of pixels at 8 and at 300 pixels per staff space, so it is the ink reading and not the placement. A pointed end covers little of its last pixel and reads short.
+    - The reader is exact where the ink is at least a pixel wide at its edge, which is what its `drawRect` control checks.
+    - A stretched brace keeps its centre and its width. Its height is off by up to its stretch in pixels, because the rasteriser's thickening is stretched with it.
+    - A frame of 3,000 glyphs under a repainting overlay rasters in 4.3 ms at the median and 4.6 ms at the 90th percentile, in a profile build on the development Mac. The budget is judged on the 90th percentile. That is over half the budget on a fast machine, so the device runs decide it.
   - **The staff line.** A staff line is geometry and is not snapped. So the centre check is also the distance between a head and its line, and that alignment is what a reader sees (see Tradeoffs).
   - **The table.** The test reads the generated table, not the JSON.
-  - **The devices.** The same test then runs as an integration test on an Android device and an iOS device. There it also reports the raster time of a frame that shows 3,000 glyphs while an overlay repaints over them (`FrameTiming.rasterDuration`). Every glyph is its own `drawParagraph`, the engine replays them whenever the frame changes, and nothing else measures raster cost before the widget exists. The rounded baseline is in the text layout every platform shares. The pixel snap and the thickening belong to each platform's rasteriser, so the probe's numbers are the host's only.
+  - **The devices.** The same test then runs as an integration test on an Android device and an iOS device (`example/integration_test/glyph_gate_test.dart`). It loads no font, so it also proves that an app gets the font from the package's declaration under the family the painter asks for. There it also reports the raster time of a frame that shows 3,000 glyphs while an overlay repaints over them (`FrameTiming.rasterDuration`). Every glyph is its own `drawParagraph`, the engine replays them whenever the frame changes, and nothing else measures raster cost before the widget exists. The rounded baseline is in the text layout every platform shares. The pixel snap and the thickening belong to each platform's rasteriser, so the probe's numbers are the host's only.
   Nothing else in the engine gets a body until the gate passes on all three. If it fails, or if that raster time is over 8 ms on a device, which is half a frame at 60 Hz, the fallback is a path painter behind the same `GlyphPainter` seam.
 - **Gate 2. First layout cost.** A benchmark lays out a 500-bar, 4-staff score with the fake measurer. Every bar has notes, with beams, two voices on one staff, a lyric verse, dynamics and slurs, because a score of whole-bar rests would meet any budget. It is compiled ahead of time with `dart compile exe`, warmed up, and reports the median of its runs, because a JIT run measures the compiler as much as the code. The budget on the development host is 50 ms for `SheetLayout(score, ...)`, which is 100 microseconds per bar of four staves, and 1 ms for the update after one entered note. A mid-range phone is taken as four times slower, which gives 200 ms once when a large score opens and 4 ms per edit.
   - A second fixture has 2,000 bars and 2,500 spanners, with four times the first-layout budget. `Score.measureView` reads `spannersTouching`, which is linear in the spanner count, so a first layout is bars times spanners. A scratch run measured 500 `measureView` calls on empty bars at 2.2 ms with no spanner and 13.5 ms with 2,500. If this fixture misses, the model indexes its spanners by bar.
@@ -822,6 +830,20 @@ Also weighed, as variations and not whole shapes:
 
 ## Implementation reconciliation
 
+Deviations accepted while implementing, by unit. The owner of each is the implementing session, checked by that unit's tests.
+
+**Unit 1.**
+- `GlyphPainter.paint` takes the glyph, its origin, the scale, the colour, a size and a stretch. The sketch passed a `GlyphDraw`, and `drawable.dart` arrives with a later unit. `paintDrawable` will unpack a `GlyphDraw` into the same call, so the painter stays the one seam and knows no drawable.
+- One reader, `smufl_metadata.dart`, serves the generator and `SmuflFont.fromMetadata`, as the sketch's TODO asked. `EngravingDefaults.read` ties each SMuFL name to its field once, and `engravingDefaultNames` is derived from it, so the generator's hand-copied list of 28 names is gone.
+- The metadata JSON stays in `assets/` until unit 13, because the old engine still loads it. The generator reads it from there.
+- The root package depends on `packages/score_layout` by path and is marked `publish_to: none`, which the analyzer requires of a package with a path dependency. The SDK floor is raised in unit 13 with the old engine's deletion, since nothing in unit 1 needs the newer syntax.
+- `fonts/OFL.txt` is the licence text the font carries in its own name table (record 13, with Steinberg's copyright line), written out unchanged. Nothing was fetched. The OFL accepts the copy inside the font file as the notice, so an app that ships the OTF ships its licence. The `LicenseRegistry` entry waits for the widget, which is where an app's licence page is fed (C6).
+- Gate 1's horizontal bound is 0.5 device pixels, and the raster budget is judged on the 90th percentile (decision 10).
+- The reader also refuses a box whose corners are inverted, which `Box` would otherwise reject with an assertion and no glyph name.
+- `assets/petaluma_metadata.json` does not pass the reader. It has no `glyphAdvanceWidths` table, no `hBarThickness` and no box for `legerLine`. A font with a numeric engraving default the engine does not know is refused too. Both follow from the checks the design gave the reader, and both bear on C6.
+- The gate's images are one row of origins each, so no image is taller than a glyph. One image of all 64 origins reached 4,160 pixels at 64 pixels per staff space, which is past the texture size of an old phone.
+- The device runs on Android and iOS are open. The macOS run passes.
+
 ## Open questions and risks
 
 Owner questions. Each is a parameter with a default, so the architecture does not wait:
@@ -830,7 +852,7 @@ Owner questions. Each is a parameter with a default, so the architecture does no
 - **C3.** Should an extender run to the last note before the next syllable or rest (`ExtenderEnd.beforeNextSyllable`, the default) or over ties and slurs only? The answer defines `Lyric.extend` for MusicXML import too. With the default, an extender typed over notes already entered underlines every later note up to the next rest until the next syllable is typed, and each system it crosses gains a lyric row meanwhile.
 - **C4.** Should quarter tones use Stein-Zimmermann (the default, MusicXML's mapping) or Gould arrows?
 - **C5.** Is the platform text font acceptable for lyrics and text, given that breaks may then differ by platform? Mongolian Cyrillic renders with platform fonts. Should BravuraText be used for inline metronome marks?
-- **C6.** May Petaluma be dropped, with Bravura the only bundled font and `SmuflFont.fromMetadata` for others? Is the unmodified OTF plus `OFL.txt` and a `LicenseRegistry` entry the license posture the owner accepts?
+- **C6.** May Petaluma be dropped, with Bravura the only bundled font and `SmuflFont.fromMetadata` for others? The repository's Petaluma metadata is refused by `fromMetadata` as it stands (see the unit 1 reconciliation), so an app that wants Petaluma needs the font's full metadata. Is the unmodified OTF plus `OFL.txt` and a `LicenseRegistry` entry the license posture the owner accepts?
 - **C7.** Should restating the meter on every system be offered? It is offered as `meterEverySystem`, off by default.
 - **C8.** Should string numbers be circled digits (the default) or Roman numerals?
 - **C9.** Is a brace per multi-staff part with a systemic barline, and no brackets across parts, acceptable until the model has staff groups?
