@@ -301,6 +301,52 @@ void main() {
       expect(bar(half.score, 0), ['F4/half']);
     });
 
+    test('shrinks a range selection to the shortened bar', () {
+      final session = sessionWith([
+        [for (var i = 0; i < 4; i++) chordOf(20 + i, 'F4')],
+      ]);
+      final staff = session.score.staves.first.id;
+      final selected = session.select(
+        RangeSelection(
+          from: pointAt(session.score, 0, Moment.zero),
+          to: pointAt(session.score, 0, at(1, 1)),
+          top: staff,
+          bottom: staff,
+        ),
+      );
+
+      final next = applied(
+        selected.run(SetBarLength(idOf(session, 0), len(3, 4))),
+      );
+
+      expect(
+        (next.selection as RangeSelection).to,
+        pointAt(next.score, 0, at(3, 4)),
+      );
+      expect(next.copy(), isNotNull);
+    });
+
+    test('drops a range selection the shortened bar cuts off', () {
+      final session = sessionWith([
+        [for (var i = 0; i < 4; i++) chordOf(20 + i, 'F4')],
+      ]);
+      final staff = session.score.staves.first.id;
+      final selected = session.select(
+        RangeSelection(
+          from: pointAt(session.score, 0, at(3, 4)),
+          to: pointAt(session.score, 0, at(1, 1)),
+          top: staff,
+          bottom: staff,
+        ),
+      );
+
+      final next = applied(
+        selected.run(SetBarLength(idOf(session, 0), len(2, 4))),
+      );
+
+      expect(next.selection, isA<NoSelection>());
+    });
+
     test('pads a lengthened bar and clears a tie that now meets rests', () {
       final voices = EditSession.start(
         fill(

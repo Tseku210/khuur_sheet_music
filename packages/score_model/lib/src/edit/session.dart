@@ -150,7 +150,7 @@ final class EditSession {
     return EditSession._(
       next,
       result.cursor ?? _revalidateCursor(cursor, score, next),
-      result.selection ?? _revalidateSelection(selection, next),
+      result.selection ?? _revalidateSelection(selection, score, next),
       _past,
       _future,
       _nextId,
@@ -322,7 +322,7 @@ final class EditSession {
   /// The clip is a standalone value: bars are dissolved into one timeline
   /// per voice, tied pieces stay tied, and a tie that leads out of the
   /// copied music onto a head is cleared. It can be pasted into any score.
-  Clip? copy() => switch (_revalidateSelection(selection, score)) {
+  Clip? copy() => switch (_revalidateSelection(selection, score, score)) {
     NoSelection() => null,
     ItemSelection(:final items) => _copy(score, _covering(score, items)),
     final RangeSelection range => _copy(score, range),
@@ -409,8 +409,13 @@ MeasureId _survivor(MeasureId gone, Score before, Score score) {
 }
 
 /// Drops references that no longer resolve in [score] and moves the rest
-/// to the measure that now holds them.
-Selection _revalidateSelection(Selection selection, Score score) {
+/// to the measure that now holds them. A range end that fit its bar in
+/// [before] and lies past it in [score] moves back to the bar's end.
+Selection _revalidateSelection(
+  Selection selection,
+  Score before,
+  Score score,
+) {
   switch (selection) {
     case NoSelection():
       return selection;
@@ -426,7 +431,25 @@ Selection _revalidateSelection(Selection selection, Score score) {
           score.contains(to.measure) &&
           staves.contains(top) &&
           staves.contains(bottom);
-      return alive ? selection : const Selection.none();
+      if (!alive) {
+        return const Selection.none();
+      }
+      ScorePoint inBar(ScorePoint point) {
+        final end = _barEnd(score.column(point.measure));
+        final fitted =
+            before.contains(point.measure) &&
+            point.offset <= _barEnd(before.column(point.measure));
+        return fitted && point.offset > end
+            ? ScorePoint(point.measure, end)
+            : point;
+      }
+      final (start, stop) = (inBar(from), inBar(to));
+      if (identical(start, from) && identical(stop, to)) {
+        return selection;
+      }
+      return _precedes(score, start, stop)
+          ? RangeSelection(from: start, to: stop, top: top, bottom: bottom)
+          : const Selection.none();
   }
 }
 

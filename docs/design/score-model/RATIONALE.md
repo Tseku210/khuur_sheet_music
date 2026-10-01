@@ -499,6 +499,7 @@ Three models reviewed the edits, view, playback and file formats before MusicXML
 - **Splitting a note keeps its string.** When an edit splits a chord into tied pieces, as when a longer value crosses a barline, every piece keeps each note's string. Before, only the first piece did, so an instrument view showed the rest of a held note on no string. The fingering stays on the first piece, as a player fingers a held note once.
 - **Paste clears a let-ring tie that a pasted head would end.** A let-ring tie rings out into nothing. When a paste puts a head of the same tone right after it, the tie would join them, which the user never asked for. Paste now clears it, also when the tie sits at the end of the bar before the paste, as it already cleared ties leading out of the pasted music.
 - **A session starts on the first shown staff.** A score whose first part is hidden put the cursor on a staff that isn't drawn.
+- **A shortened bar shortens the range selected in it.** `SetBarLength` can cut off the end of a selected range. The range end now moves back to the bar's new end, and a range that lay wholly in the cut part is dropped. Before, the range pointed past its bar and `copy` returned null. A range selected past a bar's end without an edit is still not copied.
 
 ### Scope: a general library
 
