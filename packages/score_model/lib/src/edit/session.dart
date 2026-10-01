@@ -13,6 +13,7 @@ import '../events.dart';
 import '../measure.dart';
 import '../pitch.dart';
 import '../refs.dart';
+import '../rules.dart';
 import '../score.dart';
 import '../seq.dart';
 import '../spelling.dart';

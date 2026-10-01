@@ -33,6 +33,9 @@ _Result _bars(Score score, Edit edit, _Ids ids) {
         (c) => c.repeatStart == start ? c : c.copyWith(repeatStart: start),
       );
     case SetRepeatEnd(:final measure, :final end):
+      if (end != null) {
+        _check(repeatProblem(end.times));
+      }
       return _changeBars(
         score,
         measure,
@@ -217,12 +220,7 @@ Score _deleteMeasures(Score score, int start, int end) {
 Score _setBarLength(Score score, int index, Length? length, _Ids ids) {
   final column = score.measures[index];
   final target = length ?? column.meter.length;
-  if (!target.isPositive ||
-      (target / DurationBase.oneTwentyEighth.length).denominator != 1) {
-    throw const _Refuse(
-      InvalidValue('a bar holds a whole number of 128th notes'),
-    );
-  }
+  _check(barLengthProblem(target));
   final irregular = target == column.meter.length ? null : target;
   if (irregular == column.irregularLength) {
     return score;

@@ -77,7 +77,7 @@ final class Pitch extends Tone {
   /// Parses scientific pitch notation: `C4`, `Bb3`, `F#5`, `Ebb2`, `C+4`
   /// (quarter sharp), `Bd4` (quarter flat). Throws [FormatException].
   factory Pitch.parse(String text) {
-    final match = RegExp(r'^([A-Ga-g])(bb|b|d|##|#|\+|x)?(-?\d)$')
+    final match = RegExp(r'^([A-Ga-g])(bb|db|b|d|##|#\+|#|\+|x)?(-?\d)$')
         .firstMatch(text.trim());
     if (match == null) {
       throw FormatException('Not a pitch', text);
@@ -86,10 +86,12 @@ final class Pitch extends Tone {
     final alter = switch (match[2]) {
       null => Alter.natural,
       'bb' => Alter.doubleFlat,
+      'db' => Alter.threeQuarterFlat,
       'b' => Alter.flat,
       'd' => Alter.quarterFlat,
       '+' => Alter.quarterSharp,
       '#' => Alter.sharp,
+      '#+' => Alter.threeQuarterSharp,
       '##' || 'x' => Alter.doubleSharp,
       _ => throw FormatException('Unknown accidental', text),
     };

@@ -22,6 +22,7 @@ _Result _setMeter(Score score, SetMeter edit, _Ids ids, EditSession session) {
   final start = _barIndex(score, edit.from);
   final old = measures[start].meter;
   final meter = edit.meter;
+  _check(meterProblem(meter));
   if (old == meter) {
     return _Result(score);
   }

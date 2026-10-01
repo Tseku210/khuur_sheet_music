@@ -17,6 +17,7 @@ import '../events.dart';
 import '../measure.dart';
 import '../pitch.dart';
 import '../refs.dart';
+import '../rules.dart';
 import '../score.dart';
 import '../seq.dart';
 import '../time.dart';
@@ -481,11 +482,7 @@ final class _Decoder {
     return Instrument(
       key: json['key'].string,
       program: json['program'].midi,
-      bank:
-          json
-              .maybe('bank')
-              ?.integerWhere((n) => n >= 0, 'a bank is 0 or more') ??
-          0,
+      bank: json.maybe('bank')?.kept(bankProblem) ?? 0,
       transposition: transposition == null
           ? Interval.unison
           : Interval(interval[0], interval[1]),
@@ -513,10 +510,7 @@ final class _Decoder {
     final key = previous != null && json.maybe('key') == null
         ? previous.key
         : KeySignature(
-            json['key'].integerWhere(
-              (fifths) => fifths >= -7 && fifths <= 7,
-              'a key has 7 flats to 7 sharps',
-            ),
+            json['key'].kept(keyProblem),
             json.maybe('mode')?.name(KeyMode.values) ?? KeyMode.none,
           );
     final irregular = json.maybe('length')?.barLength;
@@ -536,12 +530,7 @@ final class _Decoder {
       repeatStart: json.maybe('repeatStart')?.flag ?? false,
       repeatEnd: repeatEnd == null
           ? null
-          : RepeatEnd(
-              times: repeatEnd.integerWhere(
-                (n) => n >= 2,
-                'a repeat plays twice or more',
-              ),
-            ),
+          : RepeatEnd(times: repeatEnd.kept(repeatProblem)),
       volta: volta == null ? null : _volta(volta),
       navigation: Seq([
         for (final mark in json.maybe('navigation')?.list ?? const <_In>[])
@@ -554,7 +543,7 @@ final class _Decoder {
           (mark) => TempoMark(
             offset: mark['at'].inside(length),
             tempo: Tempo(
-              mark['bpm'].positive,
+              mark['bpm'].number(tempoProblem),
               beat: mark.maybe('beat')?.noteValue ?? NoteValue.quarter,
             ),
             text: mark.maybe('text')?.string,
@@ -590,17 +579,14 @@ final class _Decoder {
         RegExp(r'^([1-9]\d{0,2}(?:\+[1-9]\d{0,2})*)/(\d{1,3})$')
             .firstMatch(text.string) ??
         text.fail('expected a meter such as "3+2+2/8"');
-    final unit = int.parse(match[2]!);
-    if (!const {1, 2, 4, 8, 16, 32, 64, 128}.contains(unit)) {
-      text.fail('the unit is a power of two up to 128');
-    }
-    return Meter(
+    final meter = Meter(
       [for (final group in match[1]!.split('+')) int.parse(group)],
-      unit,
+      int.parse(match[2]!),
       symbol:
           column.maybe('meterSymbol')?.name(MeterSymbol.values) ??
           MeterSymbol.numeric,
     );
+    return text.check(meter, meterProblem);
   }
 
   Volta _volta(_In json) {
@@ -832,9 +818,7 @@ final class _Decoder {
           json.maybe('accidental')?.name(AccidentalRequest.values) ??
           AccidentalRequest.auto,
       head: json.maybe('head')?.name(NoteHead.values) ?? NoteHead.normal,
-      fingering: json
-          .maybe('fingering')
-          ?.integerWhere((n) => n >= 0, 'a finger number is 0 or more'),
+      fingering: json.maybe('fingering')?.kept(fingerProblem),
       string: json
           .maybe('string')
           ?.integerWhere(
@@ -847,8 +831,7 @@ final class _Decoder {
   Tuplet _tuplet(_In json, Instrument instrument) {
     final id = TupletId(_claim(_tuplets, json['tuplet']));
     final terms = [
-      for (final term in json['ratio'].list)
-        term.integerWhere((n) => n > 0, 'ratio terms are above 0'),
+      for (final term in json['ratio'].list) term.kept(ratioTermProblem),
     ];
     if (terms.length != 2) {
       json['ratio'].fail('a ratio is [actual, normal]');
@@ -905,7 +888,7 @@ final class _Decoder {
       'trill' => const TrillLine(),
       'tempo' => TempoLine(
         text: json['text'].string,
-        factor: json['factor'].positive,
+        factor: json['factor'].number(factorProblem),
       ),
       'pedal' => const PedalLine(),
       'glissando' => const Glissando(),
@@ -928,11 +911,19 @@ final class _Decoder {
     if (!kind.joinsNotes && precedes(last, first)) {
       json['to'].fail('a line cannot end before it starts');
     }
+    final voice = json.maybe('voice')?.voice;
+    if (kind.joinsNotes != (voice != null)) {
+      json['voice'].fail(
+        kind.joinsNotes
+            ? 'a slur or glissando names its voice'
+            : 'only a slur or glissando names a voice',
+      );
+    }
     return Spanner(
       id: id,
       kind: kind,
       staff: staff,
-      voice: json.maybe('voice')?.voice,
+      voice: voice,
       first: first.$2,
       last: last.$2,
     );
@@ -1034,15 +1025,18 @@ final class _In {
       values.asNameMap()[string] ??
       fail('expected one of ${values.map((value) => value.name).join(', ')}');
 
-  double get positive {
-    final number = _as<num>('a number').toDouble();
-    return number > 0 && number.isFinite
-        ? number
-        : fail('expected a number above 0');
-  }
+  /// [value], read from this member, refused with the rule it breaks.
+  T check<T>(T value, String? Function(T value) rule) => switch (rule(value)) {
+    final problem? => fail(problem),
+    null => value,
+  };
 
-  int get midi =>
-      integerWhere((n) => n >= 0 && n <= 127, 'a MIDI number is 0 to 127');
+  int kept(String? Function(int value) rule) => check(integer, rule);
+
+  double number(String? Function(double value) rule) =>
+      check(_as<num>('a number').toDouble(), rule);
+
+  int get midi => kept(midiProblem);
 
   VoiceSlot get voice => VoiceSlot
       .values[integerWhere((n) => n >= 1 && n <= 4, 'a voice is 1 to 4') - 1];
@@ -1065,13 +1059,7 @@ final class _In {
     return length.isPositive ? length : fail('expected a length above 0');
   }
 
-  Length get barLength {
-    final length = Length(fraction);
-    return length.isPositive &&
-            (length / DurationBase.oneTwentyEighth.length).denominator == 1
-        ? length
-        : fail('a bar holds a whole number of 128th notes');
-  }
+  Length get barLength => check(Length(fraction), barLengthProblem);
 
   NoteValue get noteValue {
     final text = string;
@@ -1079,11 +1067,17 @@ final class _In {
         .asNameMap()[text.replaceFirst(RegExp(r'\.{1,3}$'), '')];
     return base == null
         ? fail('expected a note value such as "quarter."')
-        : NoteValue(base, dots: text.length - base.name.length);
+        : check(
+            NoteValue(base, dots: text.length - base.name.length),
+            valueProblem,
+          );
   }
 
   Pitch get pitch => switch (_spelled) {
-    (final name, final octave?) => Pitch(name.step, octave, name.alter),
+    (final name, final octave?) => check(
+      Pitch(name.step, octave, name.alter),
+      pitchProblem,
+    ),
     _ => fail('expected a pitch such as "F#4"'),
   };
 

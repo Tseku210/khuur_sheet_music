@@ -462,7 +462,7 @@ Implemented in Phase D, unit 20. It covers `scoreToJson`, `scoreFromJson` and `S
 - **Ids are unique per kind.** Bars, parts, staves, events, notes, tuplets and spanners each count their own ids, as the id types do in memory. A grace takes an event id, so graces and events share one set.
 - **No migrations exist yet.** Version 1 is the only one. A file from a newer version is refused as written by a newer version, and any other number as no such version. The first change of version brings a migration from each older one, run before decoding.
 - **A hairpin is written as `crescendo` or `diminuendo`**, the words a musician reads, rather than as a hairpin with a flag.
-- **A spanner's voice is read as written, for any kind.** The edits store one for a slur or glissando and none for a line or hairpin, but nothing reads the voice yet, and `Spanner` allows either. The loader keeps what it finds, so every score the constructors allow saves and loads unchanged. If layout comes to rely on the rule, `Spanner` should assert it and the loader check it.
+- **A spanner names a voice exactly when it joins notes.** A slur or glissando names one, and a line or hairpin names none, as the edits store them. The loader first kept any voice it found. The retro review below made it check the rule, since an import that trusted a contradicting file would build a spanner no edit makes.
 - **A bar's staves are listed in system order, without their ids.** The parts already give the order, so the file only checks the count. A measure rest takes its length from its bar and is written without one.
 - **Unknown keys are ignored, and null counts as missing.** A file with keys from another tool still loads, though they are dropped on save.
 
@@ -482,7 +482,17 @@ Implemented in Phase D, unit 21, from the owner's decision of 2026-10-01 above. 
 - **A dynamic's sound is its velocity as a percentage of 90.** That is MusicXML's forte, so a reader that plays dynamics hears the same loudness.
 - **A pickup bar is numbered 0 and marked implicit.** The other bars number from 1, as engravers count them.
 - **One divisions value covers the whole score.** It is the least common multiple of every time and length, and each part writes it in its first bar.
-- **Some fields have no MusicXML home and are left out.** These are an instrument's key, strings, range and clef, a tempo line's factor, `SignatureDisplay.noCourtesy`, `AccidentalRequest.never` and a tie from a grace note. Import will fall back to defaults for them.
+- **Open strings are written as staff tunings.** Each staff of a part with strings lists them as `staff-tuning` elements in the first bar, the instrument's first string on line 1, so the string numbers on notes keep their meaning for a reader.
+- **Some fields have no MusicXML home and are left out.** These are an instrument's key, range and clef, a tempo line's factor, `SignatureDisplay.noCourtesy`, `AccidentalRequest.never` and a tie from a grace note. Import will fall back to defaults for them.
+
+### Retro review of Units 2 to 21
+
+Three models reviewed the edits, view, playback and file formats before MusicXML import. The fixes below follow their findings. They have not yet been reviewed by the project owner.
+
+- **Every way into a score accepts the same values.** One internal module, `rules.dart`, holds a rule per value type and returns the message for a broken value. The JSON loader reports it at the value's path, the edits refuse with it as `InvalidValue`, and `Score.blank` throws it as an `ArgumentError`. Before, an edit could store a value the loader then refused. Examples are an infinite tempo, a dotted 128th note, a meter of 4/3, a MIDI program of 200 and a pitch above MIDI key 127. Some of these also escaped `EditSession.run` as an `ArgumentError`, which broke its promise to return `Applied` or `Refused`. MusicXML import uses the same rules.
+- **A bar lasts at most 64 whole notes.** The bound applies to meters and to irregular bar lengths. Filling a bar with rests costs time in proportion to its length, so an unbounded length lets one edit or one file stall the app. No real meter comes near it.
+- **An edit on a removed staff is stale.** A note entered or changed on a staff that `RemovePart` removed is refused as `StaleReference`, like an edit on a removed bar.
+- **`Pitch.parse` reads every spelling `Pitch.toString` writes**, including `db` and `#+` for three-quarter flat and sharp.
 
 ### Scope: a general library
 

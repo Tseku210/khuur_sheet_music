@@ -54,6 +54,13 @@ Score withKey(Score score, int bar, int fifths) => changeBar(
 );
 
 void main() {
+  test('Pitch.parse reads every spelling Pitch writes', () {
+    for (var quarterTones = -4; quarterTones <= 4; quarterTones++) {
+      final pitch = Pitch(Step.e, 4, Alter.fromQuarterTones(quarterTones));
+      expect(Pitch.parse('$pitch'), pitch);
+    }
+  });
+
   group('Transposition.apply', () {
     test('moves by a spelled interval in any key', () {
       expect(

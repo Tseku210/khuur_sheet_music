@@ -7,6 +7,7 @@ import 'measure.dart';
 import 'measure_view.dart';
 import 'pitch.dart';
 import 'refs.dart';
+import 'rules.dart';
 import 'seq.dart';
 import 'time.dart';
 import 'views.dart';
@@ -42,7 +43,8 @@ final class Score {
   /// A score with [parts], [measureCount] empty bars of [meter] in [key], and
   /// a tempo mark at the start. Ids are allocated 1, 2, 3… in document order,
   /// so two blank scores built with the same arguments are identical in
-  /// content and ids.
+  /// content and ids. Throws [ArgumentError] for a value a saved score may
+  /// not hold.
   factory Score.blank({
     required List<PartTemplate> parts,
     String title = '',
@@ -51,6 +53,17 @@ final class Score {
     KeySignature key = KeySignature.cMajor,
     Tempo tempo = Tempo.unmarked,
   }) {
+    final problem =
+        meterProblem(meter) ??
+        keyProblem(key.fifths) ??
+        tempoMarkProblem(tempo) ??
+        parts
+            .map((part) => instrumentProblem(part.instrument))
+            .nonNulls
+            .firstOrNull;
+    if (problem != null) {
+      throw ArgumentError(problem);
+    }
     var next = 1;
     final built = <Part>[];
     final clefs = <(StaffId, Clef)>[];

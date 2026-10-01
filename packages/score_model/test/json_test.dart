@@ -118,6 +118,8 @@ final broken = <Broken>[
   bad(r'$.measures[0].meter', '0/4', 'expected a meter such as "3+2+2/8"'),
   bad(r'$.measures[0].meter', '4/3', 'the unit is a power of two up to 128'),
   bad(r'$.measures[0].meter', '4/256', 'the unit is a power of two up to 128'),
+  bad(r'$.measures[0].meter', '65/1', 'a bar lasts at most 64 whole notes'),
+  bad(r'$.measures[0].length', '129/2', 'a bar lasts at most 64 whole notes'),
   bad(r'$.measures[0].key', 8, 'a key has 7 flats to 7 sharps'),
   bad(r'$.measures[0].key', -8, 'a key has 7 flats to 7 sharps'),
   bad(r'$.measures[2].mode', 'dorian', oneOf(KeyMode.values)),
@@ -152,7 +154,11 @@ final broken = <Broken>[
     'expected segno, coda, toCoda, fine or a jump',
   ),
   for (final bpm in [0, double.infinity])
-    bad(r'$.measures[0].tempos[0].bpm', bpm, 'expected a number above 0'),
+    bad(
+      r'$.measures[0].tempos[0].bpm',
+      bpm,
+      'a tempo is a finite number above 0',
+    ),
   badAt(
     r'$.measures[2].tempos[1]',
     'tempo marks are in time order, one at a time',
@@ -257,6 +263,17 @@ final broken = <Broken>[
     '$chord0.notes[1].pitch': 'F#4',
   }),
   bad('$chord0.notes[0].pitch', 'H4', 'expected a pitch such as "F#4"'),
+  for (final pitch in ['G#9', 'C-2'])
+    bad(
+      '$chord0.notes[0].pitch',
+      pitch,
+      'a pitch lies within MIDI keys 0 to 127',
+    ),
+  bad(
+    '$chord0.value',
+    'oneTwentyEighth.',
+    'a value lasts a whole number of 128th notes',
+  ),
   bad('$chord0.notes[0].pitch', 'F#', 'expected a pitch such as "F#4"'),
   badAt('$chord0.notes[0]', 'a pitched staff takes pitches', {
     '$chord0.notes[0]': {'id': 12, 'drum': 'Snare'},
@@ -304,7 +321,9 @@ final broken = <Broken>[
   bad(r'$.spanners[0].from.measure', 99, 'no such bar'),
   bad(r'$.spanners[0].from.at', '1', 'not inside the bar'),
   bad(r'$.spanners[3].shift', 'up9', oneOf(OctaveShift.values)),
-  bad(r'$.spanners[5].factor', 0, 'expected a number above 0'),
+  bad(r'$.spanners[5].factor', 0, 'a factor is a finite number above 0'),
+  bad(r'$.spanners[0].voice', missing, 'a slur or glissando names its voice'),
+  bad(r'$.spanners[1].voice', 2, 'only a slur or glissando names a voice'),
   badAt(r'$.spanners[0].to', 'a slur or glissando ends after it starts', {
     r'$.spanners[0].to': {'measure': 30, 'at': '0'},
   }),

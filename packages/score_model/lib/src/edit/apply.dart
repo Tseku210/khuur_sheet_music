@@ -48,7 +48,7 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
       at,
       ChordEvent(
         id: ids.event(),
-        value: value,
+        value: _checked(value),
         notes: Seq([_noteOn(score, at.staff, ids.note(), tone)]),
       ),
       ids,
@@ -57,7 +57,7 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
     EnterRest(:final at, :final value, :final overfill) => _enter(
       score,
       at,
-      RestEvent(id: ids.event(), value: value),
+      RestEvent(id: ids.event(), value: _checked(value)),
       ids,
       overfill,
     ),
@@ -135,8 +135,8 @@ _Result _pointEdit(Score score, Edit edit, _Ids ids) {
         head.note.tie == tied ? head.note : head.note.copyWith(tie: tied),
       );
     case SetFingering(:final note, :final finger):
-      if (finger != null && finger < 0) {
-        throw const _Refuse(InvalidValue('a finger number is 0 or more'));
+      if (finger != null) {
+        _check(fingerProblem(finger));
       }
       final head = _targetHead(score, note);
       final pitched = _pitchedOnly(head, 'fingering');
@@ -184,7 +184,7 @@ _Result _pointEdit(Score score, Edit edit, _Ids ids) {
               GraceChord(
                 id: ids.event(),
                 kind: kind,
-                value: value,
+                value: _checked(value),
                 notes: Seq([_noteOn(score, event.staff, ids.note(), tone)]),
               ),
             ),
@@ -586,8 +586,15 @@ _Result _addToChord(Score score, EventRef ref, Tone tone, _Ids ids) {
 _Result _rhythm(Score score, Edit edit, _Ids ids) {
   switch (edit) {
     case SetValue(:final event, :final value):
-      return _Result(_setValue(score, _target(score, event), value, ids));
+      return _Result(
+        _setValue(score, _target(score, event), _checked(value), ids),
+      );
     case EnterTuplet(:final at, :final ratio, :final unit):
+      _check(
+        ratioTermProblem(ratio.actual) ??
+            ratioTermProblem(ratio.normal) ??
+            valueProblem(unit),
+      );
       final tuplet = Tuplet(
         id: ids.tuplet(),
         ratio: ratio,
@@ -963,6 +970,9 @@ _Result _marks(Score score, Edit edit, _Ids ids) {
       :final last,
     ):
       _staff(score, staff);
+      if (kind case TempoLine(:final factor)) {
+        _check(factorProblem(factor));
+      }
       for (final end in [first, last]) {
         _inside(score.measures[_barIndex(score, end.measure)], end);
       }
@@ -1053,6 +1063,7 @@ void _inside(MeasureColumn column, ScorePoint point) {
 _Result _context(Score score, Edit edit) {
   switch (edit) {
     case SetKey(:final from, :final key):
+      _check(keyProblem(key.fifths));
       final start = _barIndex(score, from);
       final old = score.measures[start].key;
       if (old == key) {
@@ -1146,6 +1157,7 @@ Score _setTempoMarks(Score score, MeasureId measure, Seq<TempoMark> marks) {
   final column = score.measures[index];
   for (final mark in marks) {
     _inside(column, ScorePoint(measure, mark.offset));
+    _check(tempoMarkProblem(mark.tempo));
   }
   final sorted = [...marks]..sort((a, b) => a.offset.compareTo(b.offset));
   for (var k = 1; k < sorted.length; k++) {
@@ -1303,9 +1315,13 @@ _Result _transpose(Score score, Selection selection, Transposition by) {
   );
 }
 
-Pitch _moved(Pitch pitch, Transposition by, KeySignature key) =>
-    by.apply(pitch, key) ??
-    (throw _Refuse(InvalidValue('$pitch moves past a double accidental')));
+Pitch _moved(Pitch pitch, Transposition by, KeySignature key) {
+  final moved =
+      by.apply(pitch, key) ??
+      (throw _Refuse(InvalidValue('$pitch moves past a double accidental')));
+  _check(pitchProblem(moved));
+  return moved;
+}
 
 ChordSymbol _movedSymbol(
   ChordSymbol symbol,
@@ -1363,19 +1379,29 @@ Note _noteOn(
   };
 }
 
-/// Refuses [tone] unless it suits [staff]: a pitch on a pitched staff, or a
-/// drum of the part's kit on a percussion staff.
+/// Refuses [tone] unless it suits [staff]: a pitch in the MIDI range on a
+/// pitched staff, or a drum of the part's kit on a percussion staff.
 void _checkTone(Score score, StaffId staff, Tone tone) {
+  _staff(score, staff);
   final instrument = score.partOf(staff).instrument;
-  final problem = switch (tone) {
+  _check(switch (tone) {
     Pitch() when instrument.isPercussion => 'a percussion staff takes drums',
     Drum() when !instrument.isPercussion => 'a pitched staff takes pitches',
     Drum() when instrument.soundOf(tone) == null => 'the kit has no $tone',
-    _ => null,
-  };
+    Pitch() => pitchProblem(tone),
+    Drum() => null,
+  });
+}
+
+void _check(String? problem) {
   if (problem != null) {
     throw _Refuse(InvalidValue(problem));
   }
+}
+
+NoteValue _checked(NoteValue value) {
+  _check(valueProblem(value));
+  return value;
 }
 
 /// [note] playing [tone] instead, which [_checkTone] has matched to it.
@@ -1402,12 +1428,7 @@ Score _addPart(Score score, PartTemplate template, int? index, _Ids ids) {
   if (staves < 1 || (clefs != null && clefs.length != staves)) {
     throw const _Refuse(InvalidValue('a part needs a staff and a clef each'));
   }
-  final names = <String>{};
-  for (final DrumSound(:name) in instrument.drums) {
-    if (!names.add(name)) {
-      throw _Refuse(InvalidValue('the kit names $name twice'));
-    }
-  }
+  _check(instrumentProblem(instrument));
   final part = Part(
     id: ids.part(),
     name: template.name,
