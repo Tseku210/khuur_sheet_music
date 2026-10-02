@@ -242,7 +242,6 @@ final class SpannerPiece {
   const SpannerPiece({
     required this.owner,
     required this.kind,
-    required this.voice,
     required this.from,
     required this.until,
     required this.startsHere,
@@ -255,9 +254,6 @@ final class SpannerPiece {
 
   final SpannerOwner owner;
   final SpannerKind kind;
-
-  /// The voice a slur or glissando joins. Null for a line.
-  final VoiceSlot? voice;
 
   /// Where the piece starts in this bar, by [pieceStart]. With [startsHere]
   /// it is the spanner's own start. That is the outline of the event
@@ -297,7 +293,6 @@ final class SpannerPiece {
       other is SpannerPiece &&
       other.owner == owner &&
       other.kind == kind &&
-      other.voice == voice &&
       other.from == from &&
       other.until == until &&
       other.startsHere == startsHere &&
@@ -311,7 +306,6 @@ final class SpannerPiece {
   int get hashCode => Object.hash(
     owner,
     kind,
-    voice,
     from,
     until,
     startsHere,
@@ -475,18 +469,36 @@ typedef VoltaStub = ({
   double hook,
 });
 
-/// The bar's volta stub, or null when `column.volta` is null. Reserves the
-/// bracket and its label above [top], outside everything placed before and
-/// outside the bar's heads, which reach [headAbove] above the staff and are
-/// not in the skyline. [left] is the bar's content start in bar space.
+/// The label of a volta, "1.", "1, 2." and so on, as the bar measured it.
+typedef VoltaLabel = ({String text, TextExtent extent});
+
+/// The label of the volta [view] is under, or null when it is under none.
+VoltaLabel? voltaLabel(
+  MeasureView view,
+  EngravingStyle style,
+  TextMeasurer text,
+) => throw UnimplementedError();
+
+/// The least width of the bar a volta starts in that holds [label] between
+/// the bracket's hooks, or 0 when no volta starts in [view]. The bracket of
+/// a volta one bar long ends with the bar, so the label has no other room.
+/// `layoutBar` widens the bar's rods to it with `widenedTo`.
+double voltaLabelRoom(MeasureView view, VoltaLabel? label) =>
+    throw UnimplementedError();
+
+/// The bar's volta stub, or null when [label] is null, which is when the
+/// bar is under no volta. Reserves the bracket and its label above [top],
+/// outside everything placed before and outside the bar's heads, which
+/// reach [headAbove] above the staff and are not in the skyline. [left] is
+/// the bar's content start in bar space.
 VoltaStub? voltaStub(
   MeasureView view,
   Skyline top, {
   required List<double> xs,
   required double left,
   required double headAbove,
+  required VoltaLabel? label,
   required EngravingStyle style,
-  required TextMeasurer text,
 }) => throw UnimplementedError();
 
 /// The volta brackets of one system, above its top staff.

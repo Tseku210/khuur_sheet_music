@@ -125,6 +125,42 @@ void main() {
       }
     });
 
+    test('in a chord the lower ties curve down, the upper ties up, and the '
+        'middle one away from the stem', () {
+      // The first chord lies under the middle line and has its stem up. The
+      // second lies over it and has its stem down.
+      final score = scoreOf([
+        [
+          chordOf(1, 'C4 E4 G4', value: NoteValue.half, tie: true),
+          chordOf(2, 'C4 E4 G4', value: NoteValue.half),
+        ],
+        [
+          chordOf(3, 'C5 E5 G5', value: NoteValue.half, tie: true),
+          chordOf(4, 'C5 E5 G5', value: NoteValue.half),
+        ],
+      ]);
+      final system = sheetOf(score).systemAt(0);
+      bool curvesDown(int bar, int event, int note) {
+        final tie = curvesOf(system).singleWhere(
+          (curve) =>
+              curve.owner ==
+              ElementOwner(
+                NoteRef(eventRef(score, bar, event), NoteId(event * 10 + note)),
+              ),
+        );
+        return tie.pointAt(0.5).y > tie.start.y;
+      }
+
+      expect(
+        [for (var note = 0; note < 3; note++) curvesDown(0, 1, note)],
+        [true, true, false],
+      );
+      expect(
+        [for (var note = 0; note < 3; note++) curvesDown(1, 3, note)],
+        [true, false, false],
+      );
+    });
+
     test('a tie over a barline on one system joins the two heads', () {
       final score = scoreOf([
         [...quartersOf(1, 'C5').take(3), chordOf(4, 'C5', tie: true)],
@@ -388,6 +424,35 @@ void main() {
         }
       });
     }
+    test('a slur over a beamed group ends over its own notes when the group '
+        'holds a far higher note, and passes over that note', () {
+      final base = scoreOf([
+        [
+          for (var i = 0; i < 8; i++)
+            chordOf(i + 1, i == 3 ? 'C7' : 'C5', value: NoteValue.eighth),
+        ],
+      ]);
+      final score = withSlur(
+        base,
+        pointAt(base, 0, Moment.zero),
+        pointAt(base, 0, at(7, 8)),
+      );
+      final system = sheetOf(score).systemAt(0);
+      final slur = curvesOf(system).single;
+      final first = headOf(system, noteRef(score, 0, 1));
+      final high = headOf(system, noteRef(score, 0, 4));
+      final last = headOf(system, noteRef(score, 0, 8));
+
+      expect(first.top - slur.start.y, inInclusiveRange(0, 1));
+      expect(last.top - slur.end.y, inInclusiveRange(0, 1));
+      final over = [
+        for (var i = 0; i <= 200; i++) slur.pointAt(i / 200),
+      ].where((point) => point.x >= high.left && point.x <= high.right);
+      expect(over, isNotEmpty);
+      for (final point in over) {
+        expect(point.y, lessThan(high.top));
+      }
+    });
   });
 
   group('lines', () {
@@ -783,6 +848,50 @@ void main() {
       expect(clef.bounds.top, lessThan(topOf(system)));
       expect(label.bounds.bottom, lessThanOrEqualTo(clef.bounds.top));
       expect(hook.to.y, lessThanOrEqualTo(clef.bounds.top));
+    });
+    test('a volta label wider than its bar widens the bar to hold it', () {
+      final base = scoreOf([
+        [chordOf(1, 'C5', value: NoteValue.whole)],
+        [chordOf(2, 'C5', value: NoteValue.whole)],
+      ]);
+      final id = base.measures[1].id;
+      final score = applied(
+        EditSession.start(
+          base,
+        ).run(SetVolta(id, id, const Volta([1, 2, 3, 4, 5]))),
+      ).score;
+
+      for (final width in [tiny, narrow, wide]) {
+        final sheet = sheetOf(score, width: width);
+        final system = sheet.systemAt(sheet.systemOf(id)!);
+        final bar = system.bars.singleWhere((bar) => bar.measure == id);
+        final label = textsOf(system, '1, 2, 3, 4, 5.').single;
+
+        expect(label.bounds.left, greaterThanOrEqualTo(bar.left));
+        expect(label.bounds.right, lessThanOrEqualTo(bar.right));
+        expectInsideBands(sheet);
+      }
+    });
+
+    test('the bar number stands above a volta bracket that a later bar '
+        'raised', () {
+      final base = scoreOf([quartersOf(1, 'C5'), quartersOf(5, 'A6')]);
+      final score = applied(
+        EditSession.start(base).run(
+          SetVolta(base.measures[0].id, base.measures[1].id, const Volta([1])),
+        ),
+      ).score;
+      final sheet = sheetOf(score);
+      final system = sheet.systemAt(0);
+      expect(system.bars, hasLength(2));
+      final line = bracketOf(system).where(isHorizontal).single;
+      final number = sheet.labelOf(0)!;
+
+      expect(
+        number.bounds.bottom,
+        lessThanOrEqualTo(line.from.y - thickness / 2),
+      );
+      expectInsideBands(sheet);
     });
   });
 

@@ -233,7 +233,7 @@ void main() {
       expect(down.last.dy, 3.5);
     });
 
-    test('the box covers the beam and its stems at stretch 1', () {
+    test('the boxes cover the beam and its stems at stretch 1', () {
       final layout = layoutOf(
         barOf([
           chordOf(1, 'C4', value: eighth),
@@ -245,7 +245,7 @@ void main() {
       final drawables = drawn(layout, 1);
       final box = drawables.map((d) => d.bounds).reduce((a, b) => a.union(b));
 
-      final planned = layout.beams.single.box;
+      final planned = layout.beams.single.boxes.reduce((a, b) => a.union(b));
 
       expect(planned.left, closeTo(box.left, 1e-9));
       expect(planned.top, closeTo(box.top, 1e-9));

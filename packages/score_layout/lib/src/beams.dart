@@ -34,7 +34,7 @@ final class BeamPlan {
     required this.first,
     required this.last,
     required this.joins,
-    required this.box,
+    required this.boxes,
   });
 
   /// The group's first event, which owns the beam's drawables.
@@ -53,11 +53,13 @@ final class BeamPlan {
   final List<List<BeamJoin>> joins;
 
   /// What the beam and its stems cover at stretch 1, x from the bar's
-  /// first slice and y from the staff's top line. The bar's skyline takes
-  /// it. A stretch moves the stems apart and keeps both end heights, so
-  /// the vertical range holds at any stretch. It is the union of what
-  /// [placeBeam] draws at that stretch, without drawing it.
-  final Box box;
+  /// first slice and y from the staff's top line. The first box is the
+  /// beam's own, and one box per stem follows, from its head to the far
+  /// edge of the beam. The bar's skyline takes them, so what stands over one
+  /// note of the group is that note's stem and not the group's tallest
+  /// note. A stretch moves the stems apart and keeps both end heights, so
+  /// the vertical range holds at any stretch.
+  final List<Box> boxes;
 
   @override
   bool operator ==(Object other) =>
@@ -69,10 +71,11 @@ final class BeamPlan {
       other.last == last &&
       other.joins.length == joins.length &&
       other.joins.indexed.every((row) => _same(row.$2, joins[row.$1])) &&
-      other.box == box;
+      _same(other.boxes, boxes);
 
   @override
-  int get hashCode => Object.hash(owner, stem, first, last, box);
+  int get hashCode =>
+      Object.hash(owner, stem, first, last, Object.hashAll(boxes));
 }
 
 bool _same<T>(List<T> a, List<T> b) =>
@@ -197,18 +200,18 @@ BeamPlan planBeam(
   final drawnSlope = x1 == x0 ? 0.0 : (yLast - yFirst) / (x1 - x0);
   final edgeLeft = yFirst - drawnSlope * half;
   final edgeRight = yLast + drawnSlope * half;
-  var top = math.min(edgeLeft, edgeRight);
-  var bottom = math.max(edgeLeft, edgeRight);
-  if (up) {
-    bottom += depth;
-  } else {
-    top -= depth;
-  }
-  for (final s in stems) {
-    top = math.min(top, s.start);
-    bottom = math.max(bottom, s.start);
-  }
-  final box = Box(x0 - half, top, x1 + half, bottom);
+  final top = math.min(edgeLeft, edgeRight) - (up ? 0 : depth);
+  final bottom = math.max(edgeLeft, edgeRight) + (up ? depth : 0);
+  final boxes = [
+    Box(x0 - half, top, x1 + half, bottom),
+    for (final s in stems)
+      Box(
+        s.x - half,
+        math.min(top, s.start),
+        s.x + half,
+        math.max(bottom, s.start),
+      ),
+  ];
   return BeamPlan(
     owner: owner,
     stem: stem,
@@ -234,7 +237,7 @@ BeamPlan planBeam(
       dy: yLast,
     ),
     joins: group.joins,
-    box: box,
+    boxes: boxes,
   );
 }
 

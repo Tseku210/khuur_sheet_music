@@ -230,12 +230,17 @@ BarLayout layoutBar(
     end: column.barline,
     repeatEnd: column.repeatEnd,
   );
-  final slices = spaceSlices(
-    view,
-    times,
-    reach,
-    style.spacing,
-    end: endBarlineWidth(edges, style),
+  final lead = reach.first.left + style.spacing.barPad;
+  final label = voltaLabel(view, style, text);
+  final slices = widenedTo(
+    spaceSlices(
+      view,
+      times,
+      reach,
+      style.spacing,
+      end: endBarlineWidth(edges, style),
+    ),
+    voltaLabelRoom(view, label) - lead,
   );
   final xs = sliceXs(slices, 1, 0);
 
@@ -290,7 +295,7 @@ BarLayout layoutBar(
     skylines[item.staff].add(item.drawable.bounds.shift(xs[item.slice], 0));
   }
   for (final beam in beams) {
-    skylines[beam.first.staff].add(beam.box);
+    beam.boxes.forEach(skylines[beam.first.staff].add);
   }
 
   final tuplets = <TupletStub>[];
@@ -333,7 +338,6 @@ BarLayout layoutBar(
     );
   }
 
-  final lead = reach.first.left + style.spacing.barPad;
   final ties = [
     for (final (staff, staffView) in view.staves.indexed)
       ...tieEnds(
@@ -365,8 +369,8 @@ BarLayout layoutBar(
             headReach(heads.inline, 0).above,
             headReach(heads.system, 0).above,
           ),
+          label: label,
           style: style,
-          text: text,
         );
 
   return BarLayout(

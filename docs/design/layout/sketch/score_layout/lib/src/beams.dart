@@ -26,7 +26,7 @@ final class BeamPlan {
     required this.first,
     required this.last,
     required this.joins,
-    required this.box,
+    required this.boxes,
   });
 
   /// The group's first event, which owns the beam's drawables.
@@ -45,11 +45,13 @@ final class BeamPlan {
   final List<List<BeamJoin>> joins;
 
   /// What the beam and its stems cover at stretch 1, x from the bar's
-  /// first slice and y from the staff's top line. The bar's skyline takes
-  /// it. A stretch moves the stems apart and keeps both end heights, so
-  /// the vertical range holds at any stretch. It is the union of what
-  /// [placeBeam] draws at that stretch, computed without drawing it.
-  final Box box;
+  /// first slice and y from the staff's top line. The first box is the
+  /// beam's own, and one box per stem follows, from its head to the far
+  /// edge of the beam. The bar's skyline takes them, so what stands over one
+  /// note of the group is that note's stem and not the group's tallest
+  /// note. A stretch moves the stems apart and keeps both end heights, so
+  /// the vertical range holds at any stretch.
+  final List<Box> boxes;
 
   @override
   bool operator ==(Object other) => throw UnimplementedError();

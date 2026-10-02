@@ -524,6 +524,24 @@ List<int> _dirty(List<BreakUnit> old, List<BreakUnit> fresh) {
   ];
 }
 
+/// The bars of the volta bracket over the first bar of [units], as
+/// `placeVoltas` joins them. Empty when that bar is under no volta.
+Iterable<BarLayout> _firstBracket(List<BreakUnit> units) sync* {
+  if (units.first is! SingleBar) {
+    return;
+  }
+  for (final unit in units) {
+    if (unit is! SingleBar) {
+      continue;
+    }
+    final volta = unit.bar.volta;
+    if (volta == null || (volta.starts && !identical(unit, units.first))) {
+      return;
+    }
+    yield unit.bar;
+  }
+}
+
 /// Plans the system of [key]. Its stretch comes from the slices, and its staff
 /// tops and height from the bars' reach. Nothing is drawn.
 SystemPlan planSystem(SystemKey key, EngravingStyle style, TextMeasurer text) {
@@ -568,8 +586,12 @@ SystemPlan planSystem(SystemKey key, EngravingStyle style, TextMeasurer text) {
     }
     if (index == 0) {
       // The bar number sits above whatever the first bar has over the top
-      // staff, and takes its room from the system like any other mark.
-      final under = units.first.staves[index].above;
+      // staff, and takes its room from the system like any other mark. A
+      // volta bracket over that bar is as high as its highest bar here.
+      final under = _firstBracket(units).fold(
+        units.first.staves[index].above,
+        (under, bar) => math.max(under, bar.staves[index].above),
+      );
       above = math.max(above, under + numberRoom);
       labelY = above - under - number.descent;
     }

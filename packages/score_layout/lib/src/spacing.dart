@@ -134,6 +134,22 @@ double _ideal(Length shortest, Length toNext, SpacingPolicy policy) {
   return toNext < shortest ? ideal * (toNext / shortest).toDouble() : ideal;
 }
 
+/// [slices] with every rod before the bar's end grown by an equal share, so
+/// that the bar is at least [least] wide from its first slice to its end at
+/// any stretch. Unchanged when it already is.
+List<Slice> widenedTo(List<Slice> slices, double least) {
+  final springs = slices.length - 1;
+  final short = least - (rodWidth(slices) - slices.last.rod);
+  if (short <= 0) {
+    return slices;
+  }
+  return [
+    for (final slice in slices.take(springs))
+      Slice(at: slice.at, ideal: slice.ideal, rod: slice.rod + short / springs),
+    slices.last,
+  ];
+}
+
 /// Width at stretch 1, with each slice at its ideal and never below its rod.
 double naturalWidth(Iterable<Slice> slices) => slices.fold(
   0,

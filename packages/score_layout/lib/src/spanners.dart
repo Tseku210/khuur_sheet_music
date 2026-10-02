@@ -274,7 +274,7 @@ List<({int slice, double right})> letRingReach(
 /// and a trill line's sign. It is content right of the line's start, like a
 /// dot or a flag, so spacing makes room for it before the next slice, and a
 /// line that starts on a system's last beat has room for its text inside
-/// the system. Unit 8's `markReach` adds the reach of the marks beside it.
+/// the system.
 List<({int slice, double right})> lineStartReach(
   MeasureView view,
   Map<EventId, PlacedChord> chords, {
@@ -557,7 +557,6 @@ final class SpannerPiece {
   const SpannerPiece({
     required this.owner,
     required this.kind,
-    required this.voice,
     required this.from,
     required this.until,
     required this.startsHere,
@@ -570,9 +569,6 @@ final class SpannerPiece {
 
   final SpannerOwner owner;
   final SpannerKind kind;
-
-  /// The voice a slur or glissando joins. Null for a line.
-  final VoiceSlot? voice;
 
   /// Where the piece starts in this bar, by [pieceStart].
   final BarAnchor from;
@@ -604,7 +600,6 @@ final class SpannerPiece {
       other is SpannerPiece &&
       other.owner == owner &&
       other.kind == kind &&
-      other.voice == voice &&
       other.from == from &&
       other.until == until &&
       other.startsHere == startsHere &&
@@ -618,7 +613,6 @@ final class SpannerPiece {
   int get hashCode => Object.hash(
     owner,
     kind,
-    voice,
     from,
     until,
     startsHere,
@@ -726,7 +720,6 @@ SpannerPiece _piece(
   }) => SpannerPiece(
     owner: SpannerOwner(spanner.id),
     kind: kind,
-    voice: spanner.voice,
     from: from,
     until: until,
     startsHere: segment.startsHere,
@@ -954,8 +947,7 @@ TimedEvent? _anchor(StaffView staff, Spanner spanner, Moment at) =>
 /// Where the piece of [segment] starts in its bar, and on which event.
 ///
 /// This and [pieceEnd] apply `Score.anchorAt` and `Score.lineEnd` to the
-/// bar's view, so the bar needs no `Score`. The random-edit test holds them
-/// to the model.
+/// bar's view, so the bar needs no `Score`.
 ({Moment at, EventId? event}) pieceStart(
   SpannerSegment segment,
   StaffView staff,
@@ -1343,25 +1335,50 @@ typedef VoltaStub = ({
   double hook,
 });
 
-/// The bar's volta stub, or null when `column.volta` is null. Reserves the
-/// bracket and its label above [top], outside everything placed before and
-/// outside the bar's heads, which reach [headAbove] above the staff and are
-/// not in the skyline. [left] is the bar's content start in bar space.
+/// The label of a volta, "1.", "1, 2." and so on, as the bar measured it.
+typedef VoltaLabel = ({String text, TextExtent extent});
+
+/// The label of the volta [view] is under, or null when it is under none.
+VoltaLabel? voltaLabel(
+  MeasureView view,
+  EngravingStyle style,
+  TextMeasurer text,
+) {
+  final volta = view.column.volta;
+  if (volta == null) {
+    return null;
+  }
+  final label = '${volta.endings.join(', ')}.';
+  return (
+    text: label,
+    extent: text.measure(label, style.specOf(TextRole.volta)),
+  );
+}
+
+/// The least width of the bar a volta starts in that holds [label] between
+/// the bracket's hooks, or 0 when no volta starts in [view]. The bracket of
+/// a volta one bar long ends with the bar, so the label has no other room.
+double voltaLabelRoom(MeasureView view, VoltaLabel? label) =>
+    label == null || !view.voltaStarts ? 0 : label.extent.width + 2 * _voltaPad;
+
+/// The bar's volta stub, or null when [label] is null, which is when the
+/// bar is under no volta. Reserves the bracket and its label above [top],
+/// outside everything placed before and outside the bar's heads, which
+/// reach [headAbove] above the staff and are not in the skyline. [left] is
+/// the bar's content start in bar space.
 VoltaStub? voltaStub(
   MeasureView view,
   Skyline top, {
   required List<double> xs,
   required double left,
   required double headAbove,
+  required VoltaLabel? label,
   required EngravingStyle style,
-  required TextMeasurer text,
 }) {
-  final volta = view.column.volta;
-  if (volta == null) {
+  if (label == null) {
     return null;
   }
-  final label = '${volta.endings.join(', ')}.';
-  final extent = text.measure(label, style.specOf(TextRole.volta));
+  final extent = label.extent;
   final hook = math.max(
     _voltaHook,
     extent.ascent + extent.descent + 2 * _voltaPad,
@@ -1377,11 +1394,11 @@ VoltaStub? voltaStub(
     ),
   );
   return (
-    label: label,
+    label: label.text,
     extent: extent,
     starts: view.voltaStarts,
     ends: view.voltaEnds,
-    open: volta.open,
+    open: view.column.volta!.open,
     dy: dy,
     hook: hook,
   );
@@ -1420,7 +1437,7 @@ List<Drawable> placeVoltas(
         ),
       );
       final extent = first.of.extent;
-      final x = math.max(x0, math.min(x0 + _voltaPad, x1 - extent.width));
+      final x = x0 + _voltaPad;
       final baseline = dy + _voltaPad + extent.ascent;
       drawables.add(
         TextDraw(
