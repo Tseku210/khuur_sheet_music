@@ -313,9 +313,10 @@ List<int> keySignatureSteps(KeySignature key, Clef clef) {
   ];
 }
 
-/// A key signature from x 0. Naturals come first, for what [cancels] has and
-/// [key] lacks, on the steps [cancels] printed them. Then come the sharps or
-/// flats of [key]. Returns the items and their width.
+/// A key signature from x 0. Naturals come first, for each letter [cancels]
+/// alters and [key] alters differently or not at all, on the steps [cancels]
+/// printed them. Then come the sharps or flats of [key]. Returns the items and
+/// their width.
 BarHead keySignatureItems(
   KeySignature key,
   Clef clef, {
@@ -336,7 +337,8 @@ BarHead keySignatureItems(
   if (cancels != null) {
     final letters = _alteredLetters(cancels);
     for (final (index, step) in keySignatureSteps(cancels, clef).indexed) {
-      if (key.alterFor(letters[index]) == Alter.natural) {
+      final letter = letters[index];
+      if (key.alterFor(letter) != cancels.alterFor(letter)) {
         add(Glyph.accidentalNatural, step);
       }
     }

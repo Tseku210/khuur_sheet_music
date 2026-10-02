@@ -68,8 +68,8 @@ void main() {
       expect(keySignatureSteps(flats, Clef.tenor), [5, 8, 4, 7, 3, 6, 2]);
     });
 
-    test('the other C clefs and the baritone F clef keep their accidentals in '
-        'the octave that ends near the top of the staff', () {
+    test('the other C clefs and the baritone F clef take the positions '
+        'LilyPond prints by default', () {
       expect(keySignatureSteps(sharps, Clef.soprano), [3, 0, 4, 1, 5, 2, 6]);
       expect(keySignatureSteps(flats, Clef.soprano), [6, 2, 5, 1, 4, 0, 3]);
       expect(
@@ -168,6 +168,23 @@ void main() {
       expect(glyphsOf(other), [natural, natural, sharp]);
       expect(stepsOf(drawsOf(other)), [4, 7, 8]);
       expectSpaced(other);
+    });
+
+    test('a change from sharps to flats on the same letters cancels every '
+        'sharp', () {
+      final all = keyOf(-7, cancels: 7);
+      expect(glyphsOf(all), [
+        ...List.filled(7, natural),
+        ...List.filled(7, flat),
+      ]);
+      expect(stepsOf(drawsOf(all)).take(7), [8, 5, 9, 6, 3, 7, 4]);
+      expectSpaced(all);
+
+      final six = keyOf(6, cancels: -6);
+      expect(glyphsOf(six), [
+        ...List.filled(6, natural),
+        ...List.filled(6, sharp),
+      ]);
     });
 
     test('a change to no accidentals prints only the naturals', () {
