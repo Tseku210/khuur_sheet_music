@@ -31,6 +31,7 @@ export 'src/playback.dart'
         PlaybackCompiler,
         PlaybackNote,
         PlaybackOptions,
+        PlaybackPoint,
         PlaybackScript,
         PlayedBar;
 export 'src/refs.dart';

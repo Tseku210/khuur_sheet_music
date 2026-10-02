@@ -123,10 +123,6 @@ final class _Export {
               score.parts.first)
           .id;
 
-  /// The first bar is short, so it is numbered 0.
-  late final bool pickup =
-      score.measures.first.length < score.measures.first.meter.length;
-
   XmlElement document() {
     final meta = score.meta;
     return _el(
@@ -224,6 +220,7 @@ final class _Export {
       for (final staff in part.staves)
         view.staves.firstWhere((s) => s.source.staff == staff.id),
     ];
+    final number = score.barNumberOf(view.column.id);
     return _el(
       'measure',
       [
@@ -236,10 +233,7 @@ final class _Export {
         ..._music(p, bar, view, staves),
         ?_rightBarline(view),
       ],
-      {
-        'number': '${pickup ? bar : bar + 1}',
-        'implicit': pickup && bar == 0 ? 'yes' : null,
-      },
+      {'number': '$number', 'implicit': number == 0 ? 'yes' : null},
     );
   }
 
@@ -422,7 +416,10 @@ final class _Export {
   ) {
     final part = staff.part;
     final number = '${_voice(k, voice)}';
-    final beams = _beams(voice);
+    final beams = {
+      for (final group in voice.beams)
+        for (final (i, id) in group.events.indexed) id: group.joins[i],
+    };
     final tuplets = {for (final view in voice.tuplets) view.tuplet.id: view};
     final tupletMarks = <EventId, List<XmlElement>>{};
     for (final view in [...voice.tuplets]..sort((a, b) => a.depth - b.depth)) {
@@ -579,9 +576,9 @@ final class _Export {
             ?_notehead(staff.headOf(note)),
             ?_staff(staff, k),
             if (i == 0)
-              for (final (level, type)
-                  in beams[chord.id] ?? const <(int, String)>[])
-                _text('beam', type, {'number': '$level'}),
+              for (final (level, join)
+                  in (beams[chord.id] ?? const <BeamJoin>[]).indexed)
+                _text('beam', _beamType(join), {'number': '${level + 1}'}),
             ?notations(chord, note: note, first: i == 0),
             if (i == 0) ...chord.lyrics.map(_lyric),
           ]),
@@ -804,12 +801,10 @@ XmlElement _navigation(NavigationMark mark, XmlElement? staff) {
   final (types, sound) = switch (mark) {
     Segno() => ([_el('segno')], {'segno': 'segno'}),
     Coda() => ([_el('coda')], {'coda': 'coda'}),
-    ToCoda() => ([_text('words', 'To Coda')], {'tocoda': 'coda'}),
-    Fine() => ([_text('words', 'Fine')], {'fine': 'yes'}),
-    Jump(:final target, :final then, :final text) => (
-      [
-        _text('words', text ?? jumpWords(target, then)),
-      ],
+    ToCoda(:final label) => ([_text('words', label)], {'tocoda': 'coda'}),
+    Fine(:final label) => ([_text('words', label)], {'fine': 'yes'}),
+    Jump(:final target, :final label) => (
+      [_text('words', label)],
       target == JumpTarget.start ? {'dacapo': 'yes'} : {'dalsegno': 'segno'},
     ),
   };
@@ -1048,42 +1043,13 @@ XmlElement _lyric(Lyric lyric) => _el(
   {'number': '${lyric.verse}'},
 );
 
-/// Beam elements by event, as (level, type): level 1 spans each group, and
-/// deeper levels join neighbours that share them and end in hooks where
-/// they have none.
-Map<EventId, List<(int, String)>> _beams(VoiceView voice) {
-  final counts = {
-    for (final timed in voice.events)
-      if (timed.event case ChordEvent(:final id, :final value))
-        id: value.base.beams,
-  };
-  final beams = <EventId, List<(int, String)>>{};
-  for (final group in voice.beams) {
-    final levels = [for (final id in group.events) counts[id]!];
-    final breaks = group.secondaryBreaks;
-    final last = levels.length - 1;
-    for (final (i, id) in group.events.indexed) {
-      beams[id] = [
-        (1, i == 0 ? 'begin' : (i == last ? 'end' : 'continue')),
-        for (var level = 2; level <= levels[i]; level++)
-          (
-            level,
-            switch ((
-              i > 0 && levels[i - 1] >= level && !breaks.contains(i),
-              i < last && levels[i + 1] >= level && !breaks.contains(i + 1),
-            )) {
-              (true, true) => 'continue',
-              (true, false) => 'end',
-              (false, true) => 'begin',
-              (false, false) =>
-                i == 0 || breaks.contains(i) ? 'forward hook' : 'backward hook',
-            },
-          ),
-      ];
-    }
-  }
-  return beams;
-}
+String _beamType(BeamJoin join) => switch (join) {
+  BeamJoin.begin => 'begin',
+  BeamJoin.continued => 'continue',
+  BeamJoin.end => 'end',
+  BeamJoin.forwardHook => 'forward hook',
+  BeamJoin.backwardHook => 'backward hook',
+};
 
 /// [value] with at most three decimals and no trailing zeros.
 String _number(num value) =>

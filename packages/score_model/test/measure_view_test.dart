@@ -94,6 +94,23 @@ List<List<int>> beamsOf(Score score) => [
     [for (final event in group.events) event.value],
 ];
 
+/// Each beam group of the first bar, with one entry per event that names
+/// its join at every beam level, level 1 first.
+List<List<String>> joinsOf(Score score) => [
+  for (final group in voiceView(score, 0).beams)
+    [
+      for (final joins in group.joins)
+        [for (final join in joins) join.name].join(' '),
+    ],
+];
+
+Tuplet tripletOfSixteenths(int id, List<Content> members) => Tuplet(
+  id: TupletId(id),
+  ratio: TupletRatio.triplet,
+  unit: NoteValue.sixteenth,
+  members: Seq(members),
+);
+
 List<String> segmentsIn(Score score, int bar) => [
   for (final SpannerSegment(:from, :to, :startsHere, :endsHere) in viewOf(
     score,
@@ -847,6 +864,135 @@ void main() {
 
       expect(group.events.length, 5);
       expect(group.secondaryBreaks, isEmpty);
+    });
+
+    test('run one beam through plain eighths', () {
+      final score = fill(blankScore(), 0, run(100, 8, NoteValue.eighth));
+
+      expect(joinsOf(score), [
+        ['begin', 'continued', 'continued', 'end'],
+        ['begin', 'continued', 'continued', 'end'],
+      ]);
+    });
+
+    test('end and begin the inner beams at a secondary break', () {
+      final score = fill(
+        blankScore(meter: Meter.twoFour),
+        0,
+        run(100, 8, NoteValue.sixteenth, beams: {104: BeamMode.join}),
+      );
+
+      expect(joinsOf(score), [
+        [
+          'begin begin',
+          'continued continued',
+          'continued continued',
+          'continued end',
+          'continued begin',
+          'continued continued',
+          'continued continued',
+          'end end',
+        ],
+      ]);
+    });
+
+    test('hook a lone sixteenth toward the note it beams with', () {
+      final dottedFirst = fill(blankScore(), 0, [
+        chordOf(100, 'G4', value: NoteValue.eighth.dotted),
+        chordOf(101, 'G4', value: NoteValue.sixteenth),
+        chordOf(102, 'G4', value: NoteValue.half.dotted),
+      ]);
+      final dottedLast = fill(blankScore(), 0, [
+        chordOf(100, 'G4', value: NoteValue.sixteenth),
+        chordOf(101, 'G4', value: NoteValue.eighth.dotted),
+        chordOf(102, 'G4', value: NoteValue.half.dotted),
+      ]);
+
+      expect(joinsOf(dottedFirst), [
+        ['begin', 'end backwardHook'],
+      ]);
+      expect(joinsOf(dottedLast), [
+        ['begin forwardHook', 'end'],
+      ]);
+    });
+
+    test('hook forward after a secondary break and backward after an '
+        'eighth', () {
+      final score = fill(blankScore(meter: Meter.sixEight), 0, [
+        ...run(100, 3, NoteValue.sixteenth),
+        chordOf(103, 'G4', value: NoteValue.eighth),
+        chordOf(104, 'G4', value: NoteValue.sixteenth),
+        chordOf(105, 'G4', value: NoteValue.quarter.dotted),
+      ]);
+
+      expect(voiceView(score, 0).beams.single.secondaryBreaks, [2]);
+      expect(joinsOf(score), [
+        [
+          'begin begin',
+          'continued end',
+          'continued forwardHook',
+          'continued',
+          'end backwardHook',
+        ],
+      ]);
+    });
+
+    test('hook back on the last event of a group, also after a secondary '
+        'break', () {
+      final score = fill(blankScore(meter: Meter.sixEight), 0, [
+        ...run(100, 3, NoteValue.sixteenth),
+        chordOf(103, 'G4'),
+        chordOf(104, 'G4', value: NoteValue.eighth.dotted),
+        chordOf(105, 'G4', value: NoteValue.eighth),
+      ]);
+
+      expect(voiceView(score, 0).beams.first.secondaryBreaks, [2]);
+      expect(joinsOf(score).first, [
+        'begin begin',
+        'continued end',
+        'end backwardHook',
+      ]);
+    });
+
+    test('give an event a join for each beam of its value', () {
+      final score = fill(blankScore(), 0, [
+        chordOf(100, 'G4', value: NoteValue.eighth),
+        chordOf(101, 'G4', value: NoteValue.sixteenth),
+        ...run(102, 2, NoteValue.thirtySecond),
+        chordOf(104, 'G4', value: NoteValue.half.dotted),
+      ]);
+
+      expect(joinsOf(score), [
+        [
+          'begin',
+          'continued begin',
+          'continued continued begin',
+          'end end end',
+        ],
+      ]);
+    });
+
+    test('join inside a tuplet, and across its edge when asked to', () {
+      final inside = fill(blankScore(meter: Meter.twoFour), 0, [
+        ...run(100, 2, NoteValue.eighth),
+        tripletOfEighths(1, run(102, 3, NoteValue.eighth)),
+      ]);
+      final across = fill(blankScore(meter: Meter.twoFour), 0, [
+        chordOf(100, 'G4', value: NoteValue.eighth),
+        tripletOfSixteenths(
+          1,
+          run(101, 3, NoteValue.sixteenth, beams: {101: BeamMode.join}),
+        ),
+        chordOf(104, 'G4'),
+      ]);
+
+      expect(joinsOf(inside), [
+        ['begin', 'end'],
+        ['begin', 'continued', 'end'],
+      ]);
+      expect(joinsOf(across), [
+        ['begin', 'continued begin', 'continued continued', 'end end'],
+      ]);
     });
   });
 

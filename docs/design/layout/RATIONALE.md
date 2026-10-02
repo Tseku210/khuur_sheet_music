@@ -861,6 +861,18 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
 - The fake measurer makes a character 0.6 of the size wide, with an ascent of 0.8 and a descent of 0.2. Nothing measures text yet, so the benchmark does not use it until lyrics land.
 - The design names no update budget for the spanner score, so that number is reported and not judged.
 
+**Unit 3.**
+- The signatures of B1, B2b and B2c are the ones under "Model additions". B3 and B4 are the two doc comments.
+- `BeamGroup` takes `joins` as a required named parameter. The design showed the field and not the constructor. Only the model's beaming code builds a group.
+- `pointAt` gives the instant a bar starts to that bar, on its pass. It shares the search for the bar being played with `sourcesAt`, so a playhead and a highlight never name different bars.
+- `secondsAt` covers the first pass only, so the round trip of the check reaches a later pass by the start of that pass's `PlayedBar`. A second test finds every note of every pass at its event's onset, which needs no such shift.
+- The exporter's `_beams` and its pickup field are gone, and so is `jumpWords` from the table of names. Import reads `Jump.label` to tell whether a jump has text of its own. The names of the beam types stay private to the exporter, because the Read stage of import does not see the view types.
+- Moving the three rules changed no export. The exports of the showcase and of 360 scores made by random edits, with 7,461 beam elements, were byte for byte the same with the old and the new code. The hook fix below came after that run, and it changes one `<beam>` text in the case it names.
+- A hook on the last event of a group points back. The exporter's rule pointed it forward after a secondary break, at no event. The second-model review found it, and the rule is fixed in the model, so export now writes `backward hook` there and layout draws what `joins` says.
+- `ToCoda.label` and `Fine.label` join `Jump.label`, so the unit that draws system marks reads every printed word from the model. The design named only the jump.
+- The unit has 21 new tests, where the design asked for three. The model has 767. Two tests that compared the model's rule with an export that now calls the same rule were removed after the review, because they could not fail.
+- `joins` is built with the groups inside `measureView`, which the benchmark times. The four medians moved by less than the spread between runs. Dense first layout went from 12.4 to 12.6 ms, dense update from 0.084 to 0.086 ms, spanner first layout from 92.6 to 93.1 ms and spanner update from 0.182 to 0.184 ms.
+
 ## Open questions and risks
 
 **Owner decisions of 2026-10-02.** The owner accepted every default below, C1 to C11, and the model additions B1, B2b, B2c, B3 and B4. `publish_to: none` on the root package is accepted too. The questions stay here as the record of what each default is.

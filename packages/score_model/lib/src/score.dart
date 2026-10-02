@@ -182,6 +182,14 @@ final class Score {
 
   bool contains(MeasureId id) => _indexById.containsKey(id);
 
+  /// The printed number of bar [id]. Bars count from 1. A first bar shorter
+  /// than its meter is a pickup and is numbered 0, so the bar after it is 1.
+  /// Throws if [id] is not in this score.
+  int barNumberOf(MeasureId id) {
+    final first = measures.first;
+    return indexOf(id) + (first.length < first.meter.length ? 0 : 1);
+  }
+
   MeasureColumn column(MeasureId id) => measures[indexOf(id)];
 
   Part partOf(StaffId staff) {

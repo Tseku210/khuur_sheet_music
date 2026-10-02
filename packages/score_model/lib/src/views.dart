@@ -231,7 +231,11 @@ final class TupletView {
 }
 
 final class BeamGroup {
-  const BeamGroup(this.events, {this.secondaryBreaks = const []});
+  const BeamGroup(
+    this.events, {
+    required this.joins,
+    this.secondaryBreaks = const [],
+  });
 
   /// At least two chord events, in time order.
   final List<EventId> events;
@@ -239,6 +243,33 @@ final class BeamGroup {
   /// Indices into [events] before which beams beyond the first are broken
   /// (sixteenths grouped by eighth-note beat, for example).
   final List<int> secondaryBreaks;
+
+  /// How each of [events] joins each of its beams, one list per event, with
+  /// the first beam first. An event has as many beams as its value has
+  /// flags. The first beam runs through the group. A deeper beam joins
+  /// neighbours that share it, stops at a secondary break, and is a hook
+  /// where it joins neither neighbour. A hook points forward on the first
+  /// event and on an event after a secondary break, and back elsewhere. On
+  /// the last event it always points back, because no event follows.
+  final List<List<BeamJoin>> joins;
+}
+
+/// How an event joins one beam of its group.
+enum BeamJoin {
+  /// The beam starts here and runs to the next event.
+  begin,
+
+  /// The beam comes from the event before and runs on to the next.
+  continued,
+
+  /// The beam comes from the event before and stops here.
+  end,
+
+  /// A stub that points forward. The beam joins neither neighbour.
+  forwardHook,
+
+  /// A stub that points back. The beam joins neither neighbour.
+  backwardHook,
 }
 
 final class TieView {
@@ -312,7 +343,8 @@ final class ScoreChanges {
   /// The sequence of measures changed (insert, delete, re-bar), the parts
   /// changed or a bar's [MeasureColumn.breakBefore] changed. Line breaking
   /// must run again over cached measure widths, and bar numbers may have
-  /// moved.
+  /// moved. It reports structural changes only. A bar in [relayout] may come
+  /// out wider or narrower, and that change is layout's to detect.
   final bool reflow;
 
   bool get isEmpty => relayout.isEmpty && removed.isEmpty && !reflow;

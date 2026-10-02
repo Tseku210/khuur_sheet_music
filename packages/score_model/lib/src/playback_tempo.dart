@@ -122,6 +122,9 @@ sealed class _Pace {
 
   /// Seconds that [length] after the point lasts.
   double secondsFor(Length length);
+
+  /// Whole notes that pass in [seconds] after the point.
+  double wholesIn(double seconds);
 }
 
 /// At one tempo, timed exactly as the tempo mark says.
@@ -132,6 +135,9 @@ final class _Steady extends _Pace {
 
   @override
   double secondsFor(Length length) => tempo.secondsFor(length);
+
+  @override
+  double wholesIn(double seconds) => seconds * _rate(tempo);
 }
 
 /// At [rate] whole notes a second, changing by [slope] each whole note.
@@ -148,6 +154,10 @@ final class _Moving extends _Pace {
         ? wholes / rate
         : log((rate + slope * wholes) / rate) / slope;
   }
+
+  @override
+  double wholesIn(double seconds) =>
+      slope == 0 ? seconds * rate : rate * (exp(slope * seconds) - 1) / slope;
 }
 
 /// Seconds from a bar's downbeat, by the score's tempo from where the bar
@@ -188,6 +198,11 @@ final class _Clock {
   double at(Moment offset) =>
       _steps[_partition(_steps.length, (i) => _steps[i].from > offset) - 1]
           .secondsAt(offset);
+
+  /// Whole notes from the downbeat that [seconds] after it reach.
+  double wholesAt(double seconds) =>
+      _steps[_partition(_steps.length, (i) => _steps[i].seconds > seconds) - 1]
+          .wholesAt(seconds);
 }
 
 /// A stretch of a bar from [from], [seconds] after the downbeat, where the
@@ -202,4 +217,8 @@ final class _ClockStep {
 
   double secondsAt(Moment offset) =>
       seconds + pace.secondsFor(from.until(offset)) * stretch;
+
+  double wholesAt(double seconds) =>
+      from.wholeNotes.toDouble() +
+      pace.wholesIn((seconds - this.seconds) / stretch);
 }

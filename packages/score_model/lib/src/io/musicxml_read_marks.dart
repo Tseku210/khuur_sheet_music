@@ -233,11 +233,8 @@ Jump _jump(JumpTarget target, String? words) {
       : lower.contains('al coda')
       ? JumpThen.toCoda
       : JumpThen.toEnd;
-  return Jump(
-    target,
-    then: then,
-    text: words == jumpWords(target, then) ? null : words,
-  );
+  final plain = Jump(target, then: then);
+  return words == plain.label ? plain : Jump(target, then: then, text: words);
 }
 
 /// The tempo of the first metronome among [types] that states one, else of

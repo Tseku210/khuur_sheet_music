@@ -1,3 +1,5 @@
+import 'dart:math' show log;
+
 import 'package:score_model/score_model.dart';
 import 'package:test/test.dart';
 
@@ -224,6 +226,56 @@ GraceChord grace(
 
 ChordEvent ornamented(ChordEvent chord, Ornament ornament) =>
     chord.copyWith(ornament: () => ornament);
+
+/// Where [script] is at [seconds], as the 1-based bar number, the pass and
+/// the whole notes into the bar, rounded to a billionth. Null when nothing
+/// plays then.
+(int, int, double)? reached(
+  Score score,
+  PlaybackScript script,
+  double seconds,
+) {
+  final point = script.pointAt(seconds);
+  return point == null
+      ? null
+      : (
+          score.indexOf(point.bar.measure) + 1,
+          point.bar.pass,
+          (point.offset * 1e9).roundToDouble() / 1e9,
+        );
+}
+
+/// [at60] with a rit. over bar one that halves the tempo by the barline.
+Score slowing(int bars) =>
+    withTempoLine(at60(bars), 0.5, (0, Moment.zero), (0, at(3, 4)));
+
+/// Seconds from the start of bar one of [slowing] to [wholes] whole notes
+/// into it. The pace falls in a straight line from a quarter to an eighth of
+/// a whole note a second, and the time is the integral of one over the pace.
+double slowingSeconds(double wholes) => -8 * log(1 - wholes / 2);
+
+/// Four bars of quarters played twice. Bar 1 has a tempo mark halfway, bar 2
+/// a fermata, and a rit. runs over bars 3 and 4 with a fermata under it.
+Score twiceThroughEverything() {
+  var score = changeBar(
+    beats(4),
+    0,
+    tempos([
+      const TempoMark(offset: Moment.zero, tempo: Tempo(60)),
+      TempoMark(offset: at(1, 2), tempo: const Tempo(90)),
+    ]),
+  );
+  for (final (bar, held) in [(1, 22), (3, 43)]) {
+    score = fill(score, bar, [
+      for (var id = 10 * (bar + 1) + 1; id <= 10 * (bar + 1) + 4; id++)
+        id == held
+            ? withMarks(quarters(id, 'C4'), {Articulation.fermata})
+            : quarters(id, 'C4'),
+    ]);
+  }
+  score = withTempoLine(score, 0.5, (2, Moment.zero), (3, at(3, 4)));
+  return changeBar(score, 3, repeatEnd());
+}
 
 ChordEvent tremolo(ChordEvent chord, int strokes) =>
     chord.copyWith(tremolo: strokes);
@@ -772,6 +824,15 @@ void main() {
       expect(sources(script, 2.4), [6]);
       expect(sources(script, 4.8), isEmpty);
       expect(sources(compiled(score), 0.3), [1, 5]);
+    });
+
+    test('says which event sounds on a hidden staff too', () {
+      var score = blankScore(parts: const [clarinet, piano], bars: 1);
+      score = fill(score, 0, [wholes(1, 'C4')]);
+      score = fill(score, 0, [wholes(2, 'D4')], staff: 1);
+      score = hidePart(score, 1);
+
+      expect(sources(compiled(score), 1), [1, 2]);
     });
   });
 
@@ -1559,6 +1620,155 @@ void main() {
       expect(
         () => TempoLine(text: 'rit.', factor: 0 * 1.0),
         throwsA(isA<AssertionError>()),
+      );
+    });
+  });
+
+  group('playback point', () {
+    test('gives back each point secondsAt places, on every pass', () {
+      final score = twiceThroughEverything();
+      final script = compiled(score);
+      final firstStart = <MeasureId, double>{};
+
+      expect(played(score), ['1', '2', '3', '4', '1#2', '2#2', '3#2', '4#2']);
+      for (final bar in script.bars) {
+        // Tempo is read in notated order, so a bar is timed alike on every
+        // pass, and secondsAt gives the time into it as well as the first
+        // time it is reached.
+        final first = firstStart.putIfAbsent(bar.measure, () => bar.start);
+        for (var k = 0; k < 64; k++) {
+          final into =
+              script.secondsAt(ScorePoint(bar.measure, at(k, 64)))! - first;
+          final point = script.pointAt(bar.start + into)!;
+
+          expect(
+            (point.bar.measure, point.bar.pass),
+            (bar.measure, bar.pass),
+            reason: '64th $k of pass ${bar.pass}',
+          );
+          expect(point.offset, closeTo(k / 64, 1e-9));
+        }
+      }
+    });
+
+    test("finds every note of every pass at its event's onset", () {
+      final score = twiceThroughEverything();
+      final script = compiled(score);
+      var found = 0;
+
+      for (final bar in script.bars) {
+        for (final note in script.notesBetween(bar.start, bar.end)) {
+          final point = script.pointAt(note.start)!;
+
+          expect(
+            (point.bar.measure, point.bar.pass),
+            (bar.measure, bar.pass),
+          );
+          expect(
+            point.offset,
+            closeTo(
+              score.lookup(note.source)!.onset.wholeNotes.toDouble(),
+              1e-9,
+            ),
+          );
+          found++;
+        }
+      }
+      expect(found, 32);
+    });
+
+    test('is null before the start and from the end on', () {
+      final score = at60(2);
+      final script = compiled(score);
+
+      expect(script.totalSeconds, 8);
+      expect(reached(score, script, -0.001), isNull);
+      expect(reached(score, script, 0), (1, 1, 0.0));
+      expect(reached(score, script, 7), (2, 1, 0.75));
+      expect(reached(score, script, 8), isNull);
+      expect(reached(score, script, 9), isNull);
+    });
+
+    test('gives the instant a bar starts to that bar, on its pass', () {
+      final score = changeBar(at60(2), 1, repeatEnd());
+      final script = compiled(score);
+
+      expect(reached(score, script, 3.9), (1, 1, 0.975));
+      expect(reached(score, script, 4), (2, 1, 0.0));
+      expect(reached(score, script, 8), (1, 2, 0.0));
+      expect(reached(score, script, 9), (1, 2, 0.25));
+      expect(reached(score, script, 12), (2, 2, 0.0));
+    });
+
+    test('moves at half speed under a fermata', () {
+      final score = fill(at60(1), 0, [
+        quarters(11, 'C4'),
+        quarters(12, 'C4'),
+        withMarks(quarters(13, 'C4'), {Articulation.fermata}),
+        quarters(14, 'C4'),
+      ]);
+      final script = compiled(score);
+
+      expect(reached(score, script, 1), (1, 1, 0.25));
+      expect(reached(score, script, 3), (1, 1, 0.625));
+      expect(reached(score, script, 4), (1, 1, 0.75));
+      expect(reached(score, script, 4.5), (1, 1, 0.875));
+    });
+
+    test('slows with a rit. and keeps the tempo it reaches', () {
+      final score = slowing(2);
+      final script = compiled(score);
+
+      for (final wholes in [0.1, 0.5, 0.9]) {
+        expect(
+          reached(score, script, slowingSeconds(wholes)),
+          (1, 1, wholes),
+        );
+      }
+      expect(reached(score, script, slowingSeconds(1) + 2), (2, 1, 0.25));
+    });
+
+    test('changes pace at a tempo mark inside a bar', () {
+      final score = marked(1, {
+        1: tempos([
+          const TempoMark(
+            offset: Moment.zero,
+            tempo: Tempo(60, beat: NoteValue.half),
+          ),
+          TempoMark(offset: at(1, 2), tempo: const Tempo(150)),
+        ]),
+      });
+      final script = compiled(score);
+
+      expect(reached(score, script, 0.5), (1, 1, 0.25));
+      expect(reached(score, script, 1), (1, 1, 0.5));
+      expect(reached(score, script, 1.4), (1, 1, 0.75));
+    });
+
+    test('counts from the bar start in a range', () {
+      final steady = at60(3);
+      final range = compiled(
+        steady,
+        PlaybackOptions(
+          from: pointAt(steady, 0, at(1, 4)),
+          to: pointAt(steady, 1, at(1, 2)),
+        ),
+      );
+      final score = slowing(2);
+      final fromRit = compiled(
+        score,
+        PlaybackOptions(from: pointAt(score, 0, at(1, 2))),
+      );
+
+      expect(reached(steady, range, 0), (1, 1, 0.25));
+      expect(reached(steady, range, 1), (1, 1, 0.5));
+      expect(reached(steady, range, 3), (2, 1, 0.0));
+      expect(reached(steady, range, 4), (2, 1, 0.25));
+      expect(reached(steady, range, 5), isNull);
+      expect(reached(score, fromRit, 0), (1, 1, 0.5));
+      expect(
+        reached(score, fromRit, slowingSeconds(0.75) - slowingSeconds(0.5)),
+        (1, 1, 0.75),
       );
     });
   });

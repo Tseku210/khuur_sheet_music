@@ -548,6 +548,20 @@ Accepted by the project owner on 2026-10-01, answering the open questions filed 
 - **MusicXML import and export are both in scope**, after the JSON save format. The subset that import supports is designed then.
 - **Manual system breaks and restated signatures are representable.** A bar can force a new line of music, and can restate its key or time signature where it hasn't changed. Courtesy signatures before a change stay automatic unless a bar turns them off.
 
+### Layout additions (layout unit 3)
+
+Accepted by the project owner on 2026-10-02. The layout design proposed them as B1, B2b, B2c, B3 and B4 in [`docs/design/layout/RATIONALE.md`](../layout/RATIONALE.md), so that export, playback and display read one rule each. Export writes the same files as before, except for the one beam hook named below. The deviations at the end of the list have not yet been reviewed by the project owner.
+
+- **`PlaybackScript.pointAt` says where playback is.** It returns a `PlaybackPoint`, which holds the bar being played with its pass, and how far into the bar playback is, in whole notes. It is the inverse of the script's clock on every pass, where `secondsAt` answers for the first pass only. So it is right under a fermata, a tempo line, a tempo mark inside a bar, a repeat and a played range. It is null before the start and from the end on, and the instant a bar starts belongs to that bar.
+- **`BeamGroup.joins` says how each event joins each of its beams.** It holds a `BeamJoin` per event and beam, the first beam first. The rule was the exporter's own. It moved to the code that builds the groups, and export now reads `joins` and keeps only the MusicXML name of each join.
+- **`Jump.label` is the words a jump prints.** It is the jump's own text, else "D.C." or "D.S." with " al Fine" or " al Coda". Export writes it. Import compares a file's words with it to tell whether a jump has text of its own. `ToCoda.label` and `Fine.label` are "To Coda" and "Fine", which export wrote from its own text before.
+- **`Score.barNumberOf` is a bar's printed number.** Bars count from 1, and a first bar shorter than its meter is a pickup, numbered 0. Export writes this number and marks the bar numbered 0 as implicit.
+- **Two contracts are stated.** `sourcesAt` includes events on hidden staves, because a hidden part plays. `ScoreChanges.reflow` reports structural changes only, and a bar that comes out wider or narrower is layout's to detect.
+- **`BeamGroup` requires `joins`.** The design showed the field and not the constructor. It is a required named parameter, so no group exists without its joins. Only the beaming code builds a group.
+- **A hook on the last event of a group points back.** A hook points forward on the first event and after a secondary break, and back elsewhere. The rule export had also pointed forward on a group's last event after a break, where no event follows. In 6/8, three sixteenths before a quarter note gave the third sixteenth a forward hook. It is a backward hook now, and export writes `backward hook` there. This is the one change to exported files.
+- **The names of the beam types stay in the exporter.** `musicxml_names.dart` is shared with the Read stage of import, which does not see the view types. Import reads a `<beam>` by its text as before.
+- **Twenty-one tests cover the additions, for 767.** The design asked for three. Each addition has its own tests. The export tests that were there before hold the bar numbers and the printed words in exported files.
+
 ## Open questions and risks
 
 Each question is filed under the point it must be answered by. An answer that changes a stored type gets more expensive with every layer built on it, and once the save format is released it also means migrating other people's saved scores. An answer that changes one function's behaviour, or only adds a value, stays cheap. The deviations under units 1 to 22 that the project owner has not reviewed are behaviour too, so they can be reviewed any time before the release.

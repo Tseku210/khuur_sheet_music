@@ -43,12 +43,38 @@ List<BeamGroup> beamGroups(List<TimedEvent> events, Meter meter) {
   return [
     for (final run in runs)
       for (final group in _splitByBeat(run, beats))
-        if (group.length > 1)
-          BeamGroup(
-            [for (final beamed in group) beamed.timed.event.id],
-            secondaryBreaks: _secondaryBreaks(group, meter),
-          ),
+        if (group.length > 1) _beamGroup(group, _secondaryBreaks(group, meter)),
   ];
+}
+
+/// The beam group of [group], whose secondary beams break before the
+/// indices in [breaks]. [BeamGroup.joins] states the rule.
+BeamGroup _beamGroup(List<_Beamed> group, List<int> breaks) {
+  bool reaches(int i, int level) =>
+      i > 0 &&
+      i < group.length &&
+      group[i - 1].beams >= level &&
+      group[i].beams >= level &&
+      (level == 1 || !breaks.contains(i));
+  return BeamGroup(
+    [for (final beamed in group) beamed.timed.event.id],
+    secondaryBreaks: breaks,
+    joins: [
+      for (final (i, beamed) in group.indexed)
+        [
+          for (var level = 1; level <= beamed.beams; level++)
+            switch ((reaches(i, level), reaches(i + 1, level))) {
+              (true, true) => BeamJoin.continued,
+              (true, false) => BeamJoin.end,
+              (false, true) => BeamJoin.begin,
+              (false, false) =>
+                i < group.length - 1 && (i == 0 || breaks.contains(i))
+                    ? BeamJoin.forwardHook
+                    : BeamJoin.backwardHook,
+            },
+        ],
+    ],
+  );
 }
 
 final class _Beamed {

@@ -391,11 +391,17 @@ final class Coda extends NavigationMark {
 /// After a jump, leave for the [Coda] at the end of this bar.
 final class ToCoda extends NavigationMark {
   const ToCoda();
+
+  /// What prints.
+  String get label => 'To Coda';
 }
 
 /// After a jump, stop at the end of this bar.
 final class Fine extends NavigationMark {
   const Fine();
+
+  /// What prints.
+  String get label => 'Fine';
 }
 
 /// D.C. or D.S., with what happens after the jump.
@@ -407,6 +413,17 @@ final class Jump extends NavigationMark {
 
   /// Printed text override ("D.C. al Fine" is the default rendering).
   final String? text;
+
+  /// What prints. It is [text], or else the words for [target] and [then],
+  /// "D.C." or "D.S." with " al Fine" or " al Coda".
+  String get label =>
+      text ??
+      '${target == JumpTarget.start ? 'D.C.' : 'D.S.'}'
+          '${switch (then) {
+            JumpThen.toEnd => '',
+            JumpThen.toFine => ' al Fine',
+            JumpThen.toCoda => ' al Coda',
+          }}';
 
   @override
   bool operator ==(Object other) =>

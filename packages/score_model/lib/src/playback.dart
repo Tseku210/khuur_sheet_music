@@ -231,6 +231,10 @@ final class _Bar {
 
   double secondsAt(Moment offset) =>
       played.start + clock.at(offset) - clock.at(from);
+
+  /// Whole notes into the bar at [seconds] of the script.
+  double wholesAt(double seconds) =>
+      clock.wholesAt(seconds - played.start + clock.at(from));
 }
 
 final class PlaybackOptions {
@@ -274,17 +278,26 @@ final class PlaybackScript {
       .skip(_partition(_notes.length, (i) => _notes[i].start >= from))
       .takeWhile((note) => note.start < to);
 
-  /// Events sounding at [seconds], one per voice, for highlighting. An
-  /// event sounds for its notated length, and rests sound nothing.
-  List<EventRef> sourcesAt(double seconds) {
+  /// The bar playing at [seconds], or null outside `[0, totalSeconds)`.
+  _Bar? _playing(double seconds) {
+    if (seconds < 0) {
+      return null;
+    }
     final at = _partition(
       _timeline.length,
       (i) => _timeline[i].played.end > seconds,
     );
-    if (at == _timeline.length) {
+    return at == _timeline.length ? null : _timeline[at];
+  }
+
+  /// Events sounding at [seconds], one per voice, for highlighting. An
+  /// event sounds for its notated length, and rests sound nothing. The
+  /// result includes events on hidden staves, because a hidden part plays.
+  List<EventRef> sourcesAt(double seconds) {
+    final bar = _playing(seconds);
+    if (bar == null) {
       return const [];
     }
-    final bar = _timeline[at];
     final voices = <(StaffId, VoiceSlot)>{};
     return [
       for (final _Chord(timed: TimedEvent(:onset, :duration, :voice, :ref))
@@ -308,6 +321,30 @@ final class PlaybackScript {
     }
     return null;
   }
+
+  /// Where playback is at [seconds], for drawing a playhead. It is the
+  /// inverse of the clock that times every note, on every pass, so it
+  /// follows fermatas, tempo lines and tempo marks inside a bar. On the
+  /// first pass it undoes [secondsAt]. Null outside `[0, totalSeconds)`.
+  /// The instant a bar starts belongs to that bar.
+  PlaybackPoint? pointAt(double seconds) {
+    final bar = _playing(seconds);
+    return bar == null
+        ? null
+        : PlaybackPoint(bar: bar.played, offset: bar.wholesAt(seconds));
+  }
+}
+
+/// Where playback is at one moment of a script.
+final class PlaybackPoint {
+  const PlaybackPoint({required this.bar, required this.offset});
+
+  /// The bar being played, with its pass.
+  final PlayedBar bar;
+
+  /// How far into the bar, in whole notes from its downbeat. A double, not
+  /// a [Moment], because a playhead moves continuously between onsets.
+  final double offset;
 }
 
 final class PlaybackNote {
