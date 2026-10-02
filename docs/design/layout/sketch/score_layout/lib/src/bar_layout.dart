@@ -208,7 +208,7 @@ BarLayout layoutBar(
   )) {
     reach[slice] = widest(reach[slice], (left: 0, right: right));
   }
-  final lyrics = lyricsOf(view, times, style, text);
+  final lyrics = lyricsOf(view, times, chords, style, text);
   for (final syllable in lyrics.syllables) {
     reach[syllable.slice] = widest(reach[syllable.slice], syllable.reach);
   }

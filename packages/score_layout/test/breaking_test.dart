@@ -4,6 +4,7 @@ import 'package:score_layout/src/bar_layout.dart';
 import 'package:score_layout/src/breaking.dart';
 import 'package:score_layout/src/chords.dart';
 import 'package:score_layout/src/geometry.dart';
+import 'package:score_layout/src/lyrics.dart';
 import 'package:score_layout/src/signatures.dart';
 import 'package:score_layout/src/style.dart';
 import 'package:score_model/score_model.dart';
@@ -753,6 +754,7 @@ void main() {
           ties: const [],
           spanners: const [],
           volta: null,
+          lyrics: BarLyrics.none,
         ),
       ];
       final plan = breaksOf(
@@ -867,6 +869,8 @@ void main() {
         lead: lead,
         first: false,
         last: false,
+        carry: LyricCarry.none,
+        carryOut: LyricCarry.none,
       );
 
       expect(breaks.plans[1].bars, [barId(3), barId(4), barId(5)]);
@@ -880,6 +884,8 @@ void main() {
           lead: lead,
           first: false,
           last: false,
+          carry: LyricCarry.none,
+          carryOut: LyricCarry.none,
         ),
         SystemKey(
           units: key.units,
@@ -888,6 +894,8 @@ void main() {
           lead: lead,
           first: false,
           last: false,
+          carry: LyricCarry.none,
+          carryOut: LyricCarry.none,
         ),
         SystemKey(
           units: key.units,
@@ -896,6 +904,8 @@ void main() {
           lead: flush,
           first: false,
           last: false,
+          carry: LyricCarry.none,
+          carryOut: LyricCarry.none,
         ),
         SystemKey(
           units: key.units,
@@ -904,6 +914,8 @@ void main() {
           lead: lead,
           first: true,
           last: false,
+          carry: LyricCarry.none,
+          carryOut: LyricCarry.none,
         ),
         SystemKey(
           units: key.units,
@@ -912,6 +924,8 @@ void main() {
           lead: lead,
           first: false,
           last: true,
+          carry: LyricCarry.none,
+          carryOut: LyricCarry.none,
         ),
         SystemKey(
           units: [for (final bar in twelve.sublist(6, 9)) SingleBar(bar)],
@@ -920,6 +934,8 @@ void main() {
           lead: lead,
           first: false,
           last: false,
+          carry: LyricCarry.none,
+          carryOut: LyricCarry.none,
         ),
         SystemKey(
           units: key.units.sublist(0, 2),
@@ -928,10 +944,71 @@ void main() {
           lead: lead,
           first: false,
           last: false,
+          carry: LyricCarry.none,
+          carryOut: LyricCarry.none,
+        ),
+        SystemKey(
+          units: key.units,
+          next: key.next,
+          width: sheet,
+          lead: lead,
+          first: false,
+          last: false,
+          carry: const LyricCarry({
+            (staff: StaffId(2000), voice: VoiceSlot.one, verse: 1):
+                OpenLyric.hyphen,
+          }),
+          carryOut: LyricCarry.none,
+        ),
+        SystemKey(
+          units: key.units,
+          next: key.next,
+          width: sheet,
+          lead: lead,
+          first: false,
+          last: false,
+          carry: LyricCarry.none,
+          carryOut: const LyricCarry({
+            (staff: StaffId(2000), voice: VoiceSlot.one, verse: 1):
+                OpenLyric.extender,
+          }),
         ),
       ]) {
         expect(other, isNot(key));
       }
+    });
+
+    test('a key holds its carries by value', () {
+      const lane = (staff: StaffId(2000), voice: VoiceSlot.one, verse: 1);
+      final breaks = breaksOf(twelve, sheet);
+      final key = breaks.plans[1].key;
+      final carried = SystemKey(
+        units: key.units,
+        next: key.next,
+        width: sheet,
+        lead: lead,
+        first: false,
+        last: false,
+        carry: const LyricCarry({lane: OpenLyric.hyphen}),
+        carryOut: const LyricCarry({lane: OpenLyric.extender}),
+      );
+      final again = SystemKey(
+        units: key.units,
+        next: key.next,
+        width: sheet,
+        lead: lead,
+        first: false,
+        last: false,
+        carry: LyricCarry(Map.of(carried.carry.open)),
+        carryOut: LyricCarry(Map.of(carried.carryOut.open)),
+      );
+
+      expect(again, carried);
+      expect(again.hashCode, carried.hashCode);
+      expect(
+        const LyricCarry({lane: OpenLyric.hyphen}),
+        isNot(const LyricCarry({lane: OpenLyric.extender})),
+      );
     });
   });
 }

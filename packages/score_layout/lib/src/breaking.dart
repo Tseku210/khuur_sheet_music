@@ -13,6 +13,7 @@ import 'package:score_model/score_model.dart';
 import 'bar_layout.dart';
 import 'chords.dart';
 import 'geometry.dart';
+import 'lyrics.dart';
 import 'signatures.dart';
 import 'spacing.dart';
 import 'style.dart';
@@ -184,21 +185,24 @@ List<BreakUnit> foldBars(List<BarLayout> bars, EngravingStyle style) {
 /// system are both reused by key.
 ///
 /// Bars are compared by identity, because a BarLayout is replaced exactly when
-/// its bar was laid out again.
+/// its bar was laid out again. [carry] and [carryOut] are compared by value.
 final class SystemKey {
-  const SystemKey({
+  SystemKey({
     required this.units,
     required this.next,
     required this.width,
     required this.lead,
     required this.first,
     required this.last,
+    required this.carry,
+    required this.carryOut,
   });
 
   final List<BreakUnit> units;
 
   /// The first bar of the next system. The system ends with that bar's
-  /// courtesy signatures. Null on the last system.
+  /// courtesy signatures, and an open lyric extender asks how that bar's
+  /// lane starts. Null on the last system.
   final BarLayout? next;
 
   final double width;
@@ -210,6 +214,13 @@ final class SystemKey {
   /// The last system may stay ragged (`justifyLastSystemFrom`).
   final bool last;
 
+  /// The lyric hyphens and extenders open at the system's start.
+  final LyricCarry carry;
+
+  /// The lyric hyphens and extenders open at the system's end, which is the
+  /// next system's [carry].
+  final LyricCarry carryOut;
+
   @override
   bool operator ==(Object other) =>
       other is SystemKey &&
@@ -218,17 +229,23 @@ final class SystemKey {
       other.last == last &&
       identical(other.lead, lead) &&
       identical(other.next, next) &&
+      other.carry == carry &&
+      other.carryOut == carryOut &&
       other.units.length == units.length &&
       Iterable<int>.generate(
         units.length,
       ).every((i) => other.units[i] == units[i]);
 
+  /// Computed once. A key is hashed several times an update, by the plans
+  /// kept from the last break, the delta and the memo of assembled systems.
   @override
-  int get hashCode => Object.hash(
+  late final int hashCode = Object.hash(
     width,
     first,
     last,
     identityHashCode(next),
+    carry,
+    carryOut,
     Object.hashAll(units),
   );
 }
@@ -237,15 +254,20 @@ final class SystemKey {
 typedef PlannedStaff = ({
   /// y of the staff's top line in system space.
   double top,
+
+  /// y where the staff's lyric rows start, below everything else the
+  /// staff's bars reach.
+  double lyricsFrom,
+  List<LyricRow> rows,
 });
 
 /// A system decided and not yet assembled.
 ///
 /// Invariant: assembly draws nothing outside the box from (0, 0) to
 /// ([width], [height]). Every bar's reach holds the room of each piece
-/// that crosses it, and the pieces drawn at system time clamp to that room.
-/// The sheet stacks systems by [height] alone, so a breach would overlap the
-/// next system.
+/// that crosses it, the rows hold every lyric lane, and the pieces drawn
+/// at system time clamp to that room. The sheet stacks systems by
+/// [height] alone, so a breach would overlap the next system.
 final class SystemPlan {
   const SystemPlan({
     required this.key,
@@ -352,6 +374,41 @@ Breaks breakSystems({
   };
   final bounds = [for (final start in starts) indexOf[start]!, units.length];
 
+  // What is open at each system's edge. One pass forward folds what every
+  // bar leaves open. One pass backward finds the lanes whose next syllable
+  // joins a word, so a hyphen nothing joins is carried nowhere, and drops
+  // an extender the system's first bar does not hold.
+  final open = <LyricCarry>[LyricCarry.none];
+  for (var system = 0; system < starts.length; system++) {
+    var carry = open.last;
+    for (final unit in units.getRange(bounds[system], bounds[system + 1])) {
+      for (final bar in unit.bars) {
+        carry = bar.lyrics.after(carry);
+      }
+    }
+    open.add(carry);
+  }
+  final edges = List.filled(starts.length + 1, LyricCarry.none);
+  final ahead = <LyricLane>{};
+  for (var system = starts.length - 1; system >= 0; system--) {
+    for (var unit = bounds[system + 1] - 1; unit >= bounds[system]; unit--) {
+      for (final bar in units[unit].bars.reversed) {
+        for (final MapEntry(key: lane, value: here)
+            in bar.lyrics.lanes.entries) {
+          if (here.joins) {
+            ahead.add(lane);
+          } else {
+            ahead.remove(lane);
+          }
+        }
+      }
+    }
+    edges[system] = open[system].closing(
+      ahead,
+      units[bounds[system]].first.lyrics,
+    );
+  }
+
   final plans = <SystemPlan>[];
   for (var system = 0; system < starts.length; system++) {
     final to = bounds[system + 1];
@@ -362,6 +419,8 @@ Breaks breakSystems({
       lead: lead,
       first: system == 0,
       last: to == units.length,
+      carry: edges[system],
+      carryOut: edges[system + 1],
     );
     plans.add(old[key] ?? planSystem(key, style, text));
   }
@@ -511,10 +570,14 @@ SystemPlan planSystem(SystemKey key, EngravingStyle style, TextMeasurer text) {
 
   final number = text.measure('0', style.specOf(TextRole.barNumber));
   final numberRoom = style.barNumbers ? number.ascent + number.descent : 0.0;
+  final lyrics = [
+    for (final unit in units)
+      for (final bar in unit.bars) bar.lyrics,
+  ];
   final staves = <PlannedStaff>[];
   var y = 0.0;
   var labelY = 0.0;
-  for (final (index, _) in units.first.staves.indexed) {
+  for (final (index, staff) in units.first.staves.indexed) {
     final courtesy = next == null
         ? (above: 0.0, below: 0.0)
         : headReach(next.heads.courtesy, index);
@@ -539,8 +602,10 @@ SystemPlan planSystem(SystemKey key, EngravingStyle style, TextMeasurer text) {
       labelY = above - under - number.descent;
     }
     final top = y + (index == 0 ? 0 : style.staffGap) + above;
-    staves.add((top: top));
-    y = top + staffHeight + below;
+    final rows = lyricRows(lyrics, key.carry, staff.staff, style, text);
+    final lyricsFrom = top + staffHeight + below;
+    staves.add((top: top, lyricsFrom: lyricsFrom, rows: rows));
+    y = lyricsFrom + lyricRoom(rows, style);
   }
   return SystemPlan(
     key: key,

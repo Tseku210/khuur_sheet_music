@@ -41,6 +41,9 @@ void walk(
           ]),
         );
       }
+      if (random.nextInt(3) == 0) {
+        score = sung(score, random);
+      }
       if (random.nextInt(25) == 0) {
         width = randomWidth(random);
       }
@@ -48,6 +51,40 @@ void walk(
       check(layout, score, width);
     }
   }
+}
+
+const syllableTexts = ['a', 'dolce', 'Тайван', '月', 'Lie-', '\u0938\u0902'];
+
+/// [score] with a syllable set, changed or cleared on a random chord, in
+/// one of three verses. Lyric edits are rarer in [randomEdit] than a
+/// vocal line needs to run words and melismas across systems.
+Score sung(Score score, Random random) {
+  final chords = <EventRef>[
+    for (final measure in score.measures)
+      for (final staff in score.measureView(measure.id).staves)
+        for (final voice in staff.voices)
+          for (final timed in voice.events)
+            if (timed.event is ChordEvent) timed.ref,
+  ];
+  if (chords.isEmpty) {
+    return score;
+  }
+  final verse = 1 + random.nextInt(3);
+  return edited(
+    score,
+    SetLyric(
+      pick(random, chords),
+      verse,
+      random.nextInt(4) == 0
+          ? null
+          : Lyric(
+              verse: verse,
+              text: pick(random, syllableTexts),
+              syllabic: pick(random, Syllabic.values),
+              extend: random.nextBool(),
+            ),
+    ),
+  );
 }
 
 /// How many marks [view] holds on its events, its staves and its column.
@@ -96,6 +133,10 @@ void main() {
       var voltaBars = 0;
       var marks = 0;
       var tuplets = 0;
+      var syllables = 0;
+      var hyphenated = 0;
+      var extended = 0;
+      final lanes = <(StaffId, VoiceSlot, int)>{};
       final spanners = <Type, int>{};
 
       walk(style, (layout, score, width) {
@@ -114,6 +155,24 @@ void main() {
               0,
               (n, voice) => n + voice.tuplets.length,
             );
+            for (final voice in staff.voices) {
+              for (final TimedEvent(:event) in voice.events) {
+                if (event is! ChordEvent) {
+                  continue;
+                }
+                for (final lyric in event.lyrics) {
+                  syllables++;
+                  if (lyric.syllabic == Syllabic.begin ||
+                      lyric.syllabic == Syllabic.middle) {
+                    hyphenated++;
+                  }
+                  if (lyric.extend) {
+                    extended++;
+                  }
+                  lanes.add((staff.source.staff, voice.slot, lyric.verse));
+                }
+              }
+            }
           }
           if (measure.volta != null) {
             voltaBars++;
@@ -134,6 +193,10 @@ void main() {
       expect(voltaBars, greaterThan(0));
       expect(marks, greaterThan(50000));
       expect(tuplets, greaterThan(3000));
+      expect(syllables, greaterThan(20000));
+      expect(hyphenated, greaterThan(10000));
+      expect(extended, greaterThan(10000));
+      expect(lanes.length, greaterThan(50));
       for (final kind in [
         Slur,
         Hairpin,

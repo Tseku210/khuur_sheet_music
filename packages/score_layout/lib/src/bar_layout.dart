@@ -8,6 +8,7 @@ import 'package:score_model/score_model.dart';
 import 'bar_space.dart';
 import 'beams.dart';
 import 'chords.dart';
+import 'lyrics.dart';
 import 'marks.dart';
 import 'signatures.dart';
 import 'spacing.dart';
@@ -25,7 +26,8 @@ import 'text.dart';
 ///
 /// It also keeps no view. Everything a system needs from the bar is here in
 /// resolved form, with the head for each place the bar can land. Planning
-/// reads [widths], [staves] and [breakBefore]. Assembly reads the rest.
+/// reads [widths], [staves], [lyrics] and [breakBefore]. Assembly reads the
+/// rest.
 final class BarLayout {
   const BarLayout({
     required this.measure,
@@ -44,6 +46,7 @@ final class BarLayout {
     required this.ties,
     required this.spanners,
     required this.volta,
+    required this.lyrics,
   });
 
   final MeasureId measure;
@@ -69,6 +72,8 @@ final class BarLayout {
   /// The visible staves, top to bottom, with how far the bar's content reaches
   /// outside each. The reach covers the inline and the system head. The
   /// courtesy head is drawn on the system before, so planning counts it there.
+  /// Lyric rows are not in it. Planning adds them from [lyrics], because a
+  /// row's height belongs to the system.
   final List<BarStaff> staves;
 
   /// Everything placed against one slice, in bar space.
@@ -81,6 +86,7 @@ final class BarLayout {
   final List<TieEnd> ties;
   final List<SpannerPiece> spanners;
   final VoltaStub? volta;
+  final BarLyrics lyrics;
 
   @override
   bool operator ==(Object other) =>
@@ -100,7 +106,8 @@ final class BarLayout {
       _same(other.tuplets, tuplets) &&
       _same(other.ties, ties) &&
       _same(other.spanners, spanners) &&
-      other.volta == volta;
+      other.volta == volta &&
+      other.lyrics == lyrics;
 
   @override
   int get hashCode =>
@@ -224,6 +231,10 @@ BarLayout layoutBar(
     text: text,
   )) {
     reach[slice] = widest(reach[slice], (left: 0, right: right));
+  }
+  final lyrics = lyricsOf(view, times, chords, style, text);
+  for (final syllable in lyrics.syllables) {
+    reach[syllable.slice] = widest(reach[syllable.slice], syllable.reach);
   }
 
   final items = [
@@ -487,6 +498,7 @@ BarLayout layoutBar(
     ties: ties,
     spanners: spanners,
     volta: volta,
+    lyrics: lyrics,
   );
 }
 

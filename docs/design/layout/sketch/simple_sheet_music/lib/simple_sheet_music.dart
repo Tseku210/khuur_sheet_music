@@ -13,7 +13,6 @@ export 'package:score_layout/score_layout.dart'
         ChordSymbolSpelling,
         ElementOwner,
         EngravingStyle,
-        ExtenderEnd,
         Owner,
         PlaybackPoint,
         QuarterToneGlyphs,

@@ -8,18 +8,25 @@ import 'breaking.dart';
 import 'chords.dart';
 import 'drawable.dart';
 import 'geometry.dart';
+import 'lyrics.dart';
 import 'marks.dart';
 import 'signatures.dart';
 import 'spacing.dart';
 import 'spanners.dart';
 import 'style.dart';
 import 'system_layout.dart';
+import 'text.dart';
 
 /// Assembles the system of [plan].
 ///
 /// The plan already fixed the stretch, the staff tops and the height, so this
-/// only places. A pure function of the plan and the style.
-SystemLayout assembleSystem(SystemPlan plan, EngravingStyle style) {
+/// only places. A pure function of the plan, the style and the text
+/// measurer, which measures the lyric hyphen.
+SystemLayout assembleSystem(
+  SystemPlan plan,
+  EngravingStyle style,
+  TextMeasurer text,
+) {
   final key = plan.key;
   final units = key.units;
   final tops = plan.staffTops;
@@ -105,6 +112,21 @@ SystemLayout assembleSystem(SystemPlan plan, EngravingStyle style) {
         style: style,
       ),
     );
+  for (final staff in plan.staves) {
+    drawables.addAll(
+      placeLyrics(
+        [for (final (:bar, :frame) in singles) (of: bar.lyrics, frame: frame)],
+        rows: staff.rows,
+        baselines: lyricBaselines(staff.rows, staff.lyricsFrom, style),
+        carry: key.carry,
+        carryOut: key.carryOut,
+        next: key.next?.lyrics,
+        right: right,
+        style: style,
+        text: text,
+      ),
+    );
+  }
 
   assert(
     drawables.every((drawable) => _inside(drawable.bounds, plan)),

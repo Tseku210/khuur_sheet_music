@@ -33,6 +33,12 @@ const grand = PartTemplate(
   clefs: [Clef.treble, Clef.bass],
 );
 
+const voice = PartTemplate(
+  name: 'Voice',
+  shortName: 'V.',
+  instrument: Instrument(key: 'voice', program: 52),
+);
+
 Score edit(Score score, Edit edit) =>
     applied(EditSession.start(score).run(edit)).score;
 
@@ -68,6 +74,166 @@ void expectInside(Ink? ink, ui.Rect rect, String reason) {
   expect(ink.top, greaterThanOrEqualTo(rect.top - 1), reason: reason);
   expect(ink.right, lessThanOrEqualTo(rect.right + 1), reason: reason);
   expect(ink.bottom, lessThanOrEqualTo(rect.bottom + 1), reason: reason);
+}
+
+/// The scale that paints a system whose band starts at [top]. A system on a
+/// whole pixel keeps its glyphs where their boxes say.
+SheetScale scaleOf(double top) => SheetScale(
+      spacePx: spacePx,
+      origin: ui.Offset(
+        margin * spacePx,
+        ((margin + top) * spacePx).ceilToDouble(),
+      ),
+    );
+
+/// The PNG of [layout] under its header, after checking that each system's
+/// ink alone stays inside its band.
+Future<Uint8List> pictureOf(SheetLayout layout, GlyphPainter painter) async {
+  final width = ((sheetWidth + 2 * margin) * spacePx).ceil();
+  final height = ((layout.height + 2 * margin) * spacePx).ceil();
+  for (var i = 0; i < layout.systemCount; i++) {
+    final system = layout.systemAt(i);
+    final scale = scaleOf(layout.tops[i]);
+    final drawables = inkOf(layout, i);
+    final alone = await render(
+      width,
+      height,
+      (canvas) => paintDrawables(canvas, painter, drawables, scale),
+      background: null,
+    );
+    expect(system.width, sheetWidth, reason: 'system $i');
+    expectInside(
+      inkOfImage(alone.rgba, width),
+      scale.rectOf(Box(0, 0, system.width, system.height)),
+      'system $i',
+    );
+  }
+  final image = await render(width, height, (canvas) {
+    paintDrawables(canvas, painter, layout.header, scaleOf(0));
+    for (var i = 0; i < layout.systemCount; i++) {
+      paintDrawables(
+          canvas, painter, inkOf(layout, i), scaleOf(layout.tops[i]));
+    }
+  });
+  return image.png;
+}
+
+/// A syllable from a token of a verse, where a leading `-` joins the word
+/// before it, a trailing `-` continues the word and a trailing `_` starts a
+/// melisma, as in `Gen-`, `-tle` and `ah_`.
+Lyric syllable(String token, int verse) {
+  final joins = token.startsWith('-');
+  final continues = token.endsWith('-');
+  final extend = token.endsWith('_');
+  return Lyric(
+    verse: verse,
+    text: token.substring(
+      joins ? 1 : 0,
+      token.length - (continues || extend ? 1 : 0),
+    ),
+    syllabic: switch ((joins, continues)) {
+      (false, false) => Syllabic.single,
+      (false, true) => Syllabic.begin,
+      (true, true) => Syllabic.middle,
+      (true, false) => Syllabic.end,
+    },
+    extend: extend,
+  );
+}
+
+/// Eight bars for one voice with two verses, one in Latin and one in
+/// Cyrillic letters. Words of two and three syllables are hyphenated inside a
+/// bar, across a barline and across the system break before bar 5. Two
+/// melismas carry extenders, one ending before the next syllable and one
+/// crossing a barline to end before a rest.
+Score vocal() {
+  var score = blankScore(parts: const [voice], bars: 8).copyWith(
+    meta: const ScoreMeta(
+      title: 'Vocal Picture',
+      subtitle: 'Eight bars for one voice, two verses',
+      composer: 'The Layout Engine',
+      lyricist: 'Nobody',
+    ),
+  );
+  final ids = barIds(score);
+  score = edit(score, SetBreak(ids[4], LayoutBreak.system));
+  score = edit(score, SetBarline(ids[7], Barline.finalBar));
+
+  var id = 10000;
+  ChordEvent sung(
+    String pitch,
+    NoteValue value, [
+    String? first,
+    String? second,
+  ]) =>
+      chordOf(id++, pitch, value: value).copyWith(
+        lyrics: Seq([
+          if (first != null) syllable(first, 1),
+          if (second != null) syllable(second, 2),
+        ]),
+      );
+
+  for (final (bar, items) in <(int, List<VoiceItem>)>[
+    (
+      0,
+      [
+        sung('G4', NoteValue.quarter, 'Gen-', 'Мо-'),
+        sung('A4', NoteValue.quarter, '-tle', '-рин'),
+        sung('B4', half, 'wind', 'хуур'),
+      ]
+    ),
+    (
+      1,
+      [
+        sung('C5', NoteValue.quarter, 'blows', 'дуу'),
+        sung('D5', NoteValue.quarter, 'o-', 'сай-'),
+        sung('E5', NoteValue.quarter, '-ver', '-хан'),
+        sung('D5', NoteValue.quarter, 'the', 'тэр'),
+      ]
+    ),
+    (
+      2,
+      [
+        sung('C5', half, 'ah_', 'а_'),
+        sung('B4', NoteValue.quarter),
+        sung('A4', NoteValue.quarter),
+      ]
+    ),
+    (
+      3,
+      [
+        sung('G4', half, 'bright', 'гэгээн'),
+        sung('A4', half, 'sun-', 'нар-'),
+      ]
+    ),
+    (
+      4,
+      [
+        sung('B4', half, '-light', '-ан'),
+        sung('C5', half, 'falls', 'тусна'),
+      ]
+    ),
+    (
+      5,
+      [
+        sung('D5', NoteValue.quarter, 'soft-', 'зөө-'),
+        sung('C5', NoteValue.quarter, '-ly', '-лөн'),
+        sung('B4', NoteValue.quarter, 'down', 'бууна'),
+        sung('A4', NoteValue.quarter, 'ev-', 'мөн-'),
+      ]
+    ),
+    (
+      6,
+      [
+        sung('G4', half, '-er', '-хөд'),
+        sung('A4', half, 'oh_', 'о_'),
+      ]
+    ),
+    (7, [sung('B4', half), rest(id++, half)]),
+  ]) {
+    score = fill(score, bar, items);
+  }
+  return score;
 }
 
 Score ensemble() {
@@ -390,36 +556,11 @@ void main() {
       final layout = layoutOf(pictured());
       final width = ((sheetWidth + 2 * margin) * spacePx).ceil();
       final height = ((layout.height + 2 * margin) * spacePx).ceil();
-      // A system on a whole pixel keeps its glyphs where their boxes say.
-      SheetScale scaleOf(double top) => SheetScale(
-            spacePx: spacePx,
-            origin: ui.Offset(
-              margin * spacePx,
-              ((margin + top) * spacePx).ceilToDouble(),
-            ),
-          );
       final header = scaleOf(0);
 
       expect(layout.systemCount, inInclusiveRange(3, 4));
       expect(layout.header, isNotEmpty);
-
-      for (var i = 0; i < layout.systemCount; i++) {
-        final system = layout.systemAt(i);
-        final scale = scaleOf(layout.tops[i]);
-        final drawables = inkOf(layout, i);
-        final alone = await render(
-          width,
-          height,
-          (canvas) => paintDrawables(canvas, painter, drawables, scale),
-          background: null,
-        );
-        expect(system.width, sheetWidth, reason: 'system $i');
-        expectInside(
-          inkOfImage(alone.rgba, width),
-          scale.rectOf(Box(0, 0, system.width, system.height)),
-          'system $i',
-        );
-      }
+      writeSnapshot('sheet_ensemble', await pictureOf(layout, painter));
 
       final headerAlone = await render(
         width,
@@ -434,19 +575,104 @@ void main() {
         headerInk.bottom,
         lessThanOrEqualTo(scaleOf(layout.tops.first).origin.dy),
       );
+    });
+  });
 
-      final image = await render(width, height, (canvas) {
-        paintDrawables(canvas, painter, layout.header, header);
-        for (var i = 0; i < layout.systemCount; i++) {
-          paintDrawables(
-            canvas,
-            painter,
-            inkOf(layout, i),
-            scaleOf(layout.tops[i]),
-          );
-        }
-      });
-      writeSnapshot('sheet_ensemble', image.png);
+  testWidgets(
+      'a vocal line paints two verses with their hyphens and extenders '
+      'inside each system\'s band', (tester) async {
+    await tester.runAsync(() async {
+      final painter = bravuraPainter();
+      await loadBravura(painter);
+      await loadTextFont();
+      final layout = layoutOf(vocal());
+      final spec = EngravingStyle.standard.specOf(TextRole.lyric);
+      final thickness = painter.font.defaults.lyricLineThickness;
+      List<TextDraw> lyricsOn(int system) => layout
+          .systemAt(system)
+          .drawables
+          .whereType<TextDraw>()
+          .where((text) => text.spec == spec)
+          .toList();
+      TextDraw wordOn(int system, String text) =>
+          lyricsOn(system).singleWhere((draw) => draw.text == text);
+      List<LineDraw> extendersOn(int system) => layout
+          .systemAt(system)
+          .drawables
+          .whereType<LineDraw>()
+          .where(
+            (line) => line.from.y == line.to.y && line.thickness == thickness,
+          )
+          .toList();
+
+      expect(layout.systemCount, 2);
+      expect(wordOn(0, 'Мо').origin.y, greaterThan(wordOn(0, 'Gen').origin.y));
+      expect(
+          wordOn(0, 'Мо').bounds.left, lessThan(wordOn(0, 'Gen').bounds.right));
+      expect(wordOn(0, 'Мо').bounds.right,
+          greaterThan(wordOn(0, 'Gen').bounds.left));
+      for (final (system, after, before) in [
+        (0, 'Gen', 'tle'),
+        (0, 'o', 'ver'),
+        (1, 'soft', 'ly'),
+        (1, 'ev', 'er'),
+      ]) {
+        expect(
+          lyricsOn(system).where(
+            (draw) =>
+                draw.text == '-' &&
+                draw.origin.y == wordOn(system, after).origin.y &&
+                draw.bounds.left >= wordOn(system, after).bounds.right &&
+                draw.bounds.right <= wordOn(system, before).bounds.left,
+          ),
+          hasLength(1),
+          reason: 'one hyphen between $after and $before',
+        );
+      }
+      for (final (system, from, to) in [
+        (0, 'sun', null),
+        (1, null, 'light'),
+        (0, 'нар', null),
+        (1, null, 'ан'),
+      ]) {
+        final edge = from != null
+            ? wordOn(system, from).bounds.right
+            : wordOn(system, to!).bounds.left;
+        final row = wordOn(system, from ?? to!).origin.y;
+        expect(
+          lyricsOn(system).where(
+            (draw) =>
+                draw.text == '-' &&
+                draw.origin.y == row &&
+                (from != null
+                    ? draw.bounds.left >= edge
+                    : draw.bounds.right <= edge),
+          ),
+          isNotEmpty,
+          reason: 'a hyphen ${from != null ? 'after $from' : 'before $to'} '
+              'at the system break',
+        );
+      }
+      expect(extendersOn(0), hasLength(2));
+      expect(extendersOn(1), hasLength(2));
+      for (final word in ['ah', 'а']) {
+        final melisma = wordOn(0, word);
+        expect(
+          extendersOn(0)
+              .singleWhere((line) => line.from.y == melisma.origin.y)
+              .from
+              .x,
+          closeTo(melisma.bounds.right, 1e-9),
+          reason: 'the extender of $word starts at its text',
+        );
+      }
+      expect(
+        extendersOn(1).map((line) => line.to.x),
+        everyElement(greaterThan(layout.systemAt(1).bars[3].left)),
+        reason: 'the final melisma runs on past the last barline',
+      );
+
+      writeSnapshot('sheet_lyrics', await pictureOf(layout, painter));
     });
   });
 

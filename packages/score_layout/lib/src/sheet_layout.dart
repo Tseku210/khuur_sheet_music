@@ -157,7 +157,10 @@ final class SheetLayout {
   /// old layout assembles after the update is its own.
   SystemLayout systemAt(int index) {
     final plan = _breaks.plans[index];
-    return _memo.putIfAbsent(plan.key, () => assembleSystem(plan, style));
+    return _memo.putIfAbsent(
+      plan.key,
+      () => assembleSystem(plan, style, _text),
+    );
   }
 
   /// The bar number printed at the start of system [index], in system

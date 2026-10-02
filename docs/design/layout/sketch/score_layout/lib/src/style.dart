@@ -24,7 +24,6 @@ final class EngravingStyle {
     this.quarterTones = QuarterToneGlyphs.steinZimmermann,
     this.stringNumbers = StringNumbers.circled,
     this.chordSymbols = ChordSymbolSpelling.asStored,
-    this.extenders = ExtenderEnd.beforeNextSyllable,
   });
 
   static const standard = EngravingStyle();
@@ -70,7 +69,6 @@ final class EngravingStyle {
   final QuarterToneGlyphs quarterTones;
   final StringNumbers stringNumbers;
   final ChordSymbolSpelling chordSymbols;
-  final ExtenderEnd extenders;
 
   TextSpec specOf(TextRole role) => text[role] ?? role.standard;
 
@@ -91,8 +89,7 @@ final class EngravingStyle {
       other.barNumbers == barNumbers &&
       other.quarterTones == quarterTones &&
       other.stringNumbers == stringNumbers &&
-      other.chordSymbols == chordSymbols &&
-      other.extenders == extenders;
+      other.chordSymbols == chordSymbols;
 
   @override
   int get hashCode => Object.hash(
@@ -113,7 +110,6 @@ final class EngravingStyle {
     quarterTones,
     stringNumbers,
     chordSymbols,
-    extenders,
   );
 }
 
@@ -182,12 +178,3 @@ enum StringNumbers { circled, roman }
 /// Whether chord symbols on a transposing staff print as stored or as the
 /// written key would spell them.
 enum ChordSymbolSpelling { asStored, written }
-
-/// Where a lyric extender (`Lyric.extend`) stops.
-enum ExtenderEnd {
-  /// At the last note before the verse's next syllable or a rest.
-  beforeNextSyllable,
-
-  /// At the last note tied or slurred to the syllable's note.
-  overTiesAndSlurs,
-}

@@ -186,9 +186,9 @@ List<BreakUnit> foldBars(List<BarLayout> bars, EngravingStyle style) {
 /// systems, so a plan and an assembled system are both reused by key.
 ///
 /// Bars are compared by identity, because a BarLayout is replaced exactly when
-/// its bar was laid out again. [carry] is compared by value.
+/// its bar was laid out again. [carry] and [carryOut] are compared by value.
 final class SystemKey {
-  const SystemKey({
+  SystemKey({
     required this.units,
     required this.next,
     required this.width,
@@ -236,8 +236,10 @@ final class SystemKey {
         units.length,
       ).every((i) => other.units[i] == units[i]);
 
+  /// Computed once. A key is hashed several times an update, by the plans
+  /// kept from the last break, the delta and the memo of assembled systems.
   @override
-  int get hashCode => Object.hash(
+  late final int hashCode = Object.hash(
     width,
     first,
     last,
@@ -300,9 +302,6 @@ final class SystemPlan {
   ];
 
   List<double> get staffTops => [for (final staff in staves) staff.top];
-
-  /// Lyric hyphens and extenders open at the system's start.
-  LyricCarry get carry => key.carry;
 
   /// x where the staves start.
   double get indent => key.first ? key.lead.firstIndent : key.lead.indent;
@@ -374,7 +373,8 @@ Breaks breakSystems({
 
   // What is open at each system's edge. One pass forward folds what every
   // bar leaves open. One pass backward finds the lanes whose next syllable
-  // joins a word, so a hyphen nothing joins is carried nowhere.
+  // joins a word, so a hyphen nothing joins is carried nowhere, and drops
+  // an extender the system's first bar does not hold.
   final open = <LyricCarry>[LyricCarry.none];
   for (var system = 0; system < starts.length; system++) {
     var carry = open.last;
@@ -400,7 +400,10 @@ Breaks breakSystems({
         }
       }
     }
-    edges[system] = open[system].closing(ahead);
+    edges[system] = open[system].closing(
+      ahead,
+      units[bounds[system]].first.lyrics,
+    );
   }
 
   final plans = <SystemPlan>[];
