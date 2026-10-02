@@ -201,6 +201,15 @@ BarLayout layoutBar(
       reach[slice] = widest(reach[slice], (left: 0, right: right));
     }
   }
+  for (final (:slice, :right) in lineStartReach(
+    view,
+    chords,
+    times: times,
+    style: style,
+    text: text,
+  )) {
+    reach[slice] = widest(reach[slice], (left: 0, right: right));
+  }
 
   final items = [
     for (final (staff, staffView) in view.staves.indexed)

@@ -190,6 +190,15 @@ BarLayout layoutBar(
       reach[slice] = widest(reach[slice], (left: 0, right: right));
     }
   }
+  for (final (:slice, :right) in lineStartReach(
+    view,
+    chords,
+    times: times,
+    style: style,
+    text: text,
+  )) {
+    reach[slice] = widest(reach[slice], (left: 0, right: right));
+  }
   final lyrics = lyricsOf(view, times, style, text);
   for (final syllable in lyrics.syllables) {
     reach[syllable.slice] = widest(reach[syllable.slice], syllable.reach);

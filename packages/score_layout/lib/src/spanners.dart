@@ -269,10 +269,68 @@ List<({int slice, double right})> letRingReach(
   ];
 }
 
-/// The width the system head grows by when a tie or slur arrives in the bar
-/// from an earlier system, so its stub before the head it lands on is at
-/// least [letRingLength] long. The stub starts where the head glyphs end
-/// and runs through the bar's [lead] in front of its first slice.
+/// The slice and right reach of what every line starting in [view] starts
+/// with: a tempo line's text, a pedal line's "Ped.", an octave line's glyph
+/// and a trill line's sign. It is content right of the line's start, like a
+/// dot or a flag, so spacing makes room for it before the next slice, and a
+/// line that starts on a system's last beat has room for its text inside
+/// the system. Unit 8's `markReach` adds the reach of the marks beside it.
+List<({int slice, double right})> lineStartReach(
+  MeasureView view,
+  Map<EventId, PlacedChord> chords, {
+  required List<Moment> times,
+  required EngravingStyle style,
+  required TextMeasurer text,
+}) => [
+  for (final segment in view.spanners)
+    if (segment.startsHere)
+      for (final staffView in view.staves)
+        if (staffView.source.staff == segment.spanner.staff)
+          ?_startReach(
+            segment,
+            staffView,
+            chords,
+            times: times,
+            style: style,
+            text: text,
+          ),
+];
+
+/// The slice and right reach of what the line of [segment] starts with, or
+/// null for a kind that starts with nothing.
+({int slice, double right})? _startReach(
+  SpannerSegment segment,
+  StaffView staffView,
+  Map<EventId, PlacedChord> chords, {
+  required List<Moment> times,
+  required EngravingStyle style,
+  required TextMeasurer text,
+}) {
+  final kind = segment.spanner.kind;
+  final width = switch (kind) {
+    TempoLine(text: final label) =>
+      text.measure(label, style.specOf(TextRole.expression)).width,
+    OctaveLine() || PedalLine() || TrillLine() => _rowWidth(
+      _startGlyphs(kind),
+      style.font,
+    ),
+    Slur() || Glissando() || Hairpin() => null,
+  };
+  if (width == null) {
+    return null;
+  }
+  final start = pieceStart(segment, staffView);
+  final chord = start.event == null ? null : chords[start.event];
+  final (:slice, :dx) = _lineStart(start, chord, times);
+  return (slice: slice, right: dx + width);
+}
+
+/// The width the system head grows by when a tie, slur or octave line
+/// arrives in the bar from an earlier system. An arriving tie or slur gets
+/// a stub at least [letRingLength] long before the head it lands on. An
+/// arriving octave line restates its glyph in parentheses, which ends at or
+/// before the bar's first slice. Both start where the head glyphs end and
+/// run through the bar's [lead] in front of its first slice.
 double arrivingRoom(
   List<TieEnd> ends,
   List<SpannerPiece> pieces, {
@@ -288,8 +346,15 @@ double arrivingRoom(
     for (final end in ends)
       if (end case TieArriving(:final to)) shortfall(to, _tieInset(defaults)),
     for (final piece in pieces)
-      if (!piece.startsHere && piece.kind is Slur)
-        shortfall(piece.until, _inset(piece.kind, defaults)),
+      if (!piece.startsHere)
+        switch (piece.kind) {
+          Slur() => shortfall(piece.until, _inset(piece.kind, defaults)),
+          OctaveLine() =>
+            _inset(piece.kind, defaults) +
+                _rowWidth(_restatedGlyphs(piece.kind), style.font) -
+                lead,
+          _ => 0.0,
+        },
   ].reduce(math.max);
 }
 
@@ -674,9 +739,12 @@ SpannerPiece _piece(
 
   switch (kind) {
     case Slur():
-      final fromSlice = startChord?.slice ?? times.indexOf(start.at);
+      final (slice: fromSlice, dx: fromDx) = _lineStart(
+        start,
+        startChord,
+        times,
+      );
       final untilSlice = endChord?.slice ?? times.indexOf(end.at);
-      final fromDx = startChord == null ? 0.0 : _centre(startChord.plan);
       final untilDx = endChord == null ? 0.0 : _centre(endChord.plan);
       final x0 = xs[fromSlice] + fromDx;
       final x1 = xs[untilSlice] + untilDx;
@@ -737,8 +805,11 @@ SpannerPiece _piece(
           ? text.measure(kind.text, style.specOf(TextRole.expression))
           : null;
       final room = _roomOf(kind, style, extent)!;
-      final fromSlice = startChord?.slice ?? times.indexOf(start.at);
-      final fromDx = startChord == null ? 0.0 : _centre(startChord.plan);
+      final (slice: fromSlice, dx: fromDx) = _lineStart(
+        start,
+        startChord,
+        times,
+      );
       final untilSlice = segment.endsHere
           ? endChord?.slice ?? times.indexOf(end.at)
           : times.length - 1;
@@ -761,6 +832,19 @@ SpannerPiece _piece(
       );
   }
 }
+
+/// Where a piece starts in its bar, as its slice and the offset from that
+/// slice's line, from where [pieceStart] put it and the [chord] it anchors
+/// on. A piece anchored on a chord starts at the chord's centre. The others
+/// start on the line.
+({int slice, double dx}) _lineStart(
+  ({Moment at, EventId? event}) start,
+  PlacedChord? chord,
+  List<Moment> times,
+) => (
+  slice: chord?.slice ?? times.indexOf(start.at),
+  dx: chord == null ? 0.0 : _centre(chord.plan),
+);
 
 /// The side every piece of [spanner] reserves on and is drawn on.
 Side _sideOf(Spanner spanner) => switch (spanner.kind) {
@@ -830,6 +914,25 @@ Glyph _octaveGlyph(OctaveShift shift) => switch (shift) {
   OctaveShift.down15 => Glyph.quindicesimaBassaMb,
   OctaveShift.up22 => Glyph.ventiduesimaAlta,
   OctaveShift.down22 => Glyph.ventiduesimaBassaMb,
+};
+
+/// The glyphs a line of [kind] starts with at its own start. A tempo line
+/// starts with text instead.
+List<Glyph> _startGlyphs(SpannerKind kind) => switch (kind) {
+  OctaveLine(:final shift) => [_octaveGlyph(shift)],
+  PedalLine() => const [Glyph.keyboardPedalPed],
+  TrillLine() => const [Glyph.ornamentTrill],
+  _ => const [],
+};
+
+/// The glyphs a line of [kind] restates when it continues onto a new system.
+List<Glyph> _restatedGlyphs(SpannerKind kind) => switch (kind) {
+  OctaveLine(:final shift) => [
+    Glyph.octaveParensLeft,
+    _octaveGlyph(shift),
+    Glyph.octaveParensRight,
+  ],
+  _ => const [],
 };
 
 /// The event sounding at [at] in voice [slot] of [staff], as
@@ -1019,21 +1122,13 @@ List<Drawable> _placeRun(
             owner: owner,
           ),
       ];
-    case OctaveLine(:final shift):
+    case OctaveLine():
       final room = _roomOf(kind, style, null)!;
       final baseline = _baselineOf(room, side, limit);
       final (glyphs, edge) = _glyphRow(
-        piece.startsHere
-            ? [_octaveGlyph(shift)]
-            : [
-                Glyph.octaveParensLeft,
-                _octaveGlyph(shift),
-                Glyph.octaveParensRight,
-              ],
+        piece.startsHere ? _startGlyphs(kind) : _restatedGlyphs(kind),
         x: startX,
         baseline: baseline,
-        left: left,
-        right: right,
         font: font,
         owner: owner,
       );
@@ -1067,11 +1162,9 @@ List<Drawable> _placeRun(
       final glyphs = <GlyphDraw>[];
       if (piece.startsHere) {
         final (row, edge) = _glyphRow(
-          [Glyph.keyboardPedalPed],
+          _startGlyphs(kind),
           x: startX,
           baseline: baseline,
-          left: left,
-          right: right,
           font: font,
           owner: owner,
         );
@@ -1102,11 +1195,9 @@ List<Drawable> _placeRun(
       final glyphs = <GlyphDraw>[];
       if (piece.startsHere) {
         final (row, edge) = _glyphRow(
-          [Glyph.ornamentTrill],
+          _startGlyphs(kind),
           x: startX,
           baseline: baseline,
-          left: left,
-          right: right,
           font: font,
           owner: owner,
         );
@@ -1140,20 +1231,19 @@ List<Drawable> _placeRun(
       var lineStart = startX;
       TextDraw? label;
       if (piece.startsHere && text.isNotEmpty) {
-        final x = within(math.min(startX, right - extent.width));
         label = TextDraw(
           text,
-          SpPoint(x, baseline),
+          SpPoint(startX, baseline),
           spec: style.specOf(TextRole.expression),
           bounds: Box(
-            x,
+            startX,
             baseline - extent.ascent,
-            x + extent.width,
+            startX + extent.width,
             baseline + extent.descent,
           ),
           owner: owner,
         );
-        lineStart = x + extent.width + _startGap;
+        lineStart = startX + extent.width + _startGap;
       }
       final lineY = baseline - extent.ascent / 2;
       return [
@@ -1189,24 +1279,28 @@ double _baselineOf(
   double limit,
 ) => side == Side.above ? limit - room.top : limit - room.bottom;
 
-/// [glyphs] laid out by their advances from [x] on [baseline], and the
-/// right edge of their ink. They move left as one so that edge never
-/// passes [right], and never left of [left].
-(List<GlyphDraw>, double) _glyphRow(
-  List<Glyph> glyphs, {
-  required double x,
-  required double baseline,
-  required double left,
-  required double right,
-  required SmuflFont font,
-  required Owner owner,
-}) {
+/// The width of [glyphs] laid out by their advances, to the right edge of
+/// the last one's ink.
+double _rowWidth(List<Glyph> glyphs, SmuflFont font) {
   var width = 0.0;
   for (final (index, glyph) in glyphs.indexed) {
     final metrics = font[glyph];
     width += index == glyphs.length - 1 ? metrics.box.right : metrics.advance;
   }
-  var at = math.max(left, math.min(x, right - width));
+  return width;
+}
+
+/// [glyphs] laid out by their advances from [x] on [baseline], and the
+/// right edge of their ink. The bar made room for the row where it starts,
+/// through [lineStartReach] or [arrivingRoom], so nothing moves it.
+(List<GlyphDraw>, double) _glyphRow(
+  List<Glyph> glyphs, {
+  required double x,
+  required double baseline,
+  required SmuflFont font,
+  required Owner owner,
+}) {
+  var at = x;
   final row = <GlyphDraw>[];
   for (final glyph in glyphs) {
     final metrics = font[glyph];

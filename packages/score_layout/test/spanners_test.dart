@@ -26,6 +26,10 @@ const double wide = 120;
 /// two, so the second bar starts a system.
 const double narrow = 45;
 
+/// The narrowest sheet the random walk lays out. A clef and seven sharps
+/// leave a continuation system less room than a restated octave row.
+const double tiny = 12;
+
 SheetLayout sheetOf(
   Score score, {
   double width = wide,
@@ -496,6 +500,76 @@ void main() {
         line.from.y,
         inInclusiveRange(label.bounds.top, label.bounds.bottom),
       );
+    });
+
+    test("what a line starts with on a system's last beat starts at the beat "
+        'and stays inside the system, which grows to hold it', () {
+      const long = 'Allegro ma non troppo, con brio e sempre cantabile';
+      var score = base;
+      for (final kind in const <SpannerKind>[
+        TempoLine(text: long, factor: 0.5),
+        PedalLine(),
+        OctaveLine(OctaveShift.up8),
+        TrillLine(),
+      ]) {
+        score = withSpanner(
+          score,
+          kind,
+          pointAt(score, 0, at(3, 4)),
+          pointAt(score, 1, at(2, 4)),
+        );
+      }
+      final sheet = sheetOf(score, width: narrow);
+      final first = sheet.systemAt(0);
+      final beat = headOf(first, noteRef(score, 0, 4));
+      final signs = <Drawable>[
+        textsOf(first, long).single,
+        for (var id = 901; id <= 903; id++)
+          glyphsOf(first, owner: SpannerOwner(SpannerId(id))).single,
+      ];
+
+      expect(first.width, greaterThan(narrow));
+      for (final sign in signs) {
+        expect(
+          sign.bounds.left,
+          greaterThanOrEqualTo(beat.left - 1e-9),
+          reason: '$sign',
+        );
+        expect(
+          sign.bounds.right,
+          lessThanOrEqualTo(first.width + 1e-9),
+          reason: '$sign',
+        );
+      }
+    });
+
+    test('an octave line restates its glyph before the first note of a '
+        'system too narrow for the row, and the system grows to hold it', () {
+      var score = blankScore(key: const KeySignature(7));
+      for (final bar in [0, 1]) {
+        score = fill(score, bar, [
+          chordOf(bar + 1, 'C#5', value: NoteValue.whole),
+        ]);
+      }
+      score = withSpanner(
+        score,
+        const OctaveLine(OctaveShift.up8),
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 1, at(2, 4)),
+      );
+      final sheet = sheetOf(score, width: tiny);
+      expect(sheet.systemCount, 2);
+
+      final second = sheet.systemAt(1);
+      final row = glyphsOf(second, owner: spanner).toList()
+        ..sort((a, b) => a.origin.x.compareTo(b.origin.x));
+      final headEnd = glyphsOf(second).map((g) => g.bounds.right).reduce(max);
+      final note = headOf(second, noteRef(score, 1, 2));
+
+      expect(row, hasLength(3));
+      expect(row.first.bounds.left, greaterThanOrEqualTo(headEnd));
+      expect(row.last.bounds.right, lessThanOrEqualTo(note.left + 1e-9));
+      expect(row.last.bounds.right, lessThanOrEqualTo(second.width + 1e-9));
     });
   });
 

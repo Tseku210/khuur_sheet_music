@@ -180,10 +180,28 @@ List<({int slice, double right})> letRingReach(
   Map<EventId, PlacedChord> chords,
 ) => throw UnimplementedError();
 
-/// The width the system head grows by when a tie or slur arrives in the bar
-/// from an earlier system, so its stub before the head it lands on is at
-/// least [letRingLength] long. The stub starts where the head glyphs end
-/// and runs through the bar's [lead] in front of its first slice.
+/// The slice and right reach of what every line starting in [view] starts
+/// with: a tempo line's text, a pedal line's "Ped.", an octave line's glyph
+/// and a trill line's sign. It is content right of the line's start, like a
+/// dot or a flag, so spacing makes room for it before the next slice, and a
+/// line that starts on a system's last beat has room for its text inside
+/// the system. It needs the planned chords, since a trill line starts at
+/// its chord's centre, so [markReach] does not fold it in. The bar merges
+/// both.
+List<({int slice, double right})> lineStartReach(
+  MeasureView view,
+  Map<EventId, PlacedChord> chords, {
+  required List<Moment> times,
+  required EngravingStyle style,
+  required TextMeasurer text,
+}) => throw UnimplementedError();
+
+/// The width the system head grows by when a tie, slur or octave line
+/// arrives in the bar from an earlier system. An arriving tie or slur gets
+/// a stub at least [letRingLength] long before the head it lands on. An
+/// arriving octave line restates its glyph in parentheses, which ends at or
+/// before the bar's first slice. Both start where the head glyphs end and
+/// run through the bar's [lead] in front of its first slice.
 double arrivingRoom(
   List<TieEnd> ends,
   List<SpannerPiece> pieces, {

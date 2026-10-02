@@ -22,10 +22,9 @@ import 'style.dart';
 import 'text.dart';
 
 /// The reach text and wide marks add to their slices, for spacing. Those are
-/// chord symbols, text directions, dynamics, tempo marks, the rehearsal mark,
-/// and what a line starts with at its own start, which is a tempo line's
-/// text, a pedal line's "Ped." and an octave line's glyph. So a line that
-/// starts on a system's last beat has room for its text inside the system.
+/// chord symbols, text directions, dynamics, tempo marks and the rehearsal
+/// mark. What a line starts with at its own start is `lineStartReach` in
+/// `spanners.dart`, merged by the bar after the chords are planned.
 List<SliceReach> markReach(
   MeasureView view,
   List<Moment> times,
