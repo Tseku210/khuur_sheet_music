@@ -82,12 +82,16 @@ final class ChordPlan {
   final List<GracePlan> graces;
 }
 
-/// One grace chord before a principal.
+/// One grace chord before a principal. Built by [planChord], which keeps its
+/// drawables with it.
 final class GracePlan {
-  const GracePlan({required this.source, required this.heads});
+  const GracePlan({required this.source, required this.heads, required this.x});
 
   final GraceChord source;
   final List<HeadPlan> heads;
+
+  /// The grace's own slice line against the principal's, negative.
+  final double x;
 }
 
 /// A planned chord with its place in the bar. Beams, ties, tuplets and
@@ -97,30 +101,43 @@ typedef PlacedChord = ({ChordPlan plan, int slice, int staff});
 /// The stem side of [chord]. A stored `ChordEvent.stem` wins. With two or
 /// more voices on the staff the voice decides (`VoiceSlot.stemsUp`). With
 /// one voice the mean step against the middle line decides, and a chord
-/// centred on it stems down. A beam group overrides this with one side for
-/// all its chords (see `beamStemSides`).
-StemSide stemSideFor(ChordEvent chord, StaffView staff, VoiceSlot slot) =>
-    throw UnimplementedError();
+/// centred on it stems down. The steps follow the clef in force [at] the
+/// chord. A beam group overrides this with one side for all its chords (see
+/// `beamStemSides`).
+StemSide stemSideFor(
+  ChordEvent chord,
+  StaffView staff,
+  VoiceSlot slot, {
+  required Moment at,
+}) => throw UnimplementedError();
 
 /// Plans [chord]. The plan has head glyphs from its value and
 /// `StaffView.headOf`, steps, flipped heads for seconds, accidentals from
 /// `StaffView.accidentals` stacked right to left by descending step, dots in
-/// the next space up, the flag from the value, and each grace chord.
+/// the next space up, the flag from the value, and each grace chord. It also
+/// holds its drawables against its own slice line, built once here, so the
+/// reach, the beam and the items read the same ink. A [beamed] chord is
+/// planned without its stem and flag.
 ChordPlan planChord({
   required TimedEvent timed,
   required ChordEvent chord,
   required StaffView staff,
   required StemSide stem,
+  required bool beamed,
   required EngravingStyle style,
 }) => throw UnimplementedError();
 
 /// The chord's items against [slice]. They are heads, accidentals, dots, ledger
-/// lines (for steps below 0 or above 8, extended by `legerLineExtension`) and
-/// tremolo strokes. An unbeamed chord also gets its stem, from the outer head's
+/// lines (for steps below 0 or above 8, extended by `legerLineExtension`, each
+/// spanning the heads on it or beyond it) and tremolo strokes. An unbeamed
+/// chord with a stem in its value also gets its stem, from the outer head's
 /// `stemUpSE` or `stemDownNW` anchor to a tip 3.5 spaces beyond the far head
-/// and never short of the middle line, and its flag at the tip. A [beamed]
-/// chord gets neither. Its stem depends on the stretch, so `placeBeam` draws it
-/// at system time.
+/// and never short of the middle line, and its flag at the tip. Dots that a
+/// flag would reach move past the flag. A tremolo lengthens the stem until the
+/// tip, or the flag, clears the strokes, and on a stemless chord its strokes
+/// are centred on the heads. A beamed chord gets neither stem nor flag. Its
+/// stem depends on the stretch, so `placeBeam` draws it at system time. An
+/// accidental clears a ledger line's extension as it clears a head.
 ///
 /// A head is owned by its `NoteRef`. Everything else is owned by the
 /// event's `EventRef`.
@@ -128,27 +145,32 @@ List<BarItem> placeChord(
   ChordPlan plan, {
   required int slice,
   required int staff,
-  required bool beamed,
-  required EngravingStyle style,
 }) => throw UnimplementedError();
 
+/// Where the chord's stem leaves its start head, the y of its far head, and
+/// the y a beam's inner edge must stay beyond (`keep`, the far head's y or the
+/// far edge of the tremolo strokes plus their clearance), against the chord's
+/// slice line, for `planBeam`.
+({double x, double start, double far, double keep}) stemOf(ChordPlan plan) =>
+    throw UnimplementedError();
+
 /// The grace chords of [plan], left of the principal at the style's grace
-/// scale, with the acciaccatura slash through the first one's flag, and
-/// their ties.
+/// scale, each with its stem up and its flag, and a slash through the stem of
+/// each acciaccatura where the font's eighth flag puts it, whatever the grace's
+/// value. The ties of grace notes are unit 7's, by the rule below.
 ///
-/// A grace chord has no reference of its own, so every grace drawable is owned
-/// by the principal's `EventRef`, and `TieView` cannot name a grace. A tied
-/// grace note is drawn here by one rule. It joins the head of the same
-/// `Note.tone` in the next grace chord of this principal, or in the principal
-/// when it is the last grace. This is the rule the model uses for ordinary
-/// ties. With no head of that tone there, the tie is a short let-ring stub. The
-/// curve lies inside one slice's reach, so it is a bar item and never crosses a
-/// barline.
+/// A grace chord has no reference of its own, so every grace drawable, heads
+/// included, is owned by the principal's `EventRef`, and `TieView` cannot name
+/// a grace. A tied grace note is drawn by one rule. It joins the head of the
+/// same `Note.tone` in the next grace chord of this principal, or in the
+/// principal when it is the last grace. This is the rule the model uses for
+/// ordinary ties. With no head of that tone there, the tie is a short let-ring
+/// stub. The curve lies inside one slice's reach, so it is a bar item and never
+/// crosses a barline.
 List<BarItem> graceItems(
   ChordPlan plan, {
   required int slice,
   required int staff,
-  required EngravingStyle style,
 }) => throw UnimplementedError();
 
 /// Where each head of [chords] is, for ties, slurs and glissandi. An anchor is
@@ -167,13 +189,16 @@ SliceReach restReach(Event rest, EngravingStyle style) =>
 /// upstem voice and down for a downstem voice when the staff has
 /// [voiceCount] of two or more. A hidden rest draws nothing. A
 /// `MeasureRest` is a whole rest centred between the first slice and
-/// [lastSlice], hung from step 6, or from the line of a one-line staff.
+/// [lastSlice] at stretch 1 ([xs]), hung from step 6, or from the line of a
+/// one-line staff ([lines]).
 List<BarItem> placeRest({
   required TimedEvent timed,
   required int slice,
   required int lastSlice,
   required int staff,
   required int voiceCount,
+  required int lines,
+  required List<double> xs,
   required EngravingStyle style,
 }) => throw UnimplementedError();
 

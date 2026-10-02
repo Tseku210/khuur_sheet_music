@@ -1,22 +1,12 @@
-import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_layout/score_layout.dart' show Glyph, SpPoint;
 import 'package:simple_sheet_music/src/painting.dart';
 
+import 'support/draw.dart';
 import 'support/glyph_gate.dart';
-
-/// `flutter test` registers no pubspec font, so the file is loaded under the
-/// family the painter asks for.
-Future<void> loadBravura(GlyphPainter painter) async {
-  final bytes = File('fonts/Bravura.otf').readAsBytesSync();
-  final loader = FontLoader(painter.family)
-    ..addFont(Future.value(ByteData.sublistView(bytes)));
-  await loader.load();
-}
 
 Future<Ink?> inkOfRect(ui.Rect rect) async {
   final recorder = ui.PictureRecorder();

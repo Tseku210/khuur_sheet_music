@@ -47,8 +47,15 @@ final class BeamPlan {
   /// What the beam and its stems cover at stretch 1, x from the bar's
   /// first slice and y from the staff's top line. The bar's skyline takes
   /// it. A stretch moves the stems apart and keeps both end heights, so
-  /// the vertical range holds at any stretch.
+  /// the vertical range holds at any stretch. It is the union of what
+  /// [placeBeam] draws at that stretch, computed without drawing it.
   final Box box;
+
+  @override
+  bool operator ==(Object other) => throw UnimplementedError();
+
+  @override
+  int get hashCode => throw UnimplementedError();
 }
 
 /// The stem side of every beamed chord of [voice]. A group takes one side, the

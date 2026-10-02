@@ -159,12 +159,10 @@ BarLayout layoutBar(
 ) {
   final times = sliceTimes(view);
   final chords = <EventId, PlacedChord>{};
-  final beamed = <EventId>{};
   final reach = markReach(view, times, style, text);
   for (final (staff, staffView) in view.staves.indexed) {
     for (final voice in staffView.voices) {
       final sides = beamStemSides(voice, staffView);
-      beamed.addAll(sides.keys);
       for (final timed in voice.events) {
         final slice = times.indexOf(timed.onset);
         final event = timed.event;
@@ -173,7 +171,10 @@ BarLayout layoutBar(
             timed: timed,
             chord: event,
             staff: staffView,
-            stem: sides[event.id] ?? stemSideFor(event, staffView, voice.slot),
+            stem:
+                sides[event.id] ??
+                stemSideFor(event, staffView, voice.slot, at: timed.onset),
+            beamed: sides.containsKey(event.id),
             style: style,
           );
           chords[event.id] = (plan: plan, slice: slice, staff: staff);
@@ -222,27 +223,18 @@ BarLayout layoutBar(
               lastSlice: times.length - 1,
               staff: staff,
               voiceCount: staffView.voices.length,
+              lines: staffView.part.staves
+                  .firstWhere((s) => s.id == staffView.source.staff)
+                  .lines,
+              xs: xs,
               style: style,
             ),
           );
         } else {
           items
+            ..addAll(placeChord(placed.plan, slice: placed.slice, staff: staff))
             ..addAll(
-              placeChord(
-                placed.plan,
-                slice: placed.slice,
-                staff: staff,
-                beamed: beamed.contains(timed.event.id),
-                style: style,
-              ),
-            )
-            ..addAll(
-              graceItems(
-                placed.plan,
-                slice: placed.slice,
-                staff: staff,
-                style: style,
-              ),
+              graceItems(placed.plan, slice: placed.slice, staff: staff),
             );
         }
       }

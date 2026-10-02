@@ -14,26 +14,35 @@
 
 import 'dart:io';
 
+import 'package:score_layout/src/bar_layout.dart';
+import 'package:score_layout/src/style.dart';
 import 'package:score_model/score_model.dart';
 
+import '../test/support/fake_measurer.dart';
 import '../test/support/fixtures.dart';
 import 'harness.dart';
 
-/// A first layout of [score]. Until the engine exists this is its floor,
-/// the model reads a layout must make. Returns the number of bars read.
+const EngravingStyle _style = EngravingStyle.standard;
+const FakeMeasurer _text = FakeMeasurer();
+
+/// A first layout of [score]: the model's view of every bar and the bar
+/// layout of each. The units the engine still lacks add their cost here as
+/// they land. Returns the number of bars laid out.
 int firstLayout(Score score) {
   for (final column in score.measures) {
-    score.measureView(column.id);
+    layoutBar(score.measureView(column.id), _style, _text);
   }
   return score.measures.length;
 }
 
-/// The update of a layout of [before] to [next]. Until the engine exists
-/// this is its floor, the model reads an update must make. Returns the
-/// number of bars read again.
+/// The update of a layout of [before] to [next]: the bars the model says to
+/// lay out again, each read and laid out. Returns the number of bars laid
+/// out again.
 int update(Score before, Score next) {
   final changes = next.changesSince(before);
-  changes.relayout.forEach(next.measureView);
+  for (final id in changes.relayout) {
+    layoutBar(next.measureView(id), _style, _text);
+  }
   return changes.relayout.length;
 }
 
