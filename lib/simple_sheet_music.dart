@@ -31,3 +31,4 @@ export 'src/music_objects/time_signature/time_signature.dart'
     show TimeSignature;
 export 'src/music_objects/time_signature/time_signature_type.dart'
     show TimeSignatureType;
+export 'src/score_player.dart' show PlaybackPosition, PlayerStatus, ScorePlayer;
