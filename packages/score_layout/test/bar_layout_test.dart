@@ -220,13 +220,14 @@ void main() {
       );
     });
 
-    test('each staff reports how far content reaches outside it', () {
+    test('each staff reports how far its notes and its clef reach outside '
+        'it', () {
       final layout = layoutOf(
         viewOf(
           scoreOf([
             [
               staffOf([chordOf(1, 'C6', value: whole)]),
-              staffOf([chordOf(2, 'E4', value: whole)]),
+              staffOf([chordOf(2, 'E3', value: whole)], clef: Clef.bass),
               staffOf([chordOf(3, 'C2', value: whole)], clef: Clef.bass),
             ],
           ]),
@@ -234,12 +235,35 @@ void main() {
       );
 
       expect(layout.staves.map((s) => s.lines), [5, 5, 5]);
-      expect(layout.staves[0].above, greaterThan(2));
-      expect(layout.staves[0].below, 0);
-      expect(layout.staves[1].above, 0);
-      expect(layout.staves[1].below, closeTo(0.5, 0.1));
-      expect(layout.staves[2].above, 0);
-      expect(layout.staves[2].below, greaterThan(1));
+      expect(layout.staves[0].above, greaterThan(2), reason: 'the C6');
+      expect(
+        layout.staves[0].below,
+        closeTo(1.632, 1e-9),
+        reason: 'the tail of the G clef',
+      );
+      expect(
+        layout.staves[1].above,
+        closeTo(0.048, 1e-9),
+        reason: 'the top of the F clef',
+      );
+      expect(layout.staves[1].below, 0, reason: 'an E3 inside the staff');
+      expect(layout.staves[2].above, closeTo(0.048, 1e-9));
+      expect(layout.staves[2].below, greaterThan(1), reason: 'the C2');
+    });
+
+    test('what only the inline head prints counts toward the reach', () {
+      final score = after(
+        beatsScore(2, key: const KeySignature(3)),
+        [SetKey(from: barId(1), key: KeySignature.cMajor)],
+      );
+
+      expect(
+        layoutOf(viewOf(score, 1)).staves.single.above,
+        closeTo(1.864, 1e-9),
+        reason:
+            'the natural on G5, which the system head leaves to the '
+            'courtesy',
+      );
     });
 
     test('a beam counts toward the reach of its staff', () {

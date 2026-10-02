@@ -189,6 +189,24 @@ BarLayout layoutBar(
   for (final syllable in lyrics.syllables) {
     reach[syllable.slice] = widest(reach[syllable.slice], syllable.reach);
   }
+  // A clef change sits left of everything its slice reaches, so it is
+  // placed against the finished reach and then widens it.
+  final items = [
+    for (final (staff, staffView) in view.staves.indexed)
+      ...clefChangeItems(
+        staffView,
+        staff: staff,
+        times: times,
+        reach: reach,
+        style: style,
+      ),
+  ];
+  for (final clef in items) {
+    reach[clef.slice] = widest(reach[clef.slice], (
+      left: -clef.drawable.bounds.left,
+      right: 0,
+    ));
+  }
 
   final column = view.column;
   final edges = (
@@ -209,7 +227,6 @@ BarLayout layoutBar(
   );
   final xs = sliceXs(slices, 1, 0);
 
-  final items = <BarItem>[];
   final beams = <BeamPlan>[];
   for (final (staff, staffView) in view.staves.indexed) {
     for (final voice in staffView.voices) {
@@ -249,9 +266,6 @@ BarLayout layoutBar(
         );
       }
     }
-    items.addAll(
-      clefChangeItems(staffView, staff: staff, times: times, style: style),
-    );
   }
 
   final skylines = [for (final _ in view.staves) Skyline()];

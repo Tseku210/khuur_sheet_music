@@ -11,6 +11,7 @@ import 'bar_space.dart';
 import 'drawable.dart';
 import 'geometry.dart';
 import 'glyphs.dart';
+import 'spacing.dart';
 import 'style.dart';
 import 'text.dart';
 
@@ -26,8 +27,10 @@ final class BarHead {
 
   final List<HeadItem> items;
 
-  /// From the head's left edge to the end of its last glyph, with the gap
-  /// after it. Room for a start repeat sign is included, the sign is not:
+  /// From the head's left edge to the end of its last group, with the gap
+  /// after it. Room for a start repeat sign ([startRepeatWidth]) is included,
+  /// as the last group, so the sign's left edge is at
+  /// `width - gap - startRepeatWidth`. The sign is not included:
   /// [placeBarlines] draws it.
   final double width;
 }
@@ -58,11 +61,12 @@ final class BarHeads {
 
   /// When the bar follows another on its system. It holds the clef, key and
   /// meter the bar changes or restates (`StaffView.clefChanged`, `printsKey`,
-  /// `printsMeter`).
+  /// `printsMeter`). The clef is the small one, as for a change inside a bar.
   final BarHead inline;
 
   /// When the bar starts a system. It holds the clef and key on every staff,
   /// and the meter when it changes here or `style.meterEverySystem` is set.
+  /// A changed key cancels the old one here only when no courtesy did.
   final BarHead system;
 
   /// What the system before ends with when this bar starts a system. It holds
@@ -74,31 +78,36 @@ final class BarHeads {
 
 /// The heads of [view].
 BarHeads barHeads(MeasureView view, EngravingStyle style) {
-  // TODO, per variant, left to right with one gap between groups:
+  // Per variant, left to right, with one gap before each group and one
+  // after the last:
   // - clef per staff: clefGlyph, on the line Clef.line names;
   // - key per staff: keySignatureItems of StaffView.writtenKey, cancelling
-  //   MeasureView.previousKey when the key changes. A percussion clef
-  //   prints no key;
+  //   the staff's written form of MeasureView.previousKey when the key
+  //   changes. A percussion clef prints no key;
   // - meter per staff: meterItems;
   // - room for the start repeat sign when column.repeatStart.
-  // Groups align across staves: each group starts at the widest end of the
-  // group before it.
+  // Groups align across staves: each group starts one gap after the widest
+  // end of the group before it.
   throw UnimplementedError();
 }
 
-/// The clef's glyph, full size in a head and the `Change` size inside a bar.
-Glyph clefGlyph(Clef clef, {required bool change}) =>
+/// The clef's glyph and the scale to draw it at. It is full size at the start
+/// of a system and small where the clef changes. SMuFL has a `Change` glyph
+/// for the three plain clefs. An octave clef or a percussion clef is its
+/// full glyph scaled down.
+({Glyph glyph, double scale}) clefGlyph(Clef clef, {required bool change}) =>
     throw UnimplementedError();
 
 /// The staff steps of a key signature's accidentals under [clef], in printing
-/// order. They follow the standard octave pattern of sharps or flats for the
-/// clef's sign, moved by its line.
+/// order. Each accidental sits on the one step of its letter in an octave
+/// whose top step is looked up by where the clef puts C. Empty under a
+/// percussion clef, which prints no key.
 List<int> keySignatureSteps(KeySignature key, Clef clef) =>
     throw UnimplementedError();
 
 /// A key signature from x 0. Naturals come first, for what [cancels] has and
-/// [key] lacks, then the sharps or flats of [key]. Returns the items and their
-/// width.
+/// [key] lacks, on the steps [cancels] printed them. Then come the sharps or
+/// flats of [key]. Returns the items and their width.
 BarHead keySignatureItems(
   KeySignature key,
   Clef clef, {
@@ -109,20 +118,24 @@ BarHead keySignatureItems(
 
 /// A time signature from x 0. It is `timeSigCommon` or `timeSigCutCommon` for
 /// those symbols, else numerator over denominator in `timeSig` digits, each row
-/// centred. On a one-line staff both rows straddle the line.
+/// centred. The groups of an additive meter are joined by plus signs. The rows
+/// meet on the middle line, which is also the line of a one-line staff.
 BarHead meterItems(
   Meter meter, {
   required int staff,
-  required int lines,
   required EngravingStyle style,
 }) => throw UnimplementedError();
 
-/// A clef change inside the bar. It is the small clef just left of the slice at
-/// its offset. A change at offset 0 belongs to the head, not here.
+/// The clef changes inside the bar on one staff. Each is the small clef left
+/// of everything its slice reaches to the left on any staff, which is
+/// [reach] before the clefs widen it. `layoutBar` then widens the slice's
+/// left reach by the clef, so the slice before it makes room. A change at
+/// offset 0 belongs to the head, not here.
 List<BarItem> clefChangeItems(
   StaffView view, {
   required int staff,
   required List<Moment> times,
+  required List<SliceReach> reach,
   required EngravingStyle style,
 }) => throw UnimplementedError();
 
@@ -143,6 +156,10 @@ typedef BarEdges = ({
 double endBarlineWidth(BarEdges edges, EngravingStyle style) =>
     throw UnimplementedError();
 
+/// The width of a start repeat sign, which is a thick line, a thin line and
+/// the dots. An end repeat sign is its mirror image and as wide.
+double startRepeatWidth(EngravingStyle style) => throw UnimplementedError();
+
 /// The barlines and repeat signs of one system.
 ///
 /// A barline runs from the top line of the first staff of a part to the
@@ -153,6 +170,10 @@ double endBarlineWidth(BarEdges edges, EngravingStyle style) =>
 /// same system by a bar whose start repeat joins it draws as one sign at
 /// the boundary. The last bar of the score draws `Barline.finalBar` only
 /// when the model says so.
+///
+/// `BarEdges` does not say how wide the bar's head is, and a start repeat
+/// sits in the head's last group. The unit that writes this body has to
+/// pass the placed head's width with each bar.
 List<Drawable> placeBarlines(
   List<Framed<BarEdges>> bars, {
   required List<(int, int)> groups,
@@ -208,10 +229,10 @@ typedef LeadPart = ({
 
 /// The lead of [score]. Reused while `score.parts` is the same object.
 SystemLead systemLead(Score score, EngravingStyle style, TextMeasurer text) {
-  // TODO: for each part that is not hidden, measure name and shortName
-  // with the partName spec and count its staves. An indent is the widest
-  // name plus a gap, plus braceWidth when any part has two staves or
-  // more.
+  // For each part that is not hidden, measure name and shortName with the
+  // partName spec and count its staves. An indent is the widest name plus
+  // a gap, when any part has a name, plus braceWidth when any part has two
+  // staves or more.
   throw UnimplementedError();
 }
 

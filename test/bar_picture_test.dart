@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -6,6 +7,7 @@ import 'package:score_layout/score_layout.dart';
 import 'package:score_layout/src/bar_layout.dart';
 import 'package:score_layout/src/bar_space.dart';
 import 'package:score_layout/src/beams.dart';
+import 'package:score_layout/src/signatures.dart';
 import 'package:score_layout/src/spacing.dart';
 import 'package:score_model/score_model.dart';
 import 'package:simple_sheet_music/src/painting.dart';
@@ -107,19 +109,148 @@ final Map<String, MeasureView> bars = {
     restOf(6, eighth),
   ]),
   'tremolo': barOf([chordOf(1, 'C5', value: whole, tremolo: 3)]),
+  'clef_change': viewOf(
+    after(
+      scoreOf([
+        [
+          staffOf([
+            chordOf(1, 'G4', value: half),
+            chordOf(2, 'F#4'),
+            chordOf(3, 'A4'),
+          ]),
+        ],
+      ]),
+      [
+        SetClef(
+          staff: staffId(0),
+          at: ScorePoint(barId(0), at(1, 2)),
+          clef: Clef.alto,
+        ),
+        SetClef(
+          staff: staffId(0),
+          at: ScorePoint(barId(0), at(3, 4)),
+          clef: Clef.bass,
+        ),
+      ],
+    ),
+  ),
+};
+
+/// The second bar of a two-bar score, which changes what the first bar had
+/// to [key], [meter] or [clef], so that all three of its heads print.
+MeasureView changedBar({
+  Clef from = Clef.treble,
+  Clef? clef,
+  String pitch = 'B4',
+  KeySignature fromKey = KeySignature.cMajor,
+  KeySignature? key,
+  Meter fromMeter = Meter.fourFour,
+  Meter? meter,
+  bool repeat = false,
+}) =>
+    viewOf(
+      after(
+        beatsScore(
+          2,
+          clefs: [from],
+          key: fromKey,
+          meter: fromMeter,
+          pitch: pitch,
+        ),
+        [
+          if (key != null) SetKey(from: barId(1), key: key),
+          if (meter != null) SetMeter(from: barId(1), meter: meter),
+          if (clef != null)
+            SetClef(
+              staff: staffId(0),
+              at: ScorePoint(barId(1), Moment.zero),
+              clef: clef,
+            ),
+          if (repeat) SetRepeatStart(barId(1), start: true),
+        ],
+      ),
+      1,
+    );
+
+const KeySignature fourSharps = KeySignature(4);
+const KeySignature fourFlats = KeySignature(-4);
+
+/// One bar per signature concern. Each is drawn three times, behind its
+/// system head, its inline head and its courtesy head.
+final Map<String, MeasureView> headBars = {
+  'treble_sharps': changedBar(key: fourSharps),
+  'treble_flats': changedBar(key: fourFlats),
+  'bass_sharps': changedBar(from: Clef.bass, pitch: 'D3', key: fourSharps),
+  'bass_flats': changedBar(from: Clef.bass, pitch: 'D3', key: fourFlats),
+  'alto_sharps': changedBar(from: Clef.alto, pitch: 'C4', key: fourSharps),
+  'alto_flats': changedBar(from: Clef.alto, pitch: 'C4', key: fourFlats),
+  'tenor_sharps': changedBar(
+    from: Clef.tenor,
+    pitch: 'A3',
+    key: const KeySignature(7),
+  ),
+  'naturals_then_flats': changedBar(
+    fromKey: fourSharps,
+    key: const KeySignature(-2),
+  ),
+  'naturals_then_fewer_sharps': changedBar(
+    fromKey: fourSharps,
+    key: const KeySignature(1),
+  ),
+  'naturals_alone': changedBar(fromKey: fourFlats, key: KeySignature.cMajor),
+  'meter_four_four': changedBar(
+    fromMeter: Meter.threeFour,
+    meter: Meter.fourFour,
+  ),
+  'meter_six_eight': changedBar(meter: Meter.sixEight),
+  'meter_twelve_eight': changedBar(meter: Meter.simple(12, 8)),
+  'meter_common': changedBar(fromMeter: Meter.threeFour, meter: Meter.common),
+  'meter_cut': changedBar(meter: Meter.cut),
+  'clef_key_meter_repeat': changedBar(
+    clef: Clef.bass,
+    pitch: 'D4',
+    key: const KeySignature(-3),
+    meter: Meter.threeFour,
+    repeat: true,
+  ),
 };
 
 /// A bar drawn alone: its drawables in sheet space and the image size.
-({List<Drawable> drawables, int width, int height}) sheetOf(BarLayout layout) {
-  final xs = sliceXs(layout.slices, 1, margin + layout.lead);
+///
+/// With a [head], the head starts at the left margin and the notes follow
+/// it, as they do on a system. A [barline] before the head shows the gap an
+/// inline head keeps from it. [from] is the y the picture starts at, so that
+/// several bars can share one image.
+({
+  List<Drawable> drawables,
+  List<Drawable> head,
+  int width,
+  int height,
+  double bottom,
+}) sheetOf(
+  BarLayout layout, {
+  BarHead head = BarHead.none,
+  bool barline = false,
+  double from = margin,
+}) {
+  final xs = sliceXs(layout.slices, 1, margin + head.width + layout.lead);
   final right = xs.last + layout.slices.last.rod;
   final tops = <double>[];
-  var top = margin;
-  for (final staff in layout.staves) {
-    top += staff.above;
+  var top = from;
+  for (final (i, staff) in layout.staves.indexed) {
+    final reach = headReach(head, i);
+    // The engine puts glyph ink on whole pixels vertically, so a staff on a
+    // whole pixel keeps every glyph where its box says.
+    top =
+        ((top + math.max(staff.above, reach.above)) * spacePx).ceilToDouble() /
+            spacePx;
     tops.add(top);
-    top += staffHeight + staff.below + margin;
+    top += staffHeight + math.max(staff.below, reach.below) + margin;
   }
+  final placedHead = [
+    for (final item in head.items)
+      item.drawable.shift(margin, tops[item.staff]),
+  ];
   final frame = BarFrame(left: margin, xs: xs, tops: tops);
   final defaults = style.font.defaults;
   return (
@@ -132,18 +263,24 @@ final Map<String, MeasureView> bars = {
           right: right,
           thickness: defaults.staffLineThickness,
         ),
-        LineDraw(
-          SpPoint(right - defaults.thinBarlineThickness / 2, tops[i]),
-          SpPoint(
-              right - defaults.thinBarlineThickness / 2, tops[i] + staffHeight),
-          thickness: defaults.thinBarlineThickness,
-        ),
+        for (final x in [
+          if (barline) margin + defaults.thinBarlineThickness / 2,
+          right - defaults.thinBarlineThickness / 2,
+        ])
+          LineDraw(
+            SpPoint(x, tops[i]),
+            SpPoint(x, tops[i] + staffHeight),
+            thickness: defaults.thinBarlineThickness,
+          ),
       ],
+      ...placedHead,
       for (final item in layout.items) frame.place(item),
       for (final beam in layout.beams) ...placeBeam(beam, frame, style),
     ],
+    head: placedHead,
     width: ((right + margin) * spacePx).ceil(),
     height: (top * spacePx).ceil(),
+    bottom: top,
   );
 }
 
@@ -192,6 +329,74 @@ void main() {
           (canvas) => paintDrawables(canvas, painter, sheet.drawables, scale),
         );
         writeSnapshot('bar_$name', image.png);
+      }
+    });
+  });
+
+  testWidgets(
+      'each head of a bar leaves ink where it says, in front of the '
+      'notes', (tester) async {
+    await tester.runAsync(() async {
+      final painter = bravuraPainter();
+      await loadBravura(painter);
+      const scale = SheetScale(spacePx: spacePx);
+
+      for (final MapEntry(key: name, value: view) in headBars.entries) {
+        final layout = layoutBar(view, style, const FakeMeasurer());
+        final heads = [
+          layout.heads.system,
+          layout.heads.inline,
+          layout.heads.courtesy,
+        ];
+        final rows = [sheetOf(layout, head: heads.first)];
+        for (final head in heads.skip(1)) {
+          rows.add(
+            sheetOf(layout, head: head, barline: true, from: rows.last.bottom),
+          );
+        }
+        final width = rows.map((row) => row.width).reduce(math.max);
+        final height = rows.last.height;
+
+        for (final (index, row) in rows.indexed) {
+          expect(row.head, isNotEmpty, reason: '$name, head $index');
+          for (final drawable in row.head) {
+            final alone = await render(
+              width,
+              height,
+              (canvas) => paintDrawables(canvas, painter, [drawable], scale),
+              background: null,
+            );
+            final ink = inkIn(
+              alone.rgba,
+              width,
+              left: 0,
+              top: 0,
+              right: width,
+              bottom: height,
+            );
+            final rect = scale.rectOf(drawable.bounds);
+            final reason = '$name, head $index: $drawable';
+            expect(ink, isNotNull, reason: reason);
+            expect(ink!.left, greaterThanOrEqualTo(rect.left - 1),
+                reason: reason);
+            expect(ink.top, greaterThanOrEqualTo(rect.top - 1), reason: reason);
+            expect(ink.right, lessThanOrEqualTo(rect.right + 1),
+                reason: reason);
+            expect(ink.bottom, lessThanOrEqualTo(rect.bottom + 1),
+                reason: reason);
+          }
+        }
+        final image = await render(
+          width,
+          height,
+          (canvas) => paintDrawables(
+            canvas,
+            painter,
+            [for (final row in rows) ...row.drawables],
+            scale,
+          ),
+        );
+        writeSnapshot('heads_$name', image.png);
       }
     });
   });

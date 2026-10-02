@@ -15,6 +15,8 @@
 import 'dart:io';
 
 import 'package:score_layout/src/bar_layout.dart';
+import 'package:score_layout/src/breaking.dart';
+import 'package:score_layout/src/signatures.dart';
 import 'package:score_layout/src/style.dart';
 import 'package:score_model/score_model.dart';
 
@@ -25,25 +27,68 @@ import 'harness.dart';
 const EngravingStyle _style = EngravingStyle.standard;
 const FakeMeasurer _text = FakeMeasurer();
 
-/// A first layout of [score]: the model's view of every bar and the bar
-/// layout of each. The units the engine still lacks add their cost here as
-/// they land. Returns the number of bars laid out.
-int firstLayout(Score score) {
-  for (final column in score.measures) {
-    layoutBar(score.measureView(column.id), _style, _text);
-  }
-  return score.measures.length;
+/// The sheet every fixture is broken at, in staff spaces. A printed page is
+/// about this wide.
+const double _sheetWidth = 100;
+
+/// What a layout keeps for the update after it.
+typedef Laid = ({
+  Score score,
+  Map<MeasureId, BarLayout> bars,
+  Breaks breaks,
+
+  /// How many bars this layout laid out, as against carried over.
+  int laidOut,
+});
+
+/// A first layout of [score]: the model's view of every bar, the bar layout
+/// of each, and the bars broken into planned systems. The units the engine
+/// still lacks add their cost here as they land.
+Laid firstLayout(Score score) {
+  final bars = {
+    for (final column in score.measures)
+      column.id: layoutBar(score.measureView(column.id), _style, _text),
+  };
+  return (
+    score: score,
+    bars: bars,
+    breaks: breakSystems(
+      bars: [...bars.values],
+      width: _sheetWidth,
+      lead: systemLead(score, _style, _text),
+      style: _style,
+      text: _text,
+    ),
+    laidOut: bars.length,
+  );
 }
 
-/// The update of a layout of [before] to [next]: the bars the model says to
-/// lay out again, each read and laid out. Returns the number of bars laid
-/// out again.
-int update(Score before, Score next) {
-  final changes = next.changesSince(before);
-  for (final id in changes.relayout) {
-    layoutBar(next.measureView(id), _style, _text);
-  }
-  return changes.relayout.length;
+/// The update of [laid] to [next]: the bars the model says to lay out again,
+/// each read and laid out, and the breaks resumed from the ones before.
+Laid update(Laid laid, Score next) {
+  final changes = next.changesSince(laid.score);
+  final bars = {
+    for (final column in next.measures)
+      column.id: switch (laid.bars[column.id]) {
+        final kept? when !changes.relayout.contains(column.id) => kept,
+        _ => layoutBar(next.measureView(column.id), _style, _text),
+      },
+  };
+  return (
+    score: next,
+    bars: bars,
+    breaks: breakSystems(
+      bars: [...bars.values],
+      width: _sheetWidth,
+      lead: identical(next.parts, laid.score.parts)
+          ? laid.breaks.lead
+          : systemLead(next, _style, _text),
+      style: _style,
+      text: _text,
+      previous: laid.breaks,
+    ),
+    laidOut: changes.relayout.length,
+  );
 }
 
 typedef Fixture = ({
@@ -89,18 +134,18 @@ List<Measurement> measureFixture(Fixture fixture) {
   final first = measure(
     '${fixture.name} first layout',
     prepare: score.copyWith,
-    run: firstLayout,
+    run: (copy) => firstLayout(copy).laidOut,
     budget: fixture.firstLayoutBudget,
   );
 
   // An update starts from a score that was laid out, with its indexes built.
-  firstLayout(score);
+  final laid = firstLayout(score);
   final session = EditSession.start(score);
   final note = noteInBar(score, fixture.editedBar);
   final updated = measure(
     '${fixture.name} update',
     prepare: () => scoreAfter(session, note),
-    run: (next) => update(score, next),
+    run: (next) => update(laid, next).laidOut,
     budget: fixture.updateBudget,
   );
 

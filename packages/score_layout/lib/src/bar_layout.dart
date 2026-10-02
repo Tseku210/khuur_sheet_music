@@ -23,8 +23,8 @@ import 'text.dart';
 /// line and nothing about its neighbours.
 ///
 /// It also keeps no view. Everything a system needs from the bar is here in
-/// resolved form. Planning reads [widths], [staves] and [breakBefore].
-/// Assembly reads the rest.
+/// resolved form, with the head for each place the bar can land. Planning
+/// reads [widths], [staves] and [breakBefore]. Assembly reads the rest.
 final class BarLayout {
   const BarLayout({
     required this.measure,
@@ -36,6 +36,7 @@ final class BarLayout {
     required this.slices,
     required this.staves,
     required this.items,
+    required this.heads,
     required this.edges,
     required this.beams,
   });
@@ -60,12 +61,14 @@ final class BarLayout {
   final List<Slice> slices;
 
   /// The visible staves, top to bottom, with how far the bar's content reaches
-  /// outside each.
+  /// outside each. The reach covers the inline and the system head. The
+  /// courtesy head is drawn on the system before, so planning counts it there.
   final List<BarStaff> staves;
 
   /// Everything placed against one slice, in bar space.
   final List<BarItem> items;
 
+  final BarHeads heads;
   final BarEdges edges;
   final List<BeamPlan> beams;
 
@@ -81,6 +84,7 @@ final class BarLayout {
       _same(other.slices, slices) &&
       _same(other.staves, staves) &&
       _same(other.items, items) &&
+      other.heads == heads &&
       other.edges == edges &&
       _same(other.beams, beams);
 
@@ -96,10 +100,31 @@ bool _same<T>(List<T> a, List<T> b) =>
 /// and below its bottom line, in staff spaces.
 typedef BarStaff = ({StaffId staff, int lines, double above, double below});
 
-/// A bar's body widths in staff spaces, known before its system is. The
-/// widths of the bar's heads arrive with the unit that draws signatures.
+/// A bar's widths in staff spaces, known before its system is.
+///
+/// A system from bar i to bar j is
+/// `heads(i).system + sum(body) + sum(heads(i+1..j).inline) + courtesy(j+1)`
+/// wide at its natural spacing. Line breaking reads nothing else, which is
+/// why it can run without building a system.
 final class BarWidths {
-  const BarWidths({required this.body, required this.minBody});
+  const BarWidths({
+    required this.inlineHead,
+    required this.systemHead,
+    required this.courtesy,
+    required this.body,
+    required this.minBody,
+  });
+
+  /// Clef, key and meter changes printed when the bar is not first on its
+  /// system.
+  final double inlineHead;
+
+  /// Clef, key and meter printed when the bar starts a system.
+  final double systemHead;
+
+  /// Key and meter courtesy the previous system ends with when this bar
+  /// starts a system. 0 when nothing changes or the change says noCourtesy.
+  final double courtesy;
 
   /// The lead and the slices at their ideal spacing, never below
   /// [minBody].
@@ -110,17 +135,25 @@ final class BarWidths {
 
   @override
   bool operator ==(Object other) =>
-      other is BarWidths && other.body == body && other.minBody == minBody;
+      other is BarWidths &&
+      other.inlineHead == inlineHead &&
+      other.systemHead == systemHead &&
+      other.courtesy == courtesy &&
+      other.body == body &&
+      other.minBody == minBody;
 
   @override
-  int get hashCode => Object.hash(body, minBody);
+  int get hashCode =>
+      Object.hash(inlineHead, systemHead, courtesy, body, minBody);
 }
 
 /// Lays out [view] alone, for the cache.
 ///
 /// The order is fixed by what each step reads. Chords are planned before
 /// spacing, because spacing needs their reach. They are placed after it,
-/// because marks stack against placed notes.
+/// because marks stack against placed notes. A clef change inside the bar is
+/// placed before spacing, left of what its slice reaches, and then widens
+/// that reach.
 BarLayout layoutBar(
   MeasureView view,
   EngravingStyle style,
@@ -155,6 +188,23 @@ BarLayout layoutBar(
     }
   }
 
+  final items = [
+    for (final (staff, staffView) in view.staves.indexed)
+      ...clefChangeItems(
+        staffView,
+        staff: staff,
+        times: times,
+        reach: reach,
+        style: style,
+      ),
+  ];
+  for (final clef in items) {
+    reach[clef.slice] = widest(reach[clef.slice], (
+      left: -clef.drawable.bounds.left,
+      right: 0,
+    ));
+  }
+
   final column = view.column;
   final edges = (
     repeatStart: column.repeatStart,
@@ -174,7 +224,6 @@ BarLayout layoutBar(
   );
   final xs = sliceXs(slices, 1, 0);
 
-  final items = <BarItem>[];
   final beams = <BeamPlan>[];
   for (final (staff, staffView) in view.staves.indexed) {
     final lines = _linesOf(staffView);
@@ -228,6 +277,12 @@ BarLayout layoutBar(
   for (final beam in beams) {
     cover(beam.first.staff, beam.box);
   }
+  final heads = barHeads(view, style);
+  for (final head in [heads.inline, heads.system]) {
+    for (final item in head.items) {
+      cover(item.staff, item.drawable.bounds);
+    }
+  }
 
   final lead = reach.first.left + style.spacing.barPad;
   return BarLayout(
@@ -236,6 +291,9 @@ BarLayout layoutBar(
     breakBefore: column.breakBefore,
     restOnly: view.isRestOnly,
     widths: BarWidths(
+      inlineHead: heads.inline.width,
+      systemHead: heads.system.width,
+      courtesy: heads.courtesy.width,
       body: lead + naturalWidth(slices),
       minBody: lead + rodWidth(slices),
     ),
@@ -251,6 +309,7 @@ BarLayout layoutBar(
         ),
     ],
     items: items,
+    heads: heads,
     edges: edges,
     beams: beams,
   );

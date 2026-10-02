@@ -48,13 +48,16 @@ SliceReach widest(SliceReach a, SliceReach b) =>
     (left: math.max(a.left, b.left), right: math.max(a.right, b.right));
 
 /// The distinct moments of the bar, sorted. They are every event onset in
-/// every voice of every visible staff, and the bar's end. Grace chords take
-/// no slice. They sit left of their principal and widen its reach.
+/// every voice of every visible staff, every clef change inside the bar, and
+/// the bar's end. Grace chords take no slice. They sit left of their
+/// principal and widen its reach.
 List<Moment> sliceTimes(MeasureView view) {
   final onsets = [
-    for (final staff in view.staves)
+    for (final staff in view.staves) ...[
       for (final voice in staff.voices)
         for (final timed in voice.events) timed.onset,
+      for (final change in staff.source.clefChanges) change.offset,
+    ],
     Moment.zero + view.column.length,
   ]..sort((a, b) => a.compareTo(b));
   final times = <Moment>[];
@@ -71,10 +74,12 @@ List<Moment> sliceTimes(MeasureView view) {
 /// The spring after slice i follows the shortest duration d starting there
 /// in any voice. Its ideal is `quarterSpace * ratio^log2(d / quarter)`,
 /// scaled by `(times[i+1] - times[i]) / d` when the next slice comes sooner
-/// than d. The rod is `reach[i].right + minGap + reach[i+1].left`. The
-/// scale is absolute, so a bar's spacing never depends on another bar. The
-/// last slice is the bar's end, with no spring and a rod of [end], the
-/// width of the bar's end barline.
+/// than d. A slice where nothing starts, which a clef change makes, takes d
+/// from the slice before it. The rod is
+/// `reach[i].right + minGap + reach[i+1].left`. The scale is absolute, so a
+/// bar's spacing never depends on another bar. The last slice is the bar's
+/// end, with no spring and a rod of [end], the width of the bar's end
+/// barline.
 List<Slice> spaceSlices(
   MeasureView view,
   List<Moment> times,
@@ -93,6 +98,9 @@ List<Slice> spaceSlices(
         }
       }
     }
+  }
+  for (var i = 1; i < times.length - 1; i++) {
+    shortest[i] ??= shortest[i - 1];
   }
   return [
     for (var i = 0; i < times.length - 1; i++)

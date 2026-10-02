@@ -210,6 +210,56 @@ ChordEvent hitOf(
 Moment at(int numerator, int denominator) =>
     Moment(Fraction(numerator, denominator));
 
+/// [score] after [edits]. Throws when the model refuses one.
+Score after(Score score, List<Edit> edits) => edits.fold(
+  score,
+  (score, edit) => switch (EditSession.start(score).run(edit)) {
+    Applied(:final session) => session.score,
+    Refused(:final reason) => throw StateError('refused: $reason'),
+  },
+);
+
+/// A score of up to four [bars] with one staff per entry of [clefs], each
+/// bar of each staff holding [pitch] on every beat of [meter]. Beat `k` of bar
+/// `b` on staff `s` is event `b * 200 + s * 20 + k + 1`, so every id is its
+/// own and an edit can find it.
+Score beatsScore(
+  int bars, {
+  List<Clef> clefs = const [Clef.treble],
+  List<Instrument> instruments = const [],
+  Meter meter = Meter.fourFour,
+  KeySignature key = KeySignature.cMajor,
+  String pitch = 'B4',
+}) {
+  final value = NoteValue(
+    DurationBase.values.firstWhere(
+      (base) => base.length == Length(Fraction(1, meter.unit)),
+    ),
+  );
+  return scoreOf(
+    [
+      for (var b = 0; b < bars; b++)
+        [
+          for (final (s, clef) in clefs.indexed)
+            staffOf(
+              [
+                for (var k = 0; k < meter.numerator; k++)
+                  chordOf(b * 200 + s * 20 + k + 1, pitch, value: value),
+              ],
+              clef: clef,
+              instrument: s < instruments.length ? instruments[s] : piano,
+            ),
+        ],
+    ],
+    meter: meter,
+    key: key,
+  );
+}
+
+MeasureId barId(int bar) => MeasureId(3000 + bar);
+
+StaffId staffId(int staff) => StaffId(2000 + staff);
+
 const NoteValue eighth = NoteValue.eighth;
 const NoteValue sixteenth = NoteValue.sixteenth;
 const NoteValue half = NoteValue.half;

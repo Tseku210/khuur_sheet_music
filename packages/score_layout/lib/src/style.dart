@@ -1,4 +1,5 @@
 import 'smufl_font.dart';
+import 'text.dart';
 
 /// Everything that changes where things go. A change of style lays the
 /// whole score out again. Colours live in the Flutter shell's palette and
@@ -10,7 +11,14 @@ final class EngravingStyle {
   const EngravingStyle({
     this.font = SmuflFont.bravura,
     this.spacing = const SpacingPolicy(),
+    this.text = const {},
     this.graceScale = 0.66,
+    this.staffGap = 4,
+    this.multiMeasureRests = false,
+    this.meterEverySystem = false,
+    this.courtesySignatures = true,
+    this.justifyLastSystemFrom = 0.75,
+    this.barNumbers = true,
     this.quarterTones = QuarterToneGlyphs.steinZimmermann,
   });
 
@@ -19,22 +27,75 @@ final class EngravingStyle {
   final SmuflFont font;
   final SpacingPolicy spacing;
 
+  /// Overrides of [TextRole.standard]. A role not listed keeps its default.
+  final Map<TextRole, TextSpec> text;
+
   /// Size of grace notes relative to normal notes.
   final double graceScale;
 
+  /// Least clear space between the bottom of one staff's content and the
+  /// top of the next staff's content, in staff spaces.
+  final double staffGap;
+
+  /// Draw a run of rest-only bars as one bar with a count. Off by default
+  /// because an editor needs every bar visible to write into.
+  final bool multiMeasureRests;
+
+  /// Restate the time signature at the start of every system, as some
+  /// teaching material does. Off by default, as in engraving convention.
+  final bool meterEverySystem;
+
+  /// End a system with the key and time signature the next system changes
+  /// to, unless the change itself says `noCourtesy`.
+  final bool courtesySignatures;
+
+  /// The last system is stretched to the full width only when its bars at
+  /// their natural spacing fill at least this fraction of the room its
+  /// indent and signatures leave them. Otherwise it stays ragged.
+  final double justifyLastSystemFrom;
+
+  /// Number the first bar of every system.
+  final bool barNumbers;
+
   final QuarterToneGlyphs quarterTones;
+
+  TextSpec specOf(TextRole role) => text[role] ?? role.standard;
 
   @override
   bool operator ==(Object other) =>
       other is EngravingStyle &&
       other.font == font &&
       other.spacing == spacing &&
+      _sameText(other.text, text) &&
       other.graceScale == graceScale &&
+      other.staffGap == staffGap &&
+      other.multiMeasureRests == multiMeasureRests &&
+      other.meterEverySystem == meterEverySystem &&
+      other.courtesySignatures == courtesySignatures &&
+      other.justifyLastSystemFrom == justifyLastSystemFrom &&
+      other.barNumbers == barNumbers &&
       other.quarterTones == quarterTones;
 
   @override
-  int get hashCode => Object.hash(font, spacing, graceScale, quarterTones);
+  int get hashCode => Object.hash(
+    font,
+    spacing,
+    Object.hashAllUnordered(
+      text.entries.map((e) => Object.hash(e.key, e.value)),
+    ),
+    graceScale,
+    staffGap,
+    multiMeasureRests,
+    meterEverySystem,
+    courtesySignatures,
+    justifyLastSystemFrom,
+    barNumbers,
+    quarterTones,
+  );
 }
+
+bool _sameText(Map<TextRole, TextSpec> a, Map<TextRole, TextSpec> b) =>
+    a.length == b.length && a.entries.every((e) => b[e.key] == e.value);
 
 /// Horizontal spacing, as springs between time slices with rods that keep
 /// glyphs from touching.
@@ -49,6 +110,7 @@ final class SpacingPolicy {
     this.ratio = 1.41,
     this.minGap = 0.4,
     this.barPad = 1,
+    this.restRunWidth = 12,
   });
 
   /// Ideal space after a quarter note, in staff spaces.
@@ -64,16 +126,21 @@ final class SpacingPolicy {
   /// the bar's first slice reaches to the left.
   final double barPad;
 
+  /// Width of a folded run of rest-only bars before justification.
+  final double restRunWidth;
+
   @override
   bool operator ==(Object other) =>
       other is SpacingPolicy &&
       other.quarterSpace == quarterSpace &&
       other.ratio == ratio &&
       other.minGap == minGap &&
-      other.barPad == barPad;
+      other.barPad == barPad &&
+      other.restRunWidth == restRunWidth;
 
   @override
-  int get hashCode => Object.hash(quarterSpace, ratio, minGap, barPad);
+  int get hashCode =>
+      Object.hash(quarterSpace, ratio, minGap, barPad, restRunWidth);
 }
 
 /// Which SMuFL family spells quarter-tone accidentals.
