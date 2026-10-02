@@ -849,6 +849,7 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
 - `assets/petaluma_metadata.json` does not pass the reader. It has no `glyphAdvanceWidths` table, no `hBarThickness` and no box for `legerLine`. A font with a numeric engraving default the engine does not know is refused too. Both follow from the checks the design gave the reader, and both bear on C6.
 - The gate's images are one row of origins each, so no image is taller than a glyph. One image of all 64 origins reached 4,160 pixels at 64 pixels per staff space, which is past the texture size of an old phone.
 - The device runs on Android and iOS are open. The macOS run passes.
+- The pure-Dart units, 3 to 10, go ahead before the device runs. Decision 10 held every engine body until the gate passed on all three platforms. No Android device is attached to the development machine, and the engine's geometry reads the font's table, not the painter, so a path painter behind the same seam would change none of it. The device runs must pass before unit 11 builds the view.
 
 **Unit 2.**
 - The benchmark is `packages/score_layout/benchmark/layout_benchmark.dart`. Its two functions, `firstLayout` and `update`, hold the floor today. The unit that adds `SheetLayout` replaces their bodies and nothing else.
@@ -861,6 +862,8 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
 - The design names no update budget for the spanner score, so that number is reported and not judged.
 
 ## Open questions and risks
+
+**Owner decisions of 2026-10-02.** The owner accepted every default below, C1 to C11, and the model additions B1, B2b, B2c, B3 and B4. `publish_to: none` on the root package is accepted too. The questions stay here as the record of what each default is.
 
 Owner questions. Each is a parameter with a default, so the architecture does not wait:
 - **C1.** Is a one-line staff's line the middle line (step 4) of a five-line staff? That is the default, and it keeps taps and heads on one step convention. It puts the showcase snare at C5, above the line, and the bass drum at F4, below it.
