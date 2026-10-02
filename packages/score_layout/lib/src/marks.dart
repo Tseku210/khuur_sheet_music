@@ -345,7 +345,7 @@ Side _sideOf(VoiceSlot voice, int voices, Side alone) => voices < 2
     : Side.below;
 
 /// The x range of an event's heads, or of its rest, against its slice
-/// line. A measure rest's range is against the middle of its bar.
+/// line. A measure rest has no slice line. Its marks are centred on its bar.
 ({double left, double right}) _inkOf(
   TimedEvent timed,
   PlacedChord? chord,
@@ -361,11 +361,8 @@ Side _sideOf(VoiceSlot voice, int voices, Side alone) => voices < 2
     case RestEvent(:final value):
       final box = font[restGlyph(value.base)].box;
       return (left: box.left, right: box.right);
-    case MeasureRest():
-      final half = font[Glyph.restWhole].box.width / 2;
-      return (left: -half, right: half);
-    case ChordEvent():
-      throw ArgumentError.value(timed.event, 'timed', 'has no placed chord');
+    case MeasureRest() || ChordEvent():
+      throw ArgumentError.value(timed.event, 'timed', 'has no ink at a slice');
   }
 }
 

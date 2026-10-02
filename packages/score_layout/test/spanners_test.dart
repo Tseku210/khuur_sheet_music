@@ -895,6 +895,70 @@ void main() {
     });
   });
 
+  test('a chord symbol, a dynamic and a label stand clear of the tie that '
+      'runs under or over them', () {
+    Score tied(
+      String pitch, {
+      StaffDirection? direction,
+      NavigationMark? navigation,
+    }) {
+      final score = scoreOf([
+        [
+          chordOf(1, pitch, value: NoteValue.half, tie: true),
+          chordOf(2, pitch, value: NoteValue.half, tie: navigation != null),
+        ],
+        [chordOf(3, pitch, value: NoteValue.whole)],
+      ]);
+      final column = score.measures.first;
+      final staff = column.staves.first;
+      return score.copyWith(
+        measures: Seq([
+          column
+              .withStaff(
+                staff.copyWith(
+                  directions: Seq([?direction]),
+                ),
+              )
+              .copyWith(
+                navigation: Seq([?navigation]),
+              ),
+          score.measures.last,
+        ]),
+      );
+    }
+
+    final high = sheetOf(
+      tied(
+        'A5',
+        direction: ChordSymbol(at(1, 4), root: const PitchName(Step.c)),
+      ),
+    ).systemAt(0);
+    expect(
+      textsOf(high, 'C').single.bounds.bottom,
+      lessThanOrEqualTo(ysOf(curvesOf(high).single).reduce(min)),
+    );
+
+    final low = sheetOf(
+      tied('C4', direction: DynamicMark(at(1, 4), Dynamic.p)),
+    ).systemAt(0);
+    expect(
+      glyphsOf(
+        low,
+      ).singleWhere((glyph) => glyph.glyph == Glyph.dynamicPiano).bounds.top,
+      greaterThanOrEqualTo(ysOf(curvesOf(low).single).reduce(max)),
+    );
+
+    final leaving = sheetOf(
+      tied('A5', navigation: const Fine()),
+    ).systemAt(0);
+    final label = textsOf(leaving, 'Fine').single.bounds;
+    final under = curvesOf(
+      leaving,
+    ).where((tie) => tie.end.x > label.left && tie.start.x < label.right);
+    expect(under, isNotEmpty);
+    expect(label.bottom, lessThanOrEqualTo(under.expand(ysOf).reduce(min)));
+  });
+
   test('a tempo mark and a rehearsal mark stand outside a slur and an octave '
       'line over the same notes', () {
     final blank = scoreOf([quartersOf(1, 'C5')]);

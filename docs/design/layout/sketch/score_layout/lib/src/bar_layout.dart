@@ -153,14 +153,14 @@ final class BarWidths {
 /// because marks stack against placed notes. The marks widen the reach
 /// last, since what they need depends on the rods the notes already give.
 ///
-/// Each mark then takes the next free room in its staff's skyline, in this
-/// order. Per staff, every event's articulations, ornament, string marks
-/// and fermata, voice by voice. Then the tuplets of each voice, then the
-/// staff's directions. The pieces that cross bars reserve their room after
-/// these, ties first, then slurs and lines. So a piece always sits outside
-/// the staff marks of every bar it crosses. The system marks then stack over
-/// the top staff, outside what a slur or a line needs there, and the volta
-/// goes outermost.
+/// Ties reserve their room first. A tie keeps to its heads and reads nothing
+/// from the skyline, so every mark after it stands clear of it. Each mark
+/// then takes the next free room in its staff's skyline, in this order. Per
+/// staff, every event's articulations, ornament, string marks and fermata,
+/// voice by voice. Then the tuplets of each voice, then the staff's
+/// directions. Slurs and lines reserve their room after these. The system
+/// marks then stack over the top staff, outside what a slur or a line needs
+/// there, and the volta goes outermost.
 BarLayout layoutBar(
   MeasureView view,
   EngravingStyle style,
@@ -320,6 +320,17 @@ BarLayout layoutBar(
     beam.boxes.forEach(skylines[beam.first.staff].add);
   }
 
+  final ties = [
+    for (final (staff, staffView) in view.staves.indexed)
+      ...tieEnds(
+        staffView,
+        chords,
+        skylines[staff],
+        staff: staff,
+        xs: xs,
+        left: -lead,
+      ),
+  ];
   final tuplets = <TupletStub>[];
   for (final (staff, staffView) in view.staves.indexed) {
     final skyline = skylines[staff];
@@ -400,17 +411,6 @@ BarLayout layoutBar(
     );
   }
   final top = skylines.firstOrNull;
-  final ties = [
-    for (final (staff, staffView) in view.staves.indexed)
-      ...tieEnds(
-        staffView,
-        chords,
-        skylines[staff],
-        staff: staff,
-        xs: xs,
-        left: -lead,
-      ),
-  ];
   final spanners = spannerPieces(
     view,
     skylines,
@@ -457,7 +457,8 @@ BarLayout layoutBar(
         !view.staves.any(
           (staff) => staff.voices.any(
             (voice) => voice.events.any(
-              (timed) => timed.event.articulations.isNotEmpty,
+              (timed) =>
+                  timed.event.articulations.contains(Articulation.fermata),
             ),
           ),
         ),

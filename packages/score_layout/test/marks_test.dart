@@ -590,6 +590,11 @@ void main() {
         expect(placed.bar.restOnly, isFalse);
       }
       expect(place(bar(const {})).bar.restOnly, isTrue);
+      expect(
+        place(bar(const {Articulation.staccato})).bar.restOnly,
+        isTrue,
+        reason: 'a rest draws no staccato, so a fold hides nothing',
+      );
     });
 
     test('a mark later in the bar stacks outside a measure rest\'s fermata, '
