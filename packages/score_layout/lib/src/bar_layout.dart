@@ -8,6 +8,7 @@ import 'package:score_model/score_model.dart';
 import 'bar_space.dart';
 import 'beams.dart';
 import 'chords.dart';
+import 'marks.dart';
 import 'signatures.dart';
 import 'spacing.dart';
 import 'spanners.dart';
@@ -39,6 +40,7 @@ final class BarLayout {
     required this.heads,
     required this.edges,
     required this.beams,
+    required this.tuplets,
     required this.ties,
     required this.spanners,
     required this.volta,
@@ -51,8 +53,9 @@ final class BarLayout {
   /// the bar is laid out again and line breaking sees a new object.
   final LayoutBreak? breakBefore;
 
-  /// From `MeasureView.isRestOnly`. Such a bar can fold into a multi-measure
-  /// rest.
+  /// Whether the bar can fold into a multi-measure rest. It is
+  /// `MeasureView.isRestOnly`, but false when a rest of the bar carries a
+  /// fermata, which the model lets through and a fold would hide.
   final bool restOnly;
 
   final BarWidths widths;
@@ -74,6 +77,7 @@ final class BarLayout {
   final BarHeads heads;
   final BarEdges edges;
   final List<BeamPlan> beams;
+  final List<TupletStub> tuplets;
   final List<TieEnd> ties;
   final List<SpannerPiece> spanners;
   final VoltaStub? volta;
@@ -93,6 +97,7 @@ final class BarLayout {
       other.heads == heads &&
       other.edges == edges &&
       _same(other.beams, beams) &&
+      _same(other.tuplets, tuplets) &&
       _same(other.ties, ties) &&
       _same(other.spanners, spanners) &&
       other.volta == volta;
@@ -162,7 +167,16 @@ final class BarWidths {
 /// spacing, because spacing needs their reach. They are placed after it,
 /// because marks stack against placed notes. A clef change inside the bar is
 /// placed before spacing, left of what its slice reaches, and then widens
-/// that reach.
+/// that reach. The marks widen the reach last, since what they need depends
+/// on the rods the notes already give.
+///
+/// Each mark then takes the next free room in its staff's skyline, in this
+/// order. Per staff, every event's articulations, ornament, string marks
+/// and fermata, voice by voice. Then the tuplets of each voice, then the
+/// staff's directions. The pieces that cross bars reserve their room after
+/// these, ties first, then slurs and lines. The system marks then stack over
+/// the top staff, outside what a slur or a line needs there, and the volta
+/// goes outermost.
 BarLayout layoutBar(
   MeasureView view,
   EngravingStyle style,
@@ -227,6 +241,19 @@ BarLayout layoutBar(
       right: 0,
     ));
   }
+  final trills = trillLineStarts(view);
+  reach.setAll(
+    0,
+    markReach(
+      view,
+      chords,
+      reach,
+      times: times,
+      trills: trills,
+      style: style,
+      text: text,
+    ),
+  );
 
   final column = view.column;
   final heads = barHeads(view, style);
@@ -302,6 +329,88 @@ BarLayout layoutBar(
     beam.boxes.forEach(skylines[beam.first.staff].add);
   }
 
+  final tuplets = <TupletStub>[];
+  for (final (staff, staffView) in view.staves.indexed) {
+    final skyline = skylines[staff];
+    final voices = staffView.voices.length;
+    for (final voice in staffView.voices) {
+      for (final timed in voice.events) {
+        if (!carriesMarks(timed.event)) {
+          continue;
+        }
+        final placed = chords[timed.event.id];
+        if (placed != null) {
+          items
+            ..addAll(
+              articulationItems(
+                placed,
+                skyline,
+                voices: voices,
+                xs: xs,
+                style: style,
+              ),
+            )
+            ..addAll(
+              ornamentItems(
+                placed,
+                skyline,
+                voices: voices,
+                lineStarts: trills.contains(timed.event.id),
+                xs: xs,
+                style: style,
+              ),
+            )
+            ..addAll(
+              stringMarkItems(
+                placed,
+                skyline,
+                voices: voices,
+                strings: staffView.part.instrument.strings.length,
+                xs: xs,
+                style: style,
+                text: text,
+              ),
+            );
+        }
+        items.addAll(
+          fermataItems(
+            timed,
+            skyline,
+            chord: placed,
+            slice: times.indexOf(timed.onset),
+            staff: staff,
+            voices: voices,
+            xs: xs,
+            style: style,
+          ),
+        );
+      }
+    }
+    for (final voice in staffView.voices) {
+      tuplets.addAll(
+        tupletStubs(
+          voice,
+          chords,
+          skyline,
+          staff: staff,
+          times: times,
+          xs: xs,
+          style: style,
+        ),
+      );
+    }
+    items.addAll(
+      directionItems(
+        staffView,
+        skyline,
+        staff: staff,
+        times: times,
+        xs: xs,
+        style: style,
+        text: text,
+      ),
+    );
+  }
   final ties = [
     for (final (staff, staffView) in view.staves.indexed)
       ...tieEnds(
@@ -322,6 +431,19 @@ BarLayout layoutBar(
     style: style,
     text: text,
   );
+  if (skylines.isNotEmpty) {
+    items.addAll(
+      systemMarkItems(
+        view,
+        skylines.first,
+        times: times,
+        xs: xs,
+        left: -lead,
+        style: style,
+        text: text,
+      ),
+    );
+  }
   final volta = skylines.isEmpty
       ? null
       : voltaStub(
@@ -340,7 +462,7 @@ BarLayout layoutBar(
     measure: column.id,
     length: column.length,
     breakBefore: column.breakBefore,
-    restOnly: view.isRestOnly,
+    restOnly: view.isRestOnly && !_marksARest(view),
     widths: BarWidths(
       inlineHead: heads.inline.width,
       systemHead:
@@ -360,11 +482,19 @@ BarLayout layoutBar(
     heads: heads,
     edges: edges,
     beams: beams,
+    tuplets: tuplets,
     ties: ties,
     spanners: spanners,
     volta: volta,
   );
 }
+
+bool _marksARest(MeasureView view) => view.staves.any(
+  (staff) => staff.voices.any(
+    (voice) =>
+        voice.events.any((timed) => timed.event.articulations.isNotEmpty),
+  ),
+);
 
 BarStaff _staffOf(
   StaffView view,

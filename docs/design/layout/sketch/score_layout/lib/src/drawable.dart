@@ -440,7 +440,9 @@ final class TextDraw extends Drawable {
   final SpPoint origin;
   final TextSpec spec;
 
-  /// Draw a box around the text, as for a rehearsal mark.
+  /// Draw a box around the text, as for a rehearsal mark. The box's outer
+  /// edge is [bounds], and its line is the font's `textEnclosureThickness`
+  /// thick.
   final bool enclosed;
 
   @override

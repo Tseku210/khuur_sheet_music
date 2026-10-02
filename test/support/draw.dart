@@ -138,6 +138,15 @@ void paintDrawables(
           paragraph,
           ui.Offset(at.dx, at.dy - paragraph.alphabeticBaseline),
         );
+        if (drawable.enclosed) {
+          paintEnclosure(
+            canvas,
+            drawable.bounds,
+            painter.font.defaults.textEnclosureThickness,
+            scale,
+            color,
+          );
+        }
       case CurveDraw():
         paintCurve(canvas, drawable, scale, color);
       case GlyphRunDraw():

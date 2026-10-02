@@ -749,6 +749,7 @@ void main() {
           heads: bars[0].heads,
           edges: bars[0].edges,
           beams: const [],
+          tuplets: const [],
           ties: const [],
           spanners: const [],
           volta: null,

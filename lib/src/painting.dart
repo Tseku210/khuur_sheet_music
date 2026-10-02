@@ -142,6 +142,26 @@ void paintCurve(
     );
 }
 
+/// Draws the box of a `TextDraw` that is `enclosed`, as around a rehearsal
+/// mark. [bounds] is the box's outer edge, so the line, [thickness] staff
+/// spaces wide, is stroked half its width inside it.
+void paintEnclosure(
+  Canvas canvas,
+  Box bounds,
+  double thickness,
+  SheetScale scale,
+  Color color,
+) {
+  final width = thickness * scale.spacePx;
+  canvas.drawRect(
+    scale.rectOf(bounds).deflate(width / 2),
+    Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width,
+  );
+}
+
 /// Draws SMuFL glyphs as text in the font's family. This class is the whole
 /// seam for the glyph source. A path-based painter would replace it and
 /// nothing else.

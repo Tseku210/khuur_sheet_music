@@ -88,24 +88,33 @@ Score ensemble() {
   score = edit(score, SetBarline(ids[15], Barline.finalBar));
 
   var id = 10000;
-  ChordEvent chord(String pitches, [NoteValue value = NoteValue.quarter]) =>
-      chordOf(id++, pitches, value: value);
+  ChordEvent chord(
+    String pitches, [
+    NoteValue value = NoteValue.quarter,
+    Set<Articulation> marks = const {},
+  ]) =>
+      chordOf(id++, pitches, value: value).copyWith(articulations: marks);
   RestEvent silence(NoteValue value) => rest(id++, value);
+  ChordEvent fingered(ChordEvent chord, int finger) => chord.copyWith(
+        notes: Seq([
+          for (final note in chord.notes)
+            (note as PitchedNote).copyWith(fingering: () => finger),
+        ]),
+      );
+  const held = {Articulation.fermata};
 
-  score = fill(score, 0, [chord('G4')]);
+  score = fill(score, 0, [chord('G4').copyWith(bowing: () => Bowing.up)]);
   for (final bar in [1, 2, 3]) {
     score = fill(score, bar, [
-      for (final pitch in const [
-        'G4',
-        'A4',
-        'B4',
-        'C5',
-        'D5',
-        'C5',
-        'B4',
-        'A4'
-      ])
-        chord(pitch, eighth),
+      for (final (i, pitch)
+          in const ['G4', 'A4', 'B4', 'C5', 'D5', 'C5', 'B4', 'A4'].indexed)
+        if (bar != 2)
+          chord(pitch, eighth)
+        else
+          chord(pitch, eighth, {
+            Articulation.staccato,
+            if (i % 4 == 0) Articulation.accent,
+          }).copyWith(bowing: () => i == 0 ? Bowing.down : null),
     ]);
     score = fill(
         score,
@@ -128,11 +137,11 @@ Score ensemble() {
   }
   for (final bar in [4, 5, 6, 7]) {
     score = fill(score, bar, [
-      chord('D5'),
+      chord('D5').copyWith(ornament: () => bar == 6 ? Ornament.turn : null),
       silence(NoteValue.quarter),
       chord('E5', eighth),
       chord('F5', eighth),
-      chord('G5'),
+      chord('G5').copyWith(ornament: () => bar == 5 ? Ornament.trill : null),
     ]);
     score = fill(
         score,
@@ -146,11 +155,17 @@ Score ensemble() {
   }
   for (final bar in [8, 9, 10, 11]) {
     score = fill(score, bar, [
-      chord('A4'),
-      chord('D5', eighth),
-      chord('F#5', eighth),
-      chord('A5'),
-      chord('F#5'),
+      for (final (pitch, value, finger) in const [
+        ('A4', NoteValue.quarter, 0),
+        ('D5', eighth, 3),
+        ('F#5', eighth, 1),
+        ('A5', NoteValue.quarter, 3),
+        ('F#5', NoteValue.quarter, 1),
+      ])
+        if (bar == 9)
+          fingered(chord(pitch, value), finger)
+        else
+          chord(pitch, value),
     ]);
     score = fill(score, bar, [chord('D4 F#4 A4', whole)], staff: 1);
     score = fill(
@@ -164,7 +179,22 @@ Score ensemble() {
         staff: 2);
   }
   for (final bar in [12, 13, 14]) {
-    score = fill(score, bar, [chord('D5'), chord('C#5'), chord('D5')]);
+    score = fill(score, bar, [
+      if (bar == 12)
+        tripletOfEighths(500, [
+          for (final pitch in const ['D5', 'E5', 'F#5']) chord(pitch, eighth),
+        ])
+      else
+        chord('D5'),
+      if (bar == 14)
+        Tuplet(
+          id: const TupletId(501),
+          ratio: TupletRatio.triplet,
+          unit: NoteValue.quarter,
+          members: Seq([chord('C#5'), chord('D5'), chord('E5')]),
+        )
+      else ...[chord('C#5'), chord('D5')],
+    ]);
     score = fill(
         score,
         bar,
@@ -184,9 +214,73 @@ Score ensemble() {
         ],
         staff: 2);
   }
-  score = fill(score, 15, [chord('D5', dottedHalf)]);
-  score = fill(score, 15, [chord('D4 F#4 A4', dottedHalf)], staff: 1);
-  score = fill(score, 15, [chord('D3', dottedHalf)], staff: 2);
+  score = fill(score, 15, [chord('D5', dottedHalf, held)]);
+  score = fill(score, 15, [chord('D4 F#4 A4', dottedHalf, held)], staff: 1);
+  score = fill(score, 15, [chord('D3', dottedHalf, held)], staff: 2);
+
+  score = edit(
+    score,
+    SetTempoMarks(
+      ids[0],
+      Seq(const [
+        TempoMark(offset: Moment.zero, tempo: Tempo(120), text: 'Allegro'),
+      ]),
+    ),
+  );
+  score = edit(score, SetRehearsal(ids[4], 'A'));
+  score = edit(score, SetRehearsal(ids[12], 'B'));
+  for (final (bar, mark) in const <(int, NavigationMark)>[
+    (4, Segno()),
+    (6, ToCoda()),
+    (11, Jump(JumpTarget.segno, then: JumpThen.toCoda)),
+    (12, Coda()),
+  ]) {
+    score = edit(score, SetNavigation(ids[bar], Seq([mark])));
+  }
+  for (final (bar, staff, directions) in <(int, int, List<StaffDirection>)>[
+    (0, 0, const [DynamicMark(Moment.zero, Dynamic.mf)]),
+    (
+      1,
+      1,
+      [
+        const DynamicMark(Moment.zero, Dynamic.mp),
+        const ChordSymbol(Moment.zero, root: PitchName(Step.c)),
+        ChordSymbol(at(2, 4), root: const PitchName(Step.d), quality: 'm'),
+      ]
+    ),
+    (4, 0, const [DynamicMark(Moment.zero, Dynamic.f)]),
+    (8, 0, const [DynamicMark(Moment.zero, Dynamic.p)]),
+    (
+      9,
+      1,
+      const [
+        ChordSymbol(
+          Moment.zero,
+          root: PitchName(Step.f, Alter.sharp),
+          quality: 'm7',
+          bass: PitchName(Step.a),
+        ),
+      ]
+    ),
+    (10, 0, const [TextMark(Moment.zero, 'dolce')]),
+    (
+      11,
+      1,
+      const [
+        ChordSymbol(Moment.zero, root: PitchName(Step.b, Alter.flat)),
+      ]
+    ),
+    (14, 0, const [DynamicMark(Moment.zero, Dynamic.pp)]),
+  ]) {
+    score = edit(
+      score,
+      SetDirections(
+        staff: score.staves[staff].id,
+        measure: ids[bar],
+        directions: Seq(directions),
+      ),
+    );
+  }
 
   score = edit(score, SetVolta(ids[7], ids[7], const Volta([1])));
   score = edit(score, SetVolta(ids[8], ids[8], const Volta([2])));
@@ -474,6 +568,162 @@ void main() {
         ['1.', '2.'],
         reason: 'both endings are labelled, on one system',
       );
+    });
+  });
+
+  testWidgets(
+      'every mark, direction, system mark and tuplet of the score is drawn',
+      (tester) async {
+    await tester.runAsync(() async {
+      await loadTextFont();
+      final layout = layoutOf(pictured());
+      final drawables = [
+        for (var i = 0; i < layout.systemCount; i++)
+          ...layout.systemAt(i).drawables,
+      ];
+      // A trill line starts with the trill's glyph too.
+      final glyphs = drawables
+          .whereType<GlyphDraw>()
+          .where((glyph) => glyph.owner is! SpannerOwner)
+          .toList();
+      final texts = drawables.whereType<TextDraw>().toList();
+      int count(Glyph glyph) => glyphs.where((g) => g.glyph == glyph).length;
+
+      for (final (glyph, times) in const [
+        (Glyph.articStaccatoBelow, 4),
+        (Glyph.articStaccatoAbove, 4),
+        (Glyph.articAccentBelow, 1),
+        (Glyph.articAccentAbove, 1),
+        (Glyph.fermataAbove, 3),
+        (Glyph.ornamentTrill, 1),
+        (Glyph.ornamentTurn, 1),
+        (Glyph.stringsUpBow, 1),
+        (Glyph.stringsDownBow, 1),
+        (Glyph.fingering0, 1),
+        (Glyph.fingering1, 2),
+        (Glyph.fingering3, 2),
+        (Glyph.dynamicMF, 1),
+        (Glyph.dynamicMP, 1),
+        (Glyph.dynamicForte, 1),
+        (Glyph.dynamicPiano, 1),
+        (Glyph.dynamicPP, 1),
+        (Glyph.metNoteQuarterUp, 1),
+        (Glyph.segno, 1),
+        (Glyph.coda, 1),
+        (Glyph.csymAccidentalSharp, 1),
+        (Glyph.csymAccidentalFlat, 1),
+        (Glyph.tuplet3, 2),
+      ]) {
+        expect(count(glyph), times, reason: glyph.name);
+      }
+
+      final words = texts.map((text) => text.text).toList();
+      for (final text in const [
+        'Allegro',
+        '= 120',
+        'dolce',
+        'To Coda',
+        'D.S. al Coda',
+        'C',
+        'D',
+        'm',
+        'F',
+        'm7',
+        '/',
+        'B',
+      ]) {
+        expect(words, contains(text));
+      }
+      expect(
+        texts.where((text) => text.enclosed).map((text) => text.text),
+        ['A', 'B'],
+        reason: 'the rehearsal marks are the boxed texts',
+      );
+
+      // A tuplet's first event owns its number and bracket, and its own
+      // stem too, which ends short of the number.
+      final brackets = [
+        for (final number in glyphs.where((g) => g.glyph == Glyph.tuplet3))
+          drawables
+              .whereType<LineDraw>()
+              .where(
+                (line) =>
+                    line.owner == number.owner &&
+                    line.bounds.bottom > number.bounds.top &&
+                    line.bounds.top < number.bounds.bottom,
+              )
+              .length,
+      ];
+      expect(
+        brackets,
+        [0, 4],
+        reason: 'the beamed triplet is its number alone, and the triplet of '
+            'quarters has a bracket of two hooks and two halves',
+      );
+    });
+  });
+
+  testWidgets(
+      'a rehearsal mark is painted with a hollow box on the edge of its '
+      'bounds', (tester) async {
+    await tester.runAsync(() async {
+      final painter = bravuraPainter();
+      await loadBravura(painter);
+      await loadTextFont();
+      final layout = layoutOf(pictured());
+      const pad = 4;
+      final marks = [
+        for (var i = 0; i < layout.systemCount; i++)
+          ...layout
+              .systemAt(i)
+              .drawables
+              .whereType<TextDraw>()
+              .where((text) => text.enclosed),
+      ];
+      expect(marks, hasLength(2));
+
+      for (final mark in marks) {
+        final box = mark.bounds;
+        final scale = SheetScale(
+          spacePx: spacePx,
+          origin: ui.Offset(
+            pad - box.left * spacePx,
+            pad - box.top * spacePx,
+          ),
+        );
+        final width = (box.width * spacePx).ceil() + 2 * pad;
+        final alone = await render(
+          width,
+          (box.height * spacePx).ceil() + 2 * pad,
+          (canvas) => paintDrawables(canvas, painter, [mark], scale),
+          background: null,
+        );
+        final ink = inkOfImage(alone.rgba, width)!;
+        final rect = scale.rectOf(box);
+        final line = painter.font.defaults.textEnclosureThickness * spacePx;
+        final columns = columnInk(alone.rgba, width);
+        final reason = 'rehearsal mark ${mark.text}';
+
+        expect(ink.left, closeTo(rect.left, 1), reason: reason);
+        expect(ink.top, closeTo(rect.top, 1), reason: reason);
+        expect(ink.right, closeTo(rect.right, 1), reason: reason);
+        expect(ink.bottom, closeTo(rect.bottom, 1), reason: reason);
+        for (final (side, x) in [
+          ('left', rect.left + 1),
+          ('right', rect.right - 2),
+        ]) {
+          expect(
+            columns[x.floor()],
+            closeTo(rect.height, 0.5),
+            reason: '$reason, the $side line of its box',
+          );
+        }
+        expect(
+          columns[(rect.left + line + 2).floor()],
+          closeTo(2 * line, 0.5),
+          reason: '$reason, between its box and its letter',
+        );
+      }
     });
   });
 

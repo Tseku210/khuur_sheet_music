@@ -10,6 +10,7 @@ enum TextRole {
   rehearsal(TextSpec(size: 2.4, bold: true)),
   navigation(TextSpec(size: 2, italic: true)),
   volta(TextSpec(size: 1.8)),
+  stringNumber(TextSpec(size: 1.6)),
   barNumber(TextSpec(size: 1.5)),
   partName(TextSpec(size: 2)),
   title(TextSpec(size: 5)),

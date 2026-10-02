@@ -21,6 +21,8 @@ final class EngravingStyle {
     this.justifyLastSystemFrom = 0.75,
     this.barNumbers = true,
     this.quarterTones = QuarterToneGlyphs.steinZimmermann,
+    this.stringNumbers = StringNumbers.circled,
+    this.chordSymbols = ChordSymbolSpelling.asStored,
   });
 
   static const standard = EngravingStyle();
@@ -63,6 +65,8 @@ final class EngravingStyle {
   final bool barNumbers;
 
   final QuarterToneGlyphs quarterTones;
+  final StringNumbers stringNumbers;
+  final ChordSymbolSpelling chordSymbols;
 
   TextSpec specOf(TextRole role) => text[role] ?? role.standard;
 
@@ -80,7 +84,9 @@ final class EngravingStyle {
       other.courtesySignatures == courtesySignatures &&
       other.justifyLastSystemFrom == justifyLastSystemFrom &&
       other.barNumbers == barNumbers &&
-      other.quarterTones == quarterTones;
+      other.quarterTones == quarterTones &&
+      other.stringNumbers == stringNumbers &&
+      other.chordSymbols == chordSymbols;
 
   @override
   int get hashCode => Object.hash(
@@ -98,6 +104,8 @@ final class EngravingStyle {
     justifyLastSystemFrom,
     barNumbers,
     quarterTones,
+    stringNumbers,
+    chordSymbols,
   );
 }
 
@@ -158,3 +166,18 @@ enum QuarterToneGlyphs {
   /// E271 to E274, with the natural-based arrows for a quarter step.
   gouldArrows,
 }
+
+/// How string numbers print. Both count from the highest string, so the
+/// number is `strings.length - string`.
+enum StringNumbers {
+  /// A digit in a circle. A number above 9 has no such glyph and prints as
+  /// [roman].
+  circled,
+
+  /// A roman numeral, in the text of `TextRole.stringNumber`.
+  roman,
+}
+
+/// Whether chord symbols on a transposing staff print as stored or as the
+/// staff's written key spells them.
+enum ChordSymbolSpelling { asStored, written }

@@ -915,6 +915,7 @@ void main() {
         ),
         edges: bar.edges,
         beams: bar.beams,
+        tuplets: bar.tuplets,
         ties: bar.ties,
         spanners: bar.spanners,
         volta: bar.volta,

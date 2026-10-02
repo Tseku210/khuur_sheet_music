@@ -49,23 +49,27 @@ SliceReach widest(SliceReach a, SliceReach b) =>
 
 /// The distinct moments of the bar, sorted. They are every event onset in
 /// every voice of every visible staff, every clef change inside the bar,
-/// the start of every hairpin, octave, pedal or tempo line that starts in
-/// the bar on a visible staff, and the bar's end. Grace chords take no
-/// slice. They sit left of their principal and widen its reach. A slur,
-/// glissando or trill line starts on an event, so it needs no slice of its
-/// own.
+/// every direction of a visible staff, every tempo mark, the start of every
+/// hairpin, octave, pedal or tempo line that starts in the bar on a visible
+/// staff, and the bar's end. Grace chords take no slice. They sit left of
+/// their principal and widen its reach. A slur, glissando or trill line
+/// starts on an event, so it needs no slice of its own. A bar with no
+/// visible staff has its end alone, since nothing of it is spaced.
 List<Moment> sliceTimes(MeasureView view) {
   final onsets = [
     for (final staff in view.staves) ...[
       for (final voice in staff.voices)
         for (final timed in voice.events) timed.onset,
       for (final change in staff.source.clefChanges) change.offset,
+      for (final direction in staff.source.directions) direction.offset,
       for (final segment in view.spanners)
         if (segment.startsHere &&
             segment.spanner.staff == staff.source.staff &&
             _startsSlice(segment.spanner.kind))
           segment.from,
     ],
+    if (view.staves.isNotEmpty)
+      for (final tempo in view.column.tempos) tempo.offset,
     Moment.zero + view.column.length,
   ]..sort((a, b) => a.compareTo(b));
   final times = <Moment>[];
@@ -87,8 +91,8 @@ bool _startsSlice(SpannerKind kind) => switch (kind) {
 /// The spring after slice i follows the shortest duration d starting there
 /// in any voice. Its ideal is `quarterSpace * ratio^log2(d / quarter)`,
 /// scaled by `(times[i+1] - times[i]) / d` when the next slice comes sooner
-/// than d. A slice where nothing starts, which a clef change makes, takes d
-/// from the slice before it. The rod is
+/// than d. A slice where nothing starts, which a clef change or a mark
+/// makes, takes d from the slice before it. The rod is
 /// `reach[i].right + minGap + reach[i+1].left`. The scale is absolute, so a
 /// bar's spacing never depends on another bar. The last slice is the bar's
 /// end, with no spring and a rod of [end], the width of the bar's end

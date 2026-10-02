@@ -59,8 +59,9 @@ final class BarLayout {
   /// the bar is laid out again and line breaking sees a new object.
   final LayoutBreak? breakBefore;
 
-  /// From `MeasureView.isRestOnly`. Such a bar can fold into a multi-measure
-  /// rest.
+  /// Whether the bar can fold into a multi-measure rest. It is
+  /// `MeasureView.isRestOnly`, less a bar whose rest carries a fermata,
+  /// which the model lets through and a fold would hide.
   final bool restOnly;
 
   final BarWidths widths;
@@ -149,9 +150,17 @@ final class BarWidths {
 ///
 /// The order is fixed by what each step reads. Chords are planned before
 /// spacing, because spacing needs their reach. They are placed after it,
-/// because marks stack against placed notes. Marks come before cross-bar
-/// pieces, so a piece always sits outside the marks of every bar it
-/// crosses.
+/// because marks stack against placed notes. The marks widen the reach
+/// last, since what they need depends on the rods the notes already give.
+///
+/// Each mark then takes the next free room in its staff's skyline, in this
+/// order. Per staff, every event's articulations, ornament, string marks
+/// and fermata, voice by voice. Then the tuplets of each voice, then the
+/// staff's directions. The pieces that cross bars reserve their room after
+/// these, ties first, then slurs and lines. So a piece always sits outside
+/// the staff marks of every bar it crosses. The system marks then stack over
+/// the top staff, outside what a slur or a line needs there, and the volta
+/// goes outermost.
 BarLayout layoutBar(
   MeasureView view,
   EngravingStyle style,
@@ -159,7 +168,7 @@ BarLayout layoutBar(
 ) {
   final times = sliceTimes(view);
   final chords = <EventId, PlacedChord>{};
-  final reach = markReach(view, times, style, text);
+  final reach = List<SliceReach>.filled(times.length, noReach);
   for (final (staff, staffView) in view.staves.indexed) {
     for (final voice in staffView.voices) {
       final sides = beamStemSides(voice, staffView);
@@ -221,6 +230,19 @@ BarLayout layoutBar(
       right: 0,
     ));
   }
+  final trills = trillLineStarts(view);
+  reach.setAll(
+    0,
+    markReach(
+      view,
+      chords,
+      reach,
+      times: times,
+      trills: trills,
+      style: style,
+      text: text,
+    ),
+  );
 
   final column = view.column;
   final heads = barHeads(view, style);
@@ -301,16 +323,69 @@ BarLayout layoutBar(
   final tuplets = <TupletStub>[];
   for (final (staff, staffView) in view.staves.indexed) {
     final skyline = skylines[staff];
-    for (final placed in chords.values.where((c) => c.staff == staff)) {
-      items
-        ..addAll(articulationItems(placed, skyline, xs: xs, style: style))
-        ..addAll(ornamentItems(placed, skyline, xs: xs, style: style))
-        ..addAll(
-          stringMarkItems(placed, skyline, xs: xs, style: style, text: text),
+    final voices = staffView.voices.length;
+    for (final voice in staffView.voices) {
+      for (final timed in voice.events) {
+        final placed = chords[timed.event.id];
+        if (placed != null) {
+          items
+            ..addAll(
+              articulationItems(
+                placed,
+                skyline,
+                voices: voices,
+                xs: xs,
+                style: style,
+              ),
+            )
+            ..addAll(
+              ornamentItems(
+                placed,
+                skyline,
+                voices: voices,
+                lineStarts: trills.contains(timed.event.id),
+                xs: xs,
+                style: style,
+              ),
+            )
+            ..addAll(
+              stringMarkItems(
+                placed,
+                skyline,
+                voices: voices,
+                strings: staffView.part.instrument.strings.length,
+                xs: xs,
+                style: style,
+                text: text,
+              ),
+            );
+        }
+        items.addAll(
+          fermataItems(
+            timed,
+            skyline,
+            chord: placed,
+            slice: times.indexOf(timed.onset),
+            staff: staff,
+            voices: voices,
+            xs: xs,
+            style: style,
+          ),
         );
+      }
     }
     for (final voice in staffView.voices) {
-      tuplets.addAll(tupletStubs(voice, chords, skyline, xs: xs, style: style));
+      tuplets.addAll(
+        tupletStubs(
+          voice,
+          chords,
+          skyline,
+          staff: staff,
+          times: times,
+          xs: xs,
+          style: style,
+        ),
+      );
     }
     items.addAll(
       directionItems(
@@ -325,19 +400,6 @@ BarLayout layoutBar(
     );
   }
   final top = skylines.firstOrNull;
-  if (top != null) {
-    items.addAll(
-      systemMarkItems(
-        view,
-        top,
-        times: times,
-        xs: xs,
-        style: style,
-        text: text,
-      ),
-    );
-  }
-
   final ties = [
     for (final (staff, staffView) in view.staves.indexed)
       ...tieEnds(
@@ -358,6 +420,19 @@ BarLayout layoutBar(
     style: style,
     text: text,
   );
+  if (top != null) {
+    items.addAll(
+      systemMarkItems(
+        view,
+        top,
+        times: times,
+        xs: xs,
+        left: -lead,
+        style: style,
+        text: text,
+      ),
+    );
+  }
   final volta = top == null
       ? null
       : voltaStub(
@@ -377,7 +452,15 @@ BarLayout layoutBar(
     measure: column.id,
     length: column.length,
     breakBefore: column.breakBefore,
-    restOnly: view.isRestOnly,
+    restOnly:
+        view.isRestOnly &&
+        !view.staves.any(
+          (staff) => staff.voices.any(
+            (voice) => voice.events.any(
+              (timed) => timed.event.articulations.isNotEmpty,
+            ),
+          ),
+        ),
     widths: BarWidths(
       inlineHead: heads.inline.width,
       systemHead:

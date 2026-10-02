@@ -67,8 +67,9 @@ Score oneLine(Score score, int index) {
 Iterable<GlyphDraw> glyphsOf(SystemLayout system, Glyph glyph) =>
     system.drawables.whereType<GlyphDraw>().where((g) => g.glyph == glyph);
 
-Iterable<TextDraw> textsOf(SystemLayout system) =>
-    system.drawables.whereType<TextDraw>();
+Iterable<TextDraw> namesOf(SystemLayout system) => system.drawables
+    .whereType<TextDraw>()
+    .where((text) => text.spec == style.specOf(TextRole.partName));
 
 /// Vertical lines of [system] with their x in [from] to [to], left to
 /// right, and the repeat dots among them, each named by its piece.
@@ -350,7 +351,7 @@ void main() {
         score.staves.first.id,
       ]);
       expect(glyphsOf(system, Glyph.brace), isEmpty);
-      expect(textsOf(system).map((text) => text.text), ['Clarinet in B♭']);
+      expect(namesOf(system).map((text) => text.text), ['Clarinet in B♭']);
       expect(
         system.drawables.where((d) => d.ink == InkRole.staffLine),
         hasLength(5),
@@ -369,7 +370,7 @@ void main() {
       final first = layout.systemAt(0);
       final second = layout.systemAt(1);
       final tops = [for (final staff in first.staves) staff.top];
-      final names = {for (final text in textsOf(first)) text.text: text};
+      final names = {for (final text in namesOf(first)) text.text: text};
       final clarinetName = names['Clarinet in B♭']!;
       final pianoName = names['Piano']!;
 
@@ -388,12 +389,12 @@ void main() {
         (pianoName.bounds.top + pianoName.bounds.bottom) / 2,
         closeTo((tops[1] + tops[2] + staffHeight) / 2, 1e-9),
       );
-      expect(textsOf(second).map((text) => text.text), ['Cl.']);
+      expect(namesOf(second).map((text) => text.text), ['Cl.']);
       expect(second.bars.first.left, lessThan(first.bars.first.left));
       expect(
         second.bars.first.left -
             braceWidth -
-            textsOf(second).single.bounds.right,
+            namesOf(second).single.bounds.right,
         closeTo(1, 1e-9),
       );
     });

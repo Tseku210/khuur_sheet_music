@@ -895,6 +895,55 @@ void main() {
     });
   });
 
+  test('a tempo mark and a rehearsal mark stand outside a slur and an octave '
+      'line over the same notes', () {
+    final blank = scoreOf([quartersOf(1, 'C5')]);
+    final marked = blank.copyWith(
+      measures: Seq([
+        blank.measures.first.copyWith(
+          tempos: Seq([
+            const TempoMark(
+              offset: Moment.zero,
+              tempo: Tempo(120),
+              text: 'Vivo',
+              showMetronome: false,
+            ),
+          ]),
+          rehearsal: () => 'A',
+        ),
+      ]),
+    );
+    final slurred = withSlur(
+      marked,
+      pointAt(marked, 0, Moment.zero),
+      pointAt(marked, 0, at(3, 4)),
+    );
+    final score = withSpanner(
+      slurred,
+      const OctaveLine(OctaveShift.up8),
+      pointAt(marked, 0, Moment.zero),
+      pointAt(marked, 0, at(3, 4)),
+    );
+    final system = sheetOf(score).systemAt(0);
+    final slur = curvesOf(system).single;
+    final line = linesOf(
+      system,
+      owner: const SpannerOwner(SpannerId(901)),
+    ).first;
+    final lowestMark = [
+      textsOf(system, 'Vivo').single,
+      textsOf(system, 'A').single,
+    ].map((mark) => mark.bounds.bottom).reduce(min);
+
+    expect(lowestMark, lessThanOrEqualTo(slur.bounds.top));
+    expect(lowestMark, lessThanOrEqualTo(line.from.y));
+    expect(
+      topOf(system) - slur.start.y,
+      lessThan(slurRise),
+      reason: 'the slur starts at the staff and not over the marks',
+    );
+  });
+
   group('a system that ends with a courtesy signature', () {
     test('a tie, a slur and a hairpin leaving the system stop before the '
         'courtesy key signature', () {

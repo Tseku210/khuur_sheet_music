@@ -238,6 +238,7 @@ final class TextDraw extends Drawable {
     this.origin, {
     required this.spec,
     required this.bounds,
+    this.enclosed = false,
     super.owner,
     super.ink,
   });
@@ -245,6 +246,11 @@ final class TextDraw extends Drawable {
   final String text;
   final SpPoint origin;
   final TextSpec spec;
+
+  /// Draw a box around the text, as for a rehearsal mark. The box's outer
+  /// edge is [bounds], and its line is the font's `textEnclosureThickness`
+  /// thick.
+  final bool enclosed;
 
   @override
   final Box bounds;
@@ -255,6 +261,7 @@ final class TextDraw extends Drawable {
     origin.shift(dx, dy),
     spec: spec,
     bounds: bounds.shift(dx, dy),
+    enclosed: enclosed,
     owner: owner,
     ink: ink,
   );
@@ -266,11 +273,13 @@ final class TextDraw extends Drawable {
       other.origin == origin &&
       other.spec == spec &&
       other.bounds == bounds &&
+      other.enclosed == enclosed &&
       other.owner == owner &&
       other.ink == ink;
 
   @override
-  int get hashCode => Object.hash(text, origin, spec, bounds, owner, ink);
+  int get hashCode =>
+      Object.hash(text, origin, spec, bounds, enclosed, owner, ink);
 }
 
 /// One cubic centreline, which is a tie, a slur or a grace tie. The painter

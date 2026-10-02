@@ -50,6 +50,37 @@ void walk(
   }
 }
 
+/// How many marks [view] holds on its events, its staves and its column.
+int marksIn(MeasureView view) {
+  final column = view.column;
+  var marks =
+      column.tempos.length +
+      column.navigation.length +
+      (column.rehearsal == null ? 0 : 1);
+  for (final staff in view.staves) {
+    marks += staff.source.directions.length;
+    for (final voice in staff.voices) {
+      for (final TimedEvent(:event) in voice.events) {
+        marks += event.articulations.length;
+        if (event is ChordEvent) {
+          marks +=
+              (event.ornament == null ? 0 : 1) +
+              (event.bowing == null ? 0 : 1) +
+              event.notes
+                  .whereType<PitchedNote>()
+                  .where((note) => note.fingering != null)
+                  .length +
+              event.notes
+                  .whereType<PitchedNote>()
+                  .where((note) => note.string != null)
+                  .length;
+        }
+      }
+    }
+  }
+  return marks;
+}
+
 void main() {
   for (final rests in [false, true]) {
     final style = EngravingStyle(multiMeasureRests: rests);
@@ -63,6 +94,8 @@ void main() {
       var kept = 0;
       var ties = 0;
       var voltaBars = 0;
+      var marks = 0;
+      var tuplets = 0;
       final spanners = <Type, int>{};
 
       walk(style, (layout, score, width) {
@@ -75,6 +108,13 @@ void main() {
         for (final measure in score.measures) {
           final view = score.measureView(measure.id);
           ties += view.staves.fold(0, (n, staff) => n + staff.ties.length);
+          marks += marksIn(view);
+          for (final staff in view.staves) {
+            tuplets += staff.voices.fold(
+              0,
+              (n, voice) => n + voice.tuplets.length,
+            );
+          }
           if (measure.volta != null) {
             voltaBars++;
           }
@@ -92,6 +132,8 @@ void main() {
       expect(kept, greaterThan(0));
       expect(ties, greaterThan(0));
       expect(voltaBars, greaterThan(0));
+      expect(marks, greaterThan(50000));
+      expect(tuplets, greaterThan(3000));
       for (final kind in [
         Slur,
         Hairpin,

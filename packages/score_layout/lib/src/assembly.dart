@@ -8,6 +8,7 @@ import 'breaking.dart';
 import 'chords.dart';
 import 'drawable.dart';
 import 'geometry.dart';
+import 'marks.dart';
 import 'signatures.dart';
 import 'spacing.dart';
 import 'spanners.dart';
@@ -56,6 +57,9 @@ SystemLayout assembleSystem(SystemPlan plan, EngravingStyle style) {
         drawables.addAll(bar.items.map(frame.place));
         for (final beam in bar.beams) {
           drawables.addAll(placeBeam(beam, frame, style));
+        }
+        for (final tuplet in bar.tuplets) {
+          drawables.addAll(placeTuplet(tuplet, frame, style));
         }
       case RestRun(:final bars):
         drawables.addAll(
