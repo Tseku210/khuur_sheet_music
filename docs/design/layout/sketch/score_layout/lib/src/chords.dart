@@ -188,17 +188,15 @@ SliceReach restReach(Event rest, EngravingStyle style) =>
 /// A rest's glyph from its value, on the middle line, moved up for an
 /// upstem voice and down for a downstem voice when the staff has
 /// [voiceCount] of two or more. A hidden rest draws nothing. A
-/// `MeasureRest` is a whole rest centred between the first slice and
-/// [lastSlice] at stretch 1 ([xs]), hung from step 6, or from the line of a
+/// `MeasureRest` is a whole rest centred between its slice and the bar's
+/// end (`BarItem.centred`), hung from step 6, or from the line of a
 /// one-line staff ([lines]).
 List<BarItem> placeRest({
   required TimedEvent timed,
   required int slice,
-  required int lastSlice,
   required int staff,
   required int voiceCount,
   required int lines,
-  required List<double> xs,
   required EngravingStyle style,
 }) => throw UnimplementedError();
 

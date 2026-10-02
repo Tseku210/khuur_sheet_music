@@ -13,7 +13,7 @@ typedef BarAnchor = ({int slice, double dx, int staff, double dy});
 /// the slice's x and the staff's top line, so justification moves it with
 /// its slice and never stretches it.
 final class BarItem {
-  const BarItem(this.slice, this.staff, this.drawable);
+  const BarItem(this.slice, this.staff, this.drawable, {this.centred = false});
 
   final int slice;
 
@@ -21,6 +21,11 @@ final class BarItem {
   final int staff;
 
   final Drawable drawable;
+
+  /// The item's x is the middle between its slice and the bar's end, so it
+  /// is not moved from its slice. A measure rest is centred in its bar at
+  /// any stretch.
+  final bool centred;
 }
 
 /// Where a bar landed on its system, as the x of every slice and the top line
@@ -48,8 +53,13 @@ final class BarFrame {
   SpPoint at(BarAnchor anchor) =>
       SpPoint(xs[anchor.slice] + anchor.dx, tops[anchor.staff] + anchor.dy);
 
+  /// x of [item], which is its slice's, or the middle between its slice and
+  /// the bar's end when it is centred.
+  double xOf(BarItem item) =>
+      item.centred ? (xs[item.slice] + xs.last) / 2 : xs[item.slice];
+
   Drawable place(BarItem item) =>
-      item.drawable.shift(xs[item.slice], tops[item.staff]);
+      item.drawable.shift(xOf(item), tops[item.staff]);
 }
 
 /// One concern's stubs from one bar, with the bar's frame. A system-time

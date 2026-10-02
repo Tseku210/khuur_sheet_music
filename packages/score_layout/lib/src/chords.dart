@@ -15,6 +15,7 @@ import 'bar_space.dart';
 import 'drawable.dart';
 import 'geometry.dart';
 import 'glyphs.dart';
+import 'signatures.dart';
 import 'smufl_font.dart';
 import 'spacing.dart';
 import 'style.dart';
@@ -317,17 +318,15 @@ SliceReach restReach(Event rest, EngravingStyle style) => switch (rest) {
 /// A rest's glyph from its value, on the middle line, moved up for an
 /// upstem voice and down for a downstem voice when the staff has
 /// [voiceCount] of two or more. A hidden rest draws nothing. A
-/// `MeasureRest` is a whole rest centred between the first slice and
-/// [lastSlice] at stretch 1 ([xs]), hung from step 6, or from the line of
-/// a one-line staff ([lines]).
+/// `MeasureRest` is a whole rest centred between its slice and the bar's
+/// end (`BarItem.centred`), hung from step 6, or from the line of a
+/// one-line staff ([lines]).
 List<BarItem> placeRest({
   required TimedEvent timed,
   required int slice,
-  required int lastSlice,
   required int staff,
   required int voiceCount,
   required int lines,
-  required List<double> xs,
   required EngravingStyle style,
 }) {
   final owner = ElementOwner(timed.ref);
@@ -357,7 +356,7 @@ List<BarItem> placeRest({
     case MeasureRest():
       final box = font[Glyph.restWhole].box;
       final origin = SpPoint(
-        (xs[lastSlice] - xs[slice] - box.width) / 2 - box.left,
+        -box.width / 2 - box.left,
         _restLine(DurationBase.whole, lines) + shift,
       );
       return [
@@ -370,6 +369,7 @@ List<BarItem> placeRest({
             bounds: box.shift(origin.x, origin.y),
             owner: owner,
           ),
+          centred: true,
         ),
       ];
     case ChordEvent():
@@ -381,6 +381,90 @@ List<BarItem> placeRest({
 /// the middle, which a one-line staff does not have.
 double _restLine(DurationBase base, int lines) =>
     yOfStep(base == DurationBase.whole && lines != 1 ? 6 : 4);
+
+/// y of the origin of a rest run's count from the top line of its staff.
+/// The digits reach one space each way from it, so they stand one space
+/// clear of the staff.
+const double _countY = -2;
+
+/// A run of [count] rest-only bars as one multi-measure rest on every
+/// staff. It is an H-bar on the middle line from [left] to [right], less a
+/// bar pad at each end to stand clear of the head before it and the barline
+/// after it, with the count centred above it in `timeSig` digits.
+///
+/// The H-bar is the font's two end pieces joined by a line as thick as its
+/// middle piece, so it is as long as the system makes it.
+List<Drawable> placeRestRun(
+  int count, {
+  required double left,
+  required double right,
+  required List<double> tops,
+  required EngravingStyle style,
+}) {
+  final font = style.font;
+  final from = left + style.spacing.barPad;
+  final to = right - style.spacing.barPad;
+  final leftBox = font[Glyph.restHBarLeft].box;
+  final rightBox = font[Glyph.restHBarRight].box;
+  final middle = font[Glyph.restHBarMiddle].box;
+  final digits = [...digitGlyphs(count)];
+  final digitsWidth = digits.fold<double>(
+    0,
+    (width, glyph) => width + font[glyph].advance,
+  );
+  final drawables = <Drawable>[];
+  for (final top in tops) {
+    final line = top + yOfStep(4);
+    final leftEnd = SpPoint(from - leftBox.left, line);
+    final rightEnd = SpPoint(to - rightBox.right, line);
+    drawables
+      ..add(
+        GlyphDraw(
+          Glyph.restHBarLeft,
+          leftEnd,
+          bounds: leftBox.shift(leftEnd.x, leftEnd.y),
+        ),
+      )
+      ..add(
+        LineDraw(
+          SpPoint(
+            from + leftBox.width,
+            line + (middle.top + middle.bottom) / 2,
+          ),
+          SpPoint(to - rightBox.width, line + (middle.top + middle.bottom) / 2),
+          thickness: middle.height,
+        ),
+      )
+      ..add(
+        GlyphDraw(
+          Glyph.restHBarRight,
+          rightEnd,
+          bounds: rightBox.shift(rightEnd.x, rightEnd.y),
+        ),
+      );
+    var x = (from + to - digitsWidth) / 2;
+    for (final glyph in digits) {
+      final origin = SpPoint(x, top + _countY);
+      drawables.add(
+        GlyphDraw(
+          glyph,
+          origin,
+          bounds: font[glyph].box.shift(origin.x, origin.y),
+        ),
+      );
+      x += font[glyph].advance;
+    }
+  }
+  return drawables;
+}
+
+/// How far the count of a rest run reaches above the top line of its staff.
+double restRunRise(EngravingStyle style) =>
+    timeSigDigits.fold<double>(
+      0,
+      (rise, glyph) => math.max(rise, -style.font[glyph].box.top),
+    ) -
+    _countY;
 
 typedef _HeadGlyphs = ({Glyph breve, Glyph whole, Glyph half, Glyph black});
 

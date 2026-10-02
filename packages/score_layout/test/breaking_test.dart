@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:score_layout/src/bar_layout.dart';
 import 'package:score_layout/src/breaking.dart';
+import 'package:score_layout/src/chords.dart';
 import 'package:score_layout/src/geometry.dart';
 import 'package:score_layout/src/signatures.dart';
 import 'package:score_layout/src/style.dart';
@@ -479,10 +480,11 @@ void main() {
         ]),
       );
       final run = foldBars(keyed, folding)[1];
-      final ended = RestRun([
-        keyed[1],
-        keyed[3],
-      ], body: style.spacing.restRunWidth);
+      final ended = RestRun(
+        [keyed[1], keyed[3]],
+        body: style.spacing.restRunWidth,
+        countRise: restRunRise(style),
+      );
 
       expect(run.bars, [keyed[1], keyed[2]]);
       expect(run.widths.systemHead, keyed[1].widths.systemHead);
@@ -532,12 +534,26 @@ void main() {
         [high, low, rest],
         [rest, low, high],
       ]) {
-        final staff = RestRun(bars, body: 12).staves.single;
+        final staff = RestRun(bars, body: 12, countRise: 0).staves.single;
 
         expect(staff.staff, rest.staves.single.staff);
         expect(staff.above, high.staves.single.above);
         expect(staff.below, low.staves.single.below);
       }
+    });
+
+    test('a rest run reaches at least its rise above every staff, for the '
+        'count the system draws', () {
+      final all = layoutsOf(barsOf([4, 0, 0]));
+      final bars = all.sublist(1);
+      final own = bars.first.staves.single.above;
+      final low = RestRun(bars, body: 12, countRise: own / 2).staves.single;
+      final high = RestRun(bars, body: 12, countRise: own + 5).staves.single;
+
+      expect(low.above, own);
+      expect(high.above, own + 5);
+      expect(restRunRise(style), greaterThan(2));
+      expect(foldBars(all, folding)[1].staves.single.above, restRunRise(style));
     });
 
     test('two units are equal when they hold the same bar objects', () {
@@ -546,16 +562,16 @@ void main() {
       expect(SingleBar(bars[3]), SingleBar(bars[3]));
       expect(SingleBar(bars[3]), isNot(SingleBar(again[3])));
       expect(
-        RestRun([bars[1], bars[2]], body: 12),
-        RestRun([bars[1], bars[2]], body: 12),
+        RestRun([bars[1], bars[2]], body: 12, countRise: 0),
+        RestRun([bars[1], bars[2]], body: 12, countRise: 0),
       );
       expect(
-        RestRun([bars[1], bars[2]], body: 12),
-        isNot(RestRun([bars[1], again[2]], body: 12)),
+        RestRun([bars[1], bars[2]], body: 12, countRise: 0),
+        isNot(RestRun([bars[1], again[2]], body: 12, countRise: 0)),
       );
       expect(
-        RestRun([bars[1], bars[2]], body: 12),
-        isNot(RestRun([bars[1], bars[2], bars[4]], body: 12)),
+        RestRun([bars[1], bars[2]], body: 12, countRise: 0),
+        isNot(RestRun([bars[1], bars[2], bars[4]], body: 12, countRise: 0)),
       );
     });
 

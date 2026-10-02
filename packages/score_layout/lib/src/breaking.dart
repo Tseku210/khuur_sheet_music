@@ -11,6 +11,7 @@ import 'dart:math' as math;
 import 'package:score_model/score_model.dart';
 
 import 'bar_layout.dart';
+import 'chords.dart';
 import 'geometry.dart';
 import 'signatures.dart';
 import 'spacing.dart';
@@ -81,7 +82,7 @@ final class SingleBar extends BreakUnit {
 /// Two or more rest-only bars drawn as one H-bar rest with their count
 /// above. It prints the first bar's head and the last bar's barline.
 final class RestRun extends BreakUnit {
-  RestRun(this.bars, {required double body})
+  RestRun(this.bars, {required double body, required double countRise})
     : slices = [
         Slice(at: Moment.zero, ideal: body, rod: body),
         bars.last.slices.last,
@@ -92,7 +93,7 @@ final class RestRun extends BreakUnit {
             staff: staff.staff,
             lines: staff.lines,
             above: bars.fold(
-              0,
+              countRise,
               (above, bar) => math.max(above, bar.staves[index].above),
             ),
             below: bars.fold(
@@ -109,8 +110,6 @@ final class RestRun extends BreakUnit {
   @override
   final List<Slice> slices;
 
-  /// The bars' own reach. The room of the count above the top line joins it
-  /// with the function that draws the count.
   @override
   final List<BarStaff> staves;
 
@@ -153,7 +152,13 @@ List<BreakUnit> foldBars(List<BarLayout> bars, EngravingStyle style) {
   var run = <BarLayout>[];
   void flush() {
     if (run.length >= 2) {
-      units.add(RestRun(run, body: style.spacing.restRunWidth));
+      units.add(
+        RestRun(
+          run,
+          body: style.spacing.restRunWidth,
+          countRise: restRunRise(style),
+        ),
+      );
     } else {
       units.addAll(run.map(SingleBar.new));
     }

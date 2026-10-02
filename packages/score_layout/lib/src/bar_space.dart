@@ -13,7 +13,7 @@ typedef BarAnchor = ({int slice, double dx, int staff, double dy});
 /// the slice's x and the staff's top line, so justification moves it with
 /// its slice and never stretches it.
 final class BarItem {
-  const BarItem(this.slice, this.staff, this.drawable);
+  const BarItem(this.slice, this.staff, this.drawable, {this.centred = false});
 
   final int slice;
 
@@ -22,15 +22,21 @@ final class BarItem {
 
   final Drawable drawable;
 
+  /// The drawable's x is from the middle of its slice and the bar's end,
+  /// not from its slice. A measure rest is centred in its bar at any
+  /// stretch.
+  final bool centred;
+
   @override
   bool operator ==(Object other) =>
       other is BarItem &&
       other.slice == slice &&
       other.staff == staff &&
-      other.drawable == drawable;
+      other.drawable == drawable &&
+      other.centred == centred;
 
   @override
-  int get hashCode => Object.hash(slice, staff, drawable);
+  int get hashCode => Object.hash(slice, staff, drawable, centred);
 }
 
 /// Where a bar landed on its system, as the x of every slice and the top line
@@ -54,8 +60,11 @@ final class BarFrame {
   SpPoint at(BarAnchor anchor) =>
       SpPoint(xs[anchor.slice] + anchor.dx, tops[anchor.staff] + anchor.dy);
 
+  double xOf(BarItem item) =>
+      item.centred ? (xs[item.slice] + xs.last) / 2 : xs[item.slice];
+
   Drawable place(BarItem item) =>
-      item.drawable.shift(xs[item.slice], tops[item.staff]);
+      item.drawable.shift(xOf(item), tops[item.staff]);
 }
 
 /// One concern's stubs from one bar, with the bar's frame. A system-time

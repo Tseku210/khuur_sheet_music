@@ -83,7 +83,7 @@ final class SingleBar extends BreakUnit {
 /// Two or more rest-only bars drawn as one H-bar rest with their count
 /// above. It prints the first bar's head and the last bar's barline.
 final class RestRun extends BreakUnit {
-  RestRun(this.bars, {required double body, required double rise})
+  RestRun(this.bars, {required double body, required double countRise})
     : slices = [
         Slice(at: Moment.zero, ideal: body, rod: body),
         bars.last.slices.last,
@@ -94,7 +94,7 @@ final class RestRun extends BreakUnit {
             staff: staff.staff,
             lines: staff.lines,
             above: bars.fold(
-              rise,
+              countRise,
               (above, bar) => math.max(above, bar.staves[index].above),
             ),
             below: bars.fold(
@@ -159,7 +159,7 @@ List<BreakUnit> foldBars(List<BarLayout> bars, EngravingStyle style) {
         RestRun(
           run,
           body: style.spacing.restRunWidth,
-          rise: restRunRise(style),
+          countRise: restRunRise(style),
         ),
       );
     } else {

@@ -4,6 +4,7 @@ import 'package:score_model/score_model.dart';
 
 import 'geometry.dart';
 import 'glyphs.dart';
+import 'text.dart';
 
 /// What a drawable belongs to. Painting colours by it, hit testing reports
 /// it, and overlays redraw an owner's drawables in a highlight colour.
@@ -213,4 +214,47 @@ final class PolygonDraw extends Drawable {
 
   @override
   int get hashCode => Object.hash(Object.hashAll(points), owner, ink);
+}
+
+/// Text with its origin at the start of the baseline. [bounds] was measured
+/// by the layout's `TextMeasurer`, so the painter never measures.
+final class TextDraw extends Drawable {
+  const TextDraw(
+    this.text,
+    this.origin, {
+    required this.spec,
+    required this.bounds,
+    super.owner,
+    super.ink,
+  });
+
+  final String text;
+  final SpPoint origin;
+  final TextSpec spec;
+
+  @override
+  final Box bounds;
+
+  @override
+  TextDraw shift(double dx, double dy) => TextDraw(
+    text,
+    origin.shift(dx, dy),
+    spec: spec,
+    bounds: bounds.shift(dx, dy),
+    owner: owner,
+    ink: ink,
+  );
+
+  @override
+  bool operator ==(Object other) =>
+      other is TextDraw &&
+      other.text == text &&
+      other.origin == origin &&
+      other.spec == spec &&
+      other.bounds == bounds &&
+      other.owner == owner &&
+      other.ink == ink;
+
+  @override
+  int get hashCode => Object.hash(text, origin, spec, bounds, owner, ink);
 }

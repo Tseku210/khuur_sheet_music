@@ -52,9 +52,11 @@ SystemLayout assembleSystem(
         ),
   ];
   final singles = <({BarLayout bar, BarFrame frame})>[];
+  final edges = <Framed<PlacedEdges>>[];
   for (final (index, unit) in units.indexed) {
     final frame = frames[index];
     final head = index == 0 ? unit.first.heads.system : unit.first.heads.inline;
+    edges.add((of: (edges: unit.edges, head: head.width), frame: frame));
     for (final item in head.items) {
       drawables.add(item.drawable.shift(frame.left, tops[item.staff]));
     }
@@ -87,10 +89,7 @@ SystemLayout assembleSystem(
   drawables
     ..addAll(
       placeBarlines(
-        [
-          for (final (index, unit) in units.indexed)
-            (of: unit.edges, frame: frames[index]),
-        ],
+        edges,
         groups: key.lead.groups,
         tops: tops,
         style: style,
@@ -177,8 +176,8 @@ List<BarFrame> frameUnits(SystemPlan plan) {
 }
 
 /// The bars of [unit] as hit testing and the overlays see them. The bars
-/// of a rest run share its width evenly, so each still has a place to tap
-/// and a place for the caret.
+/// of a rest run share the run's content evenly, so each still has a place
+/// to tap and a place for the caret, and the first keeps the head.
 List<PlacedBar> _placedBars(BreakUnit unit, BarFrame frame) {
   switch (unit) {
     case SingleBar(:final bar):
@@ -196,16 +195,17 @@ List<PlacedBar> _placedBars(BreakUnit unit, BarFrame frame) {
         ),
       ];
     case RestRun(:final bars):
-      final each = (frame.right - frame.left) / bars.length;
+      final from = frame.xs.first;
+      final each = (frame.right - from) / bars.length;
       return [
         for (final (index, bar) in bars.indexed)
           PlacedBar(
             measure: bar.measure,
-            left: frame.left + each * index,
-            right: frame.left + each * (index + 1),
+            left: index == 0 ? frame.left : from + each * index,
+            right: from + each * (index + 1),
             time: TimeAxis([
-              (bar.slices.first.at, frame.left + each * index),
-              (bar.slices.last.at, frame.left + each * (index + 1)),
+              (bar.slices.first.at, from + each * index),
+              (bar.slices.last.at, from + each * (index + 1)),
             ]),
             length: bar.length,
             voices: bar.voices,

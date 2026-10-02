@@ -1,3 +1,4 @@
+import 'package:score_layout/src/bar_space.dart';
 import 'package:score_layout/src/chords.dart';
 import 'package:score_layout/src/drawable.dart';
 import 'package:score_layout/src/geometry.dart';
@@ -66,27 +67,22 @@ List<Drawable> chordItems(
     item.drawable,
 ];
 
-List<Drawable> restItems(
-  MeasureView view, {
-  int index = 0,
-  int voice = 0,
-  List<double> xs = const [0, 10],
-}) {
+List<BarItem> restBarItems(MeasureView view, {int index = 0, int voice = 0}) {
   final staff = view.staves.first;
-  return [
-    for (final item in placeRest(
-      timed: timedOf(view, index: index, voice: voice),
-      slice: 0,
-      lastSlice: xs.length - 1,
-      staff: 0,
-      voiceCount: staff.voices.length,
-      lines: staff.part.staves.first.lines,
-      xs: xs,
-      style: style,
-    ))
-      item.drawable,
-  ];
+  return placeRest(
+    timed: timedOf(view, index: index, voice: voice),
+    slice: 0,
+    staff: 0,
+    voiceCount: staff.voices.length,
+    lines: staff.part.staves.first.lines,
+    style: style,
+  );
 }
+
+List<Drawable> restItems(MeasureView view, {int index = 0, int voice = 0}) => [
+  for (final item in restBarItems(view, index: index, voice: voice))
+    item.drawable,
+];
 
 Iterable<GlyphDraw> glyphsIn(Iterable<Drawable> drawables) =>
     drawables.whereType<GlyphDraw>();
@@ -825,17 +821,29 @@ void main() {
     });
 
     test(
-      'a measure rest is centred between the first slice and the barline',
+      'a measure rest hangs centred from the middle of its slice and the '
+      'bar end, so a frame centres it at any stretch',
       () {
         final view = barOf([
           MeasureRest(id: const EventId(1), span: whole.length),
         ]);
-        final rest = glyphsIn(restItems(view, xs: [0, 10])).single;
+        final item = restBarItems(view).single;
+        final rest = item.drawable as GlyphDraw;
 
+        expect(item.centred, isTrue);
         expect(rest.glyph, Glyph.restWhole);
-        expect((rest.bounds.left + rest.bounds.right) / 2, closeTo(5, 1e-9));
+        expect((rest.bounds.left + rest.bounds.right) / 2, closeTo(0, 1e-9));
         expect(rest.origin.y, 1);
         expect(restReach(timedOf(view).event, style), noReach);
+        for (final end in [10.0, 25.0]) {
+          final frame = BarFrame(left: 0, xs: [2, 6, end], tops: const [0]);
+          final placed = frame.place(item).bounds;
+          expect(
+            (placed.left + placed.right) / 2,
+            closeTo((2 + end) / 2, 1e-9),
+            reason: 'bar end $end',
+          );
+        }
       },
     );
 

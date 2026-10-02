@@ -144,8 +144,11 @@ typedef BarEdges = ({
   /// The bar opens a repeat.
   bool repeatStart,
 
-  /// The bar's inline head prints no signature, so a start repeat here can
-  /// join the end repeat of the bar before it into one sign.
+  /// The bar's inline head prints nothing, so a start repeat here can stand
+  /// in for the barline of the bar before it, or join its end repeat into
+  /// one sign. Read from the head's items, not from what the bar prints,
+  /// since a restated C major or a key under a percussion clef prints
+  /// nothing.
   bool startJoins,
   Barline end,
   RepeatEnd? repeatEnd,
@@ -160,22 +163,24 @@ double endBarlineWidth(BarEdges edges, EngravingStyle style) =>
 /// the dots. An end repeat sign is its mirror image and as wide.
 double startRepeatWidth(EngravingStyle style) => throw UnimplementedError();
 
+/// A bar's edges with the width of the head the system placed before it,
+/// which holds the room of a start repeat sign as its last group.
+typedef PlacedEdges = ({BarEdges edges, double head});
+
 /// The barlines and repeat signs of one system.
 ///
 /// A barline runs from the top line of the first staff of a part to the
 /// bottom line of its last staff, so it joins the staves of a piano part
 /// and breaks between parts ([groups] holds the first and last staff index
-/// of each part). The end barline sits at the bar's last slice. A start
-/// repeat sits at the end of the bar's head. An end repeat followed on the
-/// same system by a bar whose start repeat joins it draws as one sign at
-/// the boundary. The last bar of the score draws `Barline.finalBar` only
-/// when the model says so.
-///
-/// `BarEdges` does not say how wide the bar's head is, and a start repeat
-/// sits in the head's last group. The unit that writes this body has to
-/// pass the placed head's width with each bar.
+/// of each part). The end barline starts at the bar's last slice and is as
+/// wide as that slice's rod. A start repeat sits at the end of the bar's
+/// head, and stands in for the regular barline of the bar before it when
+/// nothing else is in the head. An end repeat followed on the same system
+/// by a bar whose start repeat joins it draws as one sign, with its thick
+/// line on the boundary. The last bar of the score draws `Barline.finalBar`
+/// only when the model says so.
 List<Drawable> placeBarlines(
-  List<Framed<BarEdges>> bars, {
+  List<Framed<PlacedEdges>> bars, {
   required List<(int, int)> groups,
   required List<double> tops,
   required EngravingStyle style,
@@ -214,6 +219,9 @@ final class SystemLead {
   List<(int, int)> get groups => [
     for (final part in parts) (part.firstStaff, part.lastStaff),
   ];
+
+  double get braceRoom =>
+      parts.any((part) => part.lastStaff > part.firstStaff) ? braceWidth : 0;
 }
 
 /// A visible part's name, measured, and its staves by index among the

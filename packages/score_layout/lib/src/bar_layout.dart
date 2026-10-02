@@ -206,12 +206,10 @@ BarLayout layoutBar(
   }
 
   final column = view.column;
+  final heads = barHeads(view, style);
   final edges = (
     repeatStart: column.repeatStart,
-    startJoins:
-        !view.printsKey &&
-        !view.printsMeter &&
-        view.staves.every((staff) => !staff.clefChanged),
+    startJoins: heads.inline.items.isEmpty,
     end: column.barline,
     repeatEnd: column.repeatEnd,
   );
@@ -235,11 +233,9 @@ BarLayout layoutBar(
             placeRest(
               timed: timed,
               slice: times.indexOf(timed.onset),
-              lastSlice: times.length - 1,
               staff: staff,
               voiceCount: staffView.voices.length,
               lines: lines,
-              xs: xs,
               style: style,
             ),
           );
@@ -277,7 +273,6 @@ BarLayout layoutBar(
   for (final beam in beams) {
     cover(beam.first.staff, beam.box);
   }
-  final heads = barHeads(view, style);
   for (final head in [heads.inline, heads.system]) {
     for (final item in head.items) {
       cover(item.staff, item.drawable.bounds);

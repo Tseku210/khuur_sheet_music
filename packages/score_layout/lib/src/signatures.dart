@@ -352,7 +352,7 @@ BarHead keySignatureItems(
   return items.isEmpty ? BarHead.none : BarHead(items: items, width: x);
 }
 
-const List<Glyph> _timeSigDigits = [
+const List<Glyph> timeSigDigits = [
   Glyph.timeSig0,
   Glyph.timeSig1,
   Glyph.timeSig2,
@@ -365,8 +365,8 @@ const List<Glyph> _timeSigDigits = [
   Glyph.timeSig9,
 ];
 
-Iterable<Glyph> _digits(int number) =>
-    number.toString().codeUnits.map((unit) => _timeSigDigits[unit - 0x30]);
+Iterable<Glyph> digitGlyphs(int number) =>
+    number.toString().codeUnits.map((unit) => timeSigDigits[unit - 0x30]);
 
 /// A time signature from x 0. It is `timeSigCommon` or `timeSigCutCommon` for
 /// those symbols, else numerator over denominator in `timeSig` digits, each row
@@ -392,11 +392,11 @@ BarHead meterItems(
             glyphs: [
               for (final (index, group) in meter.groups.indexed) ...[
                 if (index > 0) Glyph.timeSigPlus,
-                ..._digits(group),
+                ...digitGlyphs(group),
               ],
             ],
           ),
-          (y: yOfStep(2), glyphs: [..._digits(meter.unit)]),
+          (y: yOfStep(2), glyphs: [...digitGlyphs(meter.unit)]),
         ];
   double widthOf(List<Glyph> glyphs) =>
       glyphs.fold(0, (width, glyph) => width + style.font[glyph].advance);
@@ -452,42 +452,187 @@ typedef BarEdges = ({
   /// The bar opens a repeat.
   bool repeatStart,
 
-  /// The bar's inline head prints no signature, so a start repeat here can
-  /// join the end repeat of the bar before it into one sign.
+  /// The bar's inline head prints nothing, so a start repeat here can stand
+  /// in for the barline of the bar before it, or join its end repeat into
+  /// one sign. Read from the head's items, not from what the bar prints,
+  /// since a restated C major or a key under a percussion clef prints
+  /// nothing.
   bool startJoins,
   Barline end,
   RepeatEnd? repeatEnd,
 });
 
-/// The width of the bar's end barline with its repeat dots, which is the
-/// rod of the bar's last slice.
-double endBarlineWidth(BarEdges edges, EngravingStyle style) {
-  final defaults = style.font.defaults;
-  final thin = defaults.thinBarlineThickness;
-  final thick = defaults.thickBarlineThickness;
-  final gap = defaults.barlineSeparation;
-  if (edges.repeatEnd != null) {
-    return startRepeatWidth(style);
+/// What a barline or a repeat sign is made of, left to right.
+enum _Piece { thin, thick, dashed, dotted, dots }
+
+const List<_Piece> _startRepeat = [_Piece.thick, _Piece.thin, _Piece.dots];
+
+const List<_Piece> _endRepeat = [_Piece.dots, _Piece.thin, _Piece.thick];
+
+const List<_Piece> _joinedRepeat = [
+  _Piece.dots,
+  _Piece.thin,
+  _Piece.thick,
+  _Piece.thin,
+  _Piece.dots,
+];
+
+List<_Piece> _endPieces(BarEdges edges) => edges.repeatEnd != null
+    ? _endRepeat
+    : switch (edges.end) {
+        Barline.regular => const [_Piece.thin],
+        Barline.doubleBar => const [_Piece.thin, _Piece.thin],
+        Barline.finalBar => const [_Piece.thin, _Piece.thick],
+        Barline.heavy => const [_Piece.thick],
+        Barline.dashed => const [_Piece.dashed],
+        Barline.dotted => const [_Piece.dotted],
+        Barline.invisible => const [],
+      };
+
+double _pieceWidth(_Piece piece, EngravingStyle style) => switch (piece) {
+  _Piece.thin => style.font.defaults.thinBarlineThickness,
+  _Piece.thick => style.font.defaults.thickBarlineThickness,
+  _Piece.dashed || _Piece.dotted => style.font.defaults.dashedBarlineThickness,
+  _Piece.dots => style.font[Glyph.repeatDots].box.width,
+};
+
+double _gapBefore(_Piece before, _Piece piece, EngravingStyle style) =>
+    before == _Piece.dots || piece == _Piece.dots
+    ? style.font.defaults.repeatBarlineDotSeparation
+    : style.font.defaults.barlineSeparation;
+
+double _piecesWidth(List<_Piece> pieces, EngravingStyle style) {
+  var width = 0.0;
+  for (final (index, piece) in pieces.indexed) {
+    if (index > 0) {
+      width += _gapBefore(pieces[index - 1], piece, style);
+    }
+    width += _pieceWidth(piece, style);
   }
-  return switch (edges.end) {
-    Barline.regular => thin,
-    Barline.doubleBar => thin + gap + thin,
-    Barline.finalBar => thin + gap + thick,
-    Barline.heavy => thick,
-    Barline.dashed || Barline.dotted => defaults.dashedBarlineThickness,
-    Barline.invisible => 0,
-  };
+  return width;
 }
 
-/// The width of a start repeat sign, which is a thick line, a thin line and
-/// the dots. An end repeat sign is its mirror image and as wide.
-double startRepeatWidth(EngravingStyle style) {
-  final defaults = style.font.defaults;
-  return defaults.thickBarlineThickness +
-      defaults.barlineSeparation +
-      defaults.thinBarlineThickness +
-      defaults.repeatBarlineDotSeparation +
-      style.font[Glyph.repeatDot].box.width;
+List<Drawable> _placePieces(
+  List<_Piece> pieces,
+  double left, {
+  required List<(int, int)> groups,
+  required List<double> tops,
+  required EngravingStyle style,
+}) {
+  final drawables = <Drawable>[];
+  var x = left;
+  for (final (index, piece) in pieces.indexed) {
+    if (index > 0) {
+      x += _gapBefore(pieces[index - 1], piece, style);
+    }
+    final width = _pieceWidth(piece, style);
+    if (piece == _Piece.dots) {
+      final box = style.font[Glyph.repeatDots].box;
+      for (final top in tops) {
+        final origin = SpPoint(x - box.left, top + staffHeight);
+        drawables.add(
+          GlyphDraw(
+            Glyph.repeatDots,
+            origin,
+            bounds: box.shift(origin.x, origin.y),
+          ),
+        );
+      }
+    } else {
+      for (final (first, last) in groups) {
+        drawables.add(
+          LineDraw(
+            SpPoint(x + width / 2, tops[first]),
+            SpPoint(x + width / 2, tops[last] + staffHeight),
+            thickness: width,
+            dash: switch (piece) {
+              _Piece.dashed => LineDash.dashed,
+              _Piece.dotted => LineDash.dotted,
+              _ => LineDash.solid,
+            },
+          ),
+        );
+      }
+    }
+    x += width;
+  }
+  return drawables;
+}
+
+/// The width of the bar's end barline with its repeat dots, which is the
+/// rod of the bar's last slice.
+double endBarlineWidth(BarEdges edges, EngravingStyle style) =>
+    _piecesWidth(_endPieces(edges), style);
+
+double startRepeatWidth(EngravingStyle style) =>
+    _piecesWidth(_startRepeat, style);
+
+/// A bar's edges with the width of the head the system placed before it,
+/// which holds the room of a start repeat sign as its last group.
+typedef PlacedEdges = ({BarEdges edges, double head});
+
+/// The barlines and repeat signs of one system.
+///
+/// A barline runs from the top line of the first staff of a part to the
+/// bottom line of its last staff, so it joins the staves of a piano part
+/// and breaks between parts ([groups] holds the first and last staff index
+/// of each part). The end barline starts at the bar's last slice and is as
+/// wide as that slice's rod. A start repeat sits at the end of the bar's
+/// head, and stands in for the regular barline of the bar before it when
+/// nothing else is in the head. An end repeat followed on the same system
+/// by a bar whose start repeat joins it draws as one sign, with its thick
+/// line on the boundary. The last bar of the score draws `Barline.finalBar`
+/// only when the model says so.
+List<Drawable> placeBarlines(
+  List<Framed<PlacedEdges>> bars, {
+  required List<(int, int)> groups,
+  required List<double> tops,
+  required EngravingStyle style,
+}) {
+  final drawables = <Drawable>[];
+  bool repeatAlone(int index) =>
+      index + 1 < bars.length &&
+      bars[index + 1].of.edges.repeatStart &&
+      bars[index + 1].of.edges.startJoins;
+  bool joined(int index) =>
+      repeatAlone(index) && bars[index].of.edges.repeatEnd != null;
+  bool replaced(int index) =>
+      repeatAlone(index) && bars[index].of.edges.end == Barline.regular;
+  for (final (index, (of: (:edges, :head), :frame)) in bars.indexed) {
+    if (edges.repeatStart && !(index > 0 && joined(index - 1))) {
+      drawables.addAll(
+        _placePieces(
+          _startRepeat,
+          frame.left + head - _headGap - startRepeatWidth(style),
+          groups: groups,
+          tops: tops,
+          style: style,
+        ),
+      );
+    }
+    if (joined(index)) {
+      drawables.addAll(
+        _placePieces(
+          _joinedRepeat,
+          bars[index + 1].frame.left - _piecesWidth(_joinedRepeat, style) / 2,
+          groups: groups,
+          tops: tops,
+          style: style,
+        ),
+      );
+    } else if (!replaced(index)) {
+      drawables.addAll(
+        _placePieces(
+          _endPieces(edges),
+          frame.right,
+          groups: groups,
+          tops: tops,
+          style: style,
+        ),
+      );
+    }
+  }
+  return drawables;
 }
 
 /// How wide a brace is drawn, in staff spaces, whatever its height.
@@ -523,7 +668,12 @@ final class SystemLead {
   List<(int, int)> get groups => [
     for (final part in parts) (part.firstStaff, part.lastStaff),
   ];
+
+  double get braceRoom => _braceRoomOf(parts);
 }
+
+double _braceRoomOf(List<LeadPart> parts) =>
+    parts.any((part) => part.lastStaff > part.firstStaff) ? braceWidth : 0;
 
 /// A visible part's name, measured, and its staves by index among the
 /// visible staves.
@@ -558,20 +708,88 @@ SystemLead systemLead(Score score, EngravingStyle style, TextMeasurer text) {
     ));
     staff += part.staves.length;
   }
-  final brace = parts.any((part) => part.lastStaff > part.firstStaff)
-      ? braceWidth
-      : 0.0;
+  final braceRoom = _braceRoomOf(parts);
   double indentOf(Iterable<TextExtent> names) {
     final widest = names.fold<double>(
       0,
       (widest, name) => math.max(widest, name.width),
     );
-    return (widest > 0 ? widest + _nameGap : 0) + brace;
+    return (widest > 0 ? widest + _nameGap : 0) + braceRoom;
   }
 
   return SystemLead(
     parts: parts,
     firstIndent: indentOf(parts.map((part) => part.nameExtent)),
     indent: indentOf(parts.map((part) => part.shortExtent)),
+  );
+}
+
+/// The lead's drawables on one system. They are each part's name centred on
+/// its staves (the full name when [first]), a brace (`Glyph.brace`,
+/// [braceWidth] wide and stretched to the part's height) for a part of two
+/// staves or more, and one thin line down the left edge of the staves when
+/// the system has more than one.
+List<Drawable> placeLead(
+  SystemLead lead, {
+  required bool first,
+  required List<double> tops,
+  required EngravingStyle style,
+}) {
+  final indent = first ? lead.firstIndent : lead.indent;
+  final spec = style.specOf(TextRole.partName);
+  final nameRight = indent - lead.braceRoom - _nameGap;
+  final drawables = <Drawable>[];
+  for (final part in lead.parts) {
+    final top = tops[part.firstStaff];
+    final bottom = tops[part.lastStaff] + staffHeight;
+    final name = first ? part.name : part.shortName;
+    final extent = first ? part.nameExtent : part.shortExtent;
+    if (name.isNotEmpty) {
+      final x = nameRight - extent.width;
+      final y = (top + bottom + extent.ascent - extent.descent) / 2;
+      drawables.add(
+        TextDraw(
+          name,
+          SpPoint(x, y),
+          spec: spec,
+          bounds: Box(
+            x,
+            y - extent.ascent,
+            x + extent.width,
+            y + extent.descent,
+          ),
+        ),
+      );
+    }
+    if (part.lastStaff > part.firstStaff) {
+      drawables.add(_brace(indent - braceWidth, top, bottom, style));
+    }
+  }
+  if (tops.length > 1) {
+    final thin = style.font.defaults.thinBarlineThickness;
+    drawables.add(
+      LineDraw(
+        SpPoint(indent + thin / 2, tops.first),
+        SpPoint(indent + thin / 2, tops.last + staffHeight),
+        thickness: thin,
+      ),
+    );
+  }
+  return drawables;
+}
+
+/// `Glyph.brace` with its ink from x [left] to `left + braceWidth` and
+/// from [top] to [bottom]. The glyph is scaled to [braceWidth] and then
+/// stretched to its height about its origin, which is at its foot.
+GlyphDraw _brace(double left, double top, double bottom, EngravingStyle style) {
+  final box = style.font[Glyph.brace].box;
+  final scale = braceWidth / box.width;
+  final stretch = (bottom - top) / (box.height * scale);
+  return GlyphDraw(
+    Glyph.brace,
+    SpPoint(left - box.left * scale, bottom - box.bottom * scale * stretch),
+    bounds: Box(left, top, left + braceWidth, bottom),
+    scale: scale,
+    stretch: stretch,
   );
 }

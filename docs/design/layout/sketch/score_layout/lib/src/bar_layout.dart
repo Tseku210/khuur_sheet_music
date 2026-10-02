@@ -209,12 +209,10 @@ BarLayout layoutBar(
   }
 
   final column = view.column;
+  final heads = barHeads(view, style);
   final edges = (
     repeatStart: column.repeatStart,
-    startJoins:
-        !view.printsKey &&
-        !view.printsMeter &&
-        view.staves.every((staff) => !staff.clefChanged),
+    startJoins: heads.inline.items.isEmpty,
     end: column.barline,
     repeatEnd: column.repeatEnd,
   );
@@ -334,7 +332,6 @@ BarLayout layoutBar(
       ? null
       : voltaStub(view, top, xs: xs, style: style, text: text);
 
-  final heads = barHeads(view, style);
   final lead = reach.first.left + style.spacing.barPad;
   return BarLayout(
     measure: column.id,

@@ -1,4 +1,5 @@
 import 'package:score_layout/src/bar_layout.dart';
+import 'package:score_layout/src/bar_space.dart';
 import 'package:score_layout/src/chords.dart';
 import 'package:score_layout/src/drawable.dart';
 import 'package:score_layout/src/geometry.dart';
@@ -210,13 +211,15 @@ void main() {
         ),
       );
       final xs = sliceXs(layout.slices, 1, 0);
-      final rest = layout.items.single.drawable as GlyphDraw;
+      final frame = BarFrame(left: 0, xs: xs, tops: const [0]);
+      final rest = frame.place(layout.items.single) as GlyphDraw;
 
       expect(layout.restOnly, isTrue);
       expect(layout.slices, hasLength(2));
+      expect(layout.items.single.centred, isTrue);
       expect(
         (rest.bounds.left + rest.bounds.right) / 2,
-        closeTo((xs.last - xs.first) / 2, 1e-9),
+        closeTo((xs.last + xs.first) / 2, 1e-9),
       );
     });
 

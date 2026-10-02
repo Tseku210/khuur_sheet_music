@@ -14,6 +14,7 @@ final class EngravingStyle {
     this.text = const {},
     this.graceScale = 0.66,
     this.staffGap = 4,
+    this.systemGap = 6,
     this.multiMeasureRests = false,
     this.meterEverySystem = false,
     this.courtesySignatures = true,
@@ -36,6 +37,10 @@ final class EngravingStyle {
   /// Least clear space between the bottom of one staff's content and the
   /// top of the next staff's content, in staff spaces.
   final double staffGap;
+
+  /// Clear space between the band of one system and the band of the next,
+  /// and between the header and the first system, in staff spaces.
+  final double systemGap;
 
   /// Draw a run of rest-only bars as one bar with a count. Off by default
   /// because an editor needs every bar visible to write into.
@@ -69,6 +74,7 @@ final class EngravingStyle {
       _sameText(other.text, text) &&
       other.graceScale == graceScale &&
       other.staffGap == staffGap &&
+      other.systemGap == systemGap &&
       other.multiMeasureRests == multiMeasureRests &&
       other.meterEverySystem == meterEverySystem &&
       other.courtesySignatures == courtesySignatures &&
@@ -85,6 +91,7 @@ final class EngravingStyle {
     ),
     graceScale,
     staffGap,
+    systemGap,
     multiMeasureRests,
     meterEverySystem,
     courtesySignatures,
