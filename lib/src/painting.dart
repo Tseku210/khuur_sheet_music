@@ -45,6 +45,103 @@ final class SheetScale {
   int get hashCode => Object.hash(spacePx, origin);
 }
 
+/// [path] as [dash] strokes it, with lengths measured along the path. A dash
+/// is half a space and a dot a tenth. The gap between two is a quarter of a
+/// space, widened until the last dash ends where the path does, so a line
+/// meets its hook and a curve its note. A path too short for two dashes is
+/// stroked whole.
+Path dashPath(Path path, LineDash dash, double spacePx) {
+  if (dash == LineDash.solid) {
+    return path;
+  }
+  final on = (dash == LineDash.dashed ? 0.5 : 0.1) * spacePx;
+  final off = 0.25 * spacePx;
+  final dashes = Path();
+  for (final metric in path.computeMetrics()) {
+    final count = (metric.length + off) ~/ (on + off);
+    if (count < 2) {
+      dashes.addPath(metric.extractPath(0, metric.length), Offset.zero);
+      continue;
+    }
+    final step = (metric.length - on) / (count - 1);
+    for (var i = 0; i < count; i++) {
+      dashes.addPath(metric.extractPath(i * step, i * step + on), Offset.zero);
+    }
+  }
+  return dashes;
+}
+
+/// Draws a tie or a slur.
+///
+/// The ink is the crescent between two cubics that share the curve's ends,
+/// their control points `midThickness / 1.5` above and below the
+/// centreline's, filled and outlined `endThickness` wide. A control point
+/// moves a cubic's middle by three quarters of its own move, so the fill is
+/// `midThickness` thick there and the ink stays within half of both
+/// thicknesses of the centreline, which is what `CurveDraw.bounds` allows.
+/// A dashed curve is its centreline alone, stroked `midThickness` wide.
+void paintCurve(
+  Canvas canvas,
+  CurveDraw curve,
+  SheetScale scale,
+  Color color,
+) {
+  final start = scale.toPx(curve.start);
+  final control1 = scale.toPx(curve.control1);
+  final control2 = scale.toPx(curve.control2);
+  final end = scale.toPx(curve.end);
+  final stroke = Paint()
+    ..color = color
+    ..style = PaintingStyle.stroke;
+  if (curve.dashed) {
+    final centreline = Path()
+      ..moveTo(start.dx, start.dy)
+      ..cubicTo(
+        control1.dx,
+        control1.dy,
+        control2.dx,
+        control2.dy,
+        end.dx,
+        end.dy,
+      );
+    canvas.drawPath(
+      dashPath(centreline, LineDash.dashed, scale.spacePx),
+      stroke..strokeWidth = curve.midThickness * scale.spacePx,
+    );
+    return;
+  }
+  final s = curve.midThickness / 1.5 * scale.spacePx;
+  final crescent = Path()
+    ..moveTo(start.dx, start.dy)
+    ..cubicTo(
+      control1.dx,
+      control1.dy - s,
+      control2.dx,
+      control2.dy - s,
+      end.dx,
+      end.dy,
+    )
+    ..cubicTo(
+      control2.dx,
+      control2.dy + s,
+      control1.dx,
+      control1.dy + s,
+      start.dx,
+      start.dy,
+    )
+    ..close();
+  canvas
+    ..drawPath(crescent, Paint()..color = color)
+    ..drawPath(
+      crescent,
+      stroke
+        ..strokeWidth = curve.endThickness * scale.spacePx
+        // A mitred tip can reach two end thicknesses past the curve's end,
+        // which is outside its bounds.
+        ..strokeJoin = StrokeJoin.round,
+    );
+}
+
 /// Draws SMuFL glyphs as text in the font's family. This class is the whole
 /// seam for the glyph source. A path-based painter would replace it and
 /// nothing else.
@@ -122,6 +219,28 @@ final class GlyphPainter {
       ..scale(1, stretch)
       ..drawParagraph(paragraph, Offset(0, -baseline))
       ..restore();
+  }
+
+  /// Draws the copies of [run]'s glyph, evenly spaced from its `from` to
+  /// its `to`.
+  void paintRun(
+    Canvas canvas,
+    GlyphRunDraw run,
+    SheetScale scale,
+    Color color,
+  ) {
+    for (var i = 0; i < run.count; i++) {
+      paint(
+        canvas,
+        run.glyph,
+        SpPoint(
+          run.from.x + i * (run.to.x - run.from.x) / run.count,
+          run.from.y,
+        ),
+        scale,
+        color,
+      );
+    }
   }
 
   ui.Paragraph _build(int codepoint, double fontSize, Color color) {

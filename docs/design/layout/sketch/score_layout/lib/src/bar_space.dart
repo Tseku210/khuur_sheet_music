@@ -2,6 +2,8 @@
 /// system resolves them. Not exported.
 library;
 
+import 'dart:math' as math;
+
 import 'drawable.dart';
 import 'geometry.dart';
 
@@ -66,3 +68,66 @@ final class BarFrame {
 /// function takes a list of these, so it sees its own stubs and nothing
 /// else of the bar.
 typedef Framed<T> = ({T of, BarFrame frame});
+
+/// The side of a staff a curve bulges to, or a piece reserves room on.
+enum Side { above, below }
+
+/// The outline of what one staff of a bar has above its top line and below
+/// its bottom line, in bar space at stretch 1, with x from the bar's first
+/// slice and y from the staff's top line.
+///
+/// Adding a box raises the outline above or lowers it below over the box's
+/// x range. Asking for a range gives the first free y outside everything
+/// placed there. The staff's lines are the floor, so nothing is ever free
+/// inside the staff. The bar's [above] and [below] extents are the outline's
+/// extremes, which is how room reserved here becomes room in the system.
+final class Skyline {
+  final List<Box> _boxes = [];
+
+  void add(Box box) => _boxes.add(box);
+
+  /// The lowest y a box over [left] to [right] can end at and still clear
+  /// everything above the staff there. Never below the top line.
+  double freeAbove(double left, double right) {
+    var free = 0.0;
+    for (final box in _boxes) {
+      if (_meets(box, left, right)) {
+        free = math.min(free, box.top);
+      }
+    }
+    return free;
+  }
+
+  /// The highest y a box over [left] to [right] can start at and still
+  /// clear everything below the staff there. Never above the bottom line.
+  double freeBelow(double left, double right) {
+    var free = staffHeight;
+    for (final box in _boxes) {
+      if (_meets(box, left, right)) {
+        free = math.max(free, box.bottom);
+      }
+    }
+    return free;
+  }
+
+  /// How far the outline reaches above the top line. Never negative.
+  double get above {
+    var top = 0.0;
+    for (final box in _boxes) {
+      top = math.min(top, box.top);
+    }
+    return -top;
+  }
+
+  /// How far the outline reaches below the bottom line. Never negative.
+  double get below {
+    var bottom = staffHeight;
+    for (final box in _boxes) {
+      bottom = math.max(bottom, box.bottom);
+    }
+    return bottom - staffHeight;
+  }
+}
+
+bool _meets(Box box, double left, double right) =>
+    box.left <= right && box.right >= left;

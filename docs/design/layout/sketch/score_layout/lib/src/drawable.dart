@@ -212,8 +212,11 @@ final class PolygonDraw extends Drawable {
   int get hashCode => Object.hash(Object.hashAll(points), owner, ink);
 }
 
-/// A tie or a slur. It is a filled crescent between two cubic curves, thin at
-/// the ends and thick in the middle, per the font's engraving defaults.
+/// One cubic centreline, which is a tie, a slur or a grace tie. The painter
+/// outlines it [endThickness] thick and fills [midThickness] more at the
+/// middle, so the ink there is the sum of the two and [bounds] grows by half
+/// that sum. A [dashed] curve is the centreline alone, stroked
+/// [midThickness] thick.
 final class CurveDraw extends Drawable {
   const CurveDraw({
     required this.start,
@@ -222,6 +225,7 @@ final class CurveDraw extends Drawable {
     required this.end,
     required this.endThickness,
     required this.midThickness,
+    this.dashed = false,
     super.owner,
     super.ink,
   });
@@ -233,17 +237,60 @@ final class CurveDraw extends Drawable {
   final double endThickness;
   final double midThickness;
 
+  /// A dashed slur. The painter strokes the centreline instead of filling
+  /// the curve.
+  final bool dashed;
+
+  /// The exact box of the centreline, grown on every side by half of the
+  /// end and middle thicknesses together.
   @override
-  Box get bounds => throw UnimplementedError();
+  Box get bounds {
+    final allowance = (midThickness + endThickness) / 2;
+    final xs = _extrema(start.x, control1.x, control2.x, end.x);
+    final ys = _extrema(start.y, control1.y, control2.y, end.y);
+    return Box(
+      xs.reduce(math.min) - allowance,
+      ys.reduce(math.min) - allowance,
+      xs.reduce(math.max) + allowance,
+      ys.reduce(math.max) + allowance,
+    );
+  }
+
+  /// The centreline at [t], from [start] at 0 to [end] at 1.
+  SpPoint pointAt(double t) => SpPoint(
+        _cubic(start.x, control1.x, control2.x, end.x, t),
+        _cubic(start.y, control1.y, control2.y, end.y, t),
+      );
 
   @override
-  CurveDraw shift(double dx, double dy) => throw UnimplementedError();
+  CurveDraw shift(double dx, double dy) => CurveDraw(
+        start: start.shift(dx, dy),
+        control1: control1.shift(dx, dy),
+        control2: control2.shift(dx, dy),
+        end: end.shift(dx, dy),
+        endThickness: endThickness,
+        midThickness: midThickness,
+        dashed: dashed,
+        owner: owner,
+        ink: ink,
+      );
 
   /// A curve is hit near its line, not anywhere in its box. A slur's box
   /// covers every note under the arc, and a tap on those is not a tap on
   /// the slur.
   @override
-  bool hits(SpPoint point, double reach) => throw UnimplementedError();
+  bool hits(SpPoint point, double reach) {
+    final within = reach + midThickness / 2;
+    var previous = start;
+    for (var i = 1; i <= _hitSegments; i++) {
+      final next = pointAt(i / _hitSegments);
+      if (_distanceToSegment(point, previous, next) <= within) {
+        return true;
+      }
+      previous = next;
+    }
+    return false;
+  }
 
   @override
   bool operator ==(Object other) =>
@@ -254,29 +301,90 @@ final class CurveDraw extends Drawable {
       other.end == end &&
       other.endThickness == endThickness &&
       other.midThickness == midThickness &&
+      other.dashed == dashed &&
       other.owner == owner &&
       other.ink == ink;
 
   @override
   int get hashCode => Object.hash(
-    start,
-    control1,
-    control2,
-    end,
-    endThickness,
-    midThickness,
-    owner,
-    ink,
-  );
+        start,
+        control1,
+        control2,
+        end,
+        endThickness,
+        midThickness,
+        dashed,
+        owner,
+        ink,
+      );
 }
 
-/// A glyph repeated along a horizontal run, for a trill line or a wavy
-/// glissando.
+/// Segments of the polyline that stands in for a curve under a tap.
+const int _hitSegments = 16;
+
+double _cubic(double p0, double p1, double p2, double p3, double t) {
+  final u = 1 - t;
+  return u * u * u * p0 +
+      3 * u * u * t * p1 +
+      3 * u * t * t * p2 +
+      t * t * t * p3;
+}
+
+/// The cubic through [p0] to [p3] at its ends and at every interior
+/// extremum, which is a root in (0, 1) of its derivative's quadratic.
+List<double> _extrema(double p0, double p1, double p2, double p3) {
+  final a = -p0 + 3 * p1 - 3 * p2 + p3;
+  final b = 2 * (p0 - 2 * p1 + p2);
+  final c = p1 - p0;
+  return [
+    p0,
+    p3,
+    for (final t in _roots(a, b, c))
+      if (t > 0 && t < 1) _cubic(p0, p1, p2, p3, t),
+  ];
+}
+
+/// The real roots of `a t^2 + b t + c`.
+List<double> _roots(double a, double b, double c) {
+  if (a == 0) {
+    return b == 0 ? const [] : [-c / b];
+  }
+  final discriminant = b * b - 4 * a * c;
+  if (discriminant < 0) {
+    return const [];
+  }
+  // A nearly straight curve has a tiny a, where the textbook formula
+  // cancels. This form keeps both roots exact.
+  final q = -(b + (b < 0 ? -1 : 1) * math.sqrt(discriminant)) / 2;
+  return [q / a, if (q != 0) c / q];
+}
+
+double _distanceToSegment(SpPoint point, SpPoint a, SpPoint b) {
+  final dx = b.x - a.x;
+  final dy = b.y - a.y;
+  final length2 = dx * dx + dy * dy;
+  final along = length2 == 0
+      ? 0.0
+      : (((point.x - a.x) * dx + (point.y - a.y) * dy) / length2).clamp(
+          0.0,
+          1.0,
+        );
+  final px = a.x + along * dx - point.x;
+  final py = a.y + along * dy - point.y;
+  return math.sqrt(px * px + py * py);
+}
+
+/// A glyph repeated [count] times from [from] to [to] on the baseline
+/// `from.y`, for a trill line. The painter draws copy `i` at
+/// `from.x + i * (to.x - from.x) / count`. [bounds] is the glyph's box over
+/// the run, set by the producer, which knows the font.
 final class GlyphRunDraw extends Drawable {
   const GlyphRunDraw(
     this.glyph, {
     required this.from,
     required this.to,
+    required this.count,
+    required this.bounds,
     super.owner,
     super.ink,
   });
@@ -284,12 +392,21 @@ final class GlyphRunDraw extends Drawable {
   final Glyph glyph;
   final SpPoint from;
   final SpPoint to;
+  final int count;
 
   @override
-  Box get bounds => throw UnimplementedError();
+  final Box bounds;
 
   @override
-  GlyphRunDraw shift(double dx, double dy) => throw UnimplementedError();
+  GlyphRunDraw shift(double dx, double dy) => GlyphRunDraw(
+        glyph,
+        from: from.shift(dx, dy),
+        to: to.shift(dx, dy),
+        count: count,
+        bounds: bounds.shift(dx, dy),
+        owner: owner,
+        ink: ink,
+      );
 
   @override
   bool operator ==(Object other) =>
@@ -297,11 +414,13 @@ final class GlyphRunDraw extends Drawable {
       other.glyph == glyph &&
       other.from == from &&
       other.to == to &&
+      other.count == count &&
+      other.bounds == bounds &&
       other.owner == owner &&
       other.ink == ink;
 
   @override
-  int get hashCode => Object.hash(glyph, from, to, owner, ink);
+  int get hashCode => Object.hash(glyph, from, to, count, bounds, owner, ink);
 }
 
 /// Text with its origin at the start of the baseline. [bounds] was measured

@@ -185,6 +185,11 @@ BarLayout layoutBar(
       }
     }
   }
+  for (final staffView in view.staves) {
+    for (final (:slice, :right) in letRingReach(staffView, chords)) {
+      reach[slice] = widest(reach[slice], (left: 0, right: right));
+    }
+  }
   final lyrics = lyricsOf(view, times, style, text);
   for (final syllable in lyrics.syllables) {
     reach[syllable.slice] = widest(reach[syllable.slice], syllable.reach);
@@ -249,7 +254,12 @@ BarLayout layoutBar(
           items
             ..addAll(placeChord(placed.plan, slice: placed.slice, staff: staff))
             ..addAll(
-              graceItems(placed.plan, slice: placed.slice, staff: staff),
+              graceItems(
+                placed.plan,
+                slice: placed.slice,
+                staff: staff,
+                style: style,
+              ),
             );
         }
       }
@@ -314,10 +324,17 @@ BarLayout layoutBar(
     );
   }
 
-  final noteAnchors = headAnchors(chords.values, style);
+  final lead = reach.first.left + style.spacing.barPad;
   final ties = [
     for (final (staff, staffView) in view.staves.indexed)
-      ...tieEnds(staffView, noteAnchors, skylines[staff], staff: staff, xs: xs),
+      ...tieEnds(
+        staffView,
+        chords,
+        skylines[staff],
+        staff: staff,
+        xs: xs,
+        left: -lead,
+      ),
   ];
   final spanners = spannerPieces(
     view,
@@ -330,9 +347,19 @@ BarLayout layoutBar(
   );
   final volta = top == null
       ? null
-      : voltaStub(view, top, xs: xs, style: style, text: text);
+      : voltaStub(
+          view,
+          top,
+          xs: xs,
+          left: -lead,
+          headAbove: math.max(
+            headReach(heads.inline, 0).above,
+            headReach(heads.system, 0).above,
+          ),
+          style: style,
+          text: text,
+        );
 
-  final lead = reach.first.left + style.spacing.barPad;
   return BarLayout(
     measure: column.id,
     length: column.length,
@@ -340,7 +367,9 @@ BarLayout layoutBar(
     restOnly: view.isRestOnly,
     widths: BarWidths(
       inlineHead: heads.inline.width,
-      systemHead: heads.system.width,
+      systemHead:
+          heads.system.width +
+          arrivingRoom(ties, spanners, xs: xs, lead: lead, style: style),
       courtesy: heads.courtesy.width,
       body: lead + naturalWidth(slices),
       minBody: lead + rodWidth(slices),

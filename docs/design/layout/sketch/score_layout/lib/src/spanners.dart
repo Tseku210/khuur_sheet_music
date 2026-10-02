@@ -20,7 +20,6 @@ import 'bar_space.dart';
 import 'chords.dart';
 import 'drawable.dart';
 import 'geometry.dart';
-import 'marks.dart';
 import 'style.dart';
 import 'text.dart';
 
@@ -31,6 +30,9 @@ const double tieRise = 0.75;
 /// over it, in staff spaces. A slur's arc is kept inside it, so a long slur
 /// is flatter than an engraver would draw it and never leaves its band.
 const double slurRise = 2;
+
+/// The length of a let-ring tie, which has no head to land on.
+const double letRingLength = 1.5;
 
 /// The side a slur or a trill line is drawn on, in every bar it crosses.
 ///
@@ -69,6 +71,17 @@ final class TieWithin extends TieEnd {
 
   final BarAnchor from;
   final BarAnchor to;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TieWithin &&
+      other.from == from &&
+      other.to == to &&
+      other.owner == owner &&
+      other.side == side;
+
+  @override
+  int get hashCode => Object.hash(from, to, owner, side);
 }
 
 /// The tie leaves for note [to] in the next bar (`TieView.crossesBarline`).
@@ -82,6 +95,17 @@ final class TieLeaving extends TieEnd {
 
   final BarAnchor from;
   final NoteId to;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TieLeaving &&
+      other.from == from &&
+      other.to == to &&
+      other.owner == owner &&
+      other.side == side;
+
+  @override
+  int get hashCode => Object.hash(from, to, owner, side);
 }
 
 /// A tie from the previous bar lands on [note] (`StaffView.tiedIn`).
@@ -95,10 +119,22 @@ final class TieArriving extends TieEnd {
 
   final NoteId note;
   final BarAnchor to;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TieArriving &&
+      other.note == note &&
+      other.to == to &&
+      other.owner == owner &&
+      other.side == side;
+
+  @override
+  int get hashCode => Object.hash(note, to, owner, side);
 }
 
-/// No note follows to land on (`TieView.to` is null). It is a short let-ring
-/// tie of fixed length.
+/// No head to land on, which is a let-ring tie of [letRingLength]. The model
+/// gives the tie no target, or its target's chord is in this bar but has no
+/// head of that note.
 final class TieOpen extends TieEnd {
   const TieOpen({
     required this.from,
@@ -107,18 +143,53 @@ final class TieOpen extends TieEnd {
   });
 
   final BarAnchor from;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TieOpen &&
+      other.from == from &&
+      other.owner == owner &&
+      other.side == side;
+
+  @override
+  int get hashCode => Object.hash(from, owner, side);
 }
 
 /// The tie ends of one staff of a bar, from `StaffView.ties` and
 /// `StaffView.tiedIn`. Each anchor is the head's edge at its vertical
 /// middle, a little outside it. Each end reserves [tieRise] in [skyline]
-/// from its head to the bar's edge, or between its two heads.
+/// from its head to the bar's edge, or between its two heads. An arriving
+/// end reserves on both sides, because the bar it comes from chose the side
+/// from its own chord and this bar cannot see it. [left] is the bar's
+/// content start in bar space, where an arriving half tie begins.
 List<TieEnd> tieEnds(
   StaffView view,
-  Map<NoteId, BarAnchor> heads,
+  Map<EventId, PlacedChord> chords,
   Skyline skyline, {
   required int staff,
   required List<double> xs,
+  required double left,
+}) => throw UnimplementedError();
+
+/// The slice and right reach of every let-ring tie of [view]. The stub is
+/// content to the right of its chord, like a dot or a flag, so spacing makes
+/// room for it before the next slice. A tie whose target is in the bar but
+/// has no head of that note lets ring too, as [tieEnds] draws it.
+List<({int slice, double right})> letRingReach(
+  StaffView view,
+  Map<EventId, PlacedChord> chords,
+) => throw UnimplementedError();
+
+/// The width the system head grows by when a tie or slur arrives in the bar
+/// from an earlier system, so its stub before the head it lands on is at
+/// least [letRingLength] long. The stub starts where the head glyphs end
+/// and runs through the bar's [lead] in front of its first slice.
+double arrivingRoom(
+  List<TieEnd> ends,
+  List<SpannerPiece> pieces, {
+  required List<double> xs,
+  required double lead,
+  required EngravingStyle style,
 }) => throw UnimplementedError();
 
 /// The ties of one system.
@@ -136,6 +207,17 @@ List<Drawable> placeTies(
   required EngravingStyle style,
 }) => throw UnimplementedError();
 
+/// The tie of a grace note from its head [from] to the head [to] of the
+/// same tone, or a let-ring tie when [to] is null. Both boxes are in one
+/// space. It curves below, since grace stems are up, at the style's grace
+/// scale.
+CurveDraw graceTie(
+  Box from,
+  Box? to, {
+  required Owner owner,
+  required EngravingStyle style,
+}) => throw UnimplementedError();
+
 /// The part of one spanner inside one bar, resolved from the bar's
 /// `SpannerSegment` alone.
 final class SpannerPiece {
@@ -150,6 +232,7 @@ final class SpannerPiece {
     required this.side,
     required this.clear,
     required this.limit,
+    required this.textExtent,
   });
 
   final SpannerOwner owner;
@@ -159,10 +242,10 @@ final class SpannerPiece {
   final VoiceSlot? voice;
 
   /// Where the piece starts in this bar, by [pieceStart]. With [startsHere]
-  /// it is the spanner's own start. That is the head or stem tip of the
-  /// event sounding at `SpannerSegment.from` for a slur, glissando or trill
-  /// line, and the x of `from` on the piece's baseline for a line. Without
-  /// it, the bar's first slice.
+  /// it is the spanner's own start. That is the outline of the event
+  /// sounding at `SpannerSegment.from` for a slur, its heads for a
+  /// glissando or a trill line, and the x of `from` on the piece's baseline
+  /// for a line. Without it, the bar's first slice.
   final BarAnchor from;
 
   /// Where the piece ends in this bar, by [pieceEnd]. That is the event
@@ -187,18 +270,55 @@ final class SpannerPiece {
   /// The y of the outer edge of that room. Nothing of the piece is drawn
   /// past it.
   final double limit;
+
+  /// A tempo line's text as the bar measured it. Null for every other kind.
+  final TextExtent? textExtent;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SpannerPiece &&
+      other.owner == owner &&
+      other.kind == kind &&
+      other.voice == voice &&
+      other.from == from &&
+      other.until == until &&
+      other.startsHere == startsHere &&
+      other.endsHere == endsHere &&
+      other.side == side &&
+      other.clear == clear &&
+      other.limit == limit &&
+      other.textExtent == textExtent;
+
+  @override
+  int get hashCode => Object.hash(
+    owner,
+    kind,
+    voice,
+    from,
+    until,
+    startsHere,
+    endsHere,
+    side,
+    clear,
+    limit,
+    textExtent,
+  );
 }
 
-/// The spanner pieces of a bar, one per `SpannerSegment`, in reservation
-/// order. Each reserves its room in the skyline of its staff:
+/// The spanner pieces of a bar, one per `SpannerSegment` on a visible
+/// staff, in reservation order. Each reserves its room in the skyline of
+/// its staff:
 /// - a slur, [slurRise] outside its notes and marks over the piece's x
 ///   range, on its [curveSide];
 /// - a hairpin, its opening's height below the staff;
 /// - an octave line, its glyph's height above (8va, 15ma, 22ma) or below;
 /// - a pedal line, the `keyboardPedalPed` glyph's height below;
-/// - a trill line, the wiggle's height above;
+/// - a trill line, the trill sign and the wiggle's height above;
 /// - a tempo line, its text's height above;
 /// - a glissando, nothing, because it runs between two heads in the notes.
+///
+/// Every piece of a line kind reserves one height, computed from everything
+/// the kind can draw, so a continuation has room for its restated sign.
 List<SpannerPiece> spannerPieces(
   MeasureView view,
   List<Skyline> skylines,
@@ -207,15 +327,7 @@ List<SpannerPiece> spannerPieces(
   required List<double> xs,
   required EngravingStyle style,
   required TextMeasurer text,
-}) {
-  // TODO: for each segment, find its staff's index among view.staves (a
-  // spanner on a hidden staff makes no piece), resolve from and until as
-  // documented on SpannerPiece (by pieceStart and pieceEnd), take the side from
-  // curveSide or the kind, ask the skyline for the free y over the range
-  // and store it as clear, add the piece's band, and store the band's outer
-  // edge as limit.
-  throw UnimplementedError();
-}
+}) => throw UnimplementedError();
 
 /// The event sounding at [at] in voice [slot] of [staff], as
 /// `Score.eventAt` finds it.
@@ -299,23 +411,24 @@ TimedEvent? _anchor(StaffView staff, Spanner spanner, Moment at) =>
 ///   pieces and inside their outermost `limit`. Every piece has the same
 ///   side. A run cut by the system end stops at a point level with its
 ///   last note;
-/// - a hairpin is two lines `hairpinThickness` thick. A continuation starts
-///   open instead of from a point;
+/// - a hairpin is two lines `hairpinThickness` thick. A cut end is half
+///   open instead of a point or the full opening;
 /// - an octave line is the glyph, then a dashed line with a hook at its
 ///   true end. A continuation restates the glyph in parentheses;
 /// - a pedal line is "Ped." and a line with a hook at its true end;
-/// - a trill line is `wiggleTrill` repeated as a `GlyphRunDraw`;
+/// - a trill line is the trill sign, then `wiggleTrill` repeated as a
+///   `GlyphRunDraw`;
 /// - a tempo line is the text, then a dashed line;
-/// - a glissando is a straight line or `wiggleGlissando` between the heads.
+/// - a glissando is a straight line between the heads.
 /// A line is straight across its run, at the outermost baseline its pieces
 /// ask for, which is inside the room every one of them reserved or further
-/// out and never past the system's band.
+/// out and never past the system's band. Every x stays inside [left] to
+/// [right], and a cut end stops inside them by its ink's half thickness.
 List<Drawable> placeSpanners(
   List<Framed<List<SpannerPiece>>> bars, {
   required double left,
   required double right,
   required EngravingStyle style,
-  required TextMeasurer text,
 }) => throw UnimplementedError();
 
 /// A bar under a volta bracket.
@@ -323,7 +436,11 @@ typedef VoltaStub = ({
   /// "1.", "1, 2." and so on, from `Volta.endings`.
   String label,
 
-  /// From `MeasureView.voltaStarts`. The bracket's left hook and label go here.
+  /// The label as the bar measured it.
+  TextExtent extent,
+
+  /// From `MeasureView.voltaStarts`. The bracket's left hook and label go
+  /// here.
   bool starts,
 
   /// `MeasureView.voltaEnds`.
@@ -335,14 +452,21 @@ typedef VoltaStub = ({
   /// The y of the bracket's line from the top staff's top line, clear of
   /// everything else the bar has above that staff.
   double dy,
+
+  /// How far the hooks reach down from the line. Enough for the label.
+  double hook,
 });
 
 /// The bar's volta stub, or null when `column.volta` is null. Reserves the
-/// bracket and its label above [top], outside everything placed before.
+/// bracket and its label above [top], outside everything placed before and
+/// outside the bar's heads, which reach [headAbove] above the staff and are
+/// not in the skyline. [left] is the bar's content start in bar space.
 VoltaStub? voltaStub(
   MeasureView view,
   Skyline top, {
   required List<double> xs,
+  required double left,
+  required double headAbove,
   required EngravingStyle style,
   required TextMeasurer text,
 }) => throw UnimplementedError();
@@ -354,18 +478,18 @@ VoltaStub? voltaStub(
 /// outermost `dy` of its bars, from the first bar's left to the last bar's
 /// right. It has a left hook and the label where the volta starts, and a
 /// right hook where it ends unless it is `open`. A bracket continued from
-/// the system before has neither a left hook nor a label.
+/// the system before has neither a left hook nor a label. A hook's outer
+/// edge is flush with the bracket's end.
 List<Drawable> placeVoltas(
   List<Framed<VoltaStub?>> bars, {
   required EngravingStyle style,
-  required TextMeasurer text,
 }) => throw UnimplementedError();
 
 /// The crescent from [from] to [to], bulging to [side].
 ///
 /// The arc's rise grows with its length up to [rise]. It is then raised
 /// until the middle half of the curve lies outside [clear], and clamped so
-/// its outer edge never passes [limit]. Both are a y in system space.
+/// its outer edge never passes [limit]. Both are a y in the points' space.
 /// [clear] is the inner edge of the room the bars under the curve reserved,
 /// and [limit] its outer edge. A tie passes its own anchors' y as [clear].
 ///
@@ -373,6 +497,13 @@ List<Drawable> placeVoltas(
 /// raise is what keeps it off the notes it passes over. Only the middle
 /// half is raised, since the ends must come down to their notes, so a tall
 /// note beside a low end note can still touch the curve.
+///
+/// The control points sit a quarter and three quarters of the way along,
+/// each the same distance outward from its own end, so the arc is at most
+/// three quarters of that distance outside the line between the ends. The
+/// raise reads the curve's inner edge at a quarter and three quarters,
+/// where the control points pull least, and the clamp its outer edge
+/// against the outer end.
 CurveDraw curveBetween(
   SpPoint from,
   SpPoint to, {
@@ -383,4 +514,5 @@ CurveDraw curveBetween(
   required double endThickness,
   required double midThickness,
   required Owner owner,
+  bool dashed = false,
 }) => throw UnimplementedError();

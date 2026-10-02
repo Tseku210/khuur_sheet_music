@@ -658,7 +658,7 @@ void main() {
         ]);
         final plan = planOf(view);
         final items = [
-          for (final item in graceItems(plan, slice: 0, staff: 0))
+          for (final item in graceItems(plan, slice: 0, staff: 0, style: style))
             item.drawable,
         ];
         final head = headsIn(items).single;
@@ -691,7 +691,8 @@ void main() {
         ]),
       );
       final items = [
-        for (final item in graceItems(plan, slice: 0, staff: 0)) item.drawable,
+        for (final item in graceItems(plan, slice: 0, staff: 0, style: style))
+          item.drawable,
       ];
 
       expect(slashesIn(items), isEmpty);
@@ -706,7 +707,7 @@ void main() {
           ]),
         );
         final items = [
-          for (final item in graceItems(plan, slice: 0, staff: 0))
+          for (final item in graceItems(plan, slice: 0, staff: 0, style: style))
             item.drawable,
         ];
         final slash = slashesIn(items).single;
@@ -723,7 +724,7 @@ void main() {
       final view = barOf([
         chordOf(1, 'C5', graces: [graceOf(2, 'B4 D5')]),
       ]);
-      final items = graceItems(planOf(view), slice: 0, staff: 0);
+      final items = graceItems(planOf(view), slice: 0, staff: 0, style: style);
 
       expect(headsIn(items.map((i) => i.drawable)), hasLength(2));
       expect(
@@ -738,7 +739,7 @@ void main() {
           chordOf(1, 'C5', graces: [graceOf(2, 'A4'), graceOf(3, 'B4')]),
         ]),
       );
-      final items = graceItems(plan, slice: 0, staff: 0);
+      final items = graceItems(plan, slice: 0, staff: 0, style: style);
       final heads = headsIn(items.map((i) => i.drawable)).toList();
 
       expect(plan.graces.map((g) => g.source.id), [

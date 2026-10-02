@@ -62,6 +62,16 @@ final class TextExtent {
   final double width;
   final double ascent;
   final double descent;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TextExtent &&
+      other.width == width &&
+      other.ascent == ascent &&
+      other.descent == descent;
+
+  @override
+  int get hashCode => Object.hash(width, ascent, descent);
 }
 
 /// Measures text for layout. The Flutter shell implements it with `dart:ui`

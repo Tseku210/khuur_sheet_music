@@ -48,15 +48,23 @@ SliceReach widest(SliceReach a, SliceReach b) =>
     (left: math.max(a.left, b.left), right: math.max(a.right, b.right));
 
 /// The distinct moments of the bar, sorted. They are every event onset in
-/// every voice of every visible staff, every clef change inside the bar, and
-/// the bar's end. Grace chords take no slice. They sit left of their
-/// principal and widen its reach.
+/// every voice of every visible staff, every clef change inside the bar,
+/// the start of every hairpin, octave, pedal or tempo line that starts in
+/// the bar on a visible staff, and the bar's end. Grace chords take no
+/// slice. They sit left of their principal and widen its reach. A slur,
+/// glissando or trill line starts on an event, so it needs no slice of its
+/// own.
 List<Moment> sliceTimes(MeasureView view) {
   final onsets = [
     for (final staff in view.staves) ...[
       for (final voice in staff.voices)
         for (final timed in voice.events) timed.onset,
       for (final change in staff.source.clefChanges) change.offset,
+      for (final segment in view.spanners)
+        if (segment.startsHere &&
+            segment.spanner.staff == staff.source.staff &&
+            _startsSlice(segment.spanner.kind))
+          segment.from,
     ],
     Moment.zero + view.column.length,
   ]..sort((a, b) => a.compareTo(b));
@@ -68,6 +76,11 @@ List<Moment> sliceTimes(MeasureView view) {
   }
   return times;
 }
+
+bool _startsSlice(SpannerKind kind) => switch (kind) {
+  Hairpin() || OctaveLine() || PedalLine() || TempoLine() => true,
+  Slur() || Glissando() || TrillLine() => false,
+};
 
 /// The slices of [view] at [times], with the reach each one's content has.
 ///

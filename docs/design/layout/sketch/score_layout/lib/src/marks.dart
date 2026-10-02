@@ -21,38 +21,6 @@ import 'spacing.dart';
 import 'style.dart';
 import 'text.dart';
 
-/// The outline of what is placed above and below one staff of one bar, by
-/// x range, in bar space at stretch 1 with y from the staff's top line.
-///
-/// Adding a box raises the outline above or lowers it below over the box's
-/// x range. Asking for a range returns the first free y outside everything
-/// placed there. The bar's `above` and `below` extents are the outline's
-/// extremes, which is how room reserved here becomes room in the system.
-final class Skyline {
-  Skyline();
-
-  // TODO: two sorted lists of (left, right, y) segments, starting as the
-  // staff's own top line (y 0) and bottom line (y 4).
-
-  void add(Box box) => throw UnimplementedError();
-
-  /// The lowest y a box over [left] to [right] can end at and still clear
-  /// everything above the staff there.
-  double freeAbove(double left, double right) => throw UnimplementedError();
-
-  /// The highest y a box over [left] to [right] can start at and still
-  /// clear everything below the staff there.
-  double freeBelow(double left, double right) => throw UnimplementedError();
-
-  /// How far the outline reaches above the top line. Never negative.
-  double get above => throw UnimplementedError();
-
-  /// How far the outline reaches below the bottom line. Never negative.
-  double get below => throw UnimplementedError();
-}
-
-enum Side { above, below }
-
 /// The reach text and wide marks add to their slices, for spacing. Those are
 /// chord symbols, text directions, dynamics, tempo marks, the rehearsal mark,
 /// and what a line starts with at its own start, which is a tempo line's

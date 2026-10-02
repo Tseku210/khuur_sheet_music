@@ -8,9 +8,9 @@ import 'package:score_model/score_model.dart';
 import 'bar_space.dart';
 import 'beams.dart';
 import 'chords.dart';
-import 'geometry.dart';
 import 'signatures.dart';
 import 'spacing.dart';
+import 'spanners.dart';
 import 'style.dart';
 import 'text.dart';
 
@@ -39,6 +39,9 @@ final class BarLayout {
     required this.heads,
     required this.edges,
     required this.beams,
+    required this.ties,
+    required this.spanners,
+    required this.volta,
   });
 
   final MeasureId measure;
@@ -71,6 +74,9 @@ final class BarLayout {
   final BarHeads heads;
   final BarEdges edges;
   final List<BeamPlan> beams;
+  final List<TieEnd> ties;
+  final List<SpannerPiece> spanners;
+  final VoltaStub? volta;
 
   @override
   bool operator ==(Object other) =>
@@ -86,7 +92,10 @@ final class BarLayout {
       _same(other.items, items) &&
       other.heads == heads &&
       other.edges == edges &&
-      _same(other.beams, beams);
+      _same(other.beams, beams) &&
+      _same(other.ties, ties) &&
+      _same(other.spanners, spanners) &&
+      other.volta == volta;
 
   @override
   int get hashCode =>
@@ -187,6 +196,11 @@ BarLayout layoutBar(
       }
     }
   }
+  for (final staffView in view.staves) {
+    for (final (:slice, :right) in letRingReach(staffView, chords)) {
+      reach[slice] = widest(reach[slice], (left: 0, right: right));
+    }
+  }
 
   final items = [
     for (final (staff, staffView) in view.staves.indexed)
@@ -243,7 +257,12 @@ BarLayout layoutBar(
           items
             ..addAll(placeChord(placed.plan, slice: placed.slice, staff: staff))
             ..addAll(
-              graceItems(placed.plan, slice: placed.slice, staff: staff),
+              graceItems(
+                placed.plan,
+                slice: placed.slice,
+                staff: staff,
+                style: style,
+              ),
             );
         }
       }
@@ -260,26 +279,50 @@ BarLayout layoutBar(
     }
   }
 
-  final above = List<double>.filled(view.staves.length, 0);
-  final below = List<double>.filled(view.staves.length, 0);
-  void cover(int staff, Box box) {
-    above[staff] = math.max(above[staff], -box.top);
-    below[staff] = math.max(below[staff], box.bottom - staffHeight);
-  }
-
+  final skylines = [for (final _ in view.staves) Skyline()];
   for (final item in items) {
-    cover(item.staff, item.drawable.bounds);
+    final x = item.centred ? (xs[item.slice] + xs.last) / 2 : xs[item.slice];
+    skylines[item.staff].add(item.drawable.bounds.shift(x, 0));
   }
   for (final beam in beams) {
-    cover(beam.first.staff, beam.box);
-  }
-  for (final head in [heads.inline, heads.system]) {
-    for (final item in head.items) {
-      cover(item.staff, item.drawable.bounds);
-    }
+    skylines[beam.first.staff].add(beam.box);
   }
 
   final lead = reach.first.left + style.spacing.barPad;
+  final ties = [
+    for (final (staff, staffView) in view.staves.indexed)
+      ...tieEnds(
+        staffView,
+        chords,
+        skylines[staff],
+        staff: staff,
+        xs: xs,
+        left: -lead,
+      ),
+  ];
+  final spanners = spannerPieces(
+    view,
+    skylines,
+    chords,
+    times: times,
+    xs: xs,
+    style: style,
+    text: text,
+  );
+  final volta = skylines.isEmpty
+      ? null
+      : voltaStub(
+          view,
+          skylines.first,
+          xs: xs,
+          left: -lead,
+          headAbove: math.max(
+            headReach(heads.inline, 0).above,
+            headReach(heads.system, 0).above,
+          ),
+          style: style,
+          text: text,
+        );
   return BarLayout(
     measure: column.id,
     length: column.length,
@@ -287,7 +330,9 @@ BarLayout layoutBar(
     restOnly: view.isRestOnly,
     widths: BarWidths(
       inlineHead: heads.inline.width,
-      systemHead: heads.system.width,
+      systemHead:
+          heads.system.width +
+          arrivingRoom(ties, spanners, xs: xs, lead: lead, style: style),
       courtesy: heads.courtesy.width,
       body: lead + naturalWidth(slices),
       minBody: lead + rodWidth(slices),
@@ -296,17 +341,36 @@ BarLayout layoutBar(
     slices: slices,
     staves: [
       for (final (staff, staffView) in view.staves.indexed)
-        (
-          staff: staffView.source.staff,
-          lines: _linesOf(staffView),
-          above: above[staff],
-          below: below[staff],
-        ),
+        _staffOf(staffView, staff, skylines[staff], heads),
     ],
     items: items,
     heads: heads,
     edges: edges,
     beams: beams,
+    ties: ties,
+    spanners: spanners,
+    volta: volta,
+  );
+}
+
+BarStaff _staffOf(
+  StaffView view,
+  int staff,
+  Skyline skyline,
+  BarHeads heads,
+) {
+  var above = skyline.above;
+  var below = skyline.below;
+  for (final head in [heads.inline, heads.system]) {
+    final reach = headReach(head, staff);
+    above = math.max(above, reach.above);
+    below = math.max(below, reach.below);
+  }
+  return (
+    staff: view.source.staff,
+    lines: _linesOf(view),
+    above: above,
+    below: below,
   );
 }
 

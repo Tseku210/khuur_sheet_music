@@ -39,7 +39,9 @@ SliceReach widest(SliceReach a, SliceReach b) =>
 
 /// The distinct moments of the bar, sorted. They are every event onset in every
 /// voice of every visible staff, every direction, tempo and clef-change offset,
-/// every spanner end that lies in the bar, and the bar's end.
+/// the start of every hairpin, octave, pedal or tempo line that starts in the
+/// bar on a visible staff, and the bar's end. A slur, glissando or trill line
+/// starts on an event, so it needs no slice of its own.
 List<Moment> sliceTimes(MeasureView view) {
   // TODO: collect into a SplayTreeSet ordered by Moment.compareTo. Grace
   // chords take no slice. They sit left of their principal and widen its

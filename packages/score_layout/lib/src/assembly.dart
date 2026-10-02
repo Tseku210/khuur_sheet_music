@@ -1,6 +1,7 @@
 /// Building one system from its plan. Not exported.
 library;
 
+import 'bar_layout.dart';
 import 'bar_space.dart';
 import 'beams.dart';
 import 'breaking.dart';
@@ -9,6 +10,7 @@ import 'drawable.dart';
 import 'geometry.dart';
 import 'signatures.dart';
 import 'spacing.dart';
+import 'spanners.dart';
 import 'style.dart';
 import 'system_layout.dart';
 
@@ -23,6 +25,9 @@ SystemLayout assembleSystem(SystemPlan plan, EngravingStyle style) {
   final frames = frameUnits(plan);
   final courtesyLeft = frames.last.right + units.last.slices.last.rod;
   final right = courtesyLeft + (key.next?.widths.courtesy ?? 0);
+  // A stub arriving from an earlier system starts where the head glyphs end,
+  // in the room `arrivingRoom` put in the system head.
+  final headEnd = frames.first.left + units.first.first.heads.system.width;
 
   final drawables = <Drawable>[
     ...placeLead(key.lead, first: key.first, tops: tops, style: style),
@@ -36,6 +41,7 @@ SystemLayout assembleSystem(SystemPlan plan, EngravingStyle style) {
         ),
   ];
   final edges = <Framed<PlacedEdges>>[];
+  final singles = <({BarLayout bar, BarFrame frame})>[];
   for (final (index, unit) in units.indexed) {
     final frame = frames[index];
     final head = index == 0 ? unit.first.heads.system : unit.first.heads.inline;
@@ -45,6 +51,7 @@ SystemLayout assembleSystem(SystemPlan plan, EngravingStyle style) {
     }
     switch (unit) {
       case SingleBar(:final bar):
+        singles.add((bar: bar, frame: frame));
         drawables.addAll(bar.items.map(frame.place));
         for (final beam in bar.beams) {
           drawables.addAll(placeBeam(beam, frame, style));
@@ -64,9 +71,35 @@ SystemLayout assembleSystem(SystemPlan plan, EngravingStyle style) {
   for (final item in key.next?.heads.courtesy.items ?? const <HeadItem>[]) {
     drawables.add(item.drawable.shift(courtesyLeft, tops[item.staff]));
   }
-  drawables.addAll(
-    placeBarlines(edges, groups: key.lead.groups, tops: tops, style: style),
-  );
+  drawables
+    ..addAll(
+      placeBarlines(edges, groups: key.lead.groups, tops: tops, style: style),
+    )
+    ..addAll(
+      placeTies(
+        [for (final (:bar, :frame) in singles) (of: bar.ties, frame: frame)],
+        left: headEnd,
+        right: right,
+        style: style,
+      ),
+    )
+    ..addAll(
+      placeSpanners(
+        [
+          for (final (:bar, :frame) in singles)
+            (of: bar.spanners, frame: frame),
+        ],
+        left: headEnd,
+        right: right,
+        style: style,
+      ),
+    )
+    ..addAll(
+      placeVoltas(
+        [for (final (:bar, :frame) in singles) (of: bar.volta, frame: frame)],
+        style: style,
+      ),
+    );
 
   assert(
     drawables.every((drawable) => _inside(drawable.bounds, plan)),

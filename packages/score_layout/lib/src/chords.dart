@@ -18,6 +18,7 @@ import 'glyphs.dart';
 import 'signatures.dart';
 import 'smufl_font.dart';
 import 'spacing.dart';
+import 'spanners.dart';
 import 'style.dart';
 
 enum StemSide { up, down }
@@ -113,6 +114,12 @@ final class ChordPlan {
   final List<GracePlan> graces;
 
   final _ChordInk _ink;
+
+  /// Each head's box against the slice line, by note.
+  Map<NoteId, Box> get headBoxes => _ink.headBoxes;
+
+  /// The union of [headBoxes].
+  Box get headsBox => _ink.headsBox;
 }
 
 /// One grace chord before a principal.
@@ -133,6 +140,9 @@ final class GracePlan {
   final double x;
 
   final _ChordInk _ink;
+
+  /// Each head's box against the grace's own slice line, before [x].
+  Map<NoteId, Box> get headBoxes => _ink.headBoxes;
 }
 
 /// A planned chord with its place in the bar. Beams, ties, tuplets and
@@ -277,17 +287,50 @@ List<BarItem> placeChord(
 /// scale, each with its stem up and its flag, and a slash through the stem
 /// of each acciaccatura, where the font's eighth flag puts it.
 ///
+/// A tied grace note joins the head of the same `Note.tone` in the next
+/// grace chord, or in the principal when it is the last grace. With no
+/// such head the tie is a short let-ring tie. The curve lies inside the
+/// principal's slice, so it is a bar item and never crosses a barline.
+///
 /// A grace chord has no reference of its own, so every grace drawable,
 /// heads included, is owned by the principal's `EventRef`.
 List<BarItem> graceItems(
   ChordPlan plan, {
   required int slice,
   required int staff,
-}) => [
-  for (final grace in plan.graces)
-    for (final drawable in grace._ink.drawables)
-      BarItem(slice, staff, drawable.shift(grace.x, 0)),
-];
+  required EngravingStyle style,
+}) {
+  final owner = ElementOwner(plan.timed.ref);
+  final items = <BarItem>[];
+  for (final (index, grace) in plan.graces.indexed) {
+    for (final drawable in grace._ink.drawables) {
+      items.add(BarItem(slice, staff, drawable.shift(grace.x, 0)));
+    }
+    final next = plan.graces.elementAtOrNull(index + 1);
+    for (final note in grace.source.notes) {
+      if (!note.tie) {
+        continue;
+      }
+      final from = grace.headBoxes[note.id]!.shift(grace.x, 0);
+      final to = next == null
+          ? _headOfTone(plan.chord.notes, plan.headBoxes, note.tone)
+          : _headOfTone(
+              next.source.notes,
+              next.headBoxes,
+              note.tone,
+            )?.shift(next.x, 0);
+      items.add(
+        BarItem(slice, staff, graceTie(from, to, owner: owner, style: style)),
+      );
+    }
+  }
+  return items;
+}
+
+Box? _headOfTone(Iterable<Note> notes, Map<NoteId, Box> boxes, Tone tone) {
+  final note = notes.where((note) => note.tone == tone).firstOrNull;
+  return note == null ? null : boxes[note.id];
+}
 
 /// Where a chord's stem leaves its heads, the y of the head it reaches past,
 /// and the y a beam's inner edge must stay beyond (`keep`), which is the far
@@ -686,6 +729,8 @@ final class _AccidentalColumn {
 final class _ChordInk {
   const _ChordInk({
     required this.drawables,
+    required this.headBoxes,
+    required this.headsBox,
     required this.left,
     required this.right,
     required this.stemX,
@@ -726,6 +771,7 @@ final class _ChordInk {
     final drawables = <Drawable>[];
 
     final origins = <SpPoint>[];
+    final headBoxes = <NoteId, Box>{};
     Box? headsBox;
     for (final head in heads) {
       final box = _scaled(font[head.glyph].box, scale);
@@ -737,6 +783,7 @@ final class _ChordInk {
       final origin = SpPoint(x, yOfStep(head.step));
       origins.add(origin);
       final at = box.shift(origin.x, origin.y);
+      headBoxes[head.id] = at;
       headsBox = headsBox?.union(at) ?? at;
       drawables.add(
         GlyphDraw(
@@ -967,6 +1014,8 @@ final class _ChordInk {
     }
     return _ChordInk(
       drawables: drawables,
+      headBoxes: headBoxes,
+      headsBox: heads0,
       left: left,
       right: right,
       stemX: stemX,
@@ -981,6 +1030,9 @@ final class _ChordInk {
   }
 
   final List<Drawable> drawables;
+
+  final Map<NoteId, Box> headBoxes;
+  final Box headsBox;
 
   /// The leftmost and rightmost ink.
   final double left;

@@ -80,6 +80,13 @@ final class ChordPlan {
 
   /// Grace chords in order, planned at the style's grace scale.
   final List<GracePlan> graces;
+
+  /// Each head's box against the slice line, by note. Ties, slurs and
+  /// glissandi read their ends off it.
+  Map<NoteId, Box> get headBoxes => throw UnimplementedError();
+
+  /// The union of [headBoxes].
+  Box get headsBox => throw UnimplementedError();
 }
 
 /// One grace chord before a principal. Built by [planChord], which keeps its
@@ -92,6 +99,9 @@ final class GracePlan {
 
   /// The grace's own slice line against the principal's, negative.
   final double x;
+
+  /// Each head's box against the grace's own slice line, before [x].
+  Map<NoteId, Box> get headBoxes => throw UnimplementedError();
 }
 
 /// A planned chord with its place in the bar. Beams, ties, tuplets and
@@ -171,14 +181,8 @@ List<BarItem> graceItems(
   ChordPlan plan, {
   required int slice,
   required int staff,
+  required EngravingStyle style,
 }) => throw UnimplementedError();
-
-/// Where each head of [chords] is, for ties, slurs and glissandi. An anchor is
-/// the head's centre against its chord's slice.
-Map<NoteId, BarAnchor> headAnchors(
-  Iterable<PlacedChord> chords,
-  EngravingStyle style,
-) => throw UnimplementedError();
 
 /// How far a rest's glyph and dots reach from its slice line. A
 /// `MeasureRest` is centred in its bar, and reaches its glyph's width so

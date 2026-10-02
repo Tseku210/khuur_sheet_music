@@ -61,6 +61,9 @@ void main() {
         'numbers and drawables, $walked', () {
       var systems = 0;
       var kept = 0;
+      var ties = 0;
+      var voltaBars = 0;
+      final spanners = <Type, int>{};
 
       walk(style, (layout, score, width) {
         expectSameSheet(
@@ -69,10 +72,37 @@ void main() {
         );
         systems += layout.systemCount;
         kept += layout.systemCount - layout.delta.rekeyed.length;
+        for (final measure in score.measures) {
+          final view = score.measureView(measure.id);
+          ties += view.staves.fold(0, (n, staff) => n + staff.ties.length);
+          if (measure.volta != null) {
+            voltaBars++;
+          }
+        }
+        for (final spanner in score.spanners) {
+          spanners.update(
+            spanner.kind.runtimeType,
+            (n) => n + 1,
+            ifAbsent: () => 1,
+          );
+        }
       });
 
       expect(systems, greaterThan(seeds.length * edits));
       expect(kept, greaterThan(0));
+      expect(ties, greaterThan(0));
+      expect(voltaBars, greaterThan(0));
+      for (final kind in [
+        Slur,
+        Hairpin,
+        OctaveLine,
+        PedalLine,
+        TrillLine,
+        TempoLine,
+        Glissando,
+      ]) {
+        expect(spanners[kind], greaterThan(0), reason: '$kind');
+      }
     });
 
     test('every drawable and bar number of every system stays inside its '

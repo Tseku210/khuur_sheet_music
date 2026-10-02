@@ -915,6 +915,9 @@ void main() {
         ),
         edges: bar.edges,
         beams: bar.beams,
+        ties: bar.ties,
+        spanners: bar.spanners,
+        volta: bar.volta,
       );
       final width = heads.courtesy.width;
 

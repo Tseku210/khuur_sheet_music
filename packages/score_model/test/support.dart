@@ -245,12 +245,23 @@ Score withSlur(
   ScorePoint last, {
   int staff = 0,
   VoiceSlot? voice,
+}) => withSpanner(score, const Slur(), first, last, staff: staff, voice: voice);
+
+/// [score] with a [kind] spanner from [first] to [last] on staff [staff],
+/// with id 900 plus the number of spanners before it.
+Score withSpanner(
+  Score score,
+  SpannerKind kind,
+  ScorePoint first,
+  ScorePoint last, {
+  int staff = 0,
+  VoiceSlot? voice,
 }) => score.copyWith(
   spanners: Seq([
     ...score.spanners,
     Spanner(
       id: SpannerId(900 + score.spanners.length),
-      kind: const Slur(),
+      kind: kind,
       staff: score.staves[staff].id,
       voice: voice,
       first: first,

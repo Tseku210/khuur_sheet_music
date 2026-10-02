@@ -38,7 +38,9 @@ SystemLayout assembleSystem(
   final frames = frameUnits(plan);
   final courtesyLeft = frames.last.right + units.last.slices.last.rod;
   final right = courtesyLeft + (key.next?.widths.courtesy ?? 0);
-  final contentLeft = frames.first.left + units.first.widths.systemHead;
+  // A stub arriving from an earlier system starts where the head glyphs end,
+  // in the room `arrivingRoom` put in the system head.
+  final headEnd = frames.first.left + units.first.first.heads.system.width;
 
   final drawables = <Drawable>[
     ...placeLead(key.lead, first: key.first, tops: tops, style: style),
@@ -98,7 +100,7 @@ SystemLayout assembleSystem(
     ..addAll(
       placeTies(
         [for (final (:bar, :frame) in singles) (of: bar.ties, frame: frame)],
-        left: contentLeft,
+        left: headEnd,
         right: right,
         style: style,
       ),
@@ -109,17 +111,15 @@ SystemLayout assembleSystem(
           for (final (:bar, :frame) in singles)
             (of: bar.spanners, frame: frame),
         ],
-        left: contentLeft,
+        left: headEnd,
         right: right,
         style: style,
-        text: text,
       ),
     )
     ..addAll(
       placeVoltas(
         [for (final (:bar, :frame) in singles) (of: bar.volta, frame: frame)],
         style: style,
-        text: text,
       ),
     );
   for (final staff in plan.staves) {

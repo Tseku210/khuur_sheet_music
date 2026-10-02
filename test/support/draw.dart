@@ -106,8 +106,16 @@ void paintDrawables(
           stretch: stretch,
         );
       case LineDraw(:final from, :final to, :final thickness, :final dash):
+        final start = scale.toPx(from);
+        final end = scale.toPx(to);
         canvas.drawPath(
-          _linePath(scale.toPx(from), scale.toPx(to), dash, scale.spacePx),
+          dashPath(
+            ui.Path()
+              ..moveTo(start.dx, start.dy)
+              ..lineTo(end.dx, end.dy),
+            dash,
+            scale.spacePx,
+          ),
           ui.Paint()
             ..color = color
             ..style = ui.PaintingStyle.stroke
@@ -130,31 +138,12 @@ void paintDrawables(
           paragraph,
           ui.Offset(at.dx, at.dy - paragraph.alphabeticBaseline),
         );
+      case CurveDraw():
+        paintCurve(canvas, drawable, scale, color);
+      case GlyphRunDraw():
+        painter.paintRun(canvas, drawable, scale, color);
     }
   }
-}
-
-/// A dash is half a space, a dot a tenth, and the gap between them a
-/// quarter of a space.
-ui.Path _linePath(ui.Offset from, ui.Offset to, LineDash dash, double spacePx) {
-  final path = ui.Path();
-  if (dash == LineDash.solid) {
-    return path
-      ..moveTo(from.dx, from.dy)
-      ..lineTo(to.dx, to.dy);
-  }
-  final on = (dash == LineDash.dashed ? 0.5 : 0.1) * spacePx;
-  final off = 0.25 * spacePx;
-  final length = (to - from).distance;
-  final unit = (to - from) / length;
-  for (var at = 0.0; at < length; at += on + off) {
-    final start = from + unit * at;
-    final end = from + unit * (at + on < length ? at + on : length);
-    path
-      ..moveTo(start.dx, start.dy)
-      ..lineTo(end.dx, end.dy);
-  }
-  return path;
 }
 
 /// The lines of a staff with its top line at [top], from [left] to [right].

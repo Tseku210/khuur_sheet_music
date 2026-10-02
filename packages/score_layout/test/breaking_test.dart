@@ -749,6 +749,9 @@ void main() {
           heads: bars[0].heads,
           edges: bars[0].edges,
           beams: const [],
+          ties: const [],
+          spanners: const [],
+          volta: null,
         ),
       ];
       final plan = breaksOf(
