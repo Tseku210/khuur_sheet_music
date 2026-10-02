@@ -110,9 +110,10 @@ final class Syllable {
   /// else nothing.
   final OpenLyric? leaves;
 
-  /// The right edge of the last note in this bar that the extender it leaves
-  /// reaches, which is the last before the lane's next syllable or a rest.
-  /// Null when it leaves no extender.
+  /// The right edge of the last note after its own in this bar that the
+  /// extender it leaves reaches, which is the last before the lane's next
+  /// syllable or a rest. Null when it leaves no extender, or one that reaches
+  /// no later note here. An extender under its own note alone is not drawn.
   final MelismaEnd? extendTo;
 
   /// Whether the extender reaches the bar's end, so the next bar says where
@@ -160,6 +161,7 @@ final class Syllable {
     owner,
     joins,
     leaves,
+    extendTo,
     extendsOn,
     trail,
     pad,
@@ -351,7 +353,8 @@ double lyricRoom(List<LyricRow> rows, EngravingStyle style) => rows.fold(
 /// gives what it leaves (`begin` and `middle` leave a hyphen), and
 /// `Lyric.extend` an extender, which ends at the last note before the
 /// lane's next syllable or a rest, or leaves the bar when neither follows.
-/// [chords] places each syllable against its chord's head.
+/// A gap in a voice ends it as a rest does. [chords] places each syllable
+/// against its chord's head.
 BarLyrics lyricsOf(
   MeasureView view,
   List<Moment> times,
@@ -363,6 +366,7 @@ BarLyrics lyricsOf(
   final hyphen = text.measure('-', spec).width;
   // A quarter of the size is about the width of a space in most text faces.
   final pad = spec.size / 4;
+  final end = Moment.zero + view.column.length;
   final syllables = <Syllable>[];
   final lanes = <LyricLane, BarLane>{};
   final voices = <(StaffId, VoiceSlot), BarLane>{};
@@ -389,14 +393,7 @@ BarLyrics lyricsOf(
             Syllabic.end => lyric.extend ? OpenLyric.extender : null,
           };
           final melisma = leaves == OpenLyric.extender
-              ? _run(
-                  events,
-                  index + 1,
-                  lyric.verse,
-                  chords,
-                  times,
-                  _endOf(placed),
-                )
+              ? _run(events, index + 1, lyric.verse, chords, end)
               : null;
           final extent = text.measure(lyric.text, spec);
           final syllable = Syllable(
@@ -407,7 +404,8 @@ BarLyrics lyricsOf(
               extent,
               melisma:
                   melisma != null &&
-                  (!melisma.stops || melisma.to!.slice != slice),
+                  (melisma.to != null ||
+                      !melisma.stops && _holds(voice.nextOpening, lyric.verse)),
             ),
             text: lyric.text,
             extent: extent,
@@ -425,15 +423,15 @@ BarLyrics lyricsOf(
           sung.putIfAbsent(lane, () => []).add(syllable);
         }
       }
-      final first = events.first.event;
       for (final MapEntry(key: lane, value: here) in sung.entries) {
         final last = here.last;
+        final heldTo = _run(events, 0, lane.verse, chords, end).to;
         lanes[lane] = (
-          start: first is! ChordEvent
-              ? LaneStart.rest
-              : first.lyrics.any((lyric) => lyric.verse == lane.verse)
+          start: heldTo != null
+              ? LaneStart.held
+              : events.first.onset.isZero && events.first.event is ChordEvent
               ? LaneStart.syllable
-              : LaneStart.held,
+              : LaneStart.rest,
           end: switch (last.leaves) {
             OpenLyric.hyphen => LaneEnd.hyphen,
             OpenLyric.extender when last.extendsOn => LaneEnd.extender,
@@ -442,47 +440,54 @@ BarLyrics lyricsOf(
           joins: here.first.joins,
           ascent: here.map((s) => s.extent.ascent).reduce(math.max),
           descent: here.map((s) => s.extent.descent).reduce(math.max),
-          heldTo: _run(events, 0, lane.verse, chords, times, null).to,
+          heldTo: heldTo,
         );
       }
+      final through = _run(events, 0, null, chords, end);
       voices[(staff, voice.slot)] = (
-        start: first is ChordEvent ? LaneStart.held : LaneStart.rest,
-        end: events.every((timed) => timed.event is ChordEvent)
-            ? LaneEnd.asBefore
-            : LaneEnd.hyphenAsBefore,
+        start: through.to != null ? LaneStart.held : LaneStart.rest,
+        end: through.stops ? LaneEnd.hyphenAsBefore : LaneEnd.asBefore,
         joins: false,
         ascent: 0,
         descent: 0,
-        heldTo: _run(events, 0, null, chords, times, null).to,
+        heldTo: through.to,
       );
     }
   }
   return BarLyrics(syllables: syllables, lanes: lanes, voices: voices);
 }
 
-/// Walks [events] from [from] to the first rest, or the first chord that
-/// sings [verse] when one is given. Gives the right edge of the last chord
-/// before that stop, [before] when there is none, and whether a stop was
-/// found.
+/// Walks [events] from [from] to the first rest or gap, or the first chord
+/// that sings [verse] when one is given. Gives the right edge of the last
+/// chord before that stop, null when there is none, and whether a stop was
+/// found before [end], the bar's end.
 ({MelismaEnd? to, bool stops}) _run(
   List<TimedEvent> events,
   int from,
   int? verse,
   Map<EventId, PlacedChord> chords,
-  List<Moment> times,
-  MelismaEnd? before,
+  Moment end,
 ) {
-  var to = before;
+  MelismaEnd? to;
+  var at = from == 0
+      ? Moment.zero
+      : events[from - 1].onset + events[from - 1].duration;
   for (final timed in events.skip(from)) {
-    final event = timed.event;
-    if (event is! ChordEvent ||
-        event.lyrics.any((lyric) => lyric.verse == verse)) {
+    if (timed.onset != at || !_holds(timed, verse)) {
       return (to: to, stops: true);
     }
-    to = _endOf(chords[event.id]!);
+    to = _endOf(chords[timed.event.id]!);
+    at = timed.onset + timed.duration;
   }
-  return (to: to, stops: false);
+  return (to: to, stops: at != end);
 }
+
+/// Whether [timed] is a chord that sings no syllable of [verse], so an
+/// extender of that verse runs on under it.
+bool _holds(TimedEvent? timed, int? verse) => switch (timed?.event) {
+  ChordEvent(:final lyrics) => !lyrics.any((lyric) => lyric.verse == verse),
+  _ => false,
+};
 
 MelismaEnd _endOf(PlacedChord placed) => (
   slice: placed.slice,
@@ -519,12 +524,13 @@ List<double> lyricBaselines(
 /// [baselines] holds the y of each row of [rows] in system space. [carry]
 /// is what is open at the system's start and [carryOut] what is open at its
 /// end. [next] is the lyrics of the first bar of the next system, or null
-/// on the last system.
+/// on the last system. [left] is where the system head ends and [right]
+/// where a courtesy signature starts.
 ///
 /// A hyphen is centred between the two syllables of its word, and repeated
-/// when the gap is wide. At a system's edge the edge stands in for the
-/// syllable on the other side, so a word split by the break has a hyphen
-/// on each side. A syllable that leaves a hyphen nothing joins is an
+/// when the gap is wide. At a system's edge, [left] or [right] stands in
+/// for the syllable on the other side, so a word split by the break has a
+/// hyphen on each side. A syllable that leaves a hyphen nothing joins is an
 /// unfinished word, and gets one hyphen right after its text.
 ///
 /// An extender runs on the baseline from its syllable's right edge to the
@@ -533,8 +539,8 @@ List<double> lyricBaselines(
 /// the note, else it stops at the last note of the system. One carried in
 /// starts at the first slice. None is drawn that would end where it starts.
 ///
-/// [bars] holds the system's single bars. A system of rest runs alone has
-/// none, and draws no lyrics, as it draws no bar content.
+/// [bars] holds every unit of the system. A rest run stands in with its
+/// first bar, whose rest stops an extender.
 List<Drawable> placeLyrics(
   List<Framed<BarLyrics>> bars, {
   required List<LyricRow> rows,
@@ -542,17 +548,14 @@ List<Drawable> placeLyrics(
   required LyricCarry carry,
   required LyricCarry carryOut,
   required BarLyrics? next,
+  required double left,
   required double right,
   required EngravingStyle style,
   required TextMeasurer text,
 }) {
-  if (bars.isEmpty) {
-    return const [];
-  }
   final spec = style.specOf(TextRole.lyric);
   final hyphen = text.measure('-', spec);
   final thickness = style.font.defaults.lyricLineThickness;
-  final left = bars.first.frame.left;
   final drawables = <Drawable>[];
 
   TextDraw hyphenAt(double x, double y) => TextDraw(
@@ -633,8 +636,11 @@ List<Drawable> placeLyrics(
           }
         }
         open = syllable.leaves == OpenLyric.hyphen ? end : null;
-        if (syllable.extendTo case final to?) {
-          final here = frame.xs[to.slice] + to.dx;
+        if (syllable.leaves == OpenLyric.extender) {
+          final here = switch (syllable.extendTo) {
+            final to? => frame.xs[to.slice] + to.dx,
+            null => null,
+          };
           extender(
             end,
             syllable.extendsOn

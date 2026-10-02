@@ -125,13 +125,17 @@ SystemLayout assembleSystem(
   for (final staff in plan.staves) {
     drawables.addAll(
       placeLyrics(
-        [for (final (:bar, :frame) in singles) (of: bar.lyrics, frame: frame)],
+        [
+          for (final (index, unit) in units.indexed)
+            (of: unit.first.lyrics, frame: frames[index]),
+        ],
         rows: staff.rows,
         baselines: lyricBaselines(staff.rows, staff.lyricsFrom, style),
         carry: key.carry,
         carryOut: key.carryOut,
         next: key.next?.lyrics,
-        right: right,
+        left: headEnd,
+        right: courtesyLeft,
         style: style,
         text: text,
       ),

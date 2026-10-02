@@ -177,9 +177,9 @@ Score vocal() {
     (
       0,
       [
-        sung('G4', NoteValue.quarter, 'Gen-', 'Мо-'),
-        sung('A4', NoteValue.quarter, '-tle', '-рин'),
-        sung('B4', half, 'wind', 'хуур'),
+        sung('G4', NoteValue.quarter, 'Gen-', 'Сал-'),
+        sung('A4', NoteValue.quarter, '-tle', '-хи'),
+        sung('B4', half, 'wind', 'нам'),
       ]
     ),
     (
@@ -606,10 +606,10 @@ void main() {
           .toList();
 
       expect(layout.systemCount, 2);
-      expect(wordOn(0, 'Мо').origin.y, greaterThan(wordOn(0, 'Gen').origin.y));
+      expect(wordOn(0, 'Сал').origin.y, greaterThan(wordOn(0, 'Gen').origin.y));
       expect(
-          wordOn(0, 'Мо').bounds.left, lessThan(wordOn(0, 'Gen').bounds.right));
-      expect(wordOn(0, 'Мо').bounds.right,
+          wordOn(0, 'Сал').bounds.left, lessThan(wordOn(0, 'Gen').bounds.right));
+      expect(wordOn(0, 'Сал').bounds.right,
           greaterThan(wordOn(0, 'Gen').bounds.left));
       for (final (system, after, before) in [
         (0, 'Gen', 'tle'),

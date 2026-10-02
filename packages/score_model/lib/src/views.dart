@@ -170,6 +170,7 @@ final class VoiceView {
     required this.events,
     required this.beams,
     required this.tuplets,
+    required this.nextOpening,
   });
 
   final VoiceSlot slot;
@@ -185,6 +186,11 @@ final class VoiceView {
 
   /// Tuplets flattened for drawing brackets and numbers.
   final List<TupletView> tuplets;
+
+  /// The event that opens this voice in the next bar. Null on the last bar,
+  /// and when the next bar opens the voice with a gap or lacks it. What
+  /// crosses the barline, a tie or a lyric extender, ends on it.
+  final TimedEvent? nextOpening;
 }
 
 /// An event placed in time.

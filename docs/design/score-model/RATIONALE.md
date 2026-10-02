@@ -561,6 +561,7 @@ Accepted by the project owner on 2026-10-02. The layout design proposed them as 
 - **A hook on the last event of a group points back.** A hook points forward on the first event and after a secondary break, and back elsewhere. The rule export had also pointed forward on a group's last event after a break, where no event follows. In 6/8, three sixteenths before a quarter note gave the third sixteenth a forward hook. It is a backward hook now, and export writes `backward hook` there. This is the one change to exported files.
 - **The names of the beam types stay in the exporter.** `musicxml_names.dart` is shared with the Read stage of import, which does not see the view types. Import reads a `<beam>` by its text as before.
 - **Twenty-one tests cover the additions, for 767.** The design asked for three. Each addition has its own tests. The export tests that were there before hold the bar numbers and the printed words in exported files.
+- **`VoiceView.nextOpening` is the event that opens the voice in the next bar.** Layout unit 9 added it. A lyric syllable whose extender leaves its bar is aligned left with its head only when the extender is drawn, and that depends on the next bar's first note in the voice. The view already looked that event up for ties and dropped it. It is null on the last bar and when the next bar opens the voice with a gap or lacks it. One test covers it, for 769.
 
 ## Open questions and risks
 

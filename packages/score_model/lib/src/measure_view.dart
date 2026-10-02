@@ -132,6 +132,7 @@ StaffView _staffView(
           events: events,
           beams: beamGroups(events, column.meter),
           tuplets: _tuplets(voice, events),
+          nextOpening: next == null ? null : openingEvent(next, id, voice.slot),
         ),
     ],
     accidentals: foldAccidentals(

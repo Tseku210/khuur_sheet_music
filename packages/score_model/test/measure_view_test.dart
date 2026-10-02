@@ -422,6 +422,25 @@ void main() {
       );
     });
 
+    test('names the event that opens the voice in the next bar, and none '
+        'when that bar opens it with a gap or there is no next bar', () {
+      var score = blankScore(bars: 3);
+      score = fill(score, 1, [chordOf(110, 'F4', value: NoteValue.whole)]);
+      score = fill(score, 0, [
+        chordOf(100, 'C5', value: NoteValue.whole),
+      ], slot: VoiceSlot.two);
+      score = fill(score, 1, [
+        Gap(len(1, 2)),
+        chordOf(111, 'C5', value: NoteValue.half),
+      ], slot: VoiceSlot.two);
+      final voices = staffOf(score, 0).voices;
+
+      expect(voices[0].nextOpening?.event.id, const EventId(110));
+      expect(voices[0].nextOpening?.onset, Moment.zero);
+      expect(voices[1].nextOpening, isNull);
+      expect(voiceView(score, 2).nextOpening, isNull);
+    });
+
     test('flattens nested tuplets outermost first', () {
       final inner = tripletOfEighths(2, [
         for (var id = 101; id <= 103; id++)

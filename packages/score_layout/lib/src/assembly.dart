@@ -34,8 +34,9 @@ SystemLayout assembleSystem(
   final courtesyLeft = frames.last.right + units.last.slices.last.rod;
   final right = courtesyLeft + (key.next?.widths.courtesy ?? 0);
   // A stub arriving from an earlier system starts where the head glyphs end,
-  // in the room `arrivingRoom` put in the system head. One leaving for the
-  // next system stops at `courtesyLeft`, before any courtesy signature.
+  // in the room `arrivingRoom` put in the system head, and so does a lyric
+  // hyphen. One leaving for the next system stops at `courtesyLeft`, before
+  // any courtesy signature, and so do a lyric hyphen and extender.
   final headEnd = frames.first.left + units.first.first.heads.system.width;
 
   final drawables = <Drawable>[
@@ -115,13 +116,17 @@ SystemLayout assembleSystem(
   for (final staff in plan.staves) {
     drawables.addAll(
       placeLyrics(
-        [for (final (:bar, :frame) in singles) (of: bar.lyrics, frame: frame)],
+        [
+          for (final (index, unit) in units.indexed)
+            (of: unit.first.lyrics, frame: frames[index]),
+        ],
         rows: staff.rows,
         baselines: lyricBaselines(staff.rows, staff.lyricsFrom, style),
         carry: key.carry,
         carryOut: key.carryOut,
         next: key.next?.lyrics,
-        right: right,
+        left: headEnd,
+        right: courtesyLeft,
         style: style,
         text: text,
       ),

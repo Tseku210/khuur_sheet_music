@@ -90,9 +90,41 @@ Score brokenBefore(Score score, List<int> starts) => after(score, [
 SheetLayout sheetOf(Score score, {double width = 200}) =>
     SheetLayout(score, width: width, text: text);
 
-Iterable<TextDraw> lyricText(SystemLayout system) => system.drawables
-    .whereType<TextDraw>()
-    .where((draw) => draw.spec == style.specOf(TextRole.lyric));
+/// The lyric text of [system]. A part name has the lyric's size, so it is
+/// told apart by standing in the indent, left of the first bar.
+Iterable<TextDraw> lyricText(SystemLayout system) =>
+    system.drawables.whereType<TextDraw>().where(
+      (draw) =>
+          draw.spec == style.specOf(TextRole.lyric) &&
+          draw.bounds.left >= system.bars.first.left,
+    );
+
+/// The x of the system head's right edge, where the clef and any key
+/// signature end.
+double headInkOf(SystemLayout system) => system.drawables
+    .whereType<GlyphDraw>()
+    .where(
+      (draw) =>
+          draw.glyph == Glyph.gClef || draw.glyph == Glyph.accidentalSharp,
+    )
+    .where(
+      (draw) => draw.bounds.right <= system.bars.first.time.xAt(Moment.zero),
+    )
+    .map((draw) => draw.bounds.right)
+    .reduce(math.max);
+
+/// The left edge of the courtesy key signature at the end of [system].
+double courtesyOf(SystemLayout system) => system.drawables
+    .whereType<GlyphDraw>()
+    .where((draw) => draw.glyph == Glyph.accidentalSharp)
+    .map((draw) => draw.bounds.left)
+    .where((left) => left > system.bars.last.right)
+    .reduce(math.min);
+
+/// [score] with the key of three sharps from bar [from].
+Score sharpsFrom(Score score, int from) => after(score, [
+  SetKey(from: barId(from), key: const KeySignature(3)),
+]);
 
 List<TextDraw> syllablesOn(SystemLayout system) =>
     lyricText(system).where((draw) => draw.text != '-').toList();
@@ -228,6 +260,40 @@ void main() {
       expect(system.height, closeTo(ti.origin.y + descent, 1e-9));
     });
 
+    test('sits under its own staff alone, and a staff without lyrics '
+        'keeps no room for them', () {
+      Score score({required bool sung}) => scoreOf([
+        [
+          staffOf([
+            for (final (k, word) in ['a', 'b', 'c', 'd'].indexed)
+              chordOf(
+                k + 1,
+                'G4',
+              ).copyWith(lyrics: Seq([if (sung) syllable(word)])),
+          ]),
+          staffOf([for (var k = 5; k <= 8; k++) chordOf(k, 'G4')]),
+        ],
+      ]);
+      final system = sheetOf(score(sung: true)).systemAt(0);
+      final plain = sheetOf(score(sung: false)).systemAt(0);
+      final lower = system.staves[1];
+
+      expect(syllablesOn(system).map((draw) => draw.text), [
+        'a',
+        'b',
+        'c',
+        'd',
+      ]);
+      for (final draw in syllablesOn(system)) {
+        expect(draw.bounds.top, greaterThan(system.staves[0].top + 4));
+        expect(draw.bounds.bottom, lessThan(lower.top));
+      }
+      expect(
+        system.height - lower.top,
+        closeTo(plain.height - plain.staves[1].top, 1e-9),
+      );
+    });
+
     test('in another script is measured and placed like any other', () {
       final system = sheetOf(
         sungScore([
@@ -312,6 +378,25 @@ void main() {
       );
     });
 
+    test('spans a bar of rests between two syllables of a word', () {
+      final layout = sheetOf(
+        sungScore([
+          [null, null, null, 'do-'],
+          ['r', 'r', 'r', 'r'],
+          ['-re', null, null, null],
+        ]),
+      );
+      final system = layout.systemAt(0);
+
+      expect(layout.systemCount, 1);
+      expect(hyphensOn(system).length, greaterThan(1));
+      expectHyphensBetween(
+        system,
+        syllableOn(system, 'do').bounds.right,
+        syllableOn(system, 're').bounds.left,
+      );
+    });
+
     test('is drawn on each side of a system break that splits a word', () {
       final layout = sheetOf(
         brokenBefore(
@@ -332,9 +417,52 @@ void main() {
         syllableOn(first, 'do').bounds.right,
         first.width,
       );
-      expectHyphensBetween(second, second.bars.first.left, re.bounds.left);
+      for (final hyphen in hyphensOn(second)) {
+        expect(hyphen.bounds.left, greaterThan(headInkOf(second)));
+        expect(hyphen.bounds.right, lessThanOrEqualTo(re.bounds.left));
+      }
       expect(hyphensOn(second).first.origin.y, re.origin.y);
       expect(syllablesOn(second).single, re);
+    });
+
+    test('at a system break stands clear of the courtesy key signature '
+        'before it and of the key signature after it', () {
+      final layout = sheetOf(
+        sharpsFrom(
+          brokenBefore(
+            sungScore([
+              [null, null, null, 'do-'],
+              ['-re', null, null, null],
+            ]),
+            [1],
+          ),
+          1,
+        ),
+      );
+      final first = layout.systemAt(0);
+      final second = layout.systemAt(1);
+      final re = syllableOn(second, 're');
+
+      final from = syllableOn(first, 'do').bounds.right;
+      final leaving = hyphensOn(first);
+      final centre =
+          leaving.map(centreOf).reduce((a, b) => a + b) / leaving.length;
+
+      expect(
+        centre,
+        inExclusiveRange(
+          (from + first.bars.last.right) / 2,
+          (from + courtesyOf(first)) / 2,
+        ),
+        reason:
+            'centred on the gap to where the courtesy signature\'s room '
+            'starts, past the last barline',
+      );
+      expect(hyphensOn(second), isNotEmpty);
+      for (final hyphen in hyphensOn(second)) {
+        expect(hyphen.bounds.left, greaterThan(headInkOf(second)));
+        expect(hyphen.bounds.right, lessThanOrEqualTo(re.bounds.left));
+      }
     });
 
     test('is repeated along a wide gap, no two further apart than ten '
@@ -403,6 +531,21 @@ void main() {
       expect(hyphensOn(system), isEmpty);
     });
 
+    test('runs on under a note that sings only another verse', () {
+      final system = sheetOf(
+        sungScore([
+          ['ah_|la', null, null, null],
+          ['|lo', null, null, null],
+          ['ti', null, null, null],
+        ]),
+      ).systemAt(0);
+      final ah = syllableOn(system, 'ah');
+      final extender = extendersOn(system).single;
+
+      expect(extender.from.y, ah.origin.y);
+      expect(extender.to.x, closeTo(headOn(system, 104).bounds.right, 1e-9));
+    });
+
     test('ends at the last note before a rest, and does not reach the held '
         'notes of the bar after it', () {
       final system = sheetOf(
@@ -414,6 +557,39 @@ void main() {
       final line = extendersOn(system).single;
 
       expect(line.to.x, closeTo(headOn(system, 2).bounds.right, 1e-9));
+    });
+
+    test('ends before a multi-measure rest, and does not reach the held '
+        'notes of the bar after it', () {
+      MeasureRest restOn(int bar) =>
+          MeasureRest(id: EventId(bar * 100 + 1), span: Meter.fourFour.length);
+      final system = SheetLayout(
+        scoreOf([
+          [
+            staffOf([
+              chordOf(1, 'G4').copyWith(lyrics: Seq([syllable('ah_')])),
+              for (var k = 2; k <= 4; k++) chordOf(k, 'G4'),
+            ]),
+          ],
+          [
+            staffOf([restOn(1)]),
+          ],
+          [
+            staffOf([restOn(2)]),
+          ],
+          [
+            staffOf([for (var k = 1; k <= 4; k++) chordOf(300 + k, 'G4')]),
+          ],
+        ]),
+        width: 200,
+        text: text,
+        style: const EngravingStyle(multiMeasureRests: true),
+      ).systemAt(0);
+
+      expect(
+        extendersOn(system).single.to.x,
+        closeTo(headOn(system, 4).bounds.right, 1e-9),
+      );
     });
 
     test('is not drawn for a melisma of one note, whose syllable stays '
@@ -428,6 +604,163 @@ void main() {
       expect(
         centreOf(syllableOn(system, 'ah')),
         closeTo(centreOf(headOn(system, 1)), 1e-9),
+      );
+    });
+
+    test('is not drawn under its own note alone, however narrow its '
+        'syllable is', () {
+      const small = EngravingStyle(
+        text: {TextRole.lyric: TextSpec(size: 1)},
+      );
+      final system = SheetLayout(
+        sungScore([
+          ['o_', 'la', 'la', 'o_'],
+          ['la', 'la', 'la', 'la'],
+        ]),
+        width: 200,
+        text: text,
+        style: small,
+      ).systemAt(0);
+
+      final o = system.drawables.whereType<TextDraw>().singleWhere(
+        (draw) => draw.owner == ElementOwner(eventOf(1)),
+      );
+
+      expect(o.text, 'o');
+      expect(
+        o.bounds.right,
+        lessThan(headOn(system, 1).bounds.right),
+        reason: 'the syllable is narrower than its head',
+      );
+      expect(extendersOn(system), isEmpty);
+    });
+
+    test('from a bar\'s last note is drawn only when the next bar holds '
+        'it, and only then is its syllable aligned left', () {
+      for (final (next, breaks) in [
+        (['ti', null, null, null], false),
+        (['r', null, null, null], false),
+        (['r', 'ti', null, null], false),
+        (['ti', null, null, null], true),
+        ([null, null, 'ti', null], false),
+        ([null, null, 'ti', null], true),
+      ]) {
+        final layout = sheetOf(
+          brokenBefore(
+            sungScore([
+              ['la', null, null, 'ah_'],
+              next,
+            ]),
+            [if (breaks) 1],
+          ),
+        );
+        final system = layout.systemAt(0);
+        final ah = syllableOn(system, 'ah');
+        final head = headOn(system, 4);
+        final held = next.first == null;
+
+        expect(
+          extendersOn(system),
+          hasLength(held ? 1 : 0),
+          reason: '$next, broken $breaks',
+        );
+        if (held) {
+          expect(ah.bounds.left, closeTo(head.bounds.left, 1e-9));
+        } else {
+          expect(
+            centreOf(ah),
+            closeTo(centreOf(head), 1e-9),
+            reason: '$next, broken $breaks',
+          );
+        }
+      }
+    });
+
+    test('ends at a gap in a second voice, as at a rest', () {
+      final ah = chordOf(5, 'E4').copyWith(lyrics: Seq([syllable('ah_')]));
+      for (final (bars, name) in [
+        (
+          [
+            [
+              staffOf(
+                [for (var k = 1; k <= 4; k++) chordOf(k, 'B4')],
+                two: [ah],
+              ),
+            ],
+            [
+              staffOf(
+                [for (var k = 101; k <= 104; k++) chordOf(k, 'B4')],
+                two: [
+                  Gap(DurationBase.half.length),
+                  chordOf(105, 'E4', value: half),
+                ],
+              ),
+            ],
+          ],
+          'the gap after it and the gap opening the next bar',
+        ),
+        (
+          [
+            [
+              staffOf(
+                [for (var k = 1; k <= 4; k++) chordOf(k, 'B4')],
+                two: [ah],
+              ),
+            ],
+            [
+              staffOf(
+                [for (var k = 101; k <= 104; k++) chordOf(k, 'B4')],
+                two: [chordOf(105, 'E4', value: whole)],
+              ),
+            ],
+          ],
+          'the gap after it, before a note opening the next bar',
+        ),
+        (
+          [
+            [
+              staffOf(
+                [for (var k = 1; k <= 4; k++) chordOf(k, 'B4')],
+                two: [
+                  ah,
+                  Gap(DurationBase.quarter.length),
+                  chordOf(6, 'E4'),
+                  chordOf(7, 'E4'),
+                ],
+              ),
+            ],
+          ],
+          'a gap inside its bar',
+        ),
+      ]) {
+        final system = sheetOf(scoreOf(bars)).systemAt(0);
+
+        expect(extendersOn(system), isEmpty, reason: name);
+        expect(
+          centreOf(syllableOn(system, 'ah')),
+          closeTo(centreOf(headOn(system, 5)), 1e-9),
+          reason: name,
+        );
+      }
+    });
+
+    test('leaving a system stops before the courtesy key signature', () {
+      final first = sheetOf(
+        sharpsFrom(
+          brokenBefore(
+            sungScore([
+              ['ah_', null, null, null],
+              [null, null, 'la', null],
+            ]),
+            [1],
+          ),
+          1,
+        ),
+      ).systemAt(0);
+
+      expect(
+        extendersOn(first).single.to.x,
+        inExclusiveRange(first.bars.last.right, courtesyOf(first)),
       );
     });
 
@@ -464,30 +797,35 @@ void main() {
 
     test('stops at the last note of its system when the next system '
         'starts with a syllable or a rest', () {
-      for (final start in ['la', 'r']) {
+      for (final next in [
+        ['la', null, null, null],
+        ['r', null, null, null],
+        ['r', 'la', null, null],
+      ]) {
         final layout = sheetOf(
           brokenBefore(
             sungScore([
               ['ah_', null, null, null],
-              [start, null, null, null],
+              next,
             ]),
             [1],
           ),
         );
         final first = layout.systemAt(0);
+        final sings = next.contains('la');
 
         expect(
           extendersOn(first).single.to.x,
           closeTo(headOn(first, 4).bounds.right, 1e-9),
-          reason: start,
+          reason: '$next',
         );
-        expect(extendersOn(layout.systemAt(1)), isEmpty, reason: start);
+        expect(extendersOn(layout.systemAt(1)), isEmpty, reason: '$next');
         expect(
           layout.heightOf(1),
-          start == 'r'
-              ? lessThan(layout.heightOf(0))
-              : closeTo(layout.heightOf(0), 1e-9),
-          reason: '$start, the next system has a row only for its own syllable',
+          sings
+              ? closeTo(layout.heightOf(0), 1e-9)
+              : lessThan(layout.heightOf(0)),
+          reason: '$next, the next system has a row only for its own syllable',
         );
       }
     });

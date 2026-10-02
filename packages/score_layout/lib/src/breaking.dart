@@ -218,7 +218,8 @@ final class SystemKey {
   final LyricCarry carry;
 
   /// The lyric hyphens and extenders open at the system's end, which is the
-  /// next system's [carry].
+  /// next system's [carry]. None on the last system, which carries nothing
+  /// on. A final melisma's extender reads [next] instead.
   final LyricCarry carryOut;
 
   @override
@@ -379,7 +380,7 @@ Breaks breakSystems({
   // joins a word, so a hyphen nothing joins is carried nowhere, and drops
   // an extender the system's first bar does not hold.
   final open = <LyricCarry>[LyricCarry.none];
-  for (var system = 0; system < starts.length; system++) {
+  for (var system = 0; system < starts.length - 1; system++) {
     var carry = open.last;
     for (final unit in units.getRange(bounds[system], bounds[system + 1])) {
       for (final bar in unit.bars) {
