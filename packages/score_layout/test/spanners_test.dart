@@ -226,6 +226,56 @@ void main() {
         reason: 'the tie clears both heads by the same gap',
       );
     });
+    test('a tied grace note joins the head of its tone in the next grace '
+        'chord', () {
+      final score = scoreOf([
+        [
+          chordOf(
+            1,
+            'D5',
+            graces: [graceOf(90, 'C5', tie: true), graceOf(91, 'C5')],
+          ),
+          ...quartersOf(2, 'C5').take(3),
+        ],
+      ]);
+      final system = sheetOf(score).systemAt(0);
+      final tie = curvesOf(system).single;
+      final [first, second] =
+          glyphsOf(
+              system,
+              owner: ElementOwner(eventRef(score, 0, 1)),
+            ).where((glyph) => glyph.glyph == Glyph.noteheadBlack).toList()
+            ..sort((a, b) => a.origin.x.compareTo(b.origin.x));
+
+      expect(tie.start.x, greaterThanOrEqualTo(first.bounds.right));
+      expect(
+        second.bounds.left - tie.end.x,
+        closeTo(tie.start.x - first.bounds.right, 1e-9),
+        reason: 'the tie clears both grace heads by the same gap',
+      );
+    });
+
+    test('a tie under the lowest note of a system has its room in the band '
+        'on both sides of a system break', () {
+      final score = scoreOf([
+        [...quartersOf(1, 'A3').take(3), chordOf(4, 'A3', tie: true)],
+        quartersOf(5, 'A3'),
+      ]);
+      final sheet = sheetOf(score, width: narrow);
+      expect(sheet.systemCount, 2);
+
+      for (var index = 0; index < 2; index++) {
+        final system = sheet.systemAt(index);
+        final tie = curvesOf(system).single;
+        final lowest = system.drawables
+            .whereType<GlyphDraw>()
+            .where((glyph) => glyph.glyph == Glyph.noteheadBlack)
+            .map((glyph) => glyph.bounds.bottom)
+            .reduce(max);
+        expect(tie.bounds.bottom, greaterThan(lowest));
+        expect(tie.bounds.bottom, lessThanOrEqualTo(system.height + 1e-9));
+      }
+    });
   });
 
   group('slurs', () {
@@ -250,8 +300,8 @@ void main() {
       final last = headOf(system, noteRef(score, 0, 3));
 
       expect(slur.owner, spanner);
-      expect(slur.start.x, inInclusiveRange(first.left, first.right));
-      expect(slur.end.x, inInclusiveRange(last.left, last.right));
+      expect(slur.start.x, closeTo((first.left + first.right) / 2, 1e-9));
+      expect(slur.end.x, closeTo((last.left + last.right) / 2, 1e-9));
       expect(slur.start.y, lessThan(first.top));
       expect(slur.end.y, lessThan(last.top));
       for (var t = 0.25; t <= 0.75 + 1e-9; t += 0.05) {
@@ -571,6 +621,33 @@ void main() {
       expect(row.last.bounds.right, lessThanOrEqualTo(note.left + 1e-9));
       expect(row.last.bounds.right, lessThanOrEqualTo(second.width + 1e-9));
     });
+    test('a hairpin lies between the staff and a pedal line under the same '
+        'notes', () {
+      final pedalled = withSpanner(
+        base,
+        const PedalLine(),
+        pointAt(base, 0, Moment.zero),
+        pointAt(base, 0, at(2, 4)),
+      );
+      final score = withSpanner(
+        pedalled,
+        const Hairpin(crescendo: true),
+        pointAt(base, 0, Moment.zero),
+        pointAt(base, 0, at(2, 4)),
+      );
+      final system = sheetOf(score).systemAt(0);
+      final hairpin = linesOf(
+        system,
+        owner: const SpannerOwner(SpannerId(901)),
+      );
+      final ped = glyphsOf(system, owner: spanner).single;
+
+      expect(hairpin, hasLength(2));
+      for (final line in hairpin) {
+        expect(max(line.from.y, line.to.y), lessThan(ped.bounds.top));
+        expect(min(line.from.y, line.to.y), greaterThan(bottomOf(system)));
+      }
+    });
   });
 
   group('voltas', () {
@@ -642,6 +719,117 @@ void main() {
         bracketOf(second).where(isHorizontal).single.from.x,
         closeTo(second.bars[0].left, 1e-9),
       );
+    });
+    test('an open volta has no hook where it ends', () {
+      final base = scoreOf([quartersOf(1, 'C5'), quartersOf(5, 'C5')]);
+      final score = applied(
+        EditSession.start(base).run(
+          SetVolta(
+            base.measures[1].id,
+            base.measures[1].id,
+            const Volta([2], open: true),
+          ),
+        ),
+      ).score;
+      final system = sheetOf(score).systemAt(0);
+      final bar = system.bars[1];
+      final hook = bracketOf(system).where(isVertical).single;
+
+      expect(hook.from.x, closeTo(bar.left + thickness / 2, 1e-9));
+      expect(
+        bracketOf(system).where(isHorizontal).single.to.x,
+        closeTo(bar.right, 1e-9),
+      );
+    });
+
+    test('two voltas side by side are two brackets, each with its label', () {
+      final base = scoreOf([quartersOf(1, 'C5'), quartersOf(5, 'C5')]);
+      final first = applied(
+        EditSession.start(base).run(
+          SetVolta(base.measures[0].id, base.measures[0].id, const Volta([1])),
+        ),
+      );
+      final score = applied(
+        first.run(
+          SetVolta(base.measures[1].id, base.measures[1].id, const Volta([2])),
+        ),
+      ).score;
+      final system = sheetOf(score).systemAt(0);
+      final lines = bracketOf(system).where(isHorizontal).toList()
+        ..sort((a, b) => a.from.x.compareTo(b.from.x));
+
+      expect(lines, hasLength(2));
+      expect(lines.first.to.x, closeTo(system.bars[0].right, 1e-9));
+      expect(lines.last.from.x, closeTo(system.bars[1].left, 1e-9));
+      expect(bracketOf(system).where(isVertical), hasLength(4));
+      expect(textsOf(system, '1.'), hasLength(1));
+      expect(textsOf(system, '2.'), hasLength(1));
+    });
+
+    test('a volta over the first bar of a system clears the clef', () {
+      final base = scoreOf([quartersOf(1, 'C5'), quartersOf(5, 'C5')]);
+      final score = applied(
+        EditSession.start(base).run(
+          SetVolta(base.measures[0].id, base.measures[0].id, const Volta([1])),
+        ),
+      ).score;
+      final system = sheetOf(score).systemAt(0);
+      final clef = glyphsOf(
+        system,
+      ).firstWhere((glyph) => glyph.glyph == Glyph.gClef);
+      final label = textsOf(system, '1.').single;
+      final hook = bracketOf(system).where(isVertical).first;
+
+      expect(clef.bounds.top, lessThan(topOf(system)));
+      expect(label.bounds.bottom, lessThanOrEqualTo(clef.bounds.top));
+      expect(hook.to.y, lessThanOrEqualTo(clef.bounds.top));
+    });
+  });
+
+  group('a system that ends with a courtesy signature', () {
+    test('a tie, a slur and a hairpin leaving the system stop before the '
+        'courtesy key signature', () {
+      var score = scoreOf([
+        [...quartersOf(1, 'C5').take(3), chordOf(4, 'C5', tie: true)],
+        quartersOf(5, 'C5'),
+      ]);
+      score = applied(
+        EditSession.start(score).run(
+          SetKey(from: score.measures[1].id, key: const KeySignature(3)),
+        ),
+      ).score;
+      score = withSlur(
+        score,
+        pointAt(score, 0, at(1, 4)),
+        pointAt(score, 1, at(1, 4)),
+      );
+      score = withSpanner(
+        score,
+        const Hairpin(crescendo: true),
+        pointAt(score, 0, at(1, 4)),
+        pointAt(score, 1, at(1, 4)),
+      );
+      final sheet = sheetOf(score, width: narrow);
+      expect(sheet.systemCount, 2);
+      final system = sheet.systemAt(0);
+      final courtesy = glyphsOf(system)
+          .where((glyph) => glyph.glyph == Glyph.accidentalSharp)
+          .map((glyph) => glyph.bounds.left)
+          .where((left) => left > system.bars.single.right)
+          .reduce(min);
+
+      expect(curvesOf(system), hasLength(2));
+      for (final curve in curvesOf(system)) {
+        expect(curve.bounds.right, lessThanOrEqualTo(courtesy));
+      }
+      final hairpin = linesOf(
+        system,
+        owner: const SpannerOwner(SpannerId(901)),
+      );
+      expect(hairpin, hasLength(2));
+      for (final line in hairpin) {
+        expect(line.to.x, lessThanOrEqualTo(courtesy));
+      }
     });
   });
 

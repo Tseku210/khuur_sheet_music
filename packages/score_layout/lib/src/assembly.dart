@@ -26,7 +26,8 @@ SystemLayout assembleSystem(SystemPlan plan, EngravingStyle style) {
   final courtesyLeft = frames.last.right + units.last.slices.last.rod;
   final right = courtesyLeft + (key.next?.widths.courtesy ?? 0);
   // A stub arriving from an earlier system starts where the head glyphs end,
-  // in the room `arrivingRoom` put in the system head.
+  // in the room `arrivingRoom` put in the system head. One leaving for the
+  // next system stops at `courtesyLeft`, before any courtesy signature.
   final headEnd = frames.first.left + units.first.first.heads.system.width;
 
   final drawables = <Drawable>[
@@ -79,7 +80,7 @@ SystemLayout assembleSystem(SystemPlan plan, EngravingStyle style) {
       placeTies(
         [for (final (:bar, :frame) in singles) (of: bar.ties, frame: frame)],
         left: headEnd,
-        right: right,
+        right: courtesyLeft,
         style: style,
       ),
     )
@@ -90,7 +91,7 @@ SystemLayout assembleSystem(SystemPlan plan, EngravingStyle style) {
             (of: bar.spanners, frame: frame),
         ],
         left: headEnd,
-        right: right,
+        right: courtesyLeft,
         style: style,
       ),
     )

@@ -101,7 +101,7 @@ SystemLayout assembleSystem(
       placeTies(
         [for (final (:bar, :frame) in singles) (of: bar.ties, frame: frame)],
         left: headEnd,
-        right: right,
+        right: courtesyLeft,
         style: style,
       ),
     )
@@ -112,7 +112,7 @@ SystemLayout assembleSystem(
             (of: bar.spanners, frame: frame),
         ],
         left: headEnd,
-        right: right,
+        right: courtesyLeft,
         style: style,
       ),
     )
