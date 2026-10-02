@@ -1021,6 +1021,30 @@ void main() {
       );
     });
 
+    test('list the segments of a bar in the order of the score\'s '
+        'spanners', () {
+      var score = blankScore(bars: 3);
+      score = withSlur(
+        score,
+        pointAt(score, 1, at(1, 2)),
+        pointAt(score, 2, at(1, 4)),
+      );
+      score = withSlur(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 1, at(1, 4)),
+      );
+
+      expect(
+        [
+          for (final segment
+              in score.measureView(score.measures[1].id).spanners)
+            segment.spanner.id,
+        ],
+        [for (final spanner in score.spanners) spanner.id],
+      );
+    });
+
     test('skip hidden staves', () {
       var score = blankScore(parts: const [morinKhuur, clarinet]);
       score = withSlur(

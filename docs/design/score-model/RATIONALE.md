@@ -160,7 +160,7 @@ C3 also carries machinery the rest of the design would have to trust. It has a h
 - We accept rigid bars. Entry overwrites and never pushes music forward, and a re-barring meter change rewrites every bar up to the next meter change. In exchange, no bar in any score can be invalid, and no edit ripples across the whole score.
 - We accept that re-barring never deletes bars (surplus bars stay, filled with rests) in exchange for never silently removing a composer's container.
 - We derive what a change is rather than storing it. A restated signature (a 3/4 printed again where 3/4 already holds) is a display on the bar, added in unit 19, so it can't disagree with the bar's meter or key.
-- We accept an O(spanners) scan per `measureView` in exchange for having no spanner index to maintain. With hundreds of spanners this costs microseconds.
+- We accept a lazy list of spanners per bar, built once per score on its first view, in exchange for a `measureView` that does not scan every spanner. The first design scanned, which costs microseconds with hundreds of spanners. The layout benchmark's score of 2,000 bars and 2,500 spanners spent 56 ms of a 200 ms budget in that scan, so the list replaced it after layout unit 4. A score is immutable, so the list is derived and never maintained.
 - We accept a lazy event-to-measure index, built only when a hinted lookup misses, in exchange for O(1) resolution in the common case and no index to maintain on every edit.
 - We accept snapshot undo in exchange for undo that can't be wrong. No edit needs a hand-written inverse, which matters most for re-barring.
 - We accept a private exception inside the engine for early exit on refusal. It never escapes `run`, which returns sealed `Applied` or `Refused`.

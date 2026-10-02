@@ -459,15 +459,24 @@ final class Score {
       measures[i].id,
   ];
 
-  /// Spanners with at least one point inside bar [id]. Linear in the
-  /// spanner count (hundreds in a large score).
-  Iterable<Spanner> spannersTouching(MeasureId id) {
-    final index = indexOf(id);
-    return spanners.where(
-      (s) =>
-          indexOf(s.first.measure) <= index && index <= indexOf(s.last.measure),
-    );
-  }
+  /// The spanners touching each bar, by the bar's index, in the order of
+  /// [spanners]. Null for a bar that none touches. Built on first use, so a
+  /// score pays for it once, however many bars are then viewed.
+  late final List<List<Spanner>?> _spannersByBar = () {
+    final byBar = List<List<Spanner>?>.filled(measures.length, null);
+    for (final spanner in spanners) {
+      final last = indexOf(spanner.last.measure);
+      for (var i = indexOf(spanner.first.measure); i <= last; i++) {
+        (byBar[i] ??= []).add(spanner);
+      }
+    }
+    return byBar;
+  }();
+
+  /// Spanners with at least one point inside bar [id], in the order of
+  /// [spanners].
+  Iterable<Spanner> spannersTouching(MeasureId id) =>
+      _spannersByBar[indexOf(id)] ?? const [];
 }
 
 final class ScoreMeta {
