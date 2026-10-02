@@ -121,6 +121,9 @@ final class SheetLayout {
   /// The sheet y of each system's top.
   final List<double> tops;
 
+  /// What building this layout changed from the layout it was updated
+  /// from. An [update] that changes nothing returns the same layout, with
+  /// the delta it already had, so compare the layouts before reading it.
   final LayoutDelta delta;
 
   final TextMeasurer _text;
@@ -242,7 +245,7 @@ final class SheetLayout {
       final y =
           bottom +
           (drawables.isEmpty ? 0 : _headerLineGap) +
-          texts.map((text) => text.$4.ascent).reduce(math.max);
+          texts.map((entry) => entry.$4.ascent).reduce(math.max);
       for (final (string, spec, align, extent) in texts) {
         final x = switch (align) {
           _Align.left => 0.0,

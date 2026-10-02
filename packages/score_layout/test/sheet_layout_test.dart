@@ -1,5 +1,6 @@
 import 'package:score_layout/src/assembly.dart';
 import 'package:score_layout/src/drawable.dart';
+import 'package:score_layout/src/glyphs.dart';
 import 'package:score_layout/src/sheet_layout.dart';
 import 'package:score_layout/src/style.dart';
 import 'package:score_layout/src/text.dart';
@@ -186,6 +187,28 @@ void main() {
       }
       expect(layout.systemAt(last).bars, hasLength(1));
       expect(inkRightOf(layout, last), lessThan(layout.width / 2));
+    });
+
+    test('keeps a measure rest inside its bar on a sheet too narrow to space '
+        'the bar', () {
+      final layout = sheetOf(
+        blankScore(parts: const [clarinet, piano, drums]),
+        width: 30,
+      );
+      final system = layout.systemAt(0);
+      final rests = system.drawables.whereType<GlyphDraw>().where(
+        (draw) => draw.glyph == Glyph.restWhole,
+      );
+
+      expect(system.width, greaterThan(layout.width));
+      expect(rests, hasLength(system.staves.length));
+      for (final rest in rests) {
+        expect(
+          rest.bounds.right,
+          lessThanOrEqualTo(system.bars.first.right + bandTolerance),
+        );
+      }
+      expectInsideBands(layout);
     });
 
     test('stacks the systems one gap apart and reports the height', () {

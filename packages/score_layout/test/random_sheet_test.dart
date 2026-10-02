@@ -14,6 +14,10 @@ const seeds = [1, 2, 3, 4, 5, 6, 7, 8];
 const edits = 400;
 const text = FakeMeasurer();
 
+/// Narrow enough at its least to press a system to its rods, where a bar
+/// is laid out at stretch 0.
+double randomWidth(Random random) => 12 + 138 * random.nextDouble();
+
 void walk(
   EngravingStyle style,
   void Function(SheetLayout layout, Score score, double width) check,
@@ -21,7 +25,7 @@ void walk(
   for (final seed in seeds) {
     final random = Random(seed);
     var score = blankScore(parts: const [clarinet, piano, drums], bars: 24);
-    var width = 40 + 110 * random.nextDouble();
+    var width = randomWidth(random);
     var layout = SheetLayout(score, width: width, text: text, style: style);
 
     for (var step = 0; step < edits; step++) {
@@ -38,7 +42,7 @@ void walk(
         );
       }
       if (random.nextInt(25) == 0) {
-        width = 40 + 110 * random.nextDouble();
+        width = randomWidth(random);
       }
       layout = layout.update(score, width: width);
       check(layout, score, width);

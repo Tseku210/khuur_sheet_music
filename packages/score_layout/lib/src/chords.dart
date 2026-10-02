@@ -301,9 +301,11 @@ List<BarItem> graceItems(
 );
 
 /// How far a rest's glyph and dots reach from its slice line. A
-/// `MeasureRest` is centred in its bar and reaches nowhere.
+/// `MeasureRest` is centred in its bar, and reaches its glyph's width so
+/// that a bar pressed to its rods still holds it.
 SliceReach restReach(Event rest, EngravingStyle style) => switch (rest) {
-  RestEvent(hidden: true) || MeasureRest() => noReach,
+  RestEvent(hidden: true) => noReach,
+  MeasureRest() => (left: 0, right: style.font[Glyph.restWhole].box.width),
   RestEvent(:final value) => (
     left: 0,
     right: _dotsRight(

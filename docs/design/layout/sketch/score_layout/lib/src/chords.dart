@@ -181,7 +181,8 @@ Map<NoteId, BarAnchor> headAnchors(
 ) => throw UnimplementedError();
 
 /// How far a rest's glyph and dots reach from its slice line. A
-/// `MeasureRest` is centred in its bar and reaches nowhere.
+/// `MeasureRest` is centred in its bar, and reaches its glyph's width so
+/// that a bar pressed to its rods still holds it.
 SliceReach restReach(Event rest, EngravingStyle style) =>
     throw UnimplementedError();
 

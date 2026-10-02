@@ -822,7 +822,8 @@ void main() {
 
     test(
       'a measure rest hangs centred from the middle of its slice and the '
-      'bar end, so a frame centres it at any stretch',
+      'bar end, so a frame centres it at any stretch, and reaches its own '
+      'width, so the least bar holds it',
       () {
         final view = barOf([
           MeasureRest(id: const EventId(1), span: whole.length),
@@ -834,7 +835,10 @@ void main() {
         expect(rest.glyph, Glyph.restWhole);
         expect((rest.bounds.left + rest.bounds.right) / 2, closeTo(0, 1e-9));
         expect(rest.origin.y, 1);
-        expect(restReach(timedOf(view).event, style), noReach);
+        expect(restReach(timedOf(view).event, style), (
+          left: 0,
+          right: font[Glyph.restWhole].box.width,
+        ));
         for (final end in [10.0, 25.0]) {
           final frame = BarFrame(left: 0, xs: [2, 6, end], tops: const [0]);
           final placed = frame.place(item).bounds;
