@@ -37,11 +37,16 @@ SystemLayout assembleSystem(
   final right = courtesyLeft + courtesy.after.width;
   // A stub arriving from an earlier system starts where the head glyphs end,
   // in the room `arrivingRoom` put in the system head, and so does a lyric
-  // hyphen. One leaving for the next system stops before the courtesy, at
-  // the content's end when a clef stands before the last barline and after
-  // that barline when none does, and so do a lyric hyphen and extender.
+  // hyphen. One leaving for the next system stops before the courtesy, and
+  // so do a lyric hyphen and extender. On a staff with a clef before the
+  // last barline that is the content's end, and on any other staff the end
+  // of that barline.
   final headEnd = frames.first.left + units.first.first.heads.system.width;
-  final leaveBy = courtesy.before.items.isEmpty ? courtesyLeft : last.right;
+  final clefStaves = {for (final item in courtesy.before.items) item.staff};
+  final leaveBy = [
+    for (var staff = 0; staff < tops.length; staff++)
+      clefStaves.contains(staff) ? last.right : courtesyLeft,
+  ];
 
   final drawables = <Drawable>[
     ...placeLead(key.lead, first: key.first, tops: tops, style: style),
@@ -124,7 +129,7 @@ SystemLayout assembleSystem(
         style: style,
       ),
     );
-  for (final staff in plan.staves) {
+  for (final (index, staff) in plan.staves.indexed) {
     drawables.addAll(
       placeLyrics(
         [
@@ -137,7 +142,7 @@ SystemLayout assembleSystem(
         carryOut: key.carryOut,
         next: key.next?.lyrics,
         left: headEnd,
-        right: leaveBy,
+        right: leaveBy[index],
         style: style,
         text: text,
       ),

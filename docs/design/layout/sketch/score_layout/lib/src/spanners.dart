@@ -214,14 +214,14 @@ double arrivingRoom(
 ///
 /// [TieWithin] is one curve. [TieLeaving] joins the [TieArriving] of the
 /// same note in the next bar when that bar is on this system, and
-/// otherwise runs as a half tie to [right]. [TieArriving] in the first bar
-/// of the system is a half tie from [left]. In any other bar the bar
-/// before drew it. [TieOpen] is a curve of fixed length. Every curve comes
-/// from [curveBetween] with a rise of at most [tieRise].
+/// otherwise runs as a half tie to [right] of its staff. [TieArriving] in
+/// the first bar of the system is a half tie from [left]. In any other bar
+/// the bar before drew it. [TieOpen] is a curve of fixed length. Every
+/// curve comes from [curveBetween] with a rise of at most [tieRise].
 List<Drawable> placeTies(
   List<Framed<List<TieEnd>>> bars, {
   required double left,
-  required double right,
+  required List<double> right,
   required EngravingStyle style,
 }) => throw UnimplementedError();
 
@@ -435,11 +435,12 @@ TimedEvent? _anchor(StaffView staff, Spanner spanner, Moment at) =>
 /// A line is straight across its run, at the outermost baseline its pieces
 /// ask for, which is inside the room every one of them reserved or further
 /// out and never past the system's band. Every x stays inside [left] to
-/// [right], and a cut end stops inside them by its ink's half thickness.
+/// [right] of its staff, and a cut end stops inside them by its ink's half
+/// thickness.
 List<Drawable> placeSpanners(
   List<Framed<List<SpannerPiece>>> bars, {
   required double left,
-  required double right,
+  required List<double> right,
   required EngravingStyle style,
 }) => throw UnimplementedError();
 

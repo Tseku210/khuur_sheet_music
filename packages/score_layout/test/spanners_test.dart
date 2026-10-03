@@ -13,6 +13,7 @@ import 'package:test/test.dart';
 import '../../score_model/test/random_edits.dart';
 import '../../score_model/test/support.dart';
 import 'support/bars.dart' show graceOf, restOf;
+import 'support/bars.dart' as bars show scoreOf, staffOf;
 import 'support/fake_measurer.dart';
 import 'support/sheets.dart';
 
@@ -1107,6 +1108,82 @@ void main() {
         }
       });
     }
+    test('on a staff without the courtesy clef, a tie, a slur and a hairpin '
+        'leaving the system end where they end with no clef, and on the '
+        'staff with it a tie stops before the clef', () {
+      List<VoiceItem> tied(int first) => [
+        ...quartersOf(first, 'C5').take(3),
+        chordOf(first + 3, 'C5', tie: true),
+      ];
+      SystemLayout firstSystem({required bool clef}) {
+        var score = bars.scoreOf([
+          [bars.staffOf(tied(1)), bars.staffOf(tied(11))],
+          [
+            bars.staffOf(quartersOf(5, 'C5')),
+            bars.staffOf(quartersOf(15, 'C5')),
+          ],
+        ]);
+        if (clef) {
+          score = applied(
+            EditSession.start(score).run(
+              SetClef(
+                staff: score.staves[1].id,
+                at: ScorePoint(score.measures[1].id, Moment.zero),
+                clef: Clef.bass,
+              ),
+            ),
+          ).score;
+        }
+        score = withSlur(
+          score,
+          pointAt(score, 0, at(1, 4)),
+          pointAt(score, 1, at(1, 4)),
+        );
+        score = withSpanner(
+          score,
+          const Hairpin(crescendo: true),
+          pointAt(score, 0, at(1, 4)),
+          pointAt(score, 1, at(1, 4)),
+        );
+        final sheet = sheetOf(score, width: narrow);
+        expect(sheet.systemCount, 2);
+        return sheet.systemAt(0);
+      }
+
+      double between(SystemLayout system) =>
+          (system.staves[0].top + staffHeight + system.staves[1].top) / 2;
+      List<double> upperEnds(SystemLayout system) => [
+        for (final curve in curvesOf(system))
+          if (curve.bounds.bottom < between(system))
+            system.width - curve.bounds.right,
+        for (final line in linesOf(
+          system,
+          owner: const SpannerOwner(SpannerId(901)),
+        ))
+          system.width - line.to.x,
+      ]..sort();
+
+      final plain = firstSystem(clef: false);
+      final changed = firstSystem(clef: true);
+      final clef = glyphsOf(
+        changed,
+      ).singleWhere((glyph) => glyph.glyph == Glyph.fClefChange).bounds;
+      final lowerTie = curvesOf(
+        changed,
+      ).singleWhere((curve) => curve.bounds.top > between(changed));
+
+      expect(clef.top, greaterThan(between(changed)));
+      expect(upperEnds(changed), hasLength(4));
+      expect(
+        upperEnds(changed),
+        pairwiseCompare(
+          upperEnds(plain),
+          (double a, double b) => (a - b).abs() < 1e-9,
+          'the same distance from the system end',
+        ),
+      );
+      expect(lowerTie.bounds.right, lessThanOrEqualTo(clef.left));
+    });
   });
 
   group('pieces', () {

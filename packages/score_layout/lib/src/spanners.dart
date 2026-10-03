@@ -425,11 +425,11 @@ Side _tieSide(ChordPlan plan, NoteId note) {
   return plan.stem == StemSide.up ? Side.below : Side.above;
 }
 
-/// The ties of one system.
+/// The ties of one system. A tie leaving it stops at [right] of its staff.
 List<Drawable> placeTies(
   List<Framed<List<TieEnd>>> bars, {
   required double left,
-  required double right,
+  required List<double> right,
   required EngravingStyle style,
 }) {
   final inset = _tieInset(style.font.defaults);
@@ -449,7 +449,7 @@ List<Drawable> placeTies(
           );
         case TieLeaving(:final from, :final to):
           final start = frame.at(from);
-          var stop = SpPoint(right - inset, start.y);
+          var stop = SpPoint(right[from.staff] - inset, start.y);
           if (bars.elementAtOrNull(index + 1) case (
             of: final nextEnds,
             frame: final nextFrame,
@@ -991,20 +991,26 @@ TimedEvent? _anchor(StaffView staff, Spanner spanner, Moment at) =>
 /// Pieces of one spanner in consecutive bars form one run. A run starts at
 /// its first piece's `from` when that piece `startsHere`, else at [left],
 /// and ends at its last piece's `until` when that piece `endsHere`, else
-/// at [right].
+/// at [right] of its staff.
 ///
 /// A line is straight across its run, at the outermost baseline its pieces
 /// ask for, which is inside the room every one of them reserved or further
 /// out and never past the system's band. Every x stays inside [left] to
-/// [right], and a cut end stops inside them by its ink's half thickness.
+/// [right] of its staff, and a cut end stops inside them by its ink's half
+/// thickness.
 List<Drawable> placeSpanners(
   List<Framed<List<SpannerPiece>>> bars, {
   required double left,
-  required double right,
+  required List<double> right,
   required EngravingStyle style,
 }) => [
   for (final run in _runs(bars))
-    ..._placeRun(run, left: left, right: right, style: style),
+    ..._placeRun(
+      run,
+      left: left,
+      right: right[run.first.piece.from.staff],
+      style: style,
+    ),
 ];
 
 typedef _Placed = ({SpannerPiece piece, BarFrame frame});

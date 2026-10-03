@@ -25,8 +25,8 @@ final class BarItem {
   final Drawable drawable;
 
   /// The item's x is the middle between its slice and the bar's end, so it
-  /// is not moved from its slice. A measure rest is centred in its bar at
-  /// any stretch.
+  /// is not moved from its slice. A measure rest is centred in its bar's
+  /// content at any stretch, short of a clef that stands before the barline.
   final bool centred;
 }
 

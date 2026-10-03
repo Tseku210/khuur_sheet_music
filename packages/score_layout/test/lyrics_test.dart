@@ -37,24 +37,30 @@ const LyricLane lane = (staff: StaffId(2000), voice: VoiceSlot.one, verse: 1);
 /// note with no syllable (null). A syllable starting with `-` joins its
 /// word and one ending with `-` continues it, as in `-tle-`. One ending
 /// with `_` starts a melisma. An empty verse sings nothing on that beat.
-/// Beat `k` of bar `b` is event `b * 100 + k + 1`.
-Score sungScore(List<List<String?>> bars) => scoreOf([
-  for (final (b, beats) in bars.indexed)
-    [
-      staffOf([
-        for (final (k, beat) in beats.indexed)
-          if (beat == 'r')
-            restOf(b * 100 + k + 1, NoteValue.quarter)
-          else
-            chordOf(b * 100 + k + 1, 'G4').copyWith(
-              lyrics: Seq([
-                for (final (v, token) in (beat ?? '').split('|').indexed)
-                  if (token.isNotEmpty) syllable(token, verse: v + 1),
-              ]),
-            ),
-      ]),
-    ],
-]);
+/// Beat `k` of bar `b` is event `b * 100 + k + 1`. An [accompanied] score
+/// has a second part of quarters on G4 under it, with no lyrics.
+Score sungScore(List<List<String?>> bars, {bool accompanied = false}) =>
+    scoreOf([
+      for (final (b, beats) in bars.indexed)
+        [
+          staffOf([
+            for (final (k, beat) in beats.indexed)
+              if (beat == 'r')
+                restOf(b * 100 + k + 1, NoteValue.quarter)
+              else
+                chordOf(b * 100 + k + 1, 'G4').copyWith(
+                  lyrics: Seq([
+                    for (final (v, token) in (beat ?? '').split('|').indexed)
+                      if (token.isNotEmpty) syllable(token, verse: v + 1),
+                  ]),
+                ),
+          ]),
+          if (accompanied)
+            staffOf([
+              for (var k = 0; k < 4; k++) chordOf(b * 100 + k + 51, 'G4'),
+            ]),
+        ],
+    ]);
 
 Lyric syllable(String token, {int verse = 1}) {
   final joins = token.startsWith('-');
@@ -819,6 +825,42 @@ void main() {
       expect(
         extendersOn(first).single.to.x,
         closeTo(courtesyClefOf(first), 1e-9),
+      );
+    });
+
+    test('leaving a system ends where it ends with no clef when the '
+        'courtesy clef is on another staff', () {
+      SystemLayout first({required bool clef}) {
+        final score = brokenBefore(
+          sungScore([
+            ['ah_', null, null, null],
+            [null, null, 'la', null],
+          ], accompanied: true),
+          [1],
+        );
+        return sheetOf(
+          clef
+              ? after(score, [
+                  SetClef(
+                    staff: staffId(1),
+                    at: ScorePoint(barId(1), Moment.zero),
+                    clef: Clef.bass,
+                  ),
+                ])
+              : score,
+        ).systemAt(0);
+      }
+
+      final plain = first(clef: false);
+      final changed = first(clef: true);
+
+      expect(
+        courtesyClefOf(changed),
+        greaterThanOrEqualTo(changed.bars.single.right - 1e-9),
+      );
+      expect(
+        changed.width - extendersOn(changed).single.to.x,
+        closeTo(plain.width - extendersOn(plain).single.to.x, 1e-9),
       );
     });
 
