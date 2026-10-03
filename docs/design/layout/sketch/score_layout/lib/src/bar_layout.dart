@@ -179,6 +179,9 @@ BarLayout layoutBar(
             timed: timed,
             chord: event,
             staff: staffView,
+            lines: staffView.part.staves
+                .firstWhere((s) => s.id == staffView.source.staff)
+                .lines,
             stem:
                 sides[event.id] ??
                 stemSideFor(event, staffView, voice.slot, at: timed.onset),

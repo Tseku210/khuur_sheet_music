@@ -198,6 +198,7 @@ BarLayout layoutBar(
   final chords = <EventId, PlacedChord>{};
   final reach = List<SliceReach>.filled(times.length, noReach);
   for (final (staff, staffView) in view.staves.indexed) {
+    final lines = _linesOf(staffView);
     for (final voice in staffView.voices) {
       final sides = beamStemSides(voice, staffView);
       for (final timed in voice.events) {
@@ -208,6 +209,7 @@ BarLayout layoutBar(
             timed: timed,
             chord: event,
             staff: staffView,
+            lines: lines,
             stem:
                 sides[event.id] ??
                 stemSideFor(event, staffView, voice.slot, at: timed.onset),

@@ -185,11 +185,13 @@ StemSide stemSideFor(
 /// `StaffView.accidentals` stacked right to left by descending step, dots in
 /// the next space up, the flag from the value, and each grace chord at its
 /// place left of the principal. A [beamed] chord's reach leaves its flag
-/// out, because the beam replaces it.
+/// out, because the beam replaces it. The staff's [lines] decide its ledger
+/// lines.
 ChordPlan planChord({
   required TimedEvent timed,
   required ChordEvent chord,
   required StaffView staff,
+  required int lines,
   required StemSide stem,
   required bool beamed,
   required EngravingStyle style,
@@ -204,9 +206,6 @@ ChordPlan planChord({
     style,
   );
   final flag = _flagOf(chord.value.base, stem);
-  final lines = staff.part.staves
-      .firstWhere((s) => s.id == staff.source.staff)
-      .lines;
   final ink = _ChordInk.of(
     heads: heads,
     lines: lines,

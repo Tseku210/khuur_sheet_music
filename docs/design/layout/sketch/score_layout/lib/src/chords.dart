@@ -127,11 +127,13 @@ StemSide stemSideFor(
 /// step, dots in the next space up, the flag from the value, and each grace
 /// chord. It also holds its drawables against its own slice line, built once
 /// here, so the reach, the beam and the items read the same ink. A [beamed]
-/// chord is planned without its stem and flag.
+/// chord is planned without its stem and flag. The staff's [lines] decide its
+/// ledger lines.
 ChordPlan planChord({
   required TimedEvent timed,
   required ChordEvent chord,
   required StaffView staff,
+  required int lines,
   required StemSide stem,
   required bool beamed,
   required EngravingStyle style,

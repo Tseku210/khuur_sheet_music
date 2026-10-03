@@ -1,3 +1,4 @@
+import 'package:score_layout/src/bar_layout.dart';
 import 'package:score_layout/src/bar_space.dart';
 import 'package:score_layout/src/chords.dart';
 import 'package:score_layout/src/drawable.dart';
@@ -10,6 +11,7 @@ import 'package:score_model/score_model.dart';
 import 'package:test/test.dart';
 
 import 'support/bars.dart';
+import 'support/fake_measurer.dart';
 
 const EngravingStyle style = EngravingStyle.standard;
 final SmuflFont font = style.font;
@@ -42,10 +44,14 @@ ChordPlan planOf(
   EngravingStyle style = style,
 }) {
   final timed = timedOf(view, index: index, voice: voice);
+  final staff = view.staves.first;
   return planChord(
     timed: timed,
     chord: timed.event as ChordEvent,
-    staff: view.staves.first,
+    staff: staff,
+    lines: staff.part.staves
+        .firstWhere((s) => s.id == staff.source.staff)
+        .lines,
     stem: sideOf(view, index: index, voice: voice),
     beamed: beamed,
     style: style,
@@ -452,6 +458,10 @@ void main() {
         ))
           item.drawable,
       ];
+      final bar = [
+        for (final item in layoutBar(view, style, const FakeMeasurer()).items)
+          item.drawable,
+      ];
 
       expect(headAt(crash, 10).glyph, Glyph.noteheadBlack);
       expect(headAt(low, -2).glyph, Glyph.noteheadBlack);
@@ -459,6 +469,8 @@ void main() {
       expect(ledgersIn(crash), isEmpty);
       expect(ledgersIn(low), isEmpty);
       expect(ledgersIn(grace), isEmpty);
+      expect(headsIn(bar), hasLength(3));
+      expect(ledgersIn(bar), isEmpty);
     });
 
     test('a ledger line extends past the heads it serves', () {
