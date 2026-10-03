@@ -204,8 +204,12 @@ ChordPlan planChord({
     style,
   );
   final flag = _flagOf(chord.value.base, stem);
+  final lines = staff.part.staves
+      .firstWhere((s) => s.id == staff.source.staff)
+      .lines;
   final ink = _ChordInk.of(
     heads: heads,
+    lines: lines,
     stem: stem,
     dots: chord.value.dots,
     flag: flag,
@@ -231,6 +235,7 @@ ChordPlan planChord({
     final graceOwner = ElementOwner(timed.ref);
     final graceInk = _ChordInk.of(
       heads: graceHeads,
+      lines: lines,
       stem: StemSide.up,
       dots: grace.value.dots,
       flag: _flagOf(grace.value.base, StemSide.up),
@@ -264,14 +269,15 @@ ChordPlan planChord({
 }
 
 /// The chord's items against [slice]. They are heads, accidentals, dots, ledger
-/// lines (for steps below 0 or above 8, extended by `legerLineExtension`,
-/// each spanning the heads on it or beyond it) and tremolo strokes. A chord
-/// planned unbeamed also has its stem, from the outer head's `stemUpSE` or
-/// `stemDownNW` anchor to a tip [stemLength] beyond the far head and never
-/// short of the middle line, and its flag at the tip. Dots that a flag
-/// would reach move past the flag. A chord planned beamed has neither stem
-/// nor flag. Its stem depends on the stretch, so `placeBeam` draws it at
-/// system time.
+/// lines (for steps below 0 or above 8, extended by `legerLineExtension`, each
+/// spanning the heads on it or beyond it) and tremolo strokes. A one-line staff
+/// has no ledger lines, since engravers write its heads above, on or below the
+/// line. A chord planned unbeamed also has its stem, from the outer head's
+/// `stemUpSE` or `stemDownNW` anchor to a tip [stemLength] beyond the far head
+/// and never short of the middle line, and its flag at the tip. Dots that a
+/// flag would reach move past the flag. A chord planned beamed has neither stem
+/// nor flag. Its stem depends on the stretch, so `placeBeam` draws it at system
+/// time.
 ///
 /// A head is owned by its `NoteRef`. Everything else is owned by the
 /// event's `EventRef`.
@@ -633,8 +639,8 @@ const List<Glyph> _tremolos = [
 ];
 
 /// The heads of one chord or grace chord, lowest first, with the heads of
-/// seconds flipped. The walk starts at the head the stem leaves and flips a
-/// head a second away from an unflipped neighbour.
+/// seconds and unisons flipped. The walk starts at the head the stem leaves
+/// and flips a head a second or less away from an unflipped neighbour.
 List<HeadPlan> _planHeads(
   Iterable<Note> notes,
   DurationBase base,
@@ -656,7 +662,7 @@ List<HeadPlan> _planHeads(
     final i = up ? n : stepped.length - 1 - n;
     final step = stepped[i].step;
     final flip =
-        previous != null && (step - previous).abs() == 1 && !previousFlipped;
+        previous != null && (step - previous).abs() <= 1 && !previousFlipped;
     flipped[i] = flip;
     previous = step;
     previousFlipped = flip;
@@ -741,6 +747,7 @@ final class _ChordInk {
 
   factory _ChordInk.of({
     required List<HeadPlan> heads,
+    required int lines,
     required StemSide stem,
     required int dots,
     required Glyph? flag,
@@ -821,11 +828,13 @@ final class _ChordInk {
       );
     }
 
-    for (var line = -2; line >= heads.first.step; line -= 2) {
-      ledger(line, (step) => step <= line);
-    }
-    for (var line = 10; line <= heads.last.step; line += 2) {
-      ledger(line, (step) => step >= line);
+    if (lines > 1) {
+      for (var line = -2; line >= heads.first.step; line -= 2) {
+        ledger(line, (step) => step <= line);
+      }
+      for (var line = 10; line <= heads.last.step; line += 2) {
+        ledger(line, (step) => step >= line);
+      }
     }
 
     final columns = <_AccidentalColumn>[];

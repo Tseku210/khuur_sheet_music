@@ -122,12 +122,12 @@ StemSide stemSideFor(
 }) => throw UnimplementedError();
 
 /// Plans [chord]. The plan has head glyphs from its value and
-/// `StaffView.headOf`, steps, flipped heads for seconds, accidentals from
-/// `StaffView.accidentals` stacked right to left by descending step, dots in
-/// the next space up, the flag from the value, and each grace chord. It also
-/// holds its drawables against its own slice line, built once here, so the
-/// reach, the beam and the items read the same ink. A [beamed] chord is
-/// planned without its stem and flag.
+/// `StaffView.headOf`, steps, flipped heads for seconds and unisons,
+/// accidentals from `StaffView.accidentals` stacked right to left by descending
+/// step, dots in the next space up, the flag from the value, and each grace
+/// chord. It also holds its drawables against its own slice line, built once
+/// here, so the reach, the beam and the items read the same ink. A [beamed]
+/// chord is planned without its stem and flag.
 ChordPlan planChord({
   required TimedEvent timed,
   required ChordEvent chord,
@@ -139,15 +139,16 @@ ChordPlan planChord({
 
 /// The chord's items against [slice]. They are heads, accidentals, dots, ledger
 /// lines (for steps below 0 or above 8, extended by `legerLineExtension`, each
-/// spanning the heads on it or beyond it) and tremolo strokes. An unbeamed
-/// chord with a stem in its value also gets its stem, from the outer head's
-/// `stemUpSE` or `stemDownNW` anchor to a tip 3.5 spaces beyond the far head
-/// and never short of the middle line, and its flag at the tip. Dots that a
-/// flag would reach move past the flag. A tremolo lengthens the stem until the
-/// tip, or the flag, clears the strokes, and on a stemless chord its strokes
-/// are centred on the heads. A beamed chord gets neither stem nor flag. Its
-/// stem depends on the stretch, so `placeBeam` draws it at system time. An
-/// accidental clears a ledger line's extension as it clears a head.
+/// spanning the heads on it or beyond it) and tremolo strokes. A one-line staff
+/// has no ledger lines, since engravers write its heads above, on or below the
+/// line. An unbeamed chord with a stem in its value also gets its stem, from
+/// the outer head's `stemUpSE` or `stemDownNW` anchor to a tip 3.5 spaces
+/// beyond the far head and never short of the middle line, and its flag at the
+/// tip. Dots that a flag would reach move past the flag. A tremolo lengthens
+/// the stem until the tip, or the flag, clears the strokes, and on a stemless
+/// chord its strokes are centred on the heads. A beamed chord gets neither stem
+/// nor flag. Its stem depends on the stretch, so `placeBeam` draws it at system
+/// time. An accidental clears a ledger line's extension as it clears a head.
 ///
 /// A head is owned by its `NoteRef`. Everything else is owned by the
 /// event's `EventRef`.

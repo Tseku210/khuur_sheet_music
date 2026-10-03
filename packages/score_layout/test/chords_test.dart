@@ -190,6 +190,26 @@ void main() {
       expect(lower.bounds.right, lessThanOrEqualTo(upper.bounds.left + 1e-9));
     });
 
+    test('the heads of a unison sit side by side', () {
+      final items = chordItems(barOf([chordOf(1, 'C4 C#4', value: whole)]));
+      final [lower, upper] = headsIn(items).toList()
+        ..sort((a, b) => a.origin.x.compareTo(b.origin.x));
+
+      expect(lower.origin.y, upper.origin.y);
+      expect(lower.origin.x, 0);
+      expect(
+        upper.bounds.left,
+        greaterThanOrEqualTo(lower.bounds.right - 1e-9),
+      );
+    });
+
+    test('the heads of a third stay in one column', () {
+      final items = chordItems(barOf([chordOf(1, 'C4 E4', value: whole)]));
+
+      expect(headAt(items, -2).origin.x, 0);
+      expect(headAt(items, 0).origin.x, 0);
+    });
+
     test('three seconds alternate sides', () {
       final items = chordItems(barOf([chordOf(1, 'C4 D4 E4', value: whole)]));
 
@@ -384,6 +404,61 @@ void main() {
         -1,
         -2,
       ]);
+    });
+
+    test('a one-line staff has no ledger lines, however far a head or a '
+        'grace head lies from its line', () {
+      const kit = Instrument(
+        key: 'drums',
+        program: 0,
+        bank: 128,
+        clef: Clef.percussion,
+        drums: [
+          DrumSound(name: 'Crash', position: Pitch(Step.a, 5), midiKey: 49),
+          DrumSound(name: 'Low', position: Pitch(Step.c, 4), midiKey: 41),
+        ],
+      );
+      final view = barOf(
+        [
+          ChordEvent(
+            id: const EventId(1),
+            value: NoteValue.quarter,
+            notes: Seq([const DrumNote(id: NoteId(10), drum: Drum('Crash'))]),
+            graces: Seq([
+              GraceChord(
+                id: const EventId(3),
+                kind: GraceKind.acciaccatura,
+                value: NoteValue.eighth,
+                notes: Seq([
+                  const DrumNote(id: NoteId(30), drum: Drum('Low')),
+                ]),
+              ),
+            ]),
+          ),
+          hitOf(2, [const Drum('Low')]),
+        ],
+        clef: Clef.percussion,
+        lines: 1,
+        instrument: kit,
+      );
+      final crash = chordItems(view);
+      final low = chordItems(view, index: 1);
+      final grace = [
+        for (final item in graceItems(
+          planOf(view),
+          slice: 0,
+          staff: 0,
+          style: style,
+        ))
+          item.drawable,
+      ];
+
+      expect(headAt(crash, 10).glyph, Glyph.noteheadBlack);
+      expect(headAt(low, -2).glyph, Glyph.noteheadBlack);
+      expect(headsIn(grace).single.origin.y, yOfStep(-2));
+      expect(ledgersIn(crash), isEmpty);
+      expect(ledgersIn(low), isEmpty);
+      expect(ledgersIn(grace), isEmpty);
     });
 
     test('a ledger line extends past the heads it serves', () {
