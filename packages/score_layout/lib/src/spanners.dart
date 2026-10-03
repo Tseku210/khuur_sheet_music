@@ -1420,7 +1420,7 @@ List<Drawable> placeVoltas(
     final first = bracket.first;
     final last = bracket.last;
     final x0 = first.frame.left;
-    final x1 = last.frame.right;
+    final x1 = last.frame.barline;
     final dy =
         first.frame.tops.first +
         bracket.map((bar) => bar.of.dy).reduce(math.min);

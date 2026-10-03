@@ -465,8 +465,9 @@ final class SheetLayout {
         // clef and signatures, as a range starting there would.
         final start = system.barOf(from.measure) ?? system.bars.first;
         final end = system.bars.indexWhere((bar) => bar.measure == to.measure);
-        // A range to the start of a bar ends at the barline before it, short
-        // of a clef or signature the bar opens with.
+        // A range to the start of a bar ends where the bar before it ends,
+        // short of the bar's clef before the barline and of the signatures
+        // it opens with.
         final right = switch (end) {
           -1 => system.bars.last.right,
           > 0 when to.offset == Moment.zero => system.bars[end - 1].right,

@@ -45,7 +45,7 @@ Score barsOf(List<int> counts, {int staves = 1}) => scoreOf([
     ],
 ]);
 
-List<BarLayout> layoutsOf(Score score) => [
+List<BarLayout> layoutsOf(Score score, {EngravingStyle style = style}) => [
   for (final column in score.measures)
     layoutBar(score.measureView(column.id), style, const FakeMeasurer()),
 ];
@@ -278,6 +278,45 @@ void main() {
       expect(startsOf(breaksOf(twelve, tight)).take(2), [0, 3]);
       expect(startsOf(breaksOf(bars, tight)).take(2), [0, 2]);
     });
+
+    for (final engraving in [
+      style,
+      const EngravingStyle(courtesySignatures: false),
+    ]) {
+      test('a clef change at a system\'s first bar puts its courtesy clef at '
+          'the end of the system before, and one with no room sends the bar '
+          'before it on, resumed as fresh, with courtesySignatures '
+          '${engraving.courtesySignatures}', () {
+        final plain = layoutsOf(barsOf(List.filled(12, 4)), style: engraving);
+        final bars = layoutsOf(
+          after(barsOf(List.filled(12, 4)), [
+            SetClef(
+              staff: staffId(0),
+              at: ScorePoint(barId(3), Moment.zero),
+              clef: Clef.bass,
+            ),
+          ]),
+          style: engraving,
+        );
+        final roomy = breaksOf(bars, sheet, style: engraving);
+        final tight = sheet - 4;
+        final previous = breaksOf(plain, tight, style: engraving);
+        final resumed = breaksOf(
+          bars,
+          tight,
+          style: engraving,
+          previous: previous,
+        );
+
+        expect(bars[3].widths.courtesy, greaterThan(2));
+        expect(startsOf(roomy).take(2), [0, 3]);
+        expect(roomy.plans[0].key.next, same(bars[3]));
+        expect(endOf(roomy.plans[0]), closeTo(sheet, 1e-9));
+        expect(startsOf(previous).take(2), [0, 3]);
+        expect(startsOf(resumed).take(2), [0, 2]);
+        expect(resumed.starts, breaksOf(bars, tight, style: engraving).starts);
+      });
+    }
 
     test('a courtesy that goes away lets the bar before it back into the '
         'system it left', () {

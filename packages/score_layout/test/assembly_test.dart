@@ -123,6 +123,64 @@ List<(double, double)> spansBetween(
       (a.y, b.y),
 ];
 
+/// What stands at a barline of [system] with its centre from [from] to
+/// [to], in x order: a clef change, a barline or repeat sign, a key or a
+/// meter. A run of one kind is one entry holding the union of its ink.
+List<(String, Box)> standingBetween(
+  SystemLayout system,
+  double from,
+  double to,
+) {
+  final ink = <(String, Box)>[
+    for (final drawable in system.drawables)
+      if (kindOf(drawable) case final kind?
+          when (drawable.bounds.left + drawable.bounds.right) / 2 >= from &&
+              (drawable.bounds.left + drawable.bounds.right) / 2 <= to)
+        (kind, drawable.bounds),
+  ]..sort((a, b) => a.$2.left.compareTo(b.$2.left));
+  final runs = <(String, Box)>[];
+  for (final (kind, box) in ink) {
+    if (runs.lastOrNull case (final last, final run) when last == kind) {
+      runs.last = (kind, run.union(box));
+    } else {
+      runs.add((kind, box));
+    }
+  }
+  return runs;
+}
+
+/// What [drawable] is at a barline. A note's own accidental is owned by
+/// its event, which tells it apart from a key signature's.
+String? kindOf(Drawable drawable) => switch (drawable) {
+  LineDraw(owner: null, :final from, :final to) when from.x == to.x =>
+    'barline',
+  GlyphDraw(glyph: Glyph.repeatDots) => 'barline',
+  GlyphDraw(
+    owner: null,
+    glyph: Glyph.gClefChange || Glyph.fClefChange || Glyph.cClefChange,
+  ) =>
+    'clef',
+  GlyphDraw(owner: null, :final glyph)
+      when glyph.name.startsWith('accidental') =>
+    'key',
+  GlyphDraw(owner: null, :final glyph) when glyph.name.startsWith('timeSig') =>
+    'meter',
+  _ => null,
+};
+
+/// Expects [runs] to be of [kinds] in order, each wholly right of the one
+/// before it.
+void expectStanding(List<(String, Box)> runs, List<String> kinds) {
+  expect([for (final (kind, _) in runs) kind], kinds);
+  for (var i = 1; i < runs.length; i++) {
+    expect(
+      runs[i].$2.left,
+      greaterThan(runs[i - 1].$2.right),
+      reason: '${runs[i].$1} stands clear of ${runs[i - 1].$1}',
+    );
+  }
+}
+
 void main() {
   group('barlines', () {
     final two = quarters(quarters(blankScore(parts: const [clarinet]), 0), 1);
@@ -450,7 +508,7 @@ void main() {
         changed.measureView(at),
         style,
         text,
-      ).heads.courtesy;
+      ).heads.courtesy.after;
       final courtesyLeft = last.right + lastBar.slices.last.rod;
 
       expect(
@@ -621,6 +679,171 @@ void main() {
         (rest.bounds.left + rest.bounds.right) / 2,
         closeTo((from + bar.right) / 2, 1e-9),
       );
+    });
+  });
+
+  group('a clef change at a barline', () {
+    final two = quarters(quarters(blankScore(parts: const [clarinet]), 0), 1);
+    final ids = barIds(two);
+    final clefChanged = edit(
+      two,
+      SetClef(
+        staff: two.staves.single.id,
+        at: ScorePoint(ids[1], Moment.zero),
+        clef: Clef.bass,
+      ),
+    );
+    final signed = edit(
+      edit(clefChanged, SetKey(from: ids[1], key: const KeySignature(1))),
+      SetMeter(from: ids[1], meter: Meter.cut, content: MeterContent.keepBars),
+    );
+    final endRepeat = SetRepeatEnd(ids[0], const RepeatEnd());
+    final startRepeat = SetRepeatStart(ids[1], start: true);
+
+    for (final (name, score, kinds, pieces) in [
+      (
+        'with a key and meter',
+        signed,
+        ['clef', 'barline', 'key', 'meter'],
+        ['thin'],
+      ),
+      (
+        'with a key, a meter and a start repeat',
+        edit(signed, startRepeat),
+        ['clef', 'barline', 'key', 'meter', 'barline'],
+        ['thin', 'thick', 'thin', 'dots'],
+      ),
+      (
+        'with a key and meter after an end repeat',
+        edit(signed, endRepeat),
+        ['clef', 'barline', 'key', 'meter'],
+        ['dots', 'thin', 'thick'],
+      ),
+      (
+        'with a start repeat in place of the barline',
+        edit(clefChanged, startRepeat),
+        ['clef', 'barline'],
+        ['thick', 'thin', 'dots'],
+      ),
+      (
+        'with an end repeat meeting a start repeat',
+        edit(edit(clefChanged, endRepeat), startRepeat),
+        ['clef', 'barline'],
+        ['dots', 'thin', 'thick', 'thin', 'dots'],
+      ),
+    ]) {
+      test('stands small before every barline sign, at the end of the bar '
+          'before, $name: $kinds', () {
+        final system = systemOf(score);
+        final [first, second] = system.bars;
+        final content = second.time.stops.first.$2;
+        final runs = standingBetween(system, first.right, content);
+        final notes = system.drawables.where(
+          (drawable) =>
+              drawable.owner != null &&
+              drawable.bounds.left < runs.first.$2.left,
+        );
+
+        expectStanding(runs, kinds);
+        expect(piecesBetween(system, first.right, content), pieces);
+        expect(runs.first.$2.left, greaterThanOrEqualTo(first.right - 1e-9));
+        expect(
+          notes.map((drawable) => drawable.bounds.right),
+          everyElement(lessThanOrEqualTo(runs.first.$2.left)),
+          reason: 'the clef stands clear of the bar before',
+        );
+        expect(glyphsOf(system, Glyph.fClefChange), hasLength(1));
+      });
+    }
+
+    final startsSystem = () {
+      final score = ensemble(const [clarinet], 4);
+      final ids = barIds(score);
+      return [
+        SetBreak(ids[2], LayoutBreak.system),
+        SetClef(
+          staff: score.staves.single.id,
+          at: ScorePoint(ids[2], Moment.zero),
+          clef: Clef.bass,
+        ),
+        SetKey(from: ids[2], key: const KeySignature(1)),
+        SetMeter(
+          from: ids[2],
+          meter: Meter.cut,
+          content: MeterContent.keepBars,
+        ),
+      ].fold(score, edit);
+    }();
+
+    test('starting a system is printed in full there, and small before the '
+        'last barline of the system before, with the courtesy key and meter '
+        'after that barline', () {
+      final sheet = sheetOf(startsSystem);
+      final ending = sheet.systemAt(0);
+      final starting = sheet.systemAt(1);
+      final last = ending.bars.last;
+
+      expect(ending.bars, hasLength(2));
+      expectStanding(standingBetween(ending, last.right, ending.width), [
+        'clef',
+        'barline',
+        'key',
+        'meter',
+      ]);
+      expect(piecesBetween(ending, last.right, ending.width), ['thin']);
+      expect(
+        ending.drawables.map((drawable) => drawable.bounds.right),
+        everyElement(lessThanOrEqualTo(ending.width + 1e-9)),
+      );
+      expect(glyphsOf(ending, Glyph.fClef), isEmpty);
+      expect(glyphsOf(starting, Glyph.fClef), hasLength(1));
+      expect(glyphsOf(starting, Glyph.fClefChange), isEmpty);
+      expect(glyphsOf(starting, Glyph.gClef), isEmpty);
+    });
+
+    test('starting a system is printed small before the last barline of the '
+        'system before with courtesy signatures off, and the key and meter '
+        'are not', () {
+      final system = sheetOf(
+        startsSystem,
+        style: const EngravingStyle(courtesySignatures: false),
+      ).systemAt(0);
+      final last = system.bars.last;
+      final runs = standingBetween(system, last.right, system.width);
+      final staffLines = system.drawables.whereType<LineDraw>().where(
+        (line) => line.owner == null && line.from.y == line.to.y,
+      );
+
+      expectStanding(runs, ['clef', 'barline']);
+      expect(runs.last.$2.right, closeTo(system.width, 1e-9));
+      expect(
+        staffLines.map((line) => line.to.x),
+        everyElement(closeTo(system.width, 1e-9)),
+      );
+    });
+
+    test('on one staff of a part stands before the barline that runs through '
+        'both staves', () {
+      final score = ensemble(const [piano], 2);
+      final system = systemOf(
+        edit(
+          score,
+          SetClef(
+            staff: score.staves[1].id,
+            at: ScorePoint(barIds(score)[1], Moment.zero),
+            clef: Clef.treble,
+          ),
+        ),
+      );
+      final [first, second] = system.bars;
+      final tops = [for (final staff in system.staves) staff.top];
+      final runs = standingBetween(system, first.right, second.left);
+
+      expectStanding(runs, ['clef', 'barline']);
+      expect(glyphsOf(system, Glyph.gClefChange).single.origin.y, tops[1] + 3);
+      expect(spansBetween(system, first.right, second.left), [
+        (tops[0], tops[1] + staffHeight),
+      ]);
     });
   });
 }

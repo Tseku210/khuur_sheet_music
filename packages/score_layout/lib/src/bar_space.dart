@@ -45,19 +45,31 @@ final class BarItem {
 /// of every staff, in system space. Assembly makes one per bar, and every
 /// system-time function resolves bar space through it.
 final class BarFrame {
-  const BarFrame({required this.left, required this.xs, required this.tops});
+  const BarFrame({
+    required this.left,
+    required this.xs,
+    required this.tops,
+    this.beforeBarline = 0,
+  });
 
-  /// x where the bar's head starts. That is the barline before it, or the end
-  /// of the system's lead.
+  /// x where the bar's head starts. That is the end of the barline before
+  /// it, or the end of the system's lead.
   final double left;
 
-  /// x of each slice. The last is the bar's end, where its barline sits.
+  /// x of each slice. The last is the bar's end, where its content ends.
   final List<double> xs;
 
   /// y of each visible staff's top line.
   final List<double> tops;
 
+  /// Room between the bar's end and its barline, for a clef that the next
+  /// bar, or the next system's first bar, changes to before the barline.
+  final double beforeBarline;
+
   double get right => xs.last;
+
+  /// x where the bar's end barline starts.
+  double get barline => xs.last + beforeBarline;
 
   SpPoint at(BarAnchor anchor) =>
       SpPoint(xs[anchor.slice] + anchor.dx, tops[anchor.staff] + anchor.dy);

@@ -10,6 +10,7 @@ import 'package:test/test.dart';
 import '../../score_model/test/random_edits.dart';
 import '../../score_model/test/support.dart';
 import 'support/fake_measurer.dart';
+import 'support/random_walk.dart' show signatureEdit;
 
 const seeds = [1, 2, 3, 4, 5, 6, 7, 8];
 const edits = 400;
@@ -25,6 +26,8 @@ void main() {
       var resumed = 0;
       var restarted = 0;
       var runs = 0;
+      var clefs = 0;
+      var courtesyClefs = 0;
 
       for (final seed in seeds) {
         final random = Random(seed);
@@ -41,15 +44,12 @@ void main() {
           final before = score;
           score = randomEdit(before, random);
           if (random.nextInt(3) == 0) {
-            final id = score.measures[random.nextInt(score.measures.length)].id;
-            score = edited(
-              score,
-              pick(random, [
-                SetKey(from: id, key: KeySignature(random.nextInt(9) - 4)),
-                SetKeyDisplay(id, pick(random, SignatureDisplay.values)),
-                SetMeterDisplay(id, pick(random, SignatureDisplay.values)),
-              ]),
-            );
+            final edit = signatureEdit(score, random);
+            final was = score;
+            score = edited(score, edit);
+            if (edit is SetClef && !identical(score, was)) {
+              clefs++;
+            }
           }
           final changes = score.changesSince(before);
           changes.removed.forEach(cache.remove);
@@ -109,6 +109,13 @@ void main() {
             }
           }
           runs += again.units.whereType<RestRun>().length;
+          courtesyClefs += again.plans
+              .where(
+                (plan) =>
+                    plan.key.next?.heads.courtesy.before.items.isNotEmpty ??
+                    false,
+              )
+              .length;
           previous = again;
         }
       }
@@ -117,6 +124,8 @@ void main() {
       expect(resumed, greaterThan(seeds.length * edits ~/ 10));
       expect(restarted, greaterThan(seeds.length * 4));
       expect(runs, rests ? greaterThan(seeds.length * edits ~/ 4) : 0);
+      expect(clefs, greaterThan(seeds.length * 10));
+      expect(courtesyClefs, greaterThan(seeds.length * 10));
     });
   }
 }

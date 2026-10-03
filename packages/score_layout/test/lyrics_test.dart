@@ -126,6 +126,22 @@ Score sharpsFrom(Score score, int from) => after(score, [
   SetKey(from: barId(from), key: const KeySignature(3)),
 ]);
 
+/// [score] with the bass clef from bar [from].
+Score bassFrom(Score score, int from) => after(score, [
+  SetClef(
+    staff: staffId(0),
+    at: ScorePoint(barId(from), Moment.zero),
+    clef: Clef.bass,
+  ),
+]);
+
+/// The left edge of the courtesy clef at the end of [system].
+double courtesyClefOf(SystemLayout system) => system.drawables
+    .whereType<GlyphDraw>()
+    .singleWhere((draw) => draw.glyph == Glyph.fClefChange)
+    .bounds
+    .left;
+
 List<TextDraw> syllablesOn(SystemLayout system) =>
     lyricText(system).where((draw) => draw.text != '-').toList();
 
@@ -465,6 +481,28 @@ void main() {
       }
     });
 
+    test('at a system break is centred on the gap to the courtesy clef, '
+        'before the last barline', () {
+      final first = sheetOf(
+        bassFrom(
+          brokenBefore(
+            sungScore([
+              [null, null, null, 'do-'],
+              ['-re', null, null, null],
+            ]),
+            [1],
+          ),
+          1,
+        ),
+      ).systemAt(0);
+
+      expectHyphensBetween(
+        first,
+        syllableOn(first, 'do').bounds.right,
+        courtesyClefOf(first),
+      );
+    });
+
     test('is repeated along a wide gap, no two further apart than ten '
         'spaces', () {
       final system = sheetOf(
@@ -761,6 +799,26 @@ void main() {
       expect(
         extendersOn(first).single.to.x,
         inExclusiveRange(first.bars.last.right, courtesyOf(first)),
+      );
+    });
+
+    test('leaving a system stops before the courtesy clef', () {
+      final first = sheetOf(
+        bassFrom(
+          brokenBefore(
+            sungScore([
+              ['ah_', null, null, null],
+              [null, null, 'la', null],
+            ]),
+            [1],
+          ),
+          1,
+        ),
+      ).systemAt(0);
+
+      expect(
+        extendersOn(first).single.to.x,
+        closeTo(courtesyClefOf(first), 1e-9),
       );
     });
 

@@ -22,11 +22,13 @@ double randomWidth(Random random) => 12 + 138 * random.nextDouble();
 
 /// Runs [check] on the layout after each of [edits] random edits of a
 /// three-part score, for each of [seeds], at a random width drawn again
-/// after one edit in 25.
-void walk(
+/// after one edit in 25. Returns how many clef changes it set at a
+/// barline.
+int walk(
   EngravingStyle style,
   void Function(SheetLayout layout, Score score, double width) check,
 ) {
+  var clefs = 0;
   for (final seed in seeds) {
     final random = Random(seed);
     var score = blankScore(parts: const [clarinet, piano, drums], bars: 24);
@@ -36,15 +38,12 @@ void walk(
     for (var step = 0; step < edits; step++) {
       score = randomEdit(score, random);
       if (random.nextInt(3) == 0) {
-        final id = score.measures[random.nextInt(score.measures.length)].id;
-        score = edited(
-          score,
-          pick(random, [
-            SetKey(from: id, key: KeySignature(random.nextInt(9) - 4)),
-            SetKeyDisplay(id, pick(random, SignatureDisplay.values)),
-            SetMeterDisplay(id, pick(random, SignatureDisplay.values)),
-          ]),
-        );
+        final before = score;
+        final edit = signatureEdit(score, random);
+        score = edited(score, edit);
+        if (edit is SetClef && !identical(score, before)) {
+          clefs++;
+        }
       }
       if (random.nextInt(3) == 0) {
         score = sung(score, random);
@@ -56,6 +55,24 @@ void walk(
       check(layout, score, width);
     }
   }
+  return clefs;
+}
+
+/// A key, a key or meter display, or a clef change at a barline, set on a
+/// random bar of [score]. [randomEdit] sets these too rarely for a walk to
+/// meet them at system starts.
+Edit signatureEdit(Score score, Random random) {
+  final id = score.measures[random.nextInt(score.measures.length)].id;
+  return pick(random, [
+    SetKey(from: id, key: KeySignature(random.nextInt(9) - 4)),
+    SetKeyDisplay(id, pick(random, SignatureDisplay.values)),
+    SetMeterDisplay(id, pick(random, SignatureDisplay.values)),
+    SetClef(
+      staff: pick(random, score.staves).id,
+      at: ScorePoint(id, Moment.zero),
+      clef: pick(random, const [Clef.treble, Clef.bass, Clef.alto]),
+    ),
+  ]);
 }
 
 const syllableTexts = ['a', 'dolce', 'Тайван', '月', 'Lie-', 'सं'];

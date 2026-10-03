@@ -334,7 +334,7 @@ void main() {
         ]),
         1,
       );
-      final small = drawsOf(heads.inline).single;
+      final small = drawsOf(heads.inline.before).single;
       final full = drawsOf(heads.system).first;
 
       expect(full.glyph, Glyph.gClef8vb);
@@ -408,7 +408,7 @@ void main() {
         Glyph.timeSig3,
         Glyph.timeSig4,
       ]);
-      expect(headsOf(score, 1, style: everySystem).inline.items, isEmpty);
+      expect(headsOf(score, 1, style: everySystem).inline, SplitHead.none);
     });
 
     test('a changed key cancels the old one there only when no courtesy '
@@ -445,9 +445,9 @@ void main() {
     test('a bar that changes nothing prints nothing', () {
       final heads = headsOf(beatsScore(2, key: const KeySignature(2)), 1);
 
-      expect(heads.inline.items, isEmpty);
+      expect(heads.inline, SplitHead.none);
       expect(heads.inline.width, 0);
-      expect(heads.courtesy.items, isEmpty);
+      expect(heads.courtesy, SplitHead.none);
       expect(heads.courtesy.width, 0);
     });
 
@@ -457,7 +457,11 @@ void main() {
         [SetKey(from: barId(1), key: const KeySignature(-1))],
       );
 
-      expect(glyphsOf(headsOf(score, 1).inline), [natural, natural, flat]);
+      expect(glyphsOf(headsOf(score, 1).inline.after), [
+        natural,
+        natural,
+        flat,
+      ]);
     });
 
     test('a meter change prints the meter alone', () {
@@ -469,7 +473,9 @@ void main() {
         ),
       ]);
 
-      expect(glyphsOf(headsOf(score, 1).inline), [Glyph.timeSigCutCommon]);
+      expect(glyphsOf(headsOf(score, 1).inline.after), [
+        Glyph.timeSigCutCommon,
+      ]);
     });
 
     test('a restated key or meter prints without a change', () {
@@ -482,12 +488,16 @@ void main() {
       );
       final heads = headsOf(score, 1);
 
-      expect(glyphsOf(heads.inline), [sharp, Glyph.timeSig4, Glyph.timeSig4]);
-      expect(heads.courtesy.items, isEmpty);
+      expect(glyphsOf(heads.inline.after), [
+        sharp,
+        Glyph.timeSig4,
+        Glyph.timeSig4,
+      ]);
+      expect(heads.courtesy, SplitHead.none);
     });
 
     test('a clef change at the barline prints the small clef on its staff '
-        'alone', () {
+        'alone, before the barline', () {
       final score = after(
         beatsScore(2, clefs: [Clef.treble, Clef.treble]),
         [
@@ -499,11 +509,43 @@ void main() {
         ],
       );
       final heads = headsOf(score, 1);
+      final clef = drawsOf(heads.inline.before, 1).single;
 
-      expect(glyphsOf(heads.inline), isEmpty);
-      expect(glyphsOf(heads.inline, 1), [Glyph.fClefChange]);
-      expect(drawsOf(heads.inline, 1).single.origin.y, 1);
+      expect(glyphsOf(heads.inline.before), isEmpty);
+      expect(clef.glyph, Glyph.fClefChange);
+      expect(clef.origin.y, 1);
+      expect(clef.bounds.left, closeTo(0, 1e-9));
+      expect(heads.inline.before.width, closeTo(clef.bounds.right + 0.5, 1e-9));
+      expect(heads.inline.after, BarHead.none);
       expect(glyphsOf(heads.system, 1), [Glyph.fClef]);
+    });
+
+    test('clefs that change on two staves at one barline end at one x', () {
+      final score = after(
+        beatsScore(2, clefs: [Clef.treble, Clef.bass]),
+        [
+          SetClef(
+            staff: staffId(0),
+            at: ScorePoint(barId(1), Moment.zero),
+            clef: Clef.alto,
+          ),
+          SetClef(
+            staff: staffId(1),
+            at: ScorePoint(barId(1), Moment.zero),
+            clef: Clef.treble,
+          ),
+        ],
+      );
+      final before = headsOf(score, 1).inline.before;
+      final alto = drawsOf(before).single;
+      final treble = drawsOf(before, 1).single;
+
+      expect(alto.glyph, Glyph.cClefChange);
+      expect(treble.glyph, Glyph.gClefChange);
+      expect(alto.bounds.width, greaterThan(treble.bounds.width));
+      expect(alto.bounds.left, closeTo(0, 1e-9));
+      expect(treble.bounds.right, closeTo(alto.bounds.right, 1e-9));
+      expect(before.width, closeTo(alto.bounds.right + 0.5, 1e-9));
     });
 
     test('a transposing staff prints and cancels its written key', () {
@@ -517,9 +559,9 @@ void main() {
       );
       final heads = headsOf(score, 1);
 
-      expect(glyphsOf(heads.inline), [natural, natural]);
-      expect(stepsOf(drawsOf(heads.inline)), [8, 5]);
-      expect(glyphsOf(heads.inline, 1), [flat, flat]);
+      expect(glyphsOf(heads.inline.after), [natural, natural]);
+      expect(stepsOf(drawsOf(heads.inline.after)), [8, 5]);
+      expect(glyphsOf(heads.inline.after, 1), [flat, flat]);
     });
   });
 
@@ -535,8 +577,8 @@ void main() {
       ],
     );
 
-    test('it holds the new key with its naturals and the new meter, and no '
-        'clef', () {
+    test('it holds the new key with its naturals and the new meter after the '
+        'barline, and the small clef before it', () {
       final clefToo = after(score, [
         SetClef(
           staff: staffId(0),
@@ -546,7 +588,7 @@ void main() {
       ]);
 
       for (final changed in [score, clefToo]) {
-        expect(glyphsOf(headsOf(changed, 1).courtesy), [
+        expect(glyphsOf(headsOf(changed, 1).courtesy.after), [
           natural,
           natural,
           flat,
@@ -554,7 +596,14 @@ void main() {
           Glyph.timeSig4,
         ]);
       }
-      expect(glyphsOf(headsOf(clefToo, 1).inline).first, Glyph.fClefChange);
+      expect(headsOf(score, 1).courtesy.before, BarHead.none);
+      expect(glyphsOf(headsOf(clefToo, 1).courtesy.before), [
+        Glyph.fClefChange,
+      ]);
+      expect(
+        headsOf(clefToo, 1).courtesy.before,
+        headsOf(clefToo, 1).inline.before,
+      );
     });
 
     test('noCourtesy removes the key or the meter from it', () {
@@ -565,24 +614,36 @@ void main() {
         SetMeterDisplay(barId(1), SignatureDisplay.noCourtesy),
       ]);
 
-      expect(glyphsOf(headsOf(noKey, 1).courtesy), [
+      expect(glyphsOf(headsOf(noKey, 1).courtesy.after), [
         Glyph.timeSig3,
         Glyph.timeSig4,
       ]);
-      expect(headsOf(neither, 1).courtesy.items, isEmpty);
+      expect(headsOf(neither, 1).courtesy, SplitHead.none);
       expect(headsOf(neither, 1).courtesy.width, 0);
-      expect(glyphsOf(headsOf(neither, 1).inline), hasLength(5));
+      expect(glyphsOf(headsOf(neither, 1).inline.after), hasLength(5));
     });
 
-    test('a style without courtesy signatures has none', () {
-      final heads = headsOf(
-        score,
+    test('a style without courtesy signatures has none, and keeps the '
+        'courtesy clef', () {
+      const off = EngravingStyle(courtesySignatures: false);
+      final heads = headsOf(score, 1, style: off);
+      final clefToo = headsOf(
+        after(score, [
+          SetClef(
+            staff: staffId(0),
+            at: ScorePoint(barId(1), Moment.zero),
+            clef: Clef.bass,
+          ),
+        ]),
         1,
-        style: const EngravingStyle(courtesySignatures: false),
+        style: off,
       );
 
-      expect(heads.courtesy.items, isEmpty);
+      expect(heads.courtesy, SplitHead.none);
       expect(heads.courtesy.width, 0);
+      expect(glyphsOf(clefToo.courtesy.before), [Glyph.fClefChange]);
+      expect(clefToo.courtesy.after, BarHead.none);
+      expect(clefToo.courtesy.width, clefToo.courtesy.before.width);
     });
   });
 
@@ -643,7 +704,8 @@ void main() {
       final repeat = after(plain, [SetRepeatStart(barId(1), start: true)]);
       final sign = startRepeatWidth(style);
 
-      expect(headsOf(repeat, 1).inline.items, isEmpty);
+      expect(headsOf(repeat, 1).inline.before, BarHead.none);
+      expect(headsOf(repeat, 1).inline.after.items, isEmpty);
       expect(headsOf(repeat, 1).inline.width, closeTo(sign + 0.75, 1e-9));
       expect(
         headsOf(repeat, 1).system.width,
@@ -657,8 +719,8 @@ void main() {
         beatsScore(1, clefs: [Clef.treble, Clef.bass]),
         0,
       );
-      final treble = headReach(heads.system, 0);
-      final bass = headReach(heads.system, 1);
+      final treble = headReach([heads.system], 0);
+      final bass = headReach([heads.system], 1);
 
       expect(treble.above, closeTo(1.392, 1e-9));
       expect(treble.below, closeTo(1.632, 1e-9));
@@ -855,7 +917,7 @@ void main() {
     });
 
     test('a bar start joins the barline before it only when its inline head '
-        'is empty', () {
+        'has nothing after that barline', () {
       final plain = beatsScore(2, key: const KeySignature(1));
       bool joins(List<Edit> edits) => layoutBar(
         viewOf(after(plain, edits), 1),
@@ -886,7 +948,7 @@ void main() {
             clef: Clef.bass,
           ),
         ]),
-        isFalse,
+        isTrue,
       );
     });
 
@@ -898,7 +960,7 @@ void main() {
       );
       final bar = layoutBar(viewOf(score, 1), style, const FakeMeasurer());
       final heads = bar.heads;
-      BarLayout withCourtesy(BarHead courtesy) => BarLayout(
+      BarLayout withCourtesy(SplitHead courtesy) => BarLayout(
         measure: bar.measure,
         length: bar.length,
         breakBefore: bar.breakBefore,
@@ -921,22 +983,30 @@ void main() {
         volta: bar.volta,
         lyrics: bar.lyrics,
       );
-      final width = heads.courtesy.width;
+      final kept = heads.courtesy.after;
+      SplitHead courtesyOf(BarHead after, {BarHead before = BarHead.none}) =>
+          SplitHead(before: before, after: after);
 
-      expect(heads.courtesy.items, isNotEmpty);
-      expect(
-        withCourtesy(BarHead(items: [...heads.courtesy.items], width: width)),
-        bar,
-      );
-      expect(withCourtesy(BarHead.none), isNot(bar));
+      expect(kept.items, isNotEmpty);
+      expect(heads.courtesy.before, BarHead.none);
       expect(
         withCourtesy(
-          BarHead(
-            items: [
-              for (final item in heads.courtesy.items)
-                (staff: item.staff, drawable: item.drawable.shift(0, 1)),
-            ],
-            width: width,
+          courtesyOf(BarHead(items: [...kept.items], width: kept.width)),
+        ),
+        bar,
+      );
+      expect(withCourtesy(SplitHead.none), isNot(bar));
+      expect(withCourtesy(courtesyOf(kept, before: kept)), isNot(bar));
+      expect(
+        withCourtesy(
+          courtesyOf(
+            BarHead(
+              items: [
+                for (final item in kept.items)
+                  (staff: item.staff, drawable: item.drawable.shift(0, 1)),
+              ],
+              width: kept.width,
+            ),
           ),
         ),
         isNot(bar),

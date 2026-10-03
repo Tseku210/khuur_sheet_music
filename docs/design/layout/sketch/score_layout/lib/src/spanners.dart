@@ -506,7 +506,8 @@ VoltaStub? voltaStub(
 /// Consecutive bars with a stub form one bracket, and a stub that `starts`
 /// begins a new one. The line is `repeatEndingLineThickness` thick, at the
 /// outermost `dy` of its bars, from the first bar's left to the last bar's
-/// right. It has a left hook and the label where the volta starts, and a
+/// barline (`BarFrame.barline`), over any clef that stands before that
+/// barline. It has a left hook and the label where the volta starts, and a
 /// right hook where it ends unless it is `open`. A bracket continued from
 /// the system before has neither a left hook nor a label. A hook's outer
 /// edge is flush with the bracket's end.

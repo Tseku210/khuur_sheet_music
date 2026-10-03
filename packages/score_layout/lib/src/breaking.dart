@@ -581,7 +581,10 @@ SystemPlan planSystem(SystemKey key, EngravingStyle style, TextMeasurer text) {
   for (final (index, staff) in units.first.staves.indexed) {
     final courtesy = next == null
         ? (above: 0.0, below: 0.0)
-        : headReach(next.heads.courtesy, index);
+        : headReach([
+            next.heads.courtesy.before,
+            next.heads.courtesy.after,
+          ], index);
     // A staff's outer lines are ink too. Half a line lies outside the staff
     // on each side, and the band holds it like any other reach.
     final line = style.font.defaults.staffLineThickness / 2;

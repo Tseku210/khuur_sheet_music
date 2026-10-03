@@ -218,9 +218,9 @@ final Map<String, MeasureView> headBars = {
 /// A bar drawn alone: its drawables in sheet space and the image size.
 ///
 /// With a [head], the head starts at the left margin and the notes follow
-/// it, as they do on a system. A [barline] before the head shows the gap an
-/// inline head keeps from it. [from] is the y the picture starts at, so that
-/// several bars can share one image.
+/// it, as they do on a system. A [barline] between the two parts of the head
+/// shows the gap each part keeps from it. [from] is the y the picture starts
+/// at, so that several bars can share one image.
 ({
   List<Drawable> drawables,
   List<Drawable> head,
@@ -229,16 +229,17 @@ final Map<String, MeasureView> headBars = {
   double bottom,
 }) sheetOf(
   BarLayout layout, {
-  BarHead head = BarHead.none,
+  SplitHead head = SplitHead.none,
   bool barline = false,
   double from = margin,
 }) {
+  final after = margin + head.before.width;
   final xs = sliceXs(layout.slices, 1, margin + head.width + layout.lead);
   final right = xs.last + layout.slices.last.rod;
   final tops = <double>[];
   var top = from;
   for (final (i, staff) in layout.staves.indexed) {
-    final reach = headReach(head, i);
+    final reach = headReach([head.before, head.after], i);
     // The engine puts glyph ink on whole pixels vertically, so a staff on a
     // whole pixel keeps every glyph where its box says.
     top =
@@ -248,8 +249,10 @@ final Map<String, MeasureView> headBars = {
     top += staffHeight + math.max(staff.below, reach.below) + margin;
   }
   final placedHead = [
-    for (final item in head.items)
+    for (final item in head.before.items)
       item.drawable.shift(margin, tops[item.staff]),
+    for (final item in head.after.items)
+      item.drawable.shift(after, tops[item.staff]),
   ];
   final frame = BarFrame(left: margin, xs: xs, tops: tops);
   final defaults = style.font.defaults;
@@ -264,7 +267,7 @@ final Map<String, MeasureView> headBars = {
           thickness: defaults.staffLineThickness,
         ),
         for (final x in [
-          if (barline) margin + defaults.thinBarlineThickness / 2,
+          if (barline) after + defaults.thinBarlineThickness / 2,
           right - defaults.thinBarlineThickness / 2,
         ])
           LineDraw(
@@ -344,7 +347,7 @@ void main() {
       for (final MapEntry(key: name, value: view) in headBars.entries) {
         final layout = layoutBar(view, style, const FakeMeasurer());
         final heads = [
-          layout.heads.system,
+          SplitHead(before: BarHead.none, after: layout.heads.system),
           layout.heads.inline,
           layout.heads.courtesy,
         ];

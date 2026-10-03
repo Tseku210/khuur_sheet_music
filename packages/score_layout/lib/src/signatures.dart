@@ -25,7 +25,8 @@ const double _keyGap = 0.15;
 /// reads as part of its neighbour at the gap a sharp takes.
 const double _naturalGap = 0.3;
 
-/// Clear space between a clef change and what its slice reaches to the left.
+/// Clear space between a clef change and what follows it, which is what its
+/// slice reaches to the left, or the barline.
 const double _clefChangeGap = 0.5;
 
 /// The size of a clef change whose clef has no `Change` glyph in SMuFL.
@@ -62,19 +63,45 @@ final class BarHead {
   int get hashCode => Object.hash(width, items.length);
 }
 
-/// How far [head] reaches outside staff [staff], above its top line and below
+/// How far [heads] reach outside staff [staff], above its top line and below
 /// its bottom line. A G clef reaches both ways.
-({double above, double below}) headReach(BarHead head, int staff) {
+({double above, double below}) headReach(Iterable<BarHead> heads, int staff) {
   var above = 0.0;
   var below = 0.0;
-  for (final item in head.items) {
-    if (item.staff == staff) {
-      final bounds = item.drawable.bounds;
-      above = math.max(above, -bounds.top);
-      below = math.max(below, bounds.bottom - staffHeight);
+  for (final head in heads) {
+    for (final item in head.items) {
+      if (item.staff == staff) {
+        final bounds = item.drawable.bounds;
+        above = math.max(above, -bounds.top);
+        below = math.max(below, bounds.bottom - staffHeight);
+      }
     }
   }
   return (above: above, below: below);
+}
+
+/// A head that the barline before its bar cuts in two.
+final class SplitHead {
+  const SplitHead({required this.before, required this.after});
+
+  static const none = SplitHead(before: BarHead.none, after: BarHead.none);
+
+  /// What stands before the barline, at the end of the bar before. Its x
+  /// runs from where that bar's content ends, and its width reaches the
+  /// barline.
+  final BarHead before;
+
+  /// What stands after the barline. Its x runs from the barline's end.
+  final BarHead after;
+
+  double get width => before.width + after.width;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SplitHead && other.before == before && other.after == after;
+
+  @override
+  int get hashCode => Object.hash(before, after);
 }
 
 /// The three heads a bar can print. A bar does not know where it lands, so
@@ -86,21 +113,22 @@ final class BarHeads {
     required this.courtesy,
   });
 
-  /// When the bar follows another on its system. It holds the clef, key and
-  /// meter the bar changes or restates (`StaffView.clefChanged`, `printsKey`,
-  /// `printsMeter`). The clef is the small one, as for a change inside a bar.
-  final BarHead inline;
+  /// When the bar follows another on its system. Before the barline it holds
+  /// the small clef of each staff whose clef changes here
+  /// (`StaffView.clefChanged`), and after it the key and meter the bar
+  /// changes or restates (`printsKey`, `printsMeter`).
+  final SplitHead inline;
 
   /// When the bar starts a system. It holds the clef and key on every staff,
   /// and the meter when it changes here or `style.meterEverySystem` is set.
   /// A changed key cancels the old one here only when no courtesy did.
   final BarHead system;
 
-  /// What the system before ends with when this bar starts a system. It holds
-  /// the new key and meter (`keyCourtesy`, `meterCourtesy`), unless
-  /// `style.courtesySignatures` is off. Its x runs from the last barline of
-  /// that system.
-  final BarHead courtesy;
+  /// What the system before ends with when this bar starts a system. Before
+  /// its last barline it holds the same small clefs as [inline], whatever
+  /// the style. After it, it holds the new key and meter (`keyCourtesy`,
+  /// `meterCourtesy`), unless `style.courtesySignatures` is off.
+  final SplitHead courtesy;
 
   @override
   bool operator ==(Object other) =>
@@ -118,17 +146,23 @@ final class BarHeads {
 /// A head is up to three groups, left to right, which are the clefs, the keys
 /// and the meters, and then room for a start repeat sign when the bar opens a
 /// repeat. Groups align across staves. Each starts one gap after the widest
-/// end of the group before it.
+/// end of the group before it. A clef that changes at the barline stands
+/// before it, so the order there is clef, barline, key, meter and start
+/// repeat.
 BarHeads barHeads(MeasureView view, EngravingStyle style) {
   final staves = view.staves;
   final keyCourtesy = style.courtesySignatures && view.keyCourtesy;
   final meterCourtesy = style.courtesySignatures && view.meterCourtesy;
 
-  List<BarHead> clefs({required bool change}) => [
+  final clefs = [
     for (final (staff, staffView) in staves.indexed)
-      if (!change || staffView.clefChanged)
-        _clefHead(staffView.clef, staff: staff, change: change, style: style),
+      _clefHead(staffView.clef, staff: staff, change: false, style: style),
   ];
+  final clefChanges = _beforeBarline([
+    for (final (staff, staffView) in staves.indexed)
+      if (staffView.clefChanged)
+        _clefHead(staffView.clef, staff: staff, change: true, style: style),
+  ]);
   List<BarHead> keys({required bool cancel}) => [
     for (final (staff, staffView) in staves.indexed)
       keySignatureItems(
@@ -153,20 +187,49 @@ BarHeads barHeads(MeasureView view, EngravingStyle style) {
   final repeat = view.column.repeatStart ? startRepeatWidth(style) : 0.0;
 
   return BarHeads(
-    inline: _joined([
-      clefs(change: true),
-      if (view.printsKey) changedKeys,
-      if (view.printsMeter) meters,
-    ], repeat: repeat),
+    inline: SplitHead(
+      before: clefChanges,
+      after: _joined([
+        if (view.printsKey) changedKeys,
+        if (view.printsMeter) meters,
+      ], repeat: repeat),
+    ),
     system: _joined([
-      clefs(change: false),
+      clefs,
       if (keyCourtesy) keys(cancel: false) else changedKeys,
       meters,
     ], repeat: repeat),
-    courtesy: _joined([
-      if (keyCourtesy) changedKeys,
-      if (meterCourtesy) meters,
-    ], repeat: 0),
+    courtesy: SplitHead(
+      before: clefChanges,
+      after: _joined([
+        if (keyCourtesy) changedKeys,
+        if (meterCourtesy) meters,
+      ], repeat: 0),
+    ),
+  );
+}
+
+/// The small clefs of [clefs] with their right edges in line, one clef
+/// change gap before the barline. The bar before spaced its content to its
+/// end, so the clefs start there with no gap of their own.
+BarHead _beforeBarline(List<BarHead> clefs) {
+  if (clefs.isEmpty) {
+    return BarHead.none;
+  }
+  final width = clefs.fold<double>(
+    0,
+    (width, clef) => math.max(width, clef.width),
+  );
+  return BarHead(
+    items: [
+      for (final clef in clefs)
+        for (final item in clef.items)
+          (
+            staff: item.staff,
+            drawable: item.drawable.shift(width - clef.width, 0),
+          ),
+    ],
+    width: width + _clefChangeGap,
   );
 }
 
@@ -452,11 +515,12 @@ typedef BarEdges = ({
   /// The bar opens a repeat.
   bool repeatStart,
 
-  /// The bar's inline head prints nothing, so a start repeat here can stand
-  /// in for the barline of the bar before it, or join its end repeat into
-  /// one sign. Read from the head's items, not from what the bar prints,
-  /// since a restated C major or a key under a percussion clef prints
-  /// nothing.
+  /// The bar's inline head prints nothing after the barline, so a start
+  /// repeat here can stand in for the barline of the bar before it, or join
+  /// its end repeat into one sign. A clef change stands before the barline
+  /// and does not count. Read from the head's items, not from what the bar
+  /// prints, since a restated C major or a key under a percussion clef
+  /// prints nothing.
   bool startJoins,
   Barline end,
   RepeatEnd? repeatEnd,
@@ -567,8 +631,9 @@ double endBarlineWidth(BarEdges edges, EngravingStyle style) =>
 double startRepeatWidth(EngravingStyle style) =>
     _piecesWidth(_startRepeat, style);
 
-/// A bar's edges with the width of the head the system placed before it,
-/// which holds the room of a start repeat sign as its last group.
+/// A bar's edges with the width of the head the system placed after the
+/// barline before it, which holds the room of a start repeat sign as its
+/// last group.
 typedef PlacedEdges = ({BarEdges edges, double head});
 
 /// The barlines and repeat signs of one system.
@@ -576,13 +641,14 @@ typedef PlacedEdges = ({BarEdges edges, double head});
 /// A barline runs from the top line of the first staff of a part to the
 /// bottom line of its last staff, so it joins the staves of a piano part
 /// and breaks between parts ([groups] holds the first and last staff index
-/// of each part). The end barline starts at the bar's last slice and is as
-/// wide as that slice's rod. A start repeat sits at the end of the bar's
-/// head, and stands in for the regular barline of the bar before it when
-/// nothing else is in the head. An end repeat followed on the same system
-/// by a bar whose start repeat joins it draws as one sign, with its thick
-/// line on the boundary. The last bar of the score draws `Barline.finalBar`
-/// only when the model says so.
+/// of each part). The end barline starts at `BarFrame.barline`, after any
+/// clef change that stands before it, and is as wide as the bar's last
+/// slice's rod. A start repeat sits at the end of the bar's head, and stands
+/// in for the regular barline of the bar before it when nothing else is in
+/// the head after the barline. An end repeat followed on the same system by
+/// a bar whose start repeat joins it draws as one sign, with its thick line
+/// on the boundary. The last bar of the score draws `Barline.finalBar` only
+/// when the model says so.
 List<Drawable> placeBarlines(
   List<Framed<PlacedEdges>> bars, {
   required List<(int, int)> groups,
@@ -624,7 +690,7 @@ List<Drawable> placeBarlines(
       drawables.addAll(
         _placePieces(
           _endPieces(edges),
-          frame.right,
+          frame.barline,
           groups: groups,
           tops: tops,
           style: style,

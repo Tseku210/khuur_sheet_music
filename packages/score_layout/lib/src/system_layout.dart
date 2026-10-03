@@ -116,8 +116,8 @@ final class PlacedBar {
   /// run does.
   final double left;
 
-  /// x where the bar ends and its barline starts, when one is drawn, or
-  /// where its share of a rest run ends.
+  /// x where the bar's content ends, or where its share of a rest run ends.
+  /// Its barline starts here, or after a clef that stands before it.
   final double right;
 
   final TimeAxis time;

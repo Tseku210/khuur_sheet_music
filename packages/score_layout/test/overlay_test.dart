@@ -1,5 +1,6 @@
 import 'package:score_layout/src/drawable.dart';
 import 'package:score_layout/src/geometry.dart';
+import 'package:score_layout/src/glyphs.dart';
 import 'package:score_layout/src/sheet_layout.dart';
 import 'package:score_model/score_model.dart';
 import 'package:test/test.dart';
@@ -223,25 +224,36 @@ void main() {
     });
 
     test('a range whose to is offset 0 of a later bar of the same system '
-        'ends where the bar before ends, short of the later bar\'s key '
-        'change', () {
+        'ends where the bar before ends, short of the later bar\'s clef and '
+        'key change', () {
       final keyed = sheetOf(
         after(threeSystems(), [
           SetKey(from: barId(1), key: const KeySignature(2)),
+          SetClef(
+            staff: staffId(0),
+            at: ScorePoint(barId(1), Moment.zero),
+            clef: Clef.alto,
+          ),
         ]),
       );
       final from = ScorePoint(barId(0), Moment.zero);
       final box = keyed
           .selectionBoxes(rangeOf(from, ScorePoint(barId(1), Moment.zero)))
           .single;
-      final sharps = keyed
+      final signs = keyed
           .systemAt(0)
           .drawables
           .whereType<GlyphDraw>()
-          .where((d) => d.owner == null && d.glyph.name == 'accidentalSharp');
-      expect(sharps, isNotEmpty);
-      for (final sharp in sharps) {
-        expect(box.right, lessThan(sharp.bounds.left));
+          .where(
+            (d) =>
+                d.owner == null &&
+                (d.glyph == Glyph.accidentalSharp ||
+                    d.glyph == Glyph.cClefChange),
+          );
+      expect(signs.map((d) => d.glyph), contains(Glyph.cClefChange));
+      expect(signs.map((d) => d.glyph), contains(Glyph.accidentalSharp));
+      for (final sign in signs) {
+        expect(box.right, lessThanOrEqualTo(sign.bounds.left));
       }
       expect(
         box,

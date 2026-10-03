@@ -173,6 +173,62 @@ void main() {
       expectSameSheet(next, sheetOf(score, width: 80));
     });
 
+    test('after a clef set at the start of a system relays that bar and its '
+        'neighbours only, and the system before ends with the courtesy '
+        'clef', () {
+      final ids = barIds(score);
+      final staff = score.staves.first.id;
+      // The bar already ends in the bass clef, so the new clef does not
+      // carry on into the bars after it.
+      final before = [
+        SetBreak(ids[8], LayoutBreak.system),
+        SetClef(
+          staff: staff,
+          at: ScorePoint(ids[8], at(1, 2)),
+          clef: Clef.bass,
+        ),
+      ].fold(score, edit);
+      final layout = sheetOf(before);
+      assembleAll(layout);
+      final next = edit(
+        before,
+        SetClef(
+          staff: staff,
+          at: ScorePoint(ids[8], Moment.zero),
+          clef: Clef.bass,
+        ),
+      );
+
+      final updated = layout.update(next);
+      final starting = updated.systemOf(ids[8])!;
+      final ending = updated.systemAt(starting - 1);
+
+      expect(layout.firstBarOf(layout.systemOf(ids[8])!), ids[8]);
+      expect(next.changesSince(before).relayout, {ids[7], ids[8], ids[9]});
+      expect(updated.delta.relaid, {ids[7], ids[8], ids[9]});
+      expect(
+        ending.drawables.whereType<GlyphDraw>().where(
+          (glyph) =>
+              glyph.glyph == Glyph.fClefChange &&
+              glyph.bounds.left >= ending.bars.last.right - 1e-9,
+        ),
+        hasLength(1),
+      );
+      expectSameSheet(updated, sheetOf(next));
+      for (var i = 0; i < updated.systemCount; i++) {
+        if (!updated.delta.rekeyed.contains(i)) {
+          expect(
+            identical(
+              updated.systemAt(i),
+              layout.systemAt(layout.systemOf(updated.firstBarOf(i))!),
+            ),
+            isTrue,
+            reason: 'system $i kept its key, so it keeps its assembly',
+          );
+        }
+      }
+    });
+
     test('justifies every system to the width but a short last one', () {
       final pinned = edit(
         score,

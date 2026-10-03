@@ -1,3 +1,4 @@
+import 'package:score_layout/src/drawable.dart';
 import 'package:score_layout/src/sheet_layout.dart';
 import 'package:score_layout/src/style.dart';
 import 'package:score_model/score_model.dart';
@@ -130,8 +131,26 @@ void main() {
     });
 
     test('every drawable and bar number of every system stays inside its '
-        'band, $walked', () {
-      walk(style, (layout, _, _) => expectInsideBands(layout));
+        'band, a courtesy clef included, $walked', () {
+      var courtesyClefs = 0;
+      final clefs = walk(style, (layout, _, _) {
+        expectInsideBands(layout);
+        for (var i = 0; i + 1 < layout.systemCount; i++) {
+          final system = layout.systemAt(i);
+          final end = system.bars.last.right;
+          if (system.drawables.any(
+            (drawable) =>
+                drawable is GlyphDraw &&
+                drawable.glyph.name.contains('Clef') &&
+                drawable.bounds.left >= end - 1e-9,
+          )) {
+            courtesyClefs++;
+          }
+        }
+      });
+
+      expect(clefs, greaterThan(seeds.length * 10));
+      expect(courtesyClefs, greaterThan(seeds.length * 10));
     });
   }
 }

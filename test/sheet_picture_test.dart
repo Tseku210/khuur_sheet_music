@@ -545,7 +545,96 @@ Score pictured() {
   return score;
 }
 
+/// A violin and a piano over eight bars on two systems. The piano's lower
+/// staff turns to the treble clef at a start repeat. The violin turns to
+/// the alto clef with a new key and meter where the second system starts,
+/// and back to the treble clef at the barline of an end repeat.
+Score clefChanges() {
+  var score = blankScore(parts: const [violin, grand], bars: 8);
+  final ids = barIds(score);
+  final [fiddle, _, lower] = [for (final staff in score.staves) staff.id];
+  SetClef clefAt(StaffId staff, int bar, Clef clef) =>
+      SetClef(staff: staff, at: ScorePoint(ids[bar], Moment.zero), clef: clef);
+  score = [
+    SetMeter(
+      from: ids[4],
+      meter: Meter.threeFour,
+      content: MeterContent.keepBars,
+    ),
+    SetKey(from: ids[4], key: const KeySignature(-2)),
+    SetBreak(ids[4], LayoutBreak.system),
+    SetRepeatStart(ids[2], start: true),
+    SetRepeatEnd(ids[5], const RepeatEnd()),
+    clefAt(lower, 2, Clef.treble),
+    clefAt(fiddle, 4, Clef.alto),
+    clefAt(fiddle, 6, Clef.treble),
+  ].fold(score, edit);
+
+  var id = 20000;
+  List<VoiceItem> line(List<String> pitches,
+          [NoteValue value = NoteValue.quarter]) =>
+      [for (final pitch in pitches) chordOf(id++, pitch, value: value)];
+  for (var bar = 0; bar < 8; bar++) {
+    final (melody, chords, bass) = switch (bar) {
+      < 4 => (
+          line(['G4', 'A4', 'B4', 'D5']),
+          line(['C4 E4 G4', 'B3 D4 G4'], half),
+          line(bar < 2 ? ['C3', 'G2'] : ['E4', 'C4'], half),
+        ),
+      < 6 => (
+          line(['D4', 'F4', 'A4']),
+          line(['D4 F4 A4'], dottedHalf),
+          line(['F4'], dottedHalf),
+        ),
+      _ => (
+          line(['F4', 'A4', 'D5']),
+          line(['D4 F4 A4'], dottedHalf),
+          line(['F4'], dottedHalf),
+        ),
+    };
+    score = fill(score, bar, melody);
+    score = fill(score, bar, chords, staff: 1);
+    score = fill(score, bar, bass, staff: 2);
+  }
+  return score;
+}
+
 void main() {
+  testWidgets(
+      'clef changes paint small before their barlines, and the courtesy '
+      'clef before the last barline of the system before', (tester) async {
+    await tester.runAsync(() async {
+      final painter = bravuraPainter();
+      await loadBravura(painter);
+      await loadTextFont();
+      final layout = layoutOf(clefChanges());
+
+      expect(layout.systemCount, 2);
+      for (final (index, glyph, bar) in [
+        (0, 'gClefChange', 1),
+        (0, 'cClefChange', 3),
+        (1, 'gClefChange', 1),
+      ]) {
+        final system = layout.systemAt(index);
+        final bars = system.bars;
+        final clef = system.drawables
+            .whereType<GlyphDraw>()
+            .singleWhere((draw) => draw.glyph.name == glyph)
+            .bounds;
+        final reason = '$glyph after bar $bar of system $index';
+
+        expect(clef.left, greaterThanOrEqualTo(bars[bar].right - 1e-9),
+            reason: reason);
+        expect(
+          clef.right,
+          lessThan(bar + 1 < bars.length ? bars[bar + 1].left : system.width),
+          reason: reason,
+        );
+      }
+      writeSnapshot('sheet_clefs', await pictureOf(layout, painter));
+    });
+  });
+
   testWidgets(
       'a sheet of systems paints each system inside its band, under '
       'its header', (tester) async {

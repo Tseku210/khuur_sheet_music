@@ -831,6 +831,46 @@ void main() {
       expect(textsOf(system, '2.'), hasLength(1));
     });
 
+    test('a volta before a clef change ends over the barline, above the '
+        'clef that stands before it', () {
+      final base = scoreOf([quartersOf(1, 'C5'), quartersOf(5, 'C5')]);
+      final [first, second] = barIds(base);
+      final score =
+          [
+            SetVolta(first, first, const Volta([1])),
+            SetVolta(second, second, const Volta([2])),
+            SetClef(
+              staff: base.staves.single.id,
+              at: ScorePoint(second, Moment.zero),
+              clef: Clef.bass,
+            ),
+          ].fold(
+            base,
+            (score, edit) => applied(EditSession.start(score).run(edit)).score,
+          );
+      final system = sheetOf(score).systemAt(0);
+      final clef = glyphsOf(
+        system,
+      ).singleWhere((glyph) => glyph.glyph == Glyph.fClefChange).bounds;
+      final barline = linesOf(system).singleWhere(
+        (line) =>
+            isVertical(line) &&
+            line.from.y >= topOf(system) &&
+            line.from.x > clef.right &&
+            line.from.x < system.bars[1].left,
+      );
+      final lines = bracketOf(system).where(isHorizontal).toList()
+        ..sort((a, b) => a.from.x.compareTo(b.from.x));
+      final hooks = bracketOf(system).where(isVertical).toList()
+        ..sort((a, b) => a.from.x.compareTo(b.from.x));
+
+      expect(lines.first.to.x, closeTo(barline.bounds.left, 1e-9));
+      expect(lines.first.from.y, lessThan(clef.top));
+      expect(hooks[1].bounds.left, greaterThan(clef.right));
+      expect(hooks[1].to.y, lessThan(clef.top));
+      expect(lines.last.from.x, closeTo(system.bars[1].left, 1e-9));
+    });
+
     test('a volta over the first bar of a system clears the clef', () {
       final base = scoreOf([quartersOf(1, 'C5'), quartersOf(5, 'C5')]);
       final score = applied(
@@ -1009,50 +1049,64 @@ void main() {
   });
 
   group('a system that ends with a courtesy signature', () {
-    test('a tie, a slur and a hairpin leaving the system stop before the '
-        'courtesy key signature', () {
-      var score = scoreOf([
-        [...quartersOf(1, 'C5').take(3), chordOf(4, 'C5', tie: true)],
-        quartersOf(5, 'C5'),
-      ]);
-      score = applied(
-        EditSession.start(score).run(
-          SetKey(from: score.measures[1].id, key: const KeySignature(3)),
+    for (final (name, change, mark) in [
+      (
+        'key signature',
+        (Score score) =>
+            SetKey(from: score.measures[1].id, key: const KeySignature(3)),
+        Glyph.accidentalSharp,
+      ),
+      (
+        'clef',
+        (Score score) => SetClef(
+          staff: score.staves.single.id,
+          at: ScorePoint(score.measures[1].id, Moment.zero),
+          clef: Clef.bass,
         ),
-      ).score;
-      score = withSlur(
-        score,
-        pointAt(score, 0, at(1, 4)),
-        pointAt(score, 1, at(1, 4)),
-      );
-      score = withSpanner(
-        score,
-        const Hairpin(crescendo: true),
-        pointAt(score, 0, at(1, 4)),
-        pointAt(score, 1, at(1, 4)),
-      );
-      final sheet = sheetOf(score, width: narrow);
-      expect(sheet.systemCount, 2);
-      final system = sheet.systemAt(0);
-      final courtesy = glyphsOf(system)
-          .where((glyph) => glyph.glyph == Glyph.accidentalSharp)
-          .map((glyph) => glyph.bounds.left)
-          .where((left) => left > system.bars.single.right)
-          .reduce(min);
+        Glyph.fClefChange,
+      ),
+    ]) {
+      test('a tie, a slur and a hairpin leaving the system stop before the '
+          'courtesy $name', () {
+        var score = scoreOf([
+          [...quartersOf(1, 'C5').take(3), chordOf(4, 'C5', tie: true)],
+          quartersOf(5, 'C5'),
+        ]);
+        score = applied(EditSession.start(score).run(change(score))).score;
+        score = withSlur(
+          score,
+          pointAt(score, 0, at(1, 4)),
+          pointAt(score, 1, at(1, 4)),
+        );
+        score = withSpanner(
+          score,
+          const Hairpin(crescendo: true),
+          pointAt(score, 0, at(1, 4)),
+          pointAt(score, 1, at(1, 4)),
+        );
+        final sheet = sheetOf(score, width: narrow);
+        expect(sheet.systemCount, 2);
+        final system = sheet.systemAt(0);
+        final courtesy = glyphsOf(system)
+            .where((glyph) => glyph.glyph == mark)
+            .map((glyph) => glyph.bounds.left)
+            .where((left) => left >= system.bars.single.right - 1e-9)
+            .reduce(min);
 
-      expect(curvesOf(system), hasLength(2));
-      for (final curve in curvesOf(system)) {
-        expect(curve.bounds.right, lessThanOrEqualTo(courtesy));
-      }
-      final hairpin = linesOf(
-        system,
-        owner: const SpannerOwner(SpannerId(901)),
-      );
-      expect(hairpin, hasLength(2));
-      for (final line in hairpin) {
-        expect(line.to.x, lessThanOrEqualTo(courtesy));
-      }
-    });
+        expect(curvesOf(system), hasLength(2));
+        for (final curve in curvesOf(system)) {
+          expect(curve.bounds.right, lessThanOrEqualTo(courtesy));
+        }
+        final hairpin = linesOf(
+          system,
+          owner: const SpannerOwner(SpannerId(901)),
+        );
+        expect(hairpin, hasLength(2));
+        for (final line in hairpin) {
+          expect(line.to.x, lessThanOrEqualTo(courtesy));
+        }
+      });
+    }
   });
 
   group('pieces', () {

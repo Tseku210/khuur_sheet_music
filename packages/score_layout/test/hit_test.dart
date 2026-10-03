@@ -1,5 +1,6 @@
 import 'package:score_layout/src/drawable.dart';
 import 'package:score_layout/src/geometry.dart';
+import 'package:score_layout/src/glyphs.dart';
 import 'package:score_layout/src/hit.dart';
 import 'package:score_layout/src/sheet_layout.dart';
 import 'package:score_layout/src/style.dart';
@@ -608,7 +609,8 @@ void main() {
       );
     });
 
-    test('a tap on a clef snaps to the bar\'s first point', () {
+    test('a tap on the clef that starts a system snaps to its bar\'s first '
+        'point', () {
       final layout = barSheet([chordOf(1, 'E4', value: whole)]);
       final system = layout.systemAt(0);
       final clef = system.drawables.whereType<GlyphDraw>().firstWhere(
@@ -617,6 +619,46 @@ void main() {
       final hit = layout.hitTest(sheetPoint(layout, 0, centreOf(clef.bounds)));
       expect(hit!.target, isNull);
       expect(hit.at, ScorePoint(barId(0), Moment.zero));
+    });
+
+    test('a tap on a clef change before a barline gives the bar before, as '
+        'a tap on that barline does, and a tap on a courtesy clef gives the '
+        'system\'s last bar', () {
+      final layout = sheetOf(
+        after(beatsScore(3), [
+          for (final (bar, clef) in [(1, Clef.bass), (2, Clef.treble)])
+            SetClef(
+              staff: staffId(0),
+              at: ScorePoint(barId(bar), Moment.zero),
+              clef: clef,
+            ),
+          SetBreak(barId(2), LayoutBreak.system),
+        ]),
+      );
+      final system = layout.systemAt(0);
+      Box clefOf(Glyph glyph) => system.drawables
+          .whereType<GlyphDraw>()
+          .singleWhere((draw) => draw.glyph == glyph)
+          .bounds;
+      final changed = clefOf(Glyph.fClefChange);
+      final courtesy = clefOf(Glyph.gClefChange);
+      final barline = system.drawables.whereType<LineDraw>().singleWhere(
+        (line) =>
+            line.owner == null &&
+            line.from.x == line.to.x &&
+            line.from.x > changed.right &&
+            line.from.x < system.bars[1].left,
+      );
+      SheetHit hitAt(double x) => layout.hitTest(
+        sheetPoint(layout, 0, SpPoint(x, centreOf(changed).y)),
+      )!;
+
+      final onClef = hitAt(centreOf(changed).x);
+      expect(system.bars, hasLength(2));
+      expect(onClef.target, isNull);
+      expect(onClef.at.measure, barId(0));
+      expect(onClef.at, hitAt(barline.from.x).at);
+      expect(hitAt(centreOf(courtesy).x).at.measure, barId(1));
     });
 
     test('a tap past half a system gap above the first system or below the '

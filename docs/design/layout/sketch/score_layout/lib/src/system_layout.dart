@@ -118,7 +118,8 @@ final class PlacedBar {
   /// x of the barline before the bar, or of the system's content start.
   final double left;
 
-  /// x of the barline after the bar.
+  /// x where the bar's content ends. Its barline starts here, or after a
+  /// clef that stands before it.
   final double right;
 
   final TimeAxis time;

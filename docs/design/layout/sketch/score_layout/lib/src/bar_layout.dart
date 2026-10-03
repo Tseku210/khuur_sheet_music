@@ -99,7 +99,9 @@ typedef BarStaff = ({StaffId staff, int lines, double above, double below});
 /// A system from bar i to bar j is
 /// `heads(i).system + sum(body) + sum(heads(i+1..j).inline) + courtesy(j+1)`
 /// wide at its natural spacing. Line breaking reads nothing else, which is
-/// why it can run without building a system.
+/// why it can run without building a system. A head's room before a
+/// barline is drawn at the end of the bar before, and counted here once, as
+/// the width of the bar whose head it is.
 final class BarWidths {
   const BarWidths({
     required this.inlineHead,
@@ -110,14 +112,16 @@ final class BarWidths {
   });
 
   /// Clef, key and meter changes printed when the bar is not first on its
-  /// system.
+  /// system, the clef before the barline and the rest after it.
   final double inlineHead;
 
   /// Clef, key and meter printed when the bar starts a system.
   final double systemHead;
 
-  /// Key and meter courtesy the previous system ends with when this bar
-  /// starts a system. 0 when nothing changes or the change says noCourtesy.
+  /// What the previous system ends with when this bar starts a system,
+  /// which is a clef change before its last barline and a key and meter
+  /// courtesy after it. 0 when nothing changes, or when only a key or a
+  /// meter changes and says noCourtesy.
   final double courtesy;
 
   /// The lead and the slices at their ideal spacing, never below
@@ -243,7 +247,7 @@ BarLayout layoutBar(
   final heads = barHeads(view, style);
   final edges = (
     repeatStart: column.repeatStart,
-    startJoins: heads.inline.items.isEmpty,
+    startJoins: heads.inline.after.items.isEmpty,
     end: column.barline,
     repeatEnd: column.repeatEnd,
   );
@@ -435,10 +439,7 @@ BarLayout layoutBar(
           top,
           xs: xs,
           left: -lead,
-          headAbove: math.max(
-            headReach(heads.inline, 0).above,
-            headReach(heads.system, 0).above,
-          ),
+          headAbove: headReach(_drawnHeads(heads), 0).above,
           label: label,
           style: style,
         );
@@ -488,18 +489,21 @@ BarLayout layoutBar(
 /// print. The courtesy head is drawn on the system before, so planning counts
 /// it there (`headReach` of the next bar).
 BarStaff _staffOf(StaffView view, int staff, Skyline skyline, BarHeads heads) {
-  var above = skyline.above;
-  var below = skyline.below;
-  for (final head in [heads.inline, heads.system]) {
-    final reach = headReach(head, staff);
-    above = math.max(above, reach.above);
-    below = math.max(below, reach.below);
-  }
+  final reach = headReach(_drawnHeads(heads), staff);
   final id = view.source.staff;
   return (
     staff: id,
     lines: view.part.staves.firstWhere((s) => s.id == id).lines,
-    above: above,
-    below: below,
+    above: math.max(skyline.above, reach.above),
+    below: math.max(skyline.below, reach.below),
   );
 }
+
+/// The heads the bar draws on its own system, wherever it lands there. A
+/// clef before the barline stands over the bar before, which is on the same
+/// system.
+List<BarHead> _drawnHeads(BarHeads heads) => [
+  heads.inline.before,
+  heads.inline.after,
+  heads.system,
+];

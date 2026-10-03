@@ -31,13 +31,17 @@ SystemLayout assembleSystem(
   final units = key.units;
   final tops = plan.staffTops;
   final frames = frameUnits(plan);
-  final courtesyLeft = frames.last.right + units.last.slices.last.rod;
-  final right = courtesyLeft + (key.next?.widths.courtesy ?? 0);
+  final last = frames.last;
+  final courtesy = key.next?.heads.courtesy ?? SplitHead.none;
+  final courtesyLeft = last.barline + units.last.slices.last.rod;
+  final right = courtesyLeft + courtesy.after.width;
   // A stub arriving from an earlier system starts where the head glyphs end,
   // in the room `arrivingRoom` put in the system head, and so does a lyric
-  // hyphen. One leaving for the next system stops at `courtesyLeft`, before
-  // any courtesy signature, and so do a lyric hyphen and extender.
+  // hyphen. One leaving for the next system stops before the courtesy, at
+  // the content's end when a clef stands before the last barline and after
+  // that barline when none does, and so do a lyric hyphen and extender.
   final headEnd = frames.first.left + units.first.first.heads.system.width;
+  final leaveBy = courtesy.before.items.isEmpty ? courtesyLeft : last.right;
 
   final drawables = <Drawable>[
     ...placeLead(key.lead, first: key.first, tops: tops, style: style),
@@ -52,12 +56,20 @@ SystemLayout assembleSystem(
   ];
   final edges = <Framed<PlacedEdges>>[];
   final singles = <({BarLayout bar, BarFrame frame})>[];
+  void drawHead(BarHead head, double x) {
+    for (final item in head.items) {
+      drawables.add(item.drawable.shift(x, tops[item.staff]));
+    }
+  }
+
   for (final (index, unit) in units.indexed) {
     final frame = frames[index];
-    final head = index == 0 ? unit.first.heads.system : unit.first.heads.inline;
+    final heads = unit.first.heads;
+    final head = index == 0 ? heads.system : heads.inline.after;
     edges.add((of: (edges: unit.edges, head: head.width), frame: frame));
-    for (final item in head.items) {
-      drawables.add(item.drawable.shift(frame.left, tops[item.staff]));
+    drawHead(head, frame.left);
+    if (index > 0) {
+      drawHead(heads.inline.before, frames[index - 1].right);
     }
     switch (unit) {
       case SingleBar(:final bar):
@@ -81,9 +93,8 @@ SystemLayout assembleSystem(
         );
     }
   }
-  for (final item in key.next?.heads.courtesy.items ?? const <HeadItem>[]) {
-    drawables.add(item.drawable.shift(courtesyLeft, tops[item.staff]));
-  }
+  drawHead(courtesy.before, last.right);
+  drawHead(courtesy.after, courtesyLeft);
   drawables
     ..addAll(
       placeBarlines(edges, groups: key.lead.groups, tops: tops, style: style),
@@ -92,7 +103,7 @@ SystemLayout assembleSystem(
       placeTies(
         [for (final (:bar, :frame) in singles) (of: bar.ties, frame: frame)],
         left: headEnd,
-        right: courtesyLeft,
+        right: leaveBy,
         style: style,
       ),
     )
@@ -103,7 +114,7 @@ SystemLayout assembleSystem(
             (of: bar.spanners, frame: frame),
         ],
         left: headEnd,
-        right: courtesyLeft,
+        right: leaveBy,
         style: style,
       ),
     )
@@ -126,7 +137,7 @@ SystemLayout assembleSystem(
         carryOut: key.carryOut,
         next: key.next?.lyrics,
         left: headEnd,
-        right: courtesyLeft,
+        right: leaveBy,
         style: style,
         text: text,
       ),
@@ -152,16 +163,29 @@ SystemLayout assembleSystem(
   );
 }
 
-/// The frame of each unit of [plan], left to right.
+/// The frame of each unit of [plan], left to right. This is where each
+/// barline's x is decided. A barline stands after its bar's content and the
+/// room for any clef that the bar after it changes to.
 List<BarFrame> frameUnits(SystemPlan plan) {
+  final units = plan.key.units;
   final tops = plan.staffTops;
   final frames = <BarFrame>[];
   var x = plan.indent;
-  for (final (index, unit) in plan.key.units.indexed) {
-    final head = index == 0 ? unit.widths.systemHead : unit.widths.inlineHead;
-    final xs = sliceXs(unit.slices, plan.stretch, x + head + unit.lead);
-    frames.add(BarFrame(left: x, xs: xs, tops: tops));
-    x = xs.last + unit.slices.last.rod;
+  for (final (index, unit) in units.indexed) {
+    final head = index == 0
+        ? unit.widths.systemHead
+        : unit.first.heads.inline.after.width;
+    final next = index + 1 < units.length
+        ? units[index + 1].first.heads.inline
+        : plan.key.next?.heads.courtesy;
+    final frame = BarFrame(
+      left: x,
+      xs: sliceXs(unit.slices, plan.stretch, x + head + unit.lead),
+      tops: tops,
+      beforeBarline: next?.before.width ?? 0,
+    );
+    frames.add(frame);
+    x = frame.barline + unit.slices.last.rod;
   }
   return frames;
 }
