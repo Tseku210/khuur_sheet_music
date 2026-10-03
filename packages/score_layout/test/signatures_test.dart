@@ -920,6 +920,7 @@ void main() {
         spanners: bar.spanners,
         volta: bar.volta,
         lyrics: bar.lyrics,
+        voices: bar.voices,
       );
       final width = heads.courtesy.width;
 

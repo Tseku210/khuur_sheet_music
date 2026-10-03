@@ -38,9 +38,9 @@ final class SystemLayout {
   final double width;
   final double height;
 
-  /// The drawables [owner] owns in this system. A note owns its head,
-  /// accidental and dots. An event owns its stem, flag, rest and all its notes'
-  /// drawables. A spanner owns its pieces.
+  /// The drawables [owner] owns in this system. A note owns its head. An
+  /// event owns its stem, flag, rest, accidentals, dots, ledger lines and
+  /// all its notes' heads. A spanner owns its pieces.
   // The engine indexes drawables by owner once per system. A scan stands in.
   Iterable<Drawable> drawablesOf(Owner owner) =>
       drawables.where((d) => _covers(owner, d.owner));

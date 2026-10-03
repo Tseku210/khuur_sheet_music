@@ -607,8 +607,8 @@ void main() {
 
       expect(layout.systemCount, 2);
       expect(wordOn(0, 'Сал').origin.y, greaterThan(wordOn(0, 'Gen').origin.y));
-      expect(
-          wordOn(0, 'Сал').bounds.left, lessThan(wordOn(0, 'Gen').bounds.right));
+      expect(wordOn(0, 'Сал').bounds.left,
+          lessThan(wordOn(0, 'Gen').bounds.right));
       expect(wordOn(0, 'Сал').bounds.right,
           greaterThan(wordOn(0, 'Gen').bounds.left));
       for (final (system, after, before) in [
@@ -1045,6 +1045,120 @@ void main() {
         }
       }
       expect(kinds, {'curve', 'dashed curve', 'dashed line', 'glyph run'});
+    });
+  });
+
+  testWidgets(
+      'a sheet paints a caret, a selection across a system break and a '
+      'playhead from the overlay queries as plain boxes', (tester) async {
+    await tester.runAsync(() async {
+      final painter = bravuraPainter();
+      await loadBravura(painter);
+      await loadTextFont();
+      final score = pictured();
+      final layout = layoutOf(score);
+      final width = ((sheetWidth + 2 * margin) * spacePx).ceil();
+      final height = ((layout.height + 2 * margin) * spacePx).ceil();
+      final sheet = scaleOf(0);
+      final ids = [for (final measure in score.measures) measure.id];
+      final staves = [for (final staff in score.staves) staff.id];
+      expect(layout.systemCount, greaterThanOrEqualTo(3));
+
+      final second = layout.firstBarOf(1);
+      final selection = RangeSelection(
+        from: ScorePoint(ids[ids.indexOf(second) - 1], Moment(Fraction(1, 2))),
+        to: ScorePoint(second, Moment(Fraction(1, 2))),
+        top: staves[0],
+        bottom: staves[1],
+      );
+      final cursor = VoicePoint(
+        staff: staves[1],
+        voice: VoiceSlot.one,
+        at: ScorePoint(layout.firstBarOf(2), Moment(Fraction(1, 4))),
+      );
+      final script = PlaybackCompiler().compile(score);
+      final point = script.pointAt(script.totalSeconds * 0.3)!;
+
+      final boxes = layout.selectionBoxes(selection);
+      final caret = layout.caretOf(cursor)!;
+      final playhead = layout.playheadAt(point)!;
+      final played = layout.systemOf(point.bar.measure)!;
+      expect(boxes, hasLength(2));
+      expect(boxes[0].right, layout.systemAt(0).bars.last.right);
+      expect(
+        boxes[1].left,
+        layout.systemAt(1).bars.first.time.xAt(Moment.zero),
+      );
+      expect(boxes[0].top,
+          closeTo(layout.tops[0] + layout.systemAt(0).staves[0].top, 1e-9));
+      expect(
+          boxes[0].bottom,
+          closeTo(
+              layout.tops[0] + layout.systemAt(0).staves[1].top + staffHeight,
+              1e-9));
+      expect(caret.left, caret.right);
+      expect(
+          caret.top,
+          closeTo(layout.tops[2] + layout.systemAt(2).staffOf(staves[1])!.top,
+              1e-9));
+      expect(playhead.top, layout.tops[played]);
+      expect(playhead.bottom, layout.tops[played] + layout.heightOf(played));
+
+      void paintSheet(ui.Canvas canvas) {
+        paintDrawables(canvas, painter, layout.header, scaleOf(0));
+        for (var i = 0; i < layout.systemCount; i++) {
+          paintDrawables(
+              canvas, painter, inkOf(layout, i), scaleOf(layout.tops[i]));
+        }
+      }
+
+      ui.Rect lineOf(Box box) => sheet.rectOf(box).inflate(1);
+      final plain = await render(width, height, paintSheet);
+      final image = await render(width, height, (canvas) {
+        paintSheet(canvas);
+        for (final box in boxes) {
+          canvas.drawRect(
+            sheet.rectOf(box),
+            ui.Paint()..color = const ui.Color(0x553366FF),
+          );
+        }
+        canvas
+          ..drawRect(
+            lineOf(playhead),
+            ui.Paint()..color = const ui.Color(0xFF22AA44),
+          )
+          ..drawRect(
+            lineOf(caret),
+            ui.Paint()..color = const ui.Color(0xFFDD2222),
+          );
+      });
+      writeSnapshot('sheet_overlays', image.png);
+
+      (int, int, int) pixel(Uint8List rgba, ui.Offset at) {
+        final i = (at.dy.round() * width + at.dx.round()) * 4;
+        return (rgba[i], rgba[i + 1], rgba[i + 2]);
+      }
+
+      final caretPx = sheet.toPx(
+        SpPoint(caret.left, (caret.top + caret.bottom) / 2),
+      );
+      expect(pixel(image.rgba, caretPx), (0xDD, 0x22, 0x22));
+      final playheadPx = sheet.toPx(
+        SpPoint(playhead.left, (playhead.top + playhead.bottom) / 2),
+      );
+      expect(pixel(image.rgba, playheadPx), (0x22, 0xAA, 0x44));
+      for (final box in boxes) {
+        final inside = sheet.toPx(
+          SpPoint((box.left + box.right) / 2, (box.top + box.bottom) / 2),
+        );
+        final (r, _, b) = pixel(image.rgba, inside);
+        final (r0, _, b0) = pixel(plain.rgba, inside);
+        expect(r0, b0, reason: 'the sheet alone is grey at $inside');
+        expect(b, greaterThan(r + 30), reason: 'tinted at $inside');
+        final above = sheet.toPx(SpPoint((box.left + box.right) / 2, box.top));
+        final (ra, _, ba) = pixel(image.rgba, above.translate(0, -3));
+        expect(ra, ba, reason: 'untinted above the box at $above');
+      }
     });
   });
 

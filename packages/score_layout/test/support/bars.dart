@@ -261,6 +261,9 @@ MeasureId barId(int bar) => MeasureId(3000 + bar);
 
 StaffId staffId(int staff) => StaffId(2000 + staff);
 
+EventRef eventRef(int id, {int bar = 0, int staff = 0}) =>
+    EventRef(measure: barId(bar), staff: staffId(staff), id: EventId(id));
+
 const NoteValue eighth = NoteValue.eighth;
 const NoteValue sixteenth = NoteValue.sixteenth;
 const NoteValue half = NoteValue.half;

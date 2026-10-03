@@ -16,6 +16,7 @@
 
 import 'dart:io';
 
+import 'package:score_layout/src/geometry.dart';
 import 'package:score_layout/src/sheet_layout.dart';
 import 'package:score_model/score_model.dart';
 
@@ -120,7 +121,44 @@ List<Measurement> measureFixture(Fixture fixture) {
     },
   );
 
-  return [first, assembled, updated, reassembled];
+  // The overlay queries read assembled systems and lay nothing out. The
+  // design budgets none of them. Each reports the bars of the system it
+  // read, through its result so that the query is not dropped.
+  final edited = score.measures[fixture.editedBar - 1].id;
+  final system = laid.systemOf(edited)!;
+  final middle = SpPoint(
+    _sheetWidth / 2,
+    laid.tops[system] + laid.heightOf(system) / 2,
+  );
+  int barsAround(MeasureId measure) =>
+      laid.systemAt(laid.systemOf(measure)!).bars.length;
+  final tapped = measure(
+    '${fixture.name} hitTest',
+    prepare: () => laid,
+    run: (laid) => barsAround(laid.hitTest(middle, reach: 0.5)!.at.measure),
+  );
+  final cursor = VoicePoint(
+    staff: score.staves.first.id,
+    voice: VoiceSlot.one,
+    at: ScorePoint(edited, Moment.zero),
+  );
+  final caret = measure(
+    '${fixture.name} caretOf',
+    prepare: () => laid,
+    run: (laid) =>
+        laid.caretOf(cursor)!.height.isFinite ? barsAround(edited) : 0,
+  );
+  final script = PlaybackCompiler().compile(score);
+  final point = script.pointAt(script.totalSeconds / 2)!;
+  final playhead = measure(
+    '${fixture.name} playheadAt',
+    prepare: () => laid,
+    run: (laid) => laid.playheadAt(point)!.height.isFinite
+        ? barsAround(point.bar.measure)
+        : 0,
+  );
+
+  return [first, assembled, updated, reassembled, tapped, caret, playhead];
 }
 
 void main() {

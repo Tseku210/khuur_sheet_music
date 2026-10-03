@@ -447,11 +447,15 @@ final class SheetLayout {
         if (staves.isEmpty) {
           return const [];
         }
-        final start = system.barOf(from.measure);
+        // A continuation starts at its first bar's first point, after the
+        // clef and signatures, as a range starting there would.
+        final start = system.barOf(from.measure) ?? system.bars.first;
         final end = system.barOf(to.measure);
         return [
           Box(
-            start?.time.xAt(from.offset) ?? system.bars.first.left,
+            start.time.xAt(
+              start.measure == from.measure ? from.offset : Moment.zero,
+            ),
             staves.first.top,
             end?.time.xAt(to.offset) ?? system.bars.last.right,
             staves.last.top + staffHeight,

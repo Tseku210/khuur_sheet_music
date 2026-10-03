@@ -7,6 +7,7 @@ import 'bar_layout.dart';
 import 'breaking.dart';
 import 'drawable.dart';
 import 'geometry.dart';
+import 'hit.dart';
 import 'signatures.dart';
 import 'style.dart';
 import 'system_layout.dart';
@@ -28,6 +29,8 @@ const double _headerLineGap = 1;
 /// place through [systemCount], [tops] and [heightOf]. A system's drawables are
 /// assembled the first time [systemAt] is asked for it and kept by the system's
 /// key, so a view that shows five systems of a hundred assembles five.
+/// [hitTest], [boundsOf], [caretOf], [selectionBoxes] and [playheadAt]
+/// assemble the systems they read and lay nothing out.
 ///
 /// Sheet space has its origin at the top-left of the header block, y down. The
 /// layout is a value to its readers. Nothing it reports ever changes.
@@ -214,6 +217,223 @@ final class SheetLayout {
   /// The first bar of system [index]. Known without assembling it, so a
   /// view can name the bar it keeps in place across an update.
   MeasureId firstBarOf(int index) => _breaks.plans[index].bars.first;
+
+  /// What a tap at [point] in sheet space means. Null more than half a
+  /// system gap above the first system or below the last, and on a sheet
+  /// without a visible staff.
+  ///
+  /// 1. The system, by binary search of [tops]. A point in the gap between
+  ///    two systems belongs to the nearer one. A system's band ends where
+  ///    its content does, so a ledger position over a staff with nothing
+  ///    above it lies outside the band and is still that system's.
+  /// 2. The staff whose middle is nearest.
+  /// 3. The bar whose x range holds the point.
+  /// 4. The target, which is the drawable within [reach] of the point. A
+  ///    notehead comes first, then any other part of an event, then a
+  ///    spanner.
+  /// 5. The voice, which is the target's when the target is a note or an
+  ///    event, else [voice].
+  /// 6. The time, by [snapTime], for entry in the voice of step 5 on
+  ///    [grid]. The grid's type keeps it from being finer than a 128th.
+  /// 7. The staff step nearest the point's y.
+  ///
+  /// [reach] is a finger's reach in staff spaces. The view passes its touch
+  /// slop over its pixels per staff space.
+  SheetHit? hitTest(
+    SpPoint point, {
+    VoiceSlot voice = VoiceSlot.one,
+    DurationBase grid = DurationBase.sixteenth,
+    double reach = 0,
+  }) {
+    final index = _systemAtY(point.y);
+    if (index == null) {
+      return null;
+    }
+    final system = systemAt(index);
+    if (system.staves.isEmpty) {
+      return null;
+    }
+    final local = point.shift(0, -tops[index]);
+    final staff = system.staffNear(local.y);
+    final bar = system.barAt(local.x);
+    final target = system.targetAt(local, reach: reach);
+    final hitVoice = switch (target) {
+      ElementOwner(ref: ElementRef(:final event)) =>
+        system.barOf(event.measure)?.voiceOf(event.staff, event.id) ?? voice,
+      _ => voice,
+    };
+    return SheetHit(
+      staff: staff.staff,
+      voice: hitVoice,
+      at: ScorePoint(
+        bar.measure,
+        snapTime(bar, bar.voices[(staff.staff, hitVoice)], local.x, grid),
+      ),
+      staffStep: staff.stepAt(local.y),
+      target: target,
+    );
+  }
+
+  /// The system a tap at sheet y [y] belongs to. That is the system whose
+  /// planned band holds it, or the nearer of the two systems around the gap
+  /// it lies in. Null more than half a system gap above the first system,
+  /// where the header is, or below the last.
+  int? _systemAtY(double y) {
+    var low = 0;
+    var high = tops.length;
+    while (low < high) {
+      final mid = (low + high) >> 1;
+      if (tops[mid] <= y) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    final index = low - 1;
+    if (index < 0) {
+      return tops.first - y <= style.systemGap / 2 ? 0 : null;
+    }
+    final under = y - (tops[index] + heightOf(index));
+    if (under <= 0) {
+      return index;
+    }
+    if (index + 1 == tops.length) {
+      return under <= style.systemGap / 2 ? index : null;
+    }
+    return under <= tops[index + 1] - y ? index : index + 1;
+  }
+
+  /// The system that draws [ref], or null when its event is gone.
+  ///
+  /// A ref's measure is a hint. A change of meter moves an event to another
+  /// bar and leaves the refs an app holds naming the old one. So the score
+  /// says which bar holds the event now (`Score.lookup`, which tries the
+  /// hinted bar first).
+  int? systemOfRef(ElementRef ref) => switch (score.lookup(ref.event)) {
+    final found? => systemOf(found.ref.measure),
+    null => null,
+  };
+
+  /// In sheet space, or null when [ref] is drawn nowhere (a hidden staff,
+  /// or an event no longer in the score).
+  Box? boundsOf(ElementRef ref) {
+    final index = systemOfRef(ref);
+    return index == null
+        ? null
+        : systemAt(index).boundsOf(ElementOwner(ref))?.shift(0, tops[index]);
+  }
+
+  /// The caret for [cursor] in sheet space. It is a box of no width at the
+  /// cursor's x, spanning its staff.
+  Box? caretOf(VoicePoint cursor) {
+    final index = systemOf(cursor.at.measure);
+    return index == null ? null : caretIn(index, cursor)?.shift(0, tops[index]);
+  }
+
+  /// The caret in the space of system [index], or null when the cursor is
+  /// on another system or a hidden staff. The overlay of one system tile
+  /// asks this for its own system.
+  Box? caretIn(int index, VoicePoint cursor) {
+    if (systemOf(cursor.at.measure) != index) {
+      return null;
+    }
+    final system = systemAt(index);
+    final staff = system.staffOf(cursor.staff);
+    final bar = system.barOf(cursor.at.measure);
+    if (staff == null || bar == null) {
+      return null;
+    }
+    final x = bar.time.xAt(cursor.at.offset);
+    return Box(x, staff.top, x, staff.top + staffHeight);
+  }
+
+  /// Boxes to shade for [selection], in sheet space.
+  List<Box> selectionBoxes(Selection selection) => [
+    for (var index = 0; index < systemCount; index++)
+      for (final box in selectionIn(index, selection))
+        box.shift(0, tops[index]),
+  ];
+
+  /// Boxes to shade on system [index] for [selection], in system space. An
+  /// item gives its bounds. A range gives one box from its start to its
+  /// exclusive end (which may be a bar's end) over the visible staves from
+  /// `top` to `bottom`.
+  List<Box> selectionIn(int index, Selection selection) {
+    switch (selection) {
+      case NoSelection():
+        return const [];
+      case ItemSelection(:final items):
+        return [
+          for (final ref in items)
+            if (systemOfRef(ref) == index)
+              ?systemAt(index).boundsOf(ElementOwner(ref)),
+        ];
+      case RangeSelection(:final from, :final to, :final top, :final bottom):
+        final first = systemOf(from.measure);
+        final ending = systemOf(to.measure);
+        if (first == null || ending == null) {
+          return const [];
+        }
+        // The end is exclusive. A range that ends at the very start of a
+        // system holds nothing of it, and would shade its clef and key.
+        final last =
+            ending > first &&
+                to.offset == Moment.zero &&
+                firstBarOf(ending) == to.measure
+            ? ending - 1
+            : ending;
+        if (index < first || index > last) {
+          return const [];
+        }
+        final system = systemAt(index);
+        final order = [for (final staff in score.staves) staff.id];
+        final staves = [
+          for (final staff in system.staves)
+            if (order.indexOf(top) <= order.indexOf(staff.staff) &&
+                order.indexOf(staff.staff) <= order.indexOf(bottom))
+              staff,
+        ];
+        if (staves.isEmpty) {
+          return const [];
+        }
+        // A continuation starts at its first bar's first point, after the
+        // clef and signatures, as a range starting there would.
+        final start = system.barOf(from.measure) ?? system.bars.first;
+        final end = system.barOf(to.measure);
+        return [
+          Box(
+            start.time.xAt(
+              start.measure == from.measure ? from.offset : Moment.zero,
+            ),
+            staves.first.top,
+            end?.time.xAt(to.offset) ?? system.bars.last.right,
+            staves.last.top + staffHeight,
+          ),
+        ];
+    }
+  }
+
+  /// The playhead for [point] in sheet space. It is a box of no width
+  /// across its system. Null when the bar is not in the score.
+  Box? playheadAt(PlaybackPoint point) {
+    final index = systemOf(point.bar.measure);
+    final x = index == null ? null : playheadIn(index, point);
+    return index == null || x == null
+        ? null
+        : Box(x, tops[index], x, tops[index] + heightOf(index));
+  }
+
+  /// The playhead's x in the space of system [index], or null when [point]
+  /// is on another system.
+  double? playheadIn(int index, PlaybackPoint point) =>
+      systemOf(point.bar.measure) == index
+      ? systemAt(index)
+            .barOf(point.bar.measure)
+            ?.time
+            .xAtWholeNotes(
+              point.offset,
+            )
+      : null;
 
   static List<Drawable> _header(
     ScoreMeta meta,
