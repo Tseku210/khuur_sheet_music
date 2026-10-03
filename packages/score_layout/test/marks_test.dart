@@ -236,7 +236,7 @@ List<MarkBox> markBoxes(Placed placed) => [
       box: drawables
           .map((drawable) => drawable.bounds)
           .reduce((a, b) => a.union(b)),
-      what: 'tuplet ${stub.digits} of ${stub.owner}',
+      what: 'tuplet ${stub.digits} from slice ${stub.first.slice}',
     ),
 ];
 
@@ -1199,7 +1199,7 @@ void main() {
       ).map((part) => part.bounds).reduce((a, b) => a.union(b));
 
       expect(number.glyph, Glyph.tuplet3);
-      expect(number.owner, eventOwner(1));
+      expect(number.owner, isNull);
       expect(stub.side, Side.above);
       expect(beam.top - number.bounds.bottom, inInclusiveRange(clear, near));
       expect(
@@ -1229,7 +1229,7 @@ void main() {
       expect(drawables, hasLength(5));
       for (final line in lines) {
         expect(line.thickness, thickness);
-        expect(line.owner, eventOwner(1));
+        expect(line.owner, isNull);
       }
       expect(left.from.x, closeTo(first.left, hair));
       expect(right.to.x, closeTo(last.right, hair));
@@ -1406,13 +1406,14 @@ void main() {
           ]),
         ]),
       );
-      Box boxOf(int event) => placed.tuplets
-          .singleWhere((tuplet) => tuplet.stub.owner == eventOwner(event))
-          .drawables
-          .map((drawable) => drawable.bounds)
-          .reduce((a, b) => a.union(b));
-      final inner = boxOf(2);
-      final outer = boxOf(1);
+      final [outer, inner] = [
+        for (final tuplet in [
+          ...placed.tuplets,
+        ]..sort((a, b) => a.stub.first.slice - b.stub.first.slice))
+          tuplet.drawables
+              .map((drawable) => drawable.bounds)
+              .reduce((a, b) => a.union(b)),
+      ];
 
       expect(inner.top, greaterThan(staffHeight));
       expect(outer.top - inner.bottom, inInclusiveRange(clear, near));

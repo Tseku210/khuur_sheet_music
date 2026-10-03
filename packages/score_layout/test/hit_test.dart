@@ -231,6 +231,23 @@ void main() {
       }
     });
 
+    test('a tap on each head of a chord in thirds, with a finger\'s reach '
+        'over the heads beside it, gives that head', () {
+      final layout = barSheet([
+        chordOf(1, 'E4 G4 B4'),
+        chordOf(2, 'E4', value: dottedHalf),
+      ]);
+      final system = layout.systemAt(0);
+      for (final note in [10, 11, 12]) {
+        final owner = ElementOwner(NoteRef(eventRef(1), NoteId(note)));
+        final hit = layout.hitTest(
+          sheetPoint(layout, 0, centreOf(headOf(system, owner).bounds)),
+          reach: 1,
+        );
+        expect(hit!.target, owner, reason: 'note $note');
+      }
+    });
+
     test('a tap on a voice-two note gives voice two and a time in voice '
         'two', () {
       final layout = barSheet(
@@ -270,6 +287,37 @@ void main() {
       expect(hit.at, ScorePoint(barId(0), Moment.zero));
     });
 
+    test('a tap on a head drawn beside its stem, or on a grace head, gives '
+        'its chord\'s onset on the finest grid', () {
+      final layout = barSheet([
+        chordOf(1, 'E4'),
+        chordOf(2, 'E4 F4'),
+        chordOf(3, 'E4', graces: [graceOf(6, 'D4')]),
+        chordOf(4, 'E4'),
+      ]);
+      final system = layout.systemAt(0);
+      final bar = system.bars.single;
+      final beside = headOf(
+        system,
+        ElementOwner(NoteRef(eventRef(2), const NoteId(21))),
+      );
+      final grace = system.drawables.whereType<GlyphDraw>().singleWhere(
+        (draw) =>
+            draw.owner == ElementOwner(eventRef(3)) &&
+            draw.scale < 1 &&
+            draw.glyph.name.startsWith('notehead'),
+      );
+      for (final (head, onset) in [(beside, at(1, 4)), (grace, at(1, 2))]) {
+        final centre = centreOf(head.bounds);
+        expect((centre.x - bar.time.xAt(onset)).abs(), greaterThan(1));
+        final hit = layout.hitTest(
+          sheetPoint(layout, 0, centre),
+          grid: DurationBase.oneTwentyEighth,
+        );
+        expect(hit!.at, ScorePoint(barId(0), onset), reason: '$onset');
+      }
+    });
+
     test('a tap inside a triplet of eighths, at an x that is no onset, gives '
         'a time where a sixteenth enters', () {
       final layout = barSheet([
@@ -288,7 +336,11 @@ void main() {
       ]);
       final system = layout.systemAt(0);
       final bar = system.bars.single;
-      final onsets = bar.voices[(staffId(0), VoiceSlot.one)]!.onsets;
+      final onsets = voiceTimes(
+        layout.score.measureView(barId(0)),
+        staffId(0),
+        VoiceSlot.one,
+      )!.onsets;
       final x = (bar.time.xAt(Moment.zero) + bar.time.xAt(at(1, 12))) / 2;
       expect(
         bar.time.xAt(at(1, 12)) - bar.time.xAt(Moment.zero),
@@ -343,7 +395,11 @@ void main() {
       expect(
         entryPoints(
           bar.length,
-          bar.voices[(staffId(0), VoiceSlot.two)],
+          voiceTimes(
+            layout.score.measureView(barId(0)),
+            staffId(0),
+            VoiceSlot.two,
+          ),
           DurationBase.sixteenth,
         ),
         contains(at(1, 12)),
@@ -351,7 +407,11 @@ void main() {
       expect(
         entryPoints(
           bar.length,
-          bar.voices[(staffId(0), VoiceSlot.one)],
+          voiceTimes(
+            layout.score.measureView(barId(0)),
+            staffId(0),
+            VoiceSlot.one,
+          ),
           DurationBase.sixteenth,
         ),
         isNot(contains(at(1, 12))),
@@ -379,14 +439,18 @@ void main() {
       final apex = slur.pointAt(0.5);
       final inBox = SpPoint(apex.x, slur.bounds.bottom - 0.05);
       expect(slur.bounds.contains(inBox), isTrue);
-      expect(slur.hits(inBox, 0.25), isFalse);
+      expect(slur.distanceTo(inBox), greaterThan(0.25));
       expect(slur.bounds.height, greaterThan(1));
 
       final under = layout.hitTest(sheetPoint(layout, 0, inBox), reach: 0.25);
       expect(under!.target, isNull);
       expect(under.staff, staffId(0));
       final bar = system.bars.single;
-      final voice = bar.voices[(staffId(0), VoiceSlot.one)]!;
+      final voice = voiceTimes(
+        layout.score.measureView(barId(0)),
+        staffId(0),
+        VoiceSlot.one,
+      )!;
       expect(
         voice.onsets.map((onset) => (bar.time.xAt(onset) - apex.x).abs()),
         everyElement(greaterThan(1)),
@@ -428,6 +492,68 @@ void main() {
       expect(without!.target, isNull);
     });
 
+    test('a tap on the third stem of a beamed group gives the third event, '
+        'and the first event\'s bounds stop short of it', () {
+      final layout = barSheet([
+        chordOf(1, 'E4', value: eighth),
+        chordOf(2, 'E4', value: eighth),
+        chordOf(3, 'E4', value: eighth),
+        chordOf(4, 'E4', value: eighth),
+        chordOf(5, 'E4', value: half),
+      ]);
+      final system = layout.systemAt(0);
+      final stems =
+          system.drawables
+              .whereType<LineDraw>()
+              .where((line) => line.from.x == line.to.x && line.owner != null)
+              .toList()
+            ..sort((a, b) => a.from.x.compareTo(b.from.x));
+      expect(stems, hasLength(5));
+      final third = stems[2];
+      final middle = SpPoint(third.from.x, (third.from.y + third.to.y) / 2);
+
+      final hit = layout.hitTest(sheetPoint(layout, 0, middle), reach: 0.5);
+      expect(hit!.target, ElementOwner(eventRef(3)));
+      expect(
+        system.boundsOf(ElementOwner(eventRef(1)))!.right,
+        lessThan(system.boundsOf(ElementOwner(eventRef(2)))!.left),
+      );
+    });
+
+    test('a triplet\'s number and bracket belong to no event, so a tap on '
+        'the number has no target and the first event\'s bounds stop short '
+        'of the last', () {
+      final layout = barSheet([
+        Tuplet(
+          id: const TupletId(50),
+          ratio: TupletRatio.triplet,
+          unit: NoteValue.quarter,
+          members: Seq([
+            for (var i = 1; i <= 3; i++) chordOf(i, 'E4'),
+          ]),
+        ),
+        chordOf(4, 'E4', value: half),
+      ]);
+      final system = layout.systemAt(0);
+      final number = system.drawables.whereType<GlyphDraw>().singleWhere(
+        (draw) => draw.glyph.name == 'tuplet3',
+      );
+      final centre = SpPoint(
+        (number.bounds.left + number.bounds.right) / 2,
+        (number.bounds.top + number.bounds.bottom) / 2,
+      );
+
+      final hit = layout.hitTest(
+        sheetPoint(layout, 0, centre),
+      );
+      expect(number.owner, isNull);
+      expect(hit!.target, isNull);
+      expect(
+        system.boundsOf(ElementOwner(eventRef(1)))!.right,
+        lessThan(system.boundsOf(ElementOwner(eventRef(3)))!.left),
+      );
+    });
+
     test('a tap in the gap between two systems gives a hit on the nearer '
         'one', () {
       final layout = sheetOf(beatsScore(4), width: 40);
@@ -454,6 +580,32 @@ void main() {
       expect(below!.staff, lower.staff);
       final above = layout.hitTest(SpPoint(20, layout.tops[0] + middle - 0.25));
       expect(above!.staff, upper.staff);
+    });
+
+    test('a tap on a head drawn nearer the next staff\'s middle line gives '
+        'the head\'s staff, step and tone', () {
+      final layout = sheetOf(
+        scoreOf([
+          [
+            staffOf([chordOf(1, 'F2', value: whole)]),
+            staffOf([chordOf(2, 'C3', value: whole)], clef: Clef.bass),
+          ],
+        ]),
+      );
+      final system = layout.systemAt(0);
+      final [upper, lower] = system.staves;
+      final head = headOf(system, ElementOwner(noteRef(1)));
+      final y = centreOf(head.bounds).y;
+      expect((lower.top + 2 - y).abs(), lessThan((upper.top + 2 - y).abs()));
+
+      final hit = layout.hitTest(sheetPoint(layout, 0, centreOf(head.bounds)))!;
+      expect(hit.target, ElementOwner(noteRef(1)));
+      expect(hit.staff, upper.staff);
+      expect(hit.staffStep, -13);
+      expect(
+        layout.score.toneForStaffStep(hit.staff, hit.at, hit.staffStep),
+        Pitch.parse('F2'),
+      );
     });
 
     test('a tap on a clef snaps to the bar\'s first point', () {
@@ -583,31 +735,8 @@ void main() {
       expect(system.staffNear(midTops + 2.5), same(lower));
     });
 
-    test('voiceOf names the voice holding an event, and null for an event '
-        'of another bar', () {
-      final layout = sheetOf(
-        scoreOf([
-          [
-            staffOf(
-              [chordOf(1, 'G5', value: whole)],
-              two: [chordOf(2, 'C4', value: whole)],
-            ),
-          ],
-          [
-            staffOf([chordOf(3, 'G5', value: whole)]),
-          ],
-        ]),
-      );
-      final [first, second] = layout.systemAt(0).bars;
-      expect(first.voiceOf(staffId(0), const EventId(1)), VoiceSlot.one);
-      expect(first.voiceOf(staffId(0), const EventId(2)), VoiceSlot.two);
-      expect(first.voiceOf(staffId(0), const EventId(3)), isNull);
-      expect(second.voiceOf(staffId(0), const EventId(3)), VoiceSlot.one);
-      expect(first.voiceOf(staffId(1), const EventId(1)), isNull);
-    });
-
-    test('a bar\'s voices hold each event\'s onset and each tuplet\'s '
-        'sounding and written time', () {
+    test('voiceTimes holds each event\'s onset and each tuplet\'s sounding '
+        'and written time, and is null for a voice the bar does not have', () {
       final layout = barSheet([
         Tuplet(
           id: const TupletId(50),
@@ -622,14 +751,10 @@ void main() {
         chordOf(4, 'E4'),
         chordOf(5, 'E4', value: half),
       ]);
-      final times =
-          layout.systemAt(0).bars.single.voices[(
-            staffId(0),
-            VoiceSlot.one,
-          )]!;
-      expect(times.events, [
-        for (final id in [1, 2, 3, 4, 5]) EventId(id),
-      ]);
+      final view = layout.score.measureView(barId(0));
+      expect(voiceTimes(view, staffId(0), VoiceSlot.two), isNull);
+      expect(voiceTimes(view, staffId(1), VoiceSlot.one), isNull);
+      final times = voiceTimes(view, staffId(0), VoiceSlot.one)!;
       expect(times.onsets, [
         Moment.zero,
         at(1, 12),
@@ -647,8 +772,51 @@ void main() {
       ]);
     });
 
-    test('a bar of a rest run carries its voices, with voice one at its '
-        'start', () {
+    test('a bar with a tuplet inside a tuplet gives the inner one\'s points '
+        'over its stretch', () {
+      final layout = barSheet([
+        Tuplet(
+          id: const TupletId(60),
+          ratio: TupletRatio.triplet,
+          unit: NoteValue.quarter,
+          members: Seq([
+            Tuplet(
+              id: const TupletId(61),
+              ratio: TupletRatio.triplet,
+              unit: NoteValue.eighth,
+              members: Seq([
+                chordOf(1, 'E4', value: eighth),
+                chordOf(2, 'E4', value: eighth),
+                chordOf(3, 'E4', value: eighth),
+              ]),
+            ),
+            chordOf(4, 'E4'),
+            chordOf(5, 'E4'),
+          ]),
+        ),
+        chordOf(6, 'E4', value: half),
+      ]);
+      final bar = layout.systemAt(0).bars.single;
+      expect(
+        entryPoints(
+          bar.length,
+          voiceTimes(
+            layout.score.measureView(barId(0)),
+            staffId(0),
+            VoiceSlot.one,
+          ),
+          DurationBase.sixteenth,
+        ),
+        [
+          for (var k = 0; k < 6; k++) at(k, 36),
+          for (var k = 4; k < 12; k++) at(k, 24),
+          for (var k = 8; k < 16; k++) at(k, 16),
+        ],
+      );
+    });
+
+    test('a tap over each bar of a rest run gives that bar, with time '
+        'running evenly across its share', () {
       // The first bar prints the meter, so the run is the three after it.
       final layout = SheetLayout(
         scoreOf([
@@ -669,57 +837,17 @@ void main() {
         contains('restHBarLeft'),
       );
       expect(system.bars, hasLength(4));
-      for (final (index, bar) in system.bars.indexed) {
-        final times = bar.voices[(staffId(0), VoiceSlot.one)]!;
-        expect(times.onsets, [Moment.zero]);
-        expect(times.tuplets, isEmpty);
-        expect(bar.voiceOf(staffId(0), EventId(index + 1)), VoiceSlot.one);
+      final above = system.staves.single.yOf(12);
+      for (final bar in system.bars) {
+        for (final (x, offset) in [
+          (bar.time.xAt(Moment.zero) + 0.5, Moment.zero),
+          (bar.time.xAt(at(1, 2)), at(1, 2)),
+        ]) {
+          final hit = layout.hitTest(sheetPoint(layout, 0, SpPoint(x, above)));
+          expect(hit!.target, isNull);
+          expect(hit.at, ScorePoint(bar.measure, offset));
+        }
       }
-    });
-
-    test('VoiceTimes is a value in its events, onsets and tuplets', () {
-      TupletSpan triplet() => (
-        onset: Moment.zero,
-        duration: Length(Fraction(1, 4)),
-        written: Length(Fraction(3, 8)),
-        depth: 0,
-      );
-      final times = VoiceTimes(
-        events: const [EventId(1)],
-        onsets: const [Moment.zero],
-        tuplets: [triplet()],
-      );
-      final same = VoiceTimes(
-        events: const [EventId(1)],
-        onsets: const [Moment.zero],
-        tuplets: [triplet()],
-      );
-      expect(same, times);
-      expect(same.hashCode, times.hashCode);
-      expect(
-        const VoiceTimes(
-          events: [EventId(1)],
-          onsets: [Moment.zero],
-          tuplets: [],
-        ),
-        isNot(times),
-      );
-      expect(
-        VoiceTimes(
-          events: const [EventId(2)],
-          onsets: const [Moment.zero],
-          tuplets: [triplet()],
-        ),
-        isNot(times),
-      );
-      expect(
-        VoiceTimes(
-          events: const [EventId(1)],
-          onsets: [at(1, 4)],
-          tuplets: [triplet()],
-        ),
-        isNot(times),
-      );
     });
 
     test('drawablesOf an event covers its notes\' heads with its stem, '
@@ -794,6 +922,57 @@ void main() {
         note,
       );
     });
+
+    test('targetAt takes the nearest owner within reach, and the rank only '
+        'between owners as near as each other', () {
+      final note = ElementOwner(noteRef(1));
+      final event = ElementOwner(eventRef(2));
+      LineDraw at(double y, Owner owner) => LineDraw(
+        SpPoint(0, y),
+        SpPoint(10, y),
+        thickness: 0.25,
+        owner: owner,
+      );
+      const here = SpPoint(5, 5);
+      expect(
+        bare([at(6.4, note), at(5, event)]).targetAt(here, reach: 1.5),
+        event,
+      );
+      expect(
+        bare([at(5, event), at(6.4, note)]).targetAt(here, reach: 1.5),
+        event,
+      );
+      expect(
+        bare([at(5.6, note), at(4, event)]).targetAt(here, reach: 1.5),
+        note,
+      );
+      expect(
+        bare([at(5.5, event), at(4.5, note)]).targetAt(here, reach: 1),
+        note,
+      );
+      expect(
+        bare([at(4.5, note), at(5.5, event)]).targetAt(here, reach: 1),
+        note,
+      );
+    });
+
+    test('distanceTo is zero inside a drawable\'s box and grows straight '
+        'out of it, and a curve\'s is to its line', () {
+      const box = LineDraw(SpPoint(0, 5), SpPoint(10, 5), thickness: 0.2);
+      expect(box.distanceTo(const SpPoint(5, 5)), 0);
+      expect(box.distanceTo(const SpPoint(5, 6.1)), closeTo(1, 1e-9));
+      expect(box.distanceTo(const SpPoint(13, 9.1)), closeTo(5, 1e-9));
+      const curve = CurveDraw(
+        start: SpPoint.zero,
+        control1: SpPoint.zero,
+        control2: SpPoint(10, 0),
+        end: SpPoint(10, 0),
+        endThickness: 0.1,
+        midThickness: 0.2,
+      );
+      expect(curve.distanceTo(const SpPoint(5, 0.05)), 0);
+      expect(curve.distanceTo(const SpPoint(5, 2)), closeTo(1.9, 1e-9));
+    });
   });
 
   group('entry points and snapping', () {
@@ -803,7 +982,6 @@ void main() {
       right: 32,
       time: TimeAxis([(Moment.zero, 0), (at(1, 1), 32)]),
       length: Length.whole,
-      voices: const {},
     );
 
     test('outside a tuplet the points are the grid\'s multiples in the bar, '
@@ -822,9 +1000,8 @@ void main() {
 
     test('inside a triplet of eighths a sixteenth grid gives six points a '
         'twenty-fourth apart', () {
-      final voice = VoiceTimes(
-        events: const [],
-        onsets: const [],
+      final voice = (
+        onsets: const <Moment>[],
         tuplets: [
           (
             onset: at(1, 2),
@@ -843,9 +1020,8 @@ void main() {
 
     test('where a tuplet holds a deeper one, the deeper one\'s points replace '
         'its own over that stretch', () {
-      final voice = VoiceTimes(
-        events: const [],
-        onsets: const [],
+      final voice = (
+        onsets: const <Moment>[],
         tuplets: [
           (
             onset: Moment.zero,
@@ -870,10 +1046,9 @@ void main() {
 
     test('snapTime takes an onset within one space of the tap, and the '
         'nearest grid point otherwise', () {
-      final voice = VoiceTimes(
-        events: const [EventId(1), EventId(2)],
+      final voice = (
         onsets: [Moment.zero, at(3, 8)],
-        tuplets: const [],
+        tuplets: const <TupletSpan>[],
       );
       expect(snapTime(bar, voice, 12.9, DurationBase.quarter), at(3, 8));
       expect(snapTime(bar, voice, 10.9, DurationBase.quarter), at(1, 4));

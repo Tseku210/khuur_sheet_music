@@ -14,7 +14,6 @@ import 'signatures.dart';
 import 'spacing.dart';
 import 'spanners.dart';
 import 'style.dart';
-import 'system_layout.dart';
 import 'text.dart';
 
 /// A bar laid out without knowing which system it lands in.
@@ -48,7 +47,6 @@ final class BarLayout {
     required this.spanners,
     required this.volta,
     required this.lyrics,
-    required this.voices,
   });
 
   final MeasureId measure;
@@ -90,9 +88,6 @@ final class BarLayout {
   final VoltaStub? volta;
   final BarLyrics lyrics;
 
-  /// Each voice of each visible staff in time, for hit testing.
-  final Map<(StaffId, VoiceSlot), VoiceTimes> voices;
-
   @override
   bool operator ==(Object other) =>
       other is BarLayout &&
@@ -112,8 +107,7 @@ final class BarLayout {
       _same(other.ties, ties) &&
       _same(other.spanners, spanners) &&
       other.volta == volta &&
-      other.lyrics == lyrics &&
-      _sameMap(other.voices, voices);
+      other.lyrics == lyrics;
 
   @override
   int get hashCode =>
@@ -122,10 +116,6 @@ final class BarLayout {
 
 bool _same<T>(List<T> a, List<T> b) =>
     a.length == b.length && a.indexed.every((item) => b[item.$1] == item.$2);
-
-bool _sameMap<K, V>(Map<K, V> a, Map<K, V> b) =>
-    a.length == b.length &&
-    a.entries.every((entry) => b[entry.key] == entry.value);
 
 /// One visible staff of a bar, with how far content reaches above its top line
 /// and below its bottom line, in staff spaces.
@@ -509,27 +499,8 @@ BarLayout layoutBar(
     spanners: spanners,
     volta: volta,
     lyrics: lyrics,
-    voices: {
-      for (final staffView in view.staves)
-        for (final voice in staffView.voices)
-          (staffView.source.staff, voice.slot): _timesOf(voice),
-    },
   );
 }
-
-VoiceTimes _timesOf(VoiceView voice) => VoiceTimes(
-  events: [for (final timed in voice.events) timed.event.id],
-  onsets: [for (final timed in voice.events) timed.onset],
-  tuplets: [
-    for (final view in voice.tuplets)
-      (
-        onset: view.onset,
-        duration: view.duration,
-        written: view.tuplet.unit.length * Fraction(view.tuplet.ratio.actual),
-        depth: view.depth,
-      ),
-  ],
-);
 
 bool _holdsFermata(MeasureView view) => view.staves.any(
   (staff) => staff.voices.any(

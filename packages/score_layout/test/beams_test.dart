@@ -253,23 +253,6 @@ void main() {
       expect(planned.bottom, closeTo(box.bottom, 1e-9));
       expect(box.bottom, greaterThan(yOfStep(-2) - 0.5));
     });
-
-    test('the beam belongs to the group\'s first event', () {
-      final view = barOf([
-        chordOf(1, 'C4', value: eighth),
-        chordOf(2, 'D4', value: eighth),
-      ]);
-      final plan = layoutOf(view).beams.single;
-
-      expect(
-        plan.owner,
-        ElementOwner(view.staves.first.voices.first.events.first.ref),
-      );
-      expect(
-        drawn(layoutOf(view), 1).map((d) => d.owner),
-        everyElement(plan.owner),
-      );
-    });
   });
 
   group('placeBeam', () {
@@ -361,6 +344,23 @@ void main() {
         beams[2].points[1].y,
         closeTo(edgeAt(beams[0], x2 + halfStem) - level, 1e-9),
       );
+    });
+
+    test('each stem and each hook belongs to its own event, and a beam '
+        'between stems to no event', () {
+      final events = [
+        for (final timed in view.staves.first.voices.first.events)
+          ElementOwner(timed.ref),
+      ];
+      final drawables = drawn(layout, 1, beam: 1);
+      final beams = beamsIn(drawables);
+
+      expect(stemsIn(drawables).map((stem) => stem.owner), [
+        events[4],
+        events[5],
+        events[6],
+      ]);
+      expect(beams.map((beam) => beam.owner), [null, events[4], events[6]]);
     });
 
     test('a beam is as thick as the font says, inward from its outer edge', () {

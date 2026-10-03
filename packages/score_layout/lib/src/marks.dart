@@ -1148,19 +1148,16 @@ List<Glyph> metronomeGlyphs(NoteValue beat) {
 }
 
 /// A tuplet's number and bracket, decided in bar space. The system draws
-/// it, because a bracket spans slices that the stretch moves apart.
+/// it, because a bracket spans slices that the stretch moves apart. Like a
+/// beam between stems it belongs to no one event, so it has no owner.
 final class TupletStub {
   const TupletStub({
-    required this.owner,
     required this.first,
     required this.last,
     required this.digits,
     required this.bracket,
     required this.side,
   });
-
-  /// The tuplet's first event.
-  final Owner owner;
 
   /// The bracket's ends, at the left edge of the first event's heads or
   /// rest and the right edge of the last's, already clear of the skyline.
@@ -1182,7 +1179,6 @@ final class TupletStub {
   @override
   bool operator ==(Object other) =>
       other is TupletStub &&
-      other.owner == owner &&
       other.first == first &&
       other.last == last &&
       other.digits.length == digits.length &&
@@ -1191,7 +1187,7 @@ final class TupletStub {
       other.side == side;
 
   @override
-  int get hashCode => Object.hash(owner, first, last, bracket, side);
+  int get hashCode => Object.hash(first, last, bracket, side);
 }
 
 const List<Glyph> _tupletDigits = [
@@ -1230,8 +1226,8 @@ List<Glyph> _tupletNumber(TupletRatio ratio) => [
   ],
 ];
 
-_Row _numberRow(List<Glyph> digits, SmuflFont font, {Owner? owner}) {
-  final row = _Row(font, owner: owner);
+_Row _numberRow(List<Glyph> digits, SmuflFont font) {
+  final row = _Row(font);
   digits.forEach(row.glyph);
   return row;
 }
@@ -1311,7 +1307,6 @@ List<TupletStub> tupletStubs(
     skyline.add(Box(left, line - half, right, line + half));
     stubs.add(
       TupletStub(
-        owner: ElementOwner(events[tuplet.events.first]!.ref),
         first: (slice: ends.first, dx: ends.left, staff: staff, dy: line),
         last: (slice: ends.last, dx: ends.right, staff: staff, dy: line),
         digits: digits,
@@ -1343,7 +1338,7 @@ List<Drawable> placeTuplet(
 ) {
   final from = frame.at(stub.first);
   final to = frame.at(stub.last);
-  final row = _numberRow(stub.digits, style.font, owner: stub.owner);
+  final row = _numberRow(stub.digits, style.font);
   final box = row.box;
   final x = (from.x + to.x - box.left - box.right) / 2;
   final y = from.y - (box.top + box.bottom) / 2;
@@ -1357,8 +1352,7 @@ List<Drawable> placeTuplet(
   final toNotes = stub.side == Side.above ? 1.0 : -1.0;
   final tip = from.y + toNotes * box.height / 2;
   final corner = from.y - toNotes * thickness / 2;
-  LineDraw line(SpPoint a, SpPoint b) =>
-      LineDraw(a, b, thickness: thickness, owner: stub.owner);
+  LineDraw line(SpPoint a, SpPoint b) => LineDraw(a, b, thickness: thickness);
   return drawables
     ..add(
       line(

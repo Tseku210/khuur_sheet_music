@@ -67,18 +67,24 @@ final class SystemLayout {
   PlacedBar barAt(double x) =>
       bars.lastWhere((bar) => bar.left <= x, orElse: () => bars.first);
 
-  /// What is drawn within [reach] of [point]. A notehead comes first, then
-  /// any other part of an event, then a spanner. Null on structure and on
-  /// empty paper.
+  /// What is drawn nearest [point], within [reach]. Between owners as near
+  /// as each other, a notehead comes first, then any other part of an
+  /// event, then a spanner, so a tap inside a head under a slur takes the
+  /// head. Null on structure and on empty paper.
   Owner? targetAt(SpPoint point, {double reach = 0}) {
     Owner? best;
+    var nearest = double.infinity;
     for (final drawable in drawables) {
       final owner = drawable.owner;
-      if (owner == null || !drawable.hits(point, reach)) {
+      if (owner == null) {
         continue;
       }
-      if (best == null || _rank(owner) < _rank(best)) {
+      final distance = drawable.distanceTo(point);
+      if (distance <= reach &&
+          (distance < nearest ||
+              distance == nearest && _rank(owner) < _rank(best!))) {
         best = owner;
+        nearest = distance;
       }
     }
     return best;
@@ -105,7 +111,6 @@ final class PlacedBar {
     required this.right,
     required this.time,
     required this.length,
-    required this.voices,
   });
 
   final MeasureId measure;
@@ -118,51 +123,9 @@ final class PlacedBar {
 
   final TimeAxis time;
 
-  /// The bar's length, so a tap can be snapped without the score.
+  /// The bar's length, the end of [time].
   final Length length;
-
-  /// What each voice of each visible staff holds, for snapping a tap to a
-  /// point `EnterNote` accepts and for naming the voice of a tapped event.
-  final Map<(StaffId, VoiceSlot), VoiceTimes> voices;
-
-  /// The voice that holds [event] on [staff], or null when the event is
-  /// not in this bar.
-  VoiceSlot? voiceOf(StaffId staff, EventId event) {
-    for (final MapEntry(key: (owner, slot), value: times) in voices.entries) {
-      if (owner == staff && times.events.contains(event)) {
-        return slot;
-      }
-    }
-    return null;
-  }
 }
-
-/// One voice of one bar in time, with its events and its tuplets.
-final class VoiceTimes {
-  const VoiceTimes({
-    required this.events,
-    required this.onsets,
-    required this.tuplets,
-  });
-
-  /// In time order.
-  final List<EventId> events;
-
-  /// The onset of each of [events].
-  final List<Moment> onsets;
-
-  final List<TupletSpan> tuplets;
-}
-
-/// A tuplet in sounding time. It sounds from `onset` for `duration`, and
-/// its members are written over `written`, which is
-/// `unit.length * ratio.actual`.
-typedef TupletSpan = ({
-  Moment onset,
-  Length duration,
-  Length written,
-  int depth,
-});
 
 /// Maps time in a bar to x in system space, and back.
 ///

@@ -223,14 +223,47 @@ void main() {
     });
 
     test('a range whose to is offset 0 of a later bar of the same system '
-        'ends at that bar\'s start', () {
+        'ends where the bar before ends, short of the later bar\'s key '
+        'change', () {
+      final keyed = sheetOf(
+        after(threeSystems(), [
+          SetKey(from: barId(1), key: const KeySignature(2)),
+        ]),
+      );
+      final from = ScorePoint(barId(0), Moment.zero);
+      final box = keyed
+          .selectionBoxes(rangeOf(from, ScorePoint(barId(1), Moment.zero)))
+          .single;
+      final sharps = keyed
+          .systemAt(0)
+          .drawables
+          .whereType<GlyphDraw>()
+          .where((d) => d.owner == null && d.glyph.name == 'accidentalSharp');
+      expect(sharps, isNotEmpty);
+      for (final sharp in sharps) {
+        expect(box.right, lessThan(sharp.bounds.left));
+      }
+      expect(
+        box,
+        keyed
+            .selectionBoxes(rangeOf(from, ScorePoint(barId(0), at(1, 1))))
+            .single,
+      );
+    });
+
+    test('a range whose to is offset 0 of a later bar of the next system '
+        'gives that system a box ending at that bar\'s start', () {
       final range = rangeOf(
         ScorePoint(barId(0), Moment.zero),
-        ScorePoint(barId(1), Moment.zero),
+        ScorePoint(barId(3), Moment.zero),
       );
-      final box = layout.selectionBoxes(range).single;
-      expect(box.right, xOf(layout, 0, range.to));
-      expect(box.right, lessThan(layout.systemAt(0).bars.last.right));
+      final boxes = layout.selectionBoxes(range);
+      expect(boxes, hasLength(2));
+      expect(
+        boxes[1].left,
+        layout.systemAt(1).bars.first.time.xAt(Moment.zero),
+      );
+      expect(boxes[1].right, xOf(layout, 1, ScorePoint(barId(2), at(1, 1))));
     });
 
     test('a ref made before SetMeter moved its event to another bar, on '

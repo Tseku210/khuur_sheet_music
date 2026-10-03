@@ -755,7 +755,6 @@ void main() {
           spanners: const [],
           volta: null,
           lyrics: BarLyrics.none,
-          voices: const {},
         ),
       ];
       final plan = breaksOf(

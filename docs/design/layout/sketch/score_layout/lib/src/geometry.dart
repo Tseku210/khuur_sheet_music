@@ -12,6 +12,8 @@
 /// logical pixels in one place (`SheetScale`).
 library;
 
+import 'dart:math' as math;
+
 /// A point in staff spaces.
 final class SpPoint {
   const SpPoint(this.x, this.y);
@@ -49,15 +51,20 @@ final class Box {
   Box shift(double dx, double dy) =>
       Box(left + dx, top + dy, right + dx, bottom + dy);
 
-  /// This box with [by] added on every side.
-  Box grow(double by) => Box(left - by, top - by, right + by, bottom + by);
-
   Box union(Box other) => Box(
     left < other.left ? left : other.left,
     top < other.top ? top : other.top,
     right > other.right ? right : other.right,
     bottom > other.bottom ? bottom : other.bottom,
   );
+
+  /// How far [point] lies outside this box, in a straight line. Zero
+  /// inside it.
+  double distanceTo(SpPoint point) {
+    final dx = _outside(point.x, left, right);
+    final dy = _outside(point.y, top, bottom);
+    return math.sqrt(dx * dx + dy * dy);
+  }
 
   bool contains(SpPoint point) =>
       left <= point.x &&
@@ -91,3 +98,6 @@ double yOfStep(int staffStep) => (8 - staffStep) * 0.5;
 
 /// The staff step nearest to [y], measured from the top line.
 int stepAtY(double y) => (8 - y * 2).round();
+
+double _outside(double value, double low, double high) =>
+    math.max(math.max(low - value, value - high), 0);

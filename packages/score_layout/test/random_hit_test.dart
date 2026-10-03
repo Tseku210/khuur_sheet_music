@@ -57,7 +57,14 @@ void main() {
           final system = layout.systemAt(index);
           final tupleted = {
             for (final bar in system.bars)
-              if (bar.voices.values.any((voice) => voice.tuplets.isNotEmpty))
+              if (score
+                  .measureView(bar.measure)
+                  .staves
+                  .any(
+                    (staff) => staff.voices.any(
+                      (voice) => voice.tuplets.isNotEmpty,
+                    ),
+                  ))
                 bar.measure,
           };
           for (final drawable in system.drawables) {
@@ -78,9 +85,21 @@ void main() {
                 reason: '$target over $owner at $local',
               );
               expect(
-                system.drawablesOf(target).any((d) => d.hits(local, 0)),
+                system.drawablesOf(target).any((d) => d.distanceTo(local) == 0),
                 isTrue,
                 reason: '$target is not under $local',
+              );
+            }
+            if (target case ElementOwner(:final ref)) {
+              final timed = score.lookup(ref.event)!;
+              expect(
+                (hit!.staff, hit.voice, hit.at),
+                (
+                  timed.ref.staff,
+                  timed.voice,
+                  ScorePoint(timed.ref.measure, timed.onset),
+                ),
+                reason: 'tap on $owner at $local hits $target',
               );
             }
             if (!tupleted.contains(hit!.at.measure)) {
@@ -160,6 +179,7 @@ void main() {
                 final top = layout.tops[index] + placed.top;
                 expect(box, isNotNull, reason: '${timed.ref} on $id');
                 expect(box!.left, box.right);
+                expect(box.left, closeTo(bar.time.xAt(timed.onset), 1e-9));
                 expect(box.left, greaterThanOrEqualTo(bar.left));
                 expect(box.left, lessThanOrEqualTo(bar.right));
                 expect(box.top, closeTo(top, 1e-9));

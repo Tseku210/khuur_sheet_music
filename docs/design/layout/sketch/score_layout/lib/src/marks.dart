@@ -163,19 +163,16 @@ List<BarItem> systemMarkItems(
 List<Glyph> metronomeGlyphs(NoteValue beat) => throw UnimplementedError();
 
 /// A tuplet's number and bracket, decided in bar space. The system draws
-/// it, because a bracket spans slices that the stretch moves apart.
+/// it, because a bracket spans slices that the stretch moves apart. Like a
+/// beam between stems it belongs to no one event, so it has no owner.
 final class TupletStub {
   const TupletStub({
-    required this.owner,
     required this.first,
     required this.last,
     required this.digits,
     required this.bracket,
     required this.side,
   });
-
-  /// The tuplet's first event.
-  final Owner owner;
 
   /// The bracket's ends, at the left edge of the first event's heads or
   /// rest and the right edge of the last's, already clear of the skyline.

@@ -14,7 +14,6 @@ import 'signatures.dart';
 import 'spacing.dart';
 import 'spanners.dart';
 import 'style.dart';
-import 'system_layout.dart';
 import 'text.dart';
 
 /// A bar laid out without knowing which system it lands in.
@@ -49,7 +48,6 @@ final class BarLayout {
     required this.spanners,
     required this.volta,
     required this.lyrics,
-    required this.voices,
   });
 
   final MeasureId measure;
@@ -90,9 +88,6 @@ final class BarLayout {
   final List<SpannerPiece> spanners;
   final VoltaStub? volta;
   final BarLyrics lyrics;
-
-  /// Each voice's events and tuplets in time, for hit testing.
-  final Map<(StaffId, VoiceSlot), VoiceTimes> voices;
 }
 
 /// One visible staff of a bar, with how far content reaches above its top line
@@ -486,11 +481,6 @@ BarLayout layoutBar(
     spanners: spanners,
     volta: volta,
     lyrics: lyrics,
-    voices: {
-      for (final staffView in view.staves)
-        for (final voice in staffView.voices)
-          (staffView.source.staff, voice.slot): _timesOf(voice),
-    },
   );
 }
 
@@ -513,17 +503,3 @@ BarStaff _staffOf(StaffView view, int staff, Skyline skyline, BarHeads heads) {
     below: below,
   );
 }
-
-VoiceTimes _timesOf(VoiceView voice) => VoiceTimes(
-  events: [for (final timed in voice.events) timed.event.id],
-  onsets: [for (final timed in voice.events) timed.onset],
-  tuplets: [
-    for (final view in voice.tuplets)
-      (
-        onset: view.onset,
-        duration: view.duration,
-        written: view.tuplet.unit.length * Fraction(view.tuplet.ratio.actual),
-        depth: view.depth,
-      ),
-  ],
-);

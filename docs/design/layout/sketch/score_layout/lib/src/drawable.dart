@@ -57,7 +57,9 @@ enum InkRole {
 sealed class Drawable {
   const Drawable({this.owner, this.ink = InkRole.normal});
 
-  /// Null for structure, which is staff lines, barlines, clefs and signatures.
+  /// Null for structure, which is staff lines, barlines, clefs and
+  /// signatures, for a beam between two stems, and for a tuplet's number
+  /// and bracket.
   final Owner? owner;
   final InkRole ink;
 
@@ -65,10 +67,10 @@ sealed class Drawable {
 
   Drawable shift(double dx, double dy);
 
-  /// Whether a tap at [point] lands on this drawable, with a finger's
-  /// [reach] in staff spaces. A stem is a tenth of a staff space wide, so
-  /// without the reach a finger could not hit it.
-  bool hits(SpPoint point, double reach) => bounds.grow(reach).contains(point);
+  /// How far a tap at [point] lies from the ink, in staff spaces. Zero on
+  /// it. A stem is a tenth of a staff space wide, so hit testing allows a
+  /// finger's reach on top of this.
+  double distanceTo(SpPoint point) => bounds.distanceTo(point);
 }
 
 /// A SMuFL glyph with its origin on the baseline.
@@ -279,17 +281,15 @@ final class CurveDraw extends Drawable {
   /// covers every note under the arc, and a tap on those is not a tap on
   /// the slur.
   @override
-  bool hits(SpPoint point, double reach) {
-    final within = reach + midThickness / 2;
+  double distanceTo(SpPoint point) {
+    var nearest = double.infinity;
     var previous = start;
     for (var i = 1; i <= _hitSegments; i++) {
       final next = pointAt(i / _hitSegments);
-      if (_distanceToSegment(point, previous, next) <= within) {
-        return true;
-      }
+      nearest = math.min(nearest, _distanceToSegment(point, previous, next));
       previous = next;
     }
-    return false;
+    return math.max(nearest - midThickness / 2, 0);
   }
 
   @override

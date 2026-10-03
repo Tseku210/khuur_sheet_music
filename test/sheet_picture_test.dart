@@ -866,20 +866,41 @@ void main() {
         reason: 'the rehearsal marks are the boxed texts',
       );
 
-      // A tuplet's first event owns its number and bracket, and its own
-      // stem too, which ends short of the number.
+      // A tuplet's number and bracket belong to no event. The bracket's
+      // lines are as thick as the font says and no taller than the number,
+      // which keeps barlines, staff lines and stems out of the count.
+      final thickness =
+          EngravingStyle.standard.font.defaults.tupletBracketThickness;
       final brackets = [
-        for (final number in glyphs.where((g) => g.glyph == Glyph.tuplet3))
-          drawables
-              .whereType<LineDraw>()
-              .where(
-                (line) =>
-                    line.owner == number.owner &&
-                    line.bounds.bottom > number.bounds.top &&
-                    line.bounds.top < number.bounds.bottom,
-              )
-              .length,
+        for (var i = 0; i < layout.systemCount; i++)
+          for (final number in layout
+              .systemAt(i)
+              .drawables
+              .whereType<GlyphDraw>()
+              .where((glyph) => glyph.glyph == Glyph.tuplet3))
+            layout
+                .systemAt(i)
+                .drawables
+                .whereType<LineDraw>()
+                .where(
+                  (line) =>
+                      line.owner == null &&
+                      line.thickness == thickness &&
+                      line.bounds.bottom - line.bounds.top <=
+                          number.bounds.bottom - number.bounds.top &&
+                      line.bounds.bottom > number.bounds.top &&
+                      line.bounds.top < number.bounds.bottom &&
+                      line.bounds.left < number.bounds.right + 8 &&
+                      line.bounds.right > number.bounds.left - 8,
+                )
+                .length,
       ];
+      expect(
+        glyphs
+            .where((glyph) => glyph.glyph == Glyph.tuplet3)
+            .map((glyph) => glyph.owner),
+        everyElement(isNull),
+      );
       expect(
         brackets,
         [0, 4],

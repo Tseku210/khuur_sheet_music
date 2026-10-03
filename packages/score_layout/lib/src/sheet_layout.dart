@@ -226,16 +226,18 @@ final class SheetLayout {
   ///    two systems belongs to the nearer one. A system's band ends where
   ///    its content does, so a ledger position over a staff with nothing
   ///    above it lies outside the band and is still that system's.
-  /// 2. The staff whose middle is nearest.
-  /// 3. The bar whose x range holds the point.
-  /// 4. The target, which is the drawable within [reach] of the point. A
-  ///    notehead comes first, then any other part of an event, then a
-  ///    spanner.
-  /// 5. The voice, which is the target's when the target is a note or an
-  ///    event, else [voice].
-  /// 6. The time, by [snapTime], for entry in the voice of step 5 on
-  ///    [grid]. The grid's type keeps it from being finer than a 128th.
-  /// 7. The staff step nearest the point's y.
+  /// 2. The target, which is what is drawn nearest the point within
+  ///    [reach]. Between things as near as each other, a notehead comes
+  ///    first, then any other part of an event, then a spanner.
+  /// 3. When the target is a note or an event, the staff, voice and time
+  ///    of its event. A head beside its stem, a grace head and a rest in the
+  ///    middle of its bar lie away from their event's onset, and still give
+  ///    it.
+  /// 4. Otherwise the bar whose x range holds the point, the staff whose
+  ///    middle is nearest, [voice], and the time by [snapTime] for entry in
+  ///    [voice] on [grid]. The grid's type keeps it from being finer than a
+  ///    128th.
+  /// 5. The staff step nearest the point's y, on the staff of step 3 or 4.
   ///
   /// [reach] is a finger's reach in staff spaces. The view passes its touch
   /// slop over its pixels per staff space.
@@ -254,21 +256,28 @@ final class SheetLayout {
       return null;
     }
     final local = point.shift(0, -tops[index]);
-    final staff = system.staffNear(local.y);
-    final bar = system.barAt(local.x);
     final target = system.targetAt(local, reach: reach);
-    final hitVoice = switch (target) {
-      ElementOwner(ref: ElementRef(:final event)) =>
-        system.barOf(event.measure)?.voiceOf(event.staff, event.id) ?? voice,
-      _ => voice,
-    };
+    if (target case ElementOwner(ref: ElementRef(:final event))) {
+      final timed = score.lookup(event)!;
+      return SheetHit(
+        staff: timed.ref.staff,
+        voice: timed.voice,
+        at: ScorePoint(timed.ref.measure, timed.onset),
+        staffStep: system.staffOf(timed.ref.staff)!.stepAt(local.y),
+        target: target,
+      );
+    }
+    final bar = system.barAt(local.x);
+    final staff = system.staffNear(local.y);
+    final times = voiceTimes(
+      score.measureView(bar.measure),
+      staff.staff,
+      voice,
+    );
     return SheetHit(
       staff: staff.staff,
-      voice: hitVoice,
-      at: ScorePoint(
-        bar.measure,
-        snapTime(bar, bar.voices[(staff.staff, hitVoice)], local.x, grid),
-      ),
+      voice: voice,
+      at: ScorePoint(bar.measure, snapTime(bar, times, local.x, grid)),
       staffStep: staff.stepAt(local.y),
       target: target,
     );
@@ -347,12 +356,16 @@ final class SheetLayout {
     return Box(x, staff.top, x, staff.top + staffHeight);
   }
 
-  /// Boxes to shade for [selection], in sheet space.
-  List<Box> selectionBoxes(Selection selection) => [
-    for (var index = 0; index < systemCount; index++)
-      for (final box in selectionIn(index, selection))
-        box.shift(0, tops[index]),
-  ];
+  /// Boxes to shade for [selection], in sheet space. An item asks the score
+  /// once for the system that draws it.
+  List<Box> selectionBoxes(Selection selection) => switch (selection) {
+    ItemSelection(:final items) => [for (final ref in items) ?boundsOf(ref)],
+    _ => [
+      for (var index = 0; index < systemCount; index++)
+        for (final box in selectionIn(index, selection))
+          box.shift(0, tops[index]),
+    ],
+  };
 
   /// Boxes to shade on system [index] for [selection], in system space. An
   /// item gives its bounds. A range gives one box from its start to its
@@ -399,14 +412,21 @@ final class SheetLayout {
         // A continuation starts at its first bar's first point, after the
         // clef and signatures, as a range starting there would.
         final start = system.barOf(from.measure) ?? system.bars.first;
-        final end = system.barOf(to.measure);
+        final end = system.bars.indexWhere((bar) => bar.measure == to.measure);
+        // A range to the start of a bar ends at the barline before it, short
+        // of a clef or signature the bar opens with.
+        final right = switch (end) {
+          -1 => system.bars.last.right,
+          > 0 when to.offset == Moment.zero => system.bars[end - 1].right,
+          _ => system.bars[end].time.xAt(to.offset),
+        };
         return [
           Box(
             start.time.xAt(
               start.measure == from.measure ? from.offset : Moment.zero,
             ),
             staves.first.top,
-            end?.time.xAt(to.offset) ?? system.bars.last.right,
+            right,
             staves.last.top + staffHeight,
           ),
         ];

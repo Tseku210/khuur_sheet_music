@@ -28,8 +28,8 @@ const double _maxSlope = 0.5;
 /// A beam decided in bar space.
 final class BeamPlan {
   const BeamPlan({
-    required this.owner,
     required this.stem,
+    required this.events,
     required this.stems,
     required this.first,
     required this.last,
@@ -37,10 +37,11 @@ final class BeamPlan {
     required this.boxes,
   });
 
-  /// The group's first event, which owns the beam's drawables.
-  final Owner owner;
-
   final StemSide stem;
+
+  /// The group's events in time order. Each owns its stem and its hooks. A
+  /// beam between two stems belongs to no one event, so it has no owner.
+  final List<EventRef> events;
 
   /// Where each event's stem leaves its outer head, in time order.
   final List<BarAnchor> stems;
@@ -64,8 +65,8 @@ final class BeamPlan {
   @override
   bool operator ==(Object other) =>
       other is BeamPlan &&
-      other.owner == owner &&
       other.stem == stem &&
+      _same(other.events, events) &&
       _same(other.stems, stems) &&
       other.first == first &&
       other.last == last &&
@@ -74,8 +75,13 @@ final class BeamPlan {
       _same(other.boxes, boxes);
 
   @override
-  int get hashCode =>
-      Object.hash(owner, stem, first, last, Object.hashAll(boxes));
+  int get hashCode => Object.hash(
+    stem,
+    first,
+    last,
+    Object.hashAll(events),
+    Object.hashAll(boxes),
+  );
 }
 
 bool _same<T>(List<T> a, List<T> b) =>
@@ -195,7 +201,6 @@ BeamPlan planBeam(
   final yFirst = _snap(y0, up: up, thickness: thickness);
   final yLast = _snap(yFirst + slope * (x1 - x0), up: up, thickness: thickness);
 
-  final owner = ElementOwner(chords.first.plan.timed.ref);
   final half = style.font.defaults.stemThickness / 2;
   final drawnSlope = x1 == x0 ? 0.0 : (yLast - yFirst) / (x1 - x0);
   final edgeLeft = yFirst - drawnSlope * half;
@@ -213,8 +218,8 @@ BeamPlan planBeam(
       ),
   ];
   return BeamPlan(
-    owner: owner,
     stem: stem,
+    events: [for (final placed in chords) placed.plan.timed.ref],
     stems: [
       for (final (i, placed) in chords.indexed)
         (
@@ -272,7 +277,7 @@ double _snap(double y, {required bool up, required double thickness}) {
 /// notehead wide.
 List<Drawable> placeBeam(BeamPlan plan, BarFrame frame, EngravingStyle style) =>
     _draw(
-      owner: plan.owner,
+      owners: [for (final event in plan.events) ElementOwner(event)],
       stem: plan.stem,
       stems: [for (final anchor in plan.stems) frame.at(anchor)],
       first: frame.at(plan.first),
@@ -282,7 +287,7 @@ List<Drawable> placeBeam(BeamPlan plan, BarFrame frame, EngravingStyle style) =>
     );
 
 List<Drawable> _draw({
-  required Owner owner,
+  required List<Owner> owners,
   required StemSide stem,
   required List<SpPoint> stems,
   required SpPoint first,
@@ -299,18 +304,18 @@ List<Drawable> _draw({
   final half = defaults.stemThickness / 2;
   final hook = style.font[Glyph.noteheadBlack].box.width;
   final drawables = <Drawable>[
-    for (final s in stems)
+    for (final (i, s) in stems.indexed)
       LineDraw(
         s,
         SpPoint(s.x, edge(s.x)),
         thickness: defaults.stemThickness,
-        owner: owner,
+        owner: owners[i],
       ),
   ];
   final levels = joins.fold(0, (most, row) => math.max(most, row.length));
   for (var level = 0; level < levels; level++) {
     final offset = level * (defaults.beamThickness + defaults.beamSpacing);
-    void beam(double from, double to) {
+    void beam(double from, double to, [Owner? owner]) {
       final near = offset * inward;
       final far = (offset + defaults.beamThickness) * inward;
       drawables.add(
@@ -337,9 +342,9 @@ List<Drawable> _draw({
           beam(from!, s.x + half);
           from = null;
         case BeamJoin.forwardHook:
-          beam(s.x - half, s.x + hook);
+          beam(s.x - half, s.x + hook, owners[i]);
         case BeamJoin.backwardHook:
-          beam(s.x - hook, s.x + half);
+          beam(s.x - hook, s.x + half, owners[i]);
       }
     }
   }

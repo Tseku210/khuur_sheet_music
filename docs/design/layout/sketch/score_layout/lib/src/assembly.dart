@@ -195,7 +195,6 @@ List<PlacedBar> _placedBars(BreakUnit unit, BarFrame frame) {
               (slice.at, frame.xs[index]),
           ]),
           length: bar.length,
-          voices: bar.voices,
         ),
       ];
     case RestRun(:final bars):
@@ -212,7 +211,6 @@ List<PlacedBar> _placedBars(BreakUnit unit, BarFrame frame) {
               (bar.slices.last.at, from + each * (index + 1)),
             ]),
             length: bar.length,
-            voices: bar.voices,
           ),
       ];
   }

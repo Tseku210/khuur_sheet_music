@@ -20,8 +20,8 @@ import 'style.dart';
 /// A beam decided in bar space.
 final class BeamPlan {
   const BeamPlan({
-    required this.owner,
     required this.stem,
+    required this.events,
     required this.stems,
     required this.first,
     required this.last,
@@ -29,10 +29,11 @@ final class BeamPlan {
     required this.boxes,
   });
 
-  /// The group's first event, which owns the beam's drawables.
-  final Owner owner;
-
   final StemSide stem;
+
+  /// The group's events in time order. Each owns its stem and its hooks. A
+  /// beam between two stems belongs to no one event, so it has no owner.
+  final List<EventRef> events;
 
   /// Where each event's stem leaves its outer head, in time order.
   final List<BarAnchor> stems;
