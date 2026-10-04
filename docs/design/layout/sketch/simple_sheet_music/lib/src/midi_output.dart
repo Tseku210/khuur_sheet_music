@@ -1,7 +1,7 @@
 import 'sound_font.dart';
 
-/// Where `ScorePlayer` sends a script's notes. Internal, so it is not
-/// exported.
+/// Where `ScorePlayer` sends a script's notes. An app passes its own to
+/// play through another synthesizer.
 ///
 /// The player waits for [load] and for every [program], and then sends
 /// notes without waiting, because a note that waited for an answer would be

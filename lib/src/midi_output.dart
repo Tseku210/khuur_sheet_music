@@ -1,4 +1,5 @@
-/// The synthesizer behind `ScorePlayer`. Not exported.
+/// The synthesizer behind `ScorePlayer`. An app passes its own
+/// [MidiOutput] to play through another synthesizer.
 library;
 
 import 'dart:async';
