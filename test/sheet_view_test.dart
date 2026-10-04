@@ -1784,8 +1784,12 @@ void main() {
   });
 
   testWidgets("a view registers the music font's licence once", (tester) async {
-    await tester.pumpWidget(host(SheetView(score: tune(bars: 2))));
-    await tester.pumpWidget(host(SheetView(score: tune(bars: 3))));
+    // A view under a new key is a new view, so two views start here.
+    for (final key in const ['first', 'second']) {
+      await tester.pumpWidget(
+        host(SheetView(key: ValueKey(key), score: tune(bars: 2))),
+      );
+    }
     final entries = (await tester.runAsync(
       () => LicenseRegistry.licenses
           .where((entry) => entry.packages.contains('Bravura'))
