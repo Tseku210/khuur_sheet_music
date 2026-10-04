@@ -3,7 +3,7 @@ import 'package:simple_sheet_music/simple_sheet_music.dart';
 /// Eight bars of 4/4 in C major at 96 beats a minute for one piano on two
 /// staves. The right hand has a melody and the left hand chords. Bars 3 and
 /// 4 repeat, so the script plays ten bars and those two report a second
-/// pass. Bar 5 starts a new system at every sheet width.
+/// pass.
 Score buildDemoScore() {
   var session = EditSession.start(
     Score.blank(
@@ -36,8 +36,7 @@ Score buildDemoScore() {
       ),
       SetRepeatStart(bars[2], start: true),
       SetRepeatEnd(bars[3], const RepeatEnd()),
-      SetBreak(bars[4], LayoutBreak.system),
-    ], label: 'Tempo, repeat and break'),
+    ], label: 'Tempo and repeat'),
   ).score;
 }
 

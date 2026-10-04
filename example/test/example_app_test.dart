@@ -147,24 +147,6 @@ void main() {
     });
   }
 
-  testWidgets('starts bar 5 on a new system at a width that holds all eight', (
-    tester,
-  ) async {
-    await pumpApp(tester, size: const Size(4000, 600));
-
-    expect(controllerOf(tester).systemCount, 2);
-    final score = scoreOf(tester);
-    final treble = score.staves.first.id;
-    double topOf(int bar) {
-      final at = ScorePoint(score.measures[bar].id, Moment.zero);
-      final point = VoicePoint(staff: treble, voice: VoiceSlot.one, at: at);
-      return controllerOf(tester).caretOf(point)!.top;
-    }
-
-    expect(topOf(3), topOf(0));
-    expect(topOf(4), greaterThan(topOf(3)));
-  });
-
   testWidgets('a tap on a staff enters a quarter note where it lands', (
     tester,
   ) async {
