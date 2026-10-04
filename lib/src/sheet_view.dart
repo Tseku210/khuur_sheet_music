@@ -124,7 +124,8 @@ class SheetView extends StatefulWidget {
 ///
 /// A controller serves the view that took it last. Every query answers
 /// null, nothing or zero while no view has the controller, and before that
-/// view's first frame.
+/// view's first frame. A view that takes the controller or lets it go
+/// notifies no one.
 class SheetController extends ChangeNotifier {
   /// Throws an [ArgumentError] unless [zoom] is positive and finite.
   SheetController({double zoom = 1}) : _zoom = ValueNotifier(_checked(zoom));
@@ -189,7 +190,9 @@ class SheetController extends ChangeNotifier {
   /// bar the sheet does not have after that frame scrolls nothing. A frame
   /// that is already on its way is taken into account, so a zoom, an edit
   /// or a new size of the view set just before this call does not leave the
-  /// system cut. A system that is in view is scrolled to already, and a
+  /// system cut. What changes after the call is followed while the scroll
+  /// runs, and not once it has ended. A system that is in view, or out of
+  /// it by less than a pixel of the screen, is scrolled to already, and a
   /// drag or a fling of the user's goes on. A call that asks again for what
   /// a scroll of the view's own is doing joins that scroll and ends with
   /// it, so a call on every frame still gets there. Any other scroll of the
@@ -657,7 +660,10 @@ class _SheetViewState extends State<SheetView> {
   }
 
   /// Starts [scroll], or starts it again towards where its bar is now. An
-  /// animation that goes there already runs on.
+  /// animation that goes there already runs on, unless it is to start
+  /// [anew] because a frame moved the offset under it. Its next tick would
+  /// write the offset it had planned from where it began, and undo the move
+  /// or run into the end of a sheet that got shorter.
   ///
   /// A scroll to the top goes on until its system is at the top. Any other
   /// ends as soon as its system is wholly in view.
@@ -671,15 +677,17 @@ class _SheetViewState extends State<SheetView> {
   /// the scroll looks again after the frame, and starts again when its
   /// system is somewhere else in the sheet or the frame moved the offset
   /// itself. A system only the user's scroll moved is where it was, and the
-  /// scroll ends.
+  /// scroll ends. An animation that gets to its target holds too, because
+  /// it gets there inside a frame that may still lay the sheet out.
   ///
   /// A scroll that has less to go than the position takes for a distance
-  /// jumps there, as the position's own animation would. That animation
-  /// would end at once, before the frame the scroll has to look after.
-  void _drive(_OwnScroll scroll, {bool hold = false}) {
+  /// has nowhere to go. The position's own animation would jump there and
+  /// end at once, before the frame the scroll has to look after, and the
+  /// jump would take a drag from the user.
+  void _drive(_OwnScroll scroll, {bool hold = false, bool anew = false}) {
     final place = _placeOf(scroll.bar);
     final target = place == null ? null : _targetOf(scroll, place);
-    if (target != null && target == _animating?.target) {
+    if (!anew && target != null && target == _animating?.target) {
       return;
     }
     final drive = ++_drives;
@@ -711,7 +719,7 @@ class _SheetViewState extends State<SheetView> {
     final position = _scroll.position;
     final near = target != null && (target - position.pixels).abs() < _slack;
     if (target == null || near || scroll.duration == Duration.zero) {
-      if (target != null) {
+      if (target != null && !near) {
         position.jumpTo(target);
       }
       if (hold && _frameAhead) {
@@ -731,12 +739,16 @@ class _SheetViewState extends State<SheetView> {
     position
         .animateTo(target, duration: scroll.duration, curve: Curves.easeInOut)
         .whenComplete(() {
-          // The animation ended or the user took over. Either way the position
-          // runs nothing of the view's now.
+          // The position runs nothing of the view's now.
           if (_animating?.drive == drive) {
             _animating = null;
           }
-          end();
+          if (isLive() && (position.pixels - target).abs() < _slack) {
+            _drive(scroll, hold: true);
+          } else {
+            // The user or a later scroll took over on the way.
+            end();
+          }
         });
   }
 
@@ -884,15 +896,15 @@ class _SheetViewState extends State<SheetView> {
       // not allow. They hear of the new geometry after this frame, when the
       // scroll extent is the new layout's too, and of an offset this frame
       // moved without a notification. A scroll the view is animating looks
-      // again then, because this frame may have moved its system or resized
-      // the view.
+      // again then, because this frame may have moved its system, resized
+      // the view or moved the offset under the animation.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) {
           return;
         }
         final scroll = _scrollingTo;
         if (scroll != null && _animating != null) {
-          _drive(scroll);
+          _drive(scroll, anew: _movedSilently);
         }
         if (relaid || _movedSilently) {
           _toldAt = _offset;
