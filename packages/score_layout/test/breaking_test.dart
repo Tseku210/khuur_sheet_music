@@ -680,22 +680,29 @@ void main() {
       expect(endOf(breaks.plans[1]), lessThan(sheet * 0.75));
     });
 
-    test('a last system is short by what its bars fill of the room its heads '
-        'leave them, not by what it fills of the sheet', () {
+    test('a last system fills the sheet by what it fills of the sheet, its '
+        'indent and heads counted, not by what its bars fill of the room '
+        'left them', () {
       final two = twelve.sublist(0, 2);
       final loose = breaksOf(two, 1000, lead: flush).plans.single;
-      final springs = springsOf(loose);
-      final room = springs / 0.7;
-      final deep = SystemLead(
-        parts: const [],
-        firstIndent: room - (endOf(loose) - springs),
-        indent: 0,
-      );
-      final plan = breaksOf(two, 2 * room, lead: deep).plans.single;
+      final wide = 4 * springsOf(loose);
+      SystemPlan filling(double fraction) => breaksOf(
+        two,
+        wide,
+        lead: SystemLead(
+          parts: const [],
+          firstIndent: fraction * wide - endOf(loose),
+          indent: 0,
+        ),
+      ).plans.single;
+
+      final under = filling(0.74);
+      final over = filling(0.76);
 
       expect(loose.stretch, 1);
-      expect(plan.stretch, 1);
-      expect(endOf(plan), closeTo(0.85 * 2 * room, 1e-9));
+      expect(under.stretch, 1);
+      expect(endOf(under), closeTo(0.74 * wide, 1e-9));
+      expect(endOf(over), closeTo(wide, 1e-9));
     });
 
     test('a last system past the style\'s threshold fills the sheet', () {

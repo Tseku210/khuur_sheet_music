@@ -564,7 +564,8 @@ SystemPlan planSystem(SystemKey key, EngravingStyle style, TextMeasurer text) {
   final room = key.width - fixed;
   final fill = stretchFor(slices, room);
   final ragged =
-      key.last && naturalWidth(slices) < room * style.justifyLastSystemFrom;
+      key.last &&
+      fixed + naturalWidth(slices) < key.width * style.justifyLastSystemFrom;
 
   final number = text.measure('0', style.specOf(TextRole.barNumber));
   final numberRoom = style.barNumbers ? number.ascent + number.descent : 0.0;

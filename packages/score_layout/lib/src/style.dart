@@ -60,9 +60,9 @@ final class EngravingStyle {
   /// to, unless the change itself says `noCourtesy`.
   final bool courtesySignatures;
 
-  /// The last system is stretched to the full width only when its bars at
-  /// their natural spacing fill at least this fraction of the room its
-  /// indent and signatures leave them. Otherwise it stays ragged.
+  /// The last system is stretched to the full width only when it fills at
+  /// least this fraction of the width at its natural spacing, its indent and
+  /// signatures counted. Otherwise it stays ragged.
   final double justifyLastSystemFrom;
 
   /// Number the first bar of every system.
