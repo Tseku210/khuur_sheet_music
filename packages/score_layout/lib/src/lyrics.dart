@@ -355,7 +355,6 @@ double lyricRoom(List<LyricRow> rows, EngravingStyle style) => rows.fold(
 /// against its chord's head.
 BarLyrics lyricsOf(
   MeasureView view,
-  List<Moment> times,
   Map<EventId, PlacedChord> chords,
   EngravingStyle style,
   TextMeasurer text,
@@ -378,11 +377,10 @@ BarLyrics lyricsOf(
       final sung = <LyricLane, List<Syllable>>{};
       for (final (index, timed) in events.indexed) {
         final event = timed.event;
-        if (event is! ChordEvent) {
+        if (event is! ChordEvent || event.lyrics.isEmpty) {
           continue;
         }
         final placed = chords[event.id]!;
-        final slice = times.indexOf(timed.onset);
         for (final lyric in event.lyrics) {
           final lane = (staff: staff, voice: voice.slot, verse: lyric.verse);
           final leaves = switch (lyric.syllabic) {
@@ -396,7 +394,7 @@ BarLyrics lyricsOf(
           final extent = text.measure(lyric.text, spec);
           final syllable = Syllable(
             lane: lane,
-            slice: slice,
+            slice: placed.slice,
             dx: _dxOf(
               placed.plan,
               extent,

@@ -185,6 +185,9 @@ List<TieEnd> tieEnds(
   required List<double> xs,
   required double left,
 }) {
+  if (view.ties.isEmpty && view.tiedIn.isEmpty) {
+    return const [];
+  }
   final holders = _holders(view, chords);
 
   double x(BarAnchor anchor) => xs[anchor.slice] + anchor.dx;
@@ -254,6 +257,9 @@ List<({int slice, double right})> letRingReach(
   StaffView view,
   Map<EventId, PlacedChord> chords,
 ) {
+  if (view.ties.isEmpty) {
+    return const [];
+  }
   final holders = _holders(view, chords);
   return [
     for (final tie in view.ties)
