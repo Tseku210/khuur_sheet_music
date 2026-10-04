@@ -10,7 +10,6 @@ export 'src/edit/edits.dart';
 export 'src/edit/session.dart'
     show
         Applied,
-        Clip,
         CursorMove,
         EditOutcome,
         EditSession,
@@ -18,6 +17,7 @@ export 'src/edit/session.dart'
         NoSelection,
         RangeSelection,
         Refused,
+        ScoreClip,
         Selection;
 export 'src/events.dart';
 export 'src/io/json.dart';

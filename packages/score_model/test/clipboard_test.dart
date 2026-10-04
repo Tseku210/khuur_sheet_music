@@ -15,12 +15,12 @@ RangeSelection range(
   bottom: score.staves[bottom].id,
 );
 
-Clip copyOf(EditSession session, (int, Moment) from, (int, Moment) to) =>
+ScoreClip copyOf(EditSession session, (int, Moment) from, (int, Moment) to) =>
     session.select(range(session.score, from, to)).copy()!;
 
 EditOutcome paste(
   EditSession session,
-  Clip clip,
+  ScoreClip clip,
   int bar,
   Moment offset, {
   int staff = 0,
@@ -37,8 +37,12 @@ EditOutcome paste(
   ),
 );
 
-EditSession pasted(EditSession session, Clip clip, int bar, Moment offset) =>
-    applied(paste(session, clip, bar, offset));
+EditSession pasted(
+  EditSession session,
+  ScoreClip clip,
+  int bar,
+  Moment offset,
+) => applied(paste(session, clip, bar, offset));
 
 Set<Object> idsIn(Score score, int bar) => {
   for (final item in voiceOf(score, bar).items)

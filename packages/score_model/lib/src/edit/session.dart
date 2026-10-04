@@ -2,8 +2,8 @@
 /// and clipboard, over an immutable score.
 ///
 /// One library split over part files, so the edit engine's internals
-/// ([Clip]'s representation, the lane writer, the re-barrer) stay private to
-/// it while living in separate files.
+/// ([ScoreClip]'s representation, the lane writer, the re-barrer) stay
+/// private to it while living in separate files.
 library;
 
 import 'dart:math';
@@ -316,7 +316,7 @@ final class EditSession {
     _historyLimit,
   );
 
-  /// Copies the selected music into a [Clip], or null when nothing is
+  /// Copies the selected music into a [ScoreClip], or null when nothing is
   /// selected or the range is empty or runs outside its bars.
   ///
   /// A copy takes what [Erase] would clear: the events that start in the
@@ -329,7 +329,7 @@ final class EditSession {
   /// The clip is a standalone value: bars are dissolved into one timeline
   /// per voice, tied pieces stay tied, and a tie that leads out of the
   /// copied music onto a head is cleared. It can be pasted into any score.
-  Clip? copy() => switch (_revalidateSelection(selection, score, score)) {
+  ScoreClip? copy() => switch (_revalidateSelection(selection, score, score)) {
     NoSelection() => null,
     ItemSelection(:final items) => _copy(score, _covering(score, items)),
     final RangeSelection range => _copy(score, range),

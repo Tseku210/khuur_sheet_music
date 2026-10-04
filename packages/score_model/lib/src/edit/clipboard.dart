@@ -2,8 +2,8 @@ part of 'session.dart';
 
 /// Copied music, detached from any score. Opaque: the only things a caller
 /// does with a clip are keep it and paste it.
-final class Clip {
-  const Clip._(
+final class ScoreClip {
+  const ScoreClip._(
     this.length,
     this.staffCount,
     this._lanes,
@@ -57,7 +57,7 @@ final class _ClipDirection {
 /// last event it takes. A measure rest is silence and is not taken. A tie
 /// that leads out of the taken music onto a head is cleared. Null when the
 /// range is empty or runs outside its bars.
-Clip? _copy(Score score, RangeSelection range) {
+ScoreClip? _copy(Score score, RangeSelection range) {
   final RangeSelection(:from, :to, :top, :bottom) = range;
   bool within(ScorePoint point) =>
       !point.offset.isNegative &&
@@ -127,7 +127,7 @@ Clip? _copy(Score score, RangeSelection range) {
         for (final event in _eventsIn(item)) event.id,
   };
   bool inside(TimedEvent event) => copied.contains(event.event.id);
-  return Clip._(
+  return ScoreClip._(
     length,
     staves.length,
     [
@@ -216,7 +216,7 @@ RangeSelection _covering(Score score, Seq<ElementRef> items) {
 /// first when the score is too short. The pasted range is selected.
 _Result _paste(
   Score score,
-  Clip clip,
+  ScoreClip clip,
   VoicePoint at,
   _Ids ids,
   Overfill overfill,

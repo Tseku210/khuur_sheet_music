@@ -184,15 +184,12 @@ final image = await _sheet.toImage(pixelRatio: 3);
 
 ## Names that Flutter also declares
 
-The library exports all of the score model, and three of the model's names are also names in Flutter.
-
-- `Interval` and `Step`. A file that imports both libraries and uses either name does not compile. The analyzer reports `ambiguous_import`.
-- `Clip`. The model's `Clip` is copied music, and it hides the `Clip` of `dart:ui` with no message. In a file that imports the library, `clipBehavior: Clip.none` fails with "The getter 'none' isn't defined for the type 'Clip'".
+The library exports all of the score model, and two of the model's names are also names in Flutter. They are `Interval` and `Step`. A file that imports both libraries and uses either name does not compile. The analyzer reports `ambiguous_import`.
 
 In a file that needs Flutter's names, hide the model's.
 
 ```dart
-import 'package:simple_sheet_music/simple_sheet_music.dart' hide Clip, Interval, Step;
+import 'package:simple_sheet_music/simple_sheet_music.dart' hide Interval, Step;
 ```
 
 ## Fonts and licences

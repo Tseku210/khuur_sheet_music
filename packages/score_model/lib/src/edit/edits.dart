@@ -21,7 +21,7 @@ import '../refs.dart';
 import '../score.dart';
 import '../seq.dart';
 import '../time.dart';
-import 'session.dart' show Clip, Selection;
+import 'session.dart' show ScoreClip, Selection;
 
 sealed class Edit {
   const Edit();
@@ -652,7 +652,7 @@ final class Paste extends Edit {
     this.overfill = Overfill.splitAndTie,
   });
 
-  final Clip clip;
+  final ScoreClip clip;
   final VoicePoint at;
   final Overfill overfill;
 

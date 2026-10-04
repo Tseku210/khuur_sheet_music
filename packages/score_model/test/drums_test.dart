@@ -205,7 +205,7 @@ void main() {
 
     test('paste only onto a staff of their kind', () {
       final session = band();
-      Clip copied(int staff) => session
+      ScoreClip copied(int staff) => session
           .select(
             RangeSelection(
               from: pointAt(session.score, 0, Moment.zero),

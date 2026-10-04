@@ -364,7 +364,7 @@ Each has two defensible conventions, or would change what a stored field means.
 | Seconds-to-ScorePoint; `sourcesAt` hidden staves (model) | B | Private clock; the contract of a model query |
 | Share `_endsOf`, `_beams`, jump text (model) | B | One rule, one place |
 | Grace ties in `StaffView.ties` (model) | B | The view and playback disagree |
-| `Clip` internals (model) | Out of scope | Only matter for a paste preview |
+| `ScoreClip` internals (model) | Out of scope | Only matter for a paste preview |
 | SVG or OTF; keep Petaluma (assets) | C, with the mechanism in A | License and product acceptance |
 | Pre-extract about 222 paths (assets) | A | A build-time mechanism. Still a Modified Version under the OFL |
 | Quarter-tone family; string-number style; text font (assets) | C | Conventions and asset weight |

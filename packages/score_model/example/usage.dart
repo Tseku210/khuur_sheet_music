@@ -98,7 +98,7 @@ class ComposerController {
   ComposerController(Score score) : _session = EditSession.start(score);
 
   EditSession _session;
-  Clip? _clipboard;
+  ScoreClip? _clipboard;
   final List<void Function()> _listeners = [];
 
   /// Palette state. Plain UI state, not part of the model.
