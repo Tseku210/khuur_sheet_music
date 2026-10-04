@@ -1717,7 +1717,7 @@ void main() {
 
   testWidgets(
     'the controller says where a note is drawn, and tells its listeners '
-    'when a scroll, a zoom or an edit moves it',
+    'when a scroll, a zoom, an edit or a padding moves it',
     (tester) async {
       final score = tune();
       final controller = SheetController();
@@ -1785,12 +1785,28 @@ void main() {
         within(distance: 1e-6, from: middleOf(tester, head, spacePx: 16)),
       );
 
+      final edited = raised(score, 30);
       await expectTold(
         'an edit',
         () => tester.pumpWidget(
-          host(SheetView(score: raised(score, 30), controller: controller)),
+          host(SheetView(score: edited, controller: controller)),
         ),
       );
+
+      final top = controller.rectOf(head)!.top;
+      await expectTold(
+        'a padding that moves the sheet',
+        () => tester.pumpWidget(
+          host(
+            SheetView(
+              score: edited,
+              controller: controller,
+              padding: padding.copyWith(top: padding.top + 24),
+            ),
+          ),
+        ),
+      );
+      expect(controller.rectOf(head)!.top, closeTo(top + 24, 1e-6));
     },
   );
 
