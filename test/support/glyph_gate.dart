@@ -147,7 +147,9 @@ Future<InkErrors?> measureGlyph(
   // The origin of the cell in [column], in device pixels from the corner of
   // its row's image.
   ui.Offset originOf(int column, int row) => ui.Offset(
-      column * cellWidth + lead + column / phases, rise + row / phases);
+    column * cellWidth + lead + column / phases,
+    rise + row / phases,
+  );
 
   var worst = (centreX: 0.0, centreY: 0.0, width: 0.0, height: 0.0, edge: 0.0);
   // One image per row of cells, which keeps a tall glyph's image inside the
@@ -240,15 +242,15 @@ Future<InkErrors?> measureGlyph(
 /// that, so a glyph that is drawn right is up to 1.55 pixels small on a
 /// phone.
 List<String> failuresAtViewSize(InkErrors errors) => [
-      if (errors.centreY > 1)
-        'centre ${errors.centreY.toStringAsFixed(2)} px off vertically',
-      if (errors.centreX > 0.5)
-        'centre ${errors.centreX.toStringAsFixed(2)} px off horizontally',
-      if (errors.width > _sizeBound)
-        'width ${errors.width.toStringAsFixed(2)} px off',
-      if (errors.height > _sizeBound)
-        'height ${errors.height.toStringAsFixed(2)} px off',
-    ];
+  if (errors.centreY > 1)
+    'centre ${errors.centreY.toStringAsFixed(2)} px off vertically',
+  if (errors.centreX > 0.5)
+    'centre ${errors.centreX.toStringAsFixed(2)} px off horizontally',
+  if (errors.width > _sizeBound)
+    'width ${errors.width.toStringAsFixed(2)} px off',
+  if (errors.height > _sizeBound)
+    'height ${errors.height.toStringAsFixed(2)} px off',
+];
 
 /// Device pixels a glyph's width or height may be off at a size the view
 /// draws at.
@@ -292,8 +294,13 @@ Future<List<String>> glyphGateFailures(
 }) async {
   final failures = <String>[];
   for (final size in [...viewSizes, tableSize]) {
-    var worst =
-        (centreX: 0.0, centreY: 0.0, width: 0.0, height: 0.0, edge: 0.0);
+    var worst = (
+      centreX: 0.0,
+      centreY: 0.0,
+      width: 0.0,
+      height: 0.0,
+      edge: 0.0,
+    );
     for (final glyph in Glyph.values) {
       final errors = await measureGlyph(
         painter,
@@ -301,7 +308,8 @@ Future<List<String>> glyphGateFailures(
         spacePx: size.spacePx,
         pixelRatio: size.pixelRatio,
       );
-      final where = '${glyph.name} at ${size.spacePx} px per staff space, '
+      final where =
+          '${glyph.name} at ${size.spacePx} px per staff space, '
           'ratio ${size.pixelRatio}';
       if (errors == null) {
         failures.add('$where: no ink');

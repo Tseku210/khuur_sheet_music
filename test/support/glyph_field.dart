@@ -22,17 +22,17 @@ class GlyphField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Stack(
-        alignment: Alignment.topLeft,
-        fit: StackFit.expand,
-        children: [
-          RepaintBoundary(
-            child: CustomPaint(
-              painter: _FieldPainter(GlyphPainter(SmuflFont.bravura)),
-            ),
-          ),
-          CustomPaint(painter: _PlayheadPainter(playhead)),
-        ],
-      );
+    alignment: Alignment.topLeft,
+    fit: StackFit.expand,
+    children: [
+      RepaintBoundary(
+        child: CustomPaint(
+          painter: _FieldPainter(GlyphPainter(SmuflFont.bravura)),
+        ),
+      ),
+      CustomPaint(painter: _PlayheadPainter(playhead)),
+    ],
+  );
 }
 
 class _FieldPainter extends CustomPainter {
@@ -44,7 +44,9 @@ class _FieldPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     const scale = SheetScale(spacePx: 8);
     canvas.drawRect(
-        Offset.zero & size, Paint()..color = const Color(0xFFFFFFFF));
+      Offset.zero & size,
+      Paint()..color = const Color(0xFFFFFFFF),
+    );
     final columns = (size.width / 12).floor();
     final rows = (glyphCount / columns).ceil();
     for (var index = 0; index < glyphCount; index++) {

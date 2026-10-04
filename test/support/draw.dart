@@ -73,16 +73,15 @@ List<LineDraw> staffLines({
   required double left,
   required double right,
   required double thickness,
-}) =>
-    [
-      for (final step in lines == 1 ? const [4] : const [0, 2, 4, 6, 8])
-        LineDraw(
-          SpPoint(left, top + yOfStep(step)),
-          SpPoint(right, top + yOfStep(step)),
-          thickness: thickness,
-          ink: InkRole.staffLine,
-        ),
-    ];
+}) => [
+  for (final step in lines == 1 ? const [4] : const [0, 2, 4, 6, 8])
+    LineDraw(
+      SpPoint(left, top + yOfStep(step)),
+      SpPoint(right, top + yOfStep(step)),
+      thickness: thickness,
+      ink: InkRole.staffLine,
+    ),
+];
 
 /// Writes [png] as `<name>.png` into the directory the `SNAPSHOT_DIR`
 /// environment variable names, when it is set, for looking at.
@@ -118,9 +117,7 @@ Future<({Uint8List rgba, Uint8List png})> render(
   final rgba = (await image.toByteData())!.buffer.asUint8List();
   final png = (await image.toByteData(
     format: ui.ImageByteFormat.png,
-  ))!
-      .buffer
-      .asUint8List();
+  ))!.buffer.asUint8List();
   image.dispose();
   picture.dispose();
   return (rgba: rgba, png: png);

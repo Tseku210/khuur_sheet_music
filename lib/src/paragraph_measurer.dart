@@ -24,8 +24,12 @@ final class ParagraphMeasurer implements TextMeasurer {
   @override
   TextExtent measure(String text, TextSpec spec) =>
       _extents.putIfAbsent((text, spec), () {
-        final paragraph =
-            textParagraph(text, spec, _probePx, const Color(0xFF000000));
+        final paragraph = textParagraph(
+          text,
+          spec,
+          _probePx,
+          const Color(0xFF000000),
+        );
         final perPx = spec.size / _probePx;
         final extent = TextExtent(
           width: paragraph.maxIntrinsicWidth * perPx,
@@ -39,6 +43,6 @@ final class ParagraphMeasurer implements TextMeasurer {
   /// Whether this measurer gives every text [other] was asked for the
   /// extent [other] gave it. False after a font those texts use has loaded.
   bool agreesWith(ParagraphMeasurer other) => other._extents.entries.every(
-        (entry) => measure(entry.key.$1, entry.key.$2) == entry.value,
-      );
+    (entry) => measure(entry.key.$1, entry.key.$2) == entry.value,
+  );
 }

@@ -44,8 +44,9 @@ void main() {
     });
   });
 
-  testWidgets('a small glyph is its box scaled about its origin',
-      (tester) async {
+  testWidgets('a small glyph is its box scaled about its origin', (
+    tester,
+  ) async {
     await tester.runAsync(() async {
       final painter = bravuraPainter();
       await loadBravura(painter);
@@ -64,8 +65,9 @@ void main() {
     });
   });
 
-  testWidgets('one painter draws a glyph in each colour asked for',
-      (tester) async {
+  testWidgets('one painter draws a glyph in each colour asked for', (
+    tester,
+  ) async {
     await tester.runAsync(() async {
       final painter = bravuraPainter();
       await loadBravura(painter);
@@ -103,8 +105,9 @@ void main() {
     });
   });
 
-  testWidgets('a stretched brace keeps its width and its origin',
-      (tester) async {
+  testWidgets('a stretched brace keeps its width and its origin', (
+    tester,
+  ) async {
     await tester.runAsync(() async {
       final painter = bravuraPainter();
       await loadBravura(painter);

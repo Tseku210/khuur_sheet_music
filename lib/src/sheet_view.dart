@@ -353,24 +353,24 @@ class _SheetViewState extends State<SheetView> {
 
   /// Sheet space to this widget's local pixels, scroll included.
   SheetScale _viewportOf(_Shown shown) => SheetScale(
-        spacePx: shown.spacePx,
-        origin: Offset(
-          shown.padding.left,
-          shown.padding.top - (_scroll.hasClients ? _scroll.offset : 0),
-        ),
-      );
+    spacePx: shown.spacePx,
+    origin: Offset(
+      shown.padding.left,
+      shown.padding.top - (_scroll.hasClients ? _scroll.offset : 0),
+    ),
+  );
 
   /// What a tap at [local] means on the sheet this view shows. A view that
   /// shares its controller answers for its own sheet here.
   SheetHit? _hitTest(Offset local, VoiceSlot voice) => switch (_shown) {
-        final shown? => shown.layout.hitTest(
-            _viewportOf(shown).toSheet(local),
-            voice: voice,
-            grid: widget.tapGrid,
-            reach: kTouchSlop / shown.spacePx,
-          ),
-        null => null,
-      };
+    final shown? => shown.layout.hitTest(
+      _viewportOf(shown).toSheet(local),
+      voice: voice,
+      grid: widget.tapGrid,
+      reach: kTouchSlop / shown.spacePx,
+    ),
+    null => null,
+  };
 
   /// The boxes [find] takes from the layout on screen, in this widget's
   /// local pixels. None before the first frame.
@@ -488,13 +488,13 @@ class _SheetViewState extends State<SheetView> {
   /// loads itself can arrive late too. A new painter repaints the systems
   /// on screen and lays nothing out.
   void _afterFontsChanged() => setState(() {
-        final fresh = ParagraphMeasurer();
-        if (!fresh.agreesWith(_measurer)) {
-          _measurer = fresh;
-          _stale = true;
-        }
-        _glyphs = GlyphPainter(widget.style.font);
-      });
+    final fresh = ParagraphMeasurer();
+    if (!fresh.agreesWith(_measurer)) {
+      _measurer = fresh;
+      _stale = true;
+    }
+    _glyphs = GlyphPainter(widget.style.font);
+  });
 
   /// Brings the playhead's system to the top of the view when the playhead
   /// enters it and it is not wholly in view. The playhead enters a system
@@ -567,7 +567,8 @@ class _SheetViewState extends State<SheetView> {
     return (
       top: top,
       bottom: bottom,
-      inView: top >= position.pixels &&
+      inView:
+          top >= position.pixels &&
           bottom <= position.pixels + position.viewportDimension,
     );
   }
@@ -612,10 +613,11 @@ class _SheetViewState extends State<SheetView> {
       return;
     }
     final fits = bottom - top <= position.viewportDimension;
-    final target = (scroll.toTop || top < position.pixels || !fits
-            ? top
-            : bottom - position.viewportDimension)
-        .clamp(position.minScrollExtent, position.maxScrollExtent);
+    final target =
+        (scroll.toTop || top < position.pixels || !fits
+                ? top
+                : bottom - position.viewportDimension)
+            .clamp(position.minScrollExtent, position.maxScrollExtent);
     if (scroll.duration == Duration.zero) {
       position.jumpTo(target);
       end();
@@ -625,13 +627,13 @@ class _SheetViewState extends State<SheetView> {
     position
         .animateTo(target, duration: scroll.duration, curve: Curves.easeInOut)
         .whenComplete(() {
-      // The animation ended or the user took over. Either way the position
-      // runs nothing of the view's now.
-      if (_animating == drive) {
-        _animating = null;
-      }
-      end();
-    });
+          // The animation ended or the user took over. Either way the position
+          // runs nothing of the view's now.
+          if (_animating == drive) {
+            _animating = null;
+          }
+          end();
+        });
   }
 
   /// The bar to keep in place across the next update, read from the sheet
@@ -733,144 +735,147 @@ class _SheetViewState extends State<SheetView> {
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
-        builder: (context, constraints) {
-          assert(
-            constraints.hasBoundedWidth,
-            'SheetView breaks lines at its width, so it needs a bounded '
-            'width. Give it one with a SizedBox or an Expanded.',
-          );
-          final spacePx = widget.staffSpace * _controller.zoom;
-          final padding = widget.padding;
-          final width = (constraints.maxWidth - padding.horizontal) / spacePx;
-          final previous = _shown;
-          final anchor = previous == null ? null : _anchorIn(previous);
-          final layout = previous == null || _stale
-              ? SheetLayout(
-                  widget.score,
-                  width: width,
-                  text: _measurer,
-                  style: widget.style,
-                )
-              : previous.layout.update(widget.score, width: width);
-          if (previous == null) {
-            // The scroll view makes its position after this returns.
-            _scroll.start =
-                _startOf(layout, spacePx, padding, constraints.maxHeight);
+    builder: (context, constraints) {
+      assert(
+        constraints.hasBoundedWidth,
+        'SheetView breaks lines at its width, so it needs a bounded '
+        'width. Give it one with a SizedBox or an Expanded.',
+      );
+      final spacePx = widget.staffSpace * _controller.zoom;
+      final padding = widget.padding;
+      final width = (constraints.maxWidth - padding.horizontal) / spacePx;
+      final previous = _shown;
+      final anchor = previous == null ? null : _anchorIn(previous);
+      final layout = previous == null || _stale
+          ? SheetLayout(
+              widget.score,
+              width: width,
+              text: _measurer,
+              style: widget.style,
+            )
+          : previous.layout.update(widget.score, width: width);
+      if (previous == null) {
+        // The scroll view makes its position after this returns.
+        _scroll.start = _startOf(
+          layout,
+          spacePx,
+          padding,
+          constraints.maxHeight,
+        );
+      }
+      _keepInPlace(anchor, layout, spacePx);
+      _stale = false;
+      final palette = widget.palette ?? SheetPalette.of(context);
+      _shown = (
+        layout: layout,
+        spacePx: spacePx,
+        padding: padding,
+        palette: palette,
+      );
+      if (!identical(layout, previous?.layout)) {
+        // The controller's listeners may rebuild, which a layout pass
+        // does not allow. They hear of the new geometry after this
+        // frame, when the scroll extent is the new layout's too.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) {
+            return;
           }
-          _keepInPlace(anchor, layout, spacePx);
-          _stale = false;
-          final palette = widget.palette ?? SheetPalette.of(context);
-          _shown = (
-            layout: layout,
-            spacePx: spacePx,
-            padding: padding,
-            palette: palette,
-          );
-          if (!identical(layout, previous?.layout)) {
-            // The controller's listeners may rebuild, which a layout pass
-            // does not allow. They hear of the new geometry after this
-            // frame, when the scroll extent is the new layout's too.
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) {
-                return;
-              }
-              final scroll = _scrollingTo;
-              if (scroll != null) {
-                _drive(scroll);
-              }
-              _controller._moved();
-            });
+          final scroll = _scrollingTo;
+          if (scroll != null) {
+            _drive(scroll);
           }
-          final scale = SheetScale(spacePx: spacePx);
-          final onTap = widget.onTap;
-          return GestureDetector(
-            onTapUp: onTap == null
-                ? null
-                : (details) {
-                    final hit = _hitTest(
-                      details.localPosition,
-                      widget.cursor?.voice ?? VoiceSlot.one,
-                    );
-                    if (hit != null) {
-                      onTap(hit);
-                    }
-                  },
-            child: CustomScrollView(
-              controller: _scroll,
-              slivers: [
-                SliverPadding(
-                  padding: padding,
-                  sliver: SliverMainAxisGroup(
-                    slivers: [
-                      SliverToBoxAdapter(
-                        child: SizedBox(
-                          height: layout.tops.first * spacePx,
-                          child: RepaintBoundary(
-                            child: CustomPaint(
-                              painter: HeaderPainter(
-                                header: layout.header,
+          _controller._moved();
+        });
+      }
+      final scale = SheetScale(spacePx: spacePx);
+      final onTap = widget.onTap;
+      return GestureDetector(
+        onTapUp: onTap == null
+            ? null
+            : (details) {
+                final hit = _hitTest(
+                  details.localPosition,
+                  widget.cursor?.voice ?? VoiceSlot.one,
+                );
+                if (hit != null) {
+                  onTap(hit);
+                }
+              },
+        child: CustomScrollView(
+          controller: _scroll,
+          slivers: [
+            SliverPadding(
+              padding: padding,
+              sliver: SliverMainAxisGroup(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: layout.tops.first * spacePx,
+                      child: RepaintBoundary(
+                        child: CustomPaint(
+                          painter: HeaderPainter(
+                            header: layout.header,
+                            glyphs: _glyphs,
+                            palette: palette,
+                            scale: scale,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SliverVariedExtentList(
+                    itemExtentBuilder: (index, _) => index < layout.systemCount
+                        ? _extentOf(layout, index) * spacePx
+                        : null,
+                    // Only a system scrolled into view is asked for,
+                    // so only those are assembled.
+                    delegate: _SystemTiles(
+                      // The scroll view makes each tile a node of its
+                      // own for a screen reader.
+                      (context, index) => Semantics(
+                        label: _labelOf(layout, index),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            RepaintBoundary(
+                              child: CustomPaint(
+                                painter: SystemPainter(
+                                  system: layout.systemAt(index),
+                                  label: layout.labelOf(index),
+                                  glyphs: _glyphs,
+                                  palette: palette,
+                                  scale: scale,
+                                ),
+                              ),
+                            ),
+                            CustomPaint(
+                              painter: OverlayPainter(
+                                layout: layout,
+                                index: index,
+                                cursor: widget.cursor,
+                                selection: widget.selection,
+                                tints: widget.tints,
+                                playback: widget.playback,
                                 glyphs: _glyphs,
                                 palette: palette,
                                 scale: scale,
                               ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
-                      SliverVariedExtentList(
-                        itemExtentBuilder: (index, _) =>
-                            index < layout.systemCount
-                                ? _extentOf(layout, index) * spacePx
-                                : null,
-                        // Only a system scrolled into view is asked for,
-                        // so only those are assembled.
-                        delegate: _SystemTiles(
-                          // The scroll view makes each tile a node of its
-                          // own for a screen reader.
-                          (context, index) => Semantics(
-                            label: _labelOf(layout, index),
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                RepaintBoundary(
-                                  child: CustomPaint(
-                                    painter: SystemPainter(
-                                      system: layout.systemAt(index),
-                                      label: layout.labelOf(index),
-                                      glyphs: _glyphs,
-                                      palette: palette,
-                                      scale: scale,
-                                    ),
-                                  ),
-                                ),
-                                CustomPaint(
-                                  painter: OverlayPainter(
-                                    layout: layout,
-                                    index: index,
-                                    cursor: widget.cursor,
-                                    selection: widget.selection,
-                                    tints: widget.tints,
-                                    playback: widget.playback,
-                                    glyphs: _glyphs,
-                                    palette: palette,
-                                    scale: scale,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          childCount: layout.systemCount,
-                          extent: (layout.height - layout.tops.first) * spacePx,
-                        ),
-                      ),
-                    ],
+                      childCount: layout.systemCount,
+                      extent: (layout.height - layout.tops.first) * spacePx,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          );
-        },
+          ],
+        ),
       );
+    },
+  );
 
   /// The height of a system's tile in staff spaces, which is its planned
   /// height and the gap to the next system. Known without assembling the
@@ -927,6 +932,5 @@ final class _SystemTiles extends SliverChildBuilderDelegate {
     int lastIndex,
     double leadingScrollOffset,
     double trailingScrollOffset,
-  ) =>
-      extent;
+  ) => extent;
 }

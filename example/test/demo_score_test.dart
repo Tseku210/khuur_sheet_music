@@ -42,8 +42,8 @@ const _played = [
 ];
 
 List<int> _keys(String pitches) => [
-      for (final name in pitches.split(' ')) Pitch.parse(name).midiKey,
-    ];
+  for (final name in pitches.split(' ')) Pitch.parse(name).midiKey,
+];
 
 void main() {
   final score = buildDemoScore();

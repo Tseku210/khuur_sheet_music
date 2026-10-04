@@ -47,8 +47,8 @@ final class ScorePlayer {
     required TickerProvider vsync,
     MidiOutput? output,
     Duration Function()? now,
-  })  : _output = output ?? FlutterMidiOutput(),
-        _now = now ?? _stopwatch() {
+  }) : _output = output ?? FlutterMidiOutput(),
+       _now = now ?? _stopwatch() {
     _ticker = vsync.createTicker((_) {
       if (_phase case _Playing(:final run)) {
         _publish(run);
@@ -201,9 +201,9 @@ final class ScorePlayer {
 
   /// The run that is playing or paused.
   _Run? get _run => switch (_phase) {
-        _Playing(:final run) || _Paused(:final run) => run,
-        _Idle() || _Loading() => null,
-      };
+    _Playing(:final run) || _Paused(:final run) => run,
+    _Idle() || _Loading() => null,
+  };
 
   /// Makes [phase] the player's phase and tells the status listeners. A
   /// listener may call back into the player, so whatever follows this in a
@@ -229,9 +229,9 @@ final class ScorePlayer {
   /// Asks for every program before the first answer comes, so the programs
   /// of an older [play] cannot land after those of a newer one.
   Future<void> _setPrograms(List<ChannelSetup> channels) => Future.wait([
-        for (final ChannelSetup(:channel, :program, :bank) in channels)
-          _output.program(channel: channel, program: program, bank: bank),
-      ]);
+    for (final ChannelSetup(:channel, :program, :bank) in channels)
+      _output.program(channel: channel, program: program, bank: bank),
+  ]);
 
   /// Sends what is due and sleeps until the next thing is. [due] is the
   /// script second the timer was set for. A timer can fire a moment early,

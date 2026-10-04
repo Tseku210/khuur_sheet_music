@@ -78,14 +78,14 @@ void main() {
     assets = {};
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMessageHandler(
-      'flutter/assets',
-      (message) async => switch (assets[utf8.decode(
-        message!.buffer.asUint8List(),
-      )]) {
-        final bytes? => ByteData.sublistView(Uint8List.fromList(bytes)),
-        null => null,
-      },
-    );
+          'flutter/assets',
+          (message) async => switch (assets[utf8.decode(
+            message!.buffer.asUint8List(),
+          )]) {
+            final bytes? => ByteData.sublistView(Uint8List.fromList(bytes)),
+            null => null,
+          },
+        );
     tmp = Directory.systemTemp.createTempSync('midi_output_test');
     final sf2 = File('${tmp.path}/piano.sf2')..writeAsBytesSync([1, 2, 3]);
     soundFont = FileSoundFont(sf2.path);
@@ -154,80 +154,86 @@ void main() {
   });
 
   testWidgets(
-      'bends a channel for a quarter tone, and back for the next note that '
-      'is not one', (tester) async {
-    final output = FlutterMidiOutput();
-    await tester.runAsync(() => output.load(soundFont));
-    await output.program(channel: 0, program: 0, bank: 0);
-    await output.program(channel: 1, program: 0, bank: 0);
-    midi.calls.clear();
-    output
-      ..noteOn(channel: 0, key: 60, velocity: 80, cents: 0)
-      ..noteOn(channel: 0, key: 62, velocity: 80, cents: 50)
-      ..noteOn(channel: 0, key: 64, velocity: 80, cents: 50)
-      ..noteOn(channel: 1, key: 48, velocity: 80, cents: 0)
-      ..noteOn(channel: 0, key: 65, velocity: 80, cents: 0)
-      ..dispose();
+    'bends a channel for a quarter tone, and back for the next note that '
+    'is not one',
+    (tester) async {
+      final output = FlutterMidiOutput();
+      await tester.runAsync(() => output.load(soundFont));
+      await output.program(channel: 0, program: 0, bank: 0);
+      await output.program(channel: 1, program: 0, bank: 0);
+      midi.calls.clear();
+      output
+        ..noteOn(channel: 0, key: 60, velocity: 80, cents: 0)
+        ..noteOn(channel: 0, key: 62, velocity: 80, cents: 50)
+        ..noteOn(channel: 0, key: 64, velocity: 80, cents: 50)
+        ..noteOn(channel: 1, key: 48, velocity: 80, cents: 0)
+        ..noteOn(channel: 0, key: 65, velocity: 80, cents: 0)
+        ..dispose();
 
-    expect(midi.calls, [
-      'on sf7 0:60 v80',
-      'bend sf7 0 = 10240',
-      'on sf7 0:62 v80',
-      'on sf7 0:64 v80',
-      'on sf7 1:48 v80',
-      'bend sf7 0 = 8192',
-      'on sf7 0:65 v80',
-      'unload sf7',
-    ]);
-  });
-
-  testWidgets(
-      'puts a channel at rest before its first program, since an output '
-      'before it may have left it bent, and not again while it is at rest',
-      (tester) async {
-    final output = FlutterMidiOutput();
-    await tester.runAsync(() => output.load(soundFont));
-    await output.program(channel: 3, program: 0, bank: 0);
-    output.noteOn(channel: 3, key: 60, velocity: 80, cents: 0);
-    await output.program(channel: 3, program: 5, bank: 0);
-    output.dispose();
-
-    expect(midi.calls, [
-      'bend sf7 3 = 8192',
-      'select sf7 3 = 0/0',
-      'on sf7 3:60 v80',
-      'select sf7 3 = 0/5',
-      'unload sf7',
-    ]);
-  });
+      expect(midi.calls, [
+        'on sf7 0:60 v80',
+        'bend sf7 0 = 10240',
+        'on sf7 0:62 v80',
+        'on sf7 0:64 v80',
+        'on sf7 1:48 v80',
+        'bend sf7 0 = 8192',
+        'on sf7 0:65 v80',
+        'unload sf7',
+      ]);
+    },
+  );
 
   testWidgets(
-      'puts a bent channel at rest before a new program, and bends it again '
-      'for the next quarter tone', (tester) async {
-    final output = FlutterMidiOutput();
-    await tester.runAsync(() => output.load(soundFont));
-    await output.program(channel: 0, program: 0, bank: 0);
-    output.noteOn(channel: 0, key: 60, velocity: 80, cents: 50);
-    await output.program(channel: 0, program: 0, bank: 0);
-    output
-      ..noteOn(channel: 0, key: 60, velocity: 80, cents: 50)
-      ..dispose();
+    'puts a channel at rest before its first program, since an output '
+    'before it may have left it bent, and not again while it is at rest',
+    (tester) async {
+      final output = FlutterMidiOutput();
+      await tester.runAsync(() => output.load(soundFont));
+      await output.program(channel: 3, program: 0, bank: 0);
+      output.noteOn(channel: 3, key: 60, velocity: 80, cents: 0);
+      await output.program(channel: 3, program: 5, bank: 0);
+      output.dispose();
 
-    expect(midi.calls, [
-      'bend sf7 0 = 8192',
-      'select sf7 0 = 0/0',
-      'bend sf7 0 = 10240',
-      'on sf7 0:60 v80',
-      'bend sf7 0 = 8192',
-      'select sf7 0 = 0/0',
-      'bend sf7 0 = 10240',
-      'on sf7 0:60 v80',
-      'unload sf7',
-    ]);
-  });
+      expect(midi.calls, [
+        'bend sf7 3 = 8192',
+        'select sf7 3 = 0/0',
+        'on sf7 3:60 v80',
+        'select sf7 3 = 0/5',
+        'unload sf7',
+      ]);
+    },
+  );
 
-  testWidgets('disposed while loading, unloads the SoundFont once it arrives',
-      (tester) async {
+  testWidgets(
+    'puts a bent channel at rest before a new program, and bends it again '
+    'for the next quarter tone',
+    (tester) async {
+      final output = FlutterMidiOutput();
+      await tester.runAsync(() => output.load(soundFont));
+      await output.program(channel: 0, program: 0, bank: 0);
+      output.noteOn(channel: 0, key: 60, velocity: 80, cents: 50);
+      await output.program(channel: 0, program: 0, bank: 0);
+      output
+        ..noteOn(channel: 0, key: 60, velocity: 80, cents: 50)
+        ..dispose();
+
+      expect(midi.calls, [
+        'bend sf7 0 = 8192',
+        'select sf7 0 = 0/0',
+        'bend sf7 0 = 10240',
+        'on sf7 0:60 v80',
+        'bend sf7 0 = 8192',
+        'select sf7 0 = 0/0',
+        'bend sf7 0 = 10240',
+        'on sf7 0:60 v80',
+        'unload sf7',
+      ]);
+    },
+  );
+
+  testWidgets('disposed while loading, unloads the SoundFont once it arrives', (
+    tester,
+  ) async {
     final output = FlutterMidiOutput();
     await tester.runAsync(() async {
       final loading = output.load(soundFont);

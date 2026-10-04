@@ -70,7 +70,10 @@ final Map<String, MeasureView> bars = {
     chordOf(
       3,
       'D5',
-      graces: [graceOf(4, 'C5', value: sixteenth), graceOf(5, 'B4')],
+      graces: [
+        graceOf(4, 'C5', value: sixteenth),
+        graceOf(5, 'B4'),
+      ],
     ),
     chordOf(
       6,
@@ -150,30 +153,29 @@ MeasureView changedBar({
   Meter fromMeter = Meter.fourFour,
   Meter? meter,
   bool repeat = false,
-}) =>
-    viewOf(
-      after(
-        beatsScore(
-          2,
-          clefs: [from],
-          key: fromKey,
-          meter: fromMeter,
-          pitch: pitch,
+}) => viewOf(
+  after(
+    beatsScore(
+      2,
+      clefs: [from],
+      key: fromKey,
+      meter: fromMeter,
+      pitch: pitch,
+    ),
+    [
+      if (key != null) SetKey(from: barId(1), key: key),
+      if (meter != null) SetMeter(from: barId(1), meter: meter),
+      if (clef != null)
+        SetClef(
+          staff: staffId(0),
+          at: ScorePoint(barId(1), Moment.zero),
+          clef: clef,
         ),
-        [
-          if (key != null) SetKey(from: barId(1), key: key),
-          if (meter != null) SetMeter(from: barId(1), meter: meter),
-          if (clef != null)
-            SetClef(
-              staff: staffId(0),
-              at: ScorePoint(barId(1), Moment.zero),
-              clef: clef,
-            ),
-          if (repeat) SetRepeatStart(barId(1), start: true),
-        ],
-      ),
-      1,
-    );
+      if (repeat) SetRepeatStart(barId(1), start: true),
+    ],
+  ),
+  1,
+);
 
 const KeySignature fourSharps = KeySignature(4);
 const KeySignature fourFlats = KeySignature(-4);
@@ -230,7 +232,8 @@ final Map<String, MeasureView> headBars = {
   int width,
   int height,
   double bottom,
-}) sheetOf(
+})
+sheetOf(
   BarLayout layout, {
   SplitHead head = SplitHead.none,
   bool barline = false,
@@ -247,7 +250,7 @@ final Map<String, MeasureView> headBars = {
     // whole pixel keeps every glyph where its box says.
     top =
         ((top + math.max(staff.above, reach.above)) * spacePx).ceilToDouble() /
-            spacePx;
+        spacePx;
     tops.add(top);
     top += staffHeight + math.max(staff.below, reach.below) + margin;
   }
@@ -322,12 +325,18 @@ void main() {
           final rect = scale.rectOf(drawable.bounds);
           final reason = '$name: $drawable';
           expect(ink, isNotNull, reason: reason);
-          expect(ink!.left, greaterThanOrEqualTo(rect.left - 1),
-              reason: reason);
+          expect(
+            ink!.left,
+            greaterThanOrEqualTo(rect.left - 1),
+            reason: reason,
+          );
           expect(ink.top, greaterThanOrEqualTo(rect.top - 1), reason: reason);
           expect(ink.right, lessThanOrEqualTo(rect.right + 1), reason: reason);
-          expect(ink.bottom, lessThanOrEqualTo(rect.bottom + 1),
-              reason: reason);
+          expect(
+            ink.bottom,
+            lessThanOrEqualTo(rect.bottom + 1),
+            reason: reason,
+          );
         }
         final image = await render(
           sheet.width,
@@ -339,8 +348,7 @@ void main() {
     });
   });
 
-  testWidgets(
-      'each head of a bar leaves ink where it says, in front of the '
+  testWidgets('each head of a bar leaves ink where it says, in front of the '
       'notes', (tester) async {
     await tester.runAsync(() async {
       final painter = bravuraPainter();
@@ -383,13 +391,22 @@ void main() {
             final rect = scale.rectOf(drawable.bounds);
             final reason = '$name, head $index: $drawable';
             expect(ink, isNotNull, reason: reason);
-            expect(ink!.left, greaterThanOrEqualTo(rect.left - 1),
-                reason: reason);
+            expect(
+              ink!.left,
+              greaterThanOrEqualTo(rect.left - 1),
+              reason: reason,
+            );
             expect(ink.top, greaterThanOrEqualTo(rect.top - 1), reason: reason);
-            expect(ink.right, lessThanOrEqualTo(rect.right + 1),
-                reason: reason);
-            expect(ink.bottom, lessThanOrEqualTo(rect.bottom + 1),
-                reason: reason);
+            expect(
+              ink.right,
+              lessThanOrEqualTo(rect.right + 1),
+              reason: reason,
+            );
+            expect(
+              ink.bottom,
+              lessThanOrEqualTo(rect.bottom + 1),
+              reason: reason,
+            );
           }
         }
         final image = await render(

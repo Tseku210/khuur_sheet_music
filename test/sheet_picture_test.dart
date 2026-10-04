@@ -44,34 +44,34 @@ Score edit(Score score, Edit edit) =>
     applied(EditSession.start(score).run(edit)).score;
 
 SheetLayout layoutOf(Score score) => SheetLayout(
-      score,
-      width: sheetWidth,
-      text: ParagraphMeasurer(),
-      style: pictureStyle,
-    );
+  score,
+  width: sheetWidth,
+  text: ParagraphMeasurer(),
+  style: pictureStyle,
+);
 
 List<Drawable> inkOf(SheetLayout layout, int system) => [
-      ...layout.systemAt(system).drawables,
-      ?layout.labelOf(system),
-    ];
+  ...layout.systemAt(system).drawables,
+  ?layout.labelOf(system),
+];
 
 Ink? inkOfImage(Uint8List rgba, int width) => inkIn(
-      rgba,
-      width,
-      left: 0,
-      top: 0,
-      right: width,
-      bottom: rgba.length ~/ (4 * width),
-    );
+  rgba,
+  width,
+  left: 0,
+  top: 0,
+  right: width,
+  bottom: rgba.length ~/ (4 * width),
+);
 
 /// The ink in each pixel column of an RGBA image [width] pixels wide, in
 /// pixels fully covered.
 List<double> columnInk(Uint8List rgba, int width) => [
-      for (var x = 0; x < width; x++)
-        [for (var at = x * 4 + 3; at < rgba.length; at += width * 4) rgba[at]]
-                .fold(0, (sum, alpha) => sum + alpha) /
-            255,
-    ];
+  for (var x = 0; x < width; x++)
+    [for (var at = x * 4 + 3; at < rgba.length; at += width * 4) rgba[at]]
+            .fold(0, (sum, alpha) => sum + alpha) /
+        255,
+];
 
 void expectInside(Ink? ink, ui.Rect rect, String reason) {
   expect(ink, isNotNull, reason: reason);
@@ -84,12 +84,12 @@ void expectInside(Ink? ink, ui.Rect rect, String reason) {
 /// The scale that paints a system whose band starts at [top]. A system on a
 /// whole pixel keeps its glyphs where their boxes say.
 SheetScale scaleOf(double top) => SheetScale(
-      spacePx: spacePx,
-      origin: ui.Offset(
-        margin * spacePx,
-        ((margin + top) * spacePx).ceilToDouble(),
-      ),
-    );
+  spacePx: spacePx,
+  origin: ui.Offset(
+    margin * spacePx,
+    ((margin + top) * spacePx).ceilToDouble(),
+  ),
+);
 
 /// The PNG of [layout] under its header, after checking that each system's
 /// ink alone stays inside its band.
@@ -117,7 +117,11 @@ Future<Uint8List> pictureOf(SheetLayout layout, GlyphPainter painter) async {
     paintDrawables(canvas, painter, layout.header, scaleOf(0));
     for (var i = 0; i < layout.systemCount; i++) {
       paintDrawables(
-          canvas, painter, inkOf(layout, i), scaleOf(layout.tops[i]));
+        canvas,
+        painter,
+        inkOf(layout, i),
+        scaleOf(layout.tops[i]),
+      );
     }
   });
   return image.png;
@@ -170,13 +174,12 @@ Score vocal() {
     NoteValue value, [
     String? first,
     String? second,
-  ]) =>
-      chordOf(id++, pitch, value: value).copyWith(
-        lyrics: Seq([
-          if (first != null) syllable(first, 1),
-          if (second != null) syllable(second, 2),
-        ]),
-      );
+  ]) => chordOf(id++, pitch, value: value).copyWith(
+    lyrics: Seq([
+      if (first != null) syllable(first, 1),
+      if (second != null) syllable(second, 2),
+    ]),
+  );
 
   for (final (bar, items) in <(int, List<VoiceItem>)>[
     (
@@ -185,7 +188,7 @@ Score vocal() {
         sung('G4', NoteValue.quarter, 'Gen-', 'Сал-'),
         sung('A4', NoteValue.quarter, '-tle', '-хи'),
         sung('B4', half, 'wind', 'нам'),
-      ]
+      ],
     ),
     (
       1,
@@ -194,7 +197,7 @@ Score vocal() {
         sung('D5', NoteValue.quarter, 'o-', 'сай-'),
         sung('E5', NoteValue.quarter, '-ver', '-хан'),
         sung('D5', NoteValue.quarter, 'the', 'тэр'),
-      ]
+      ],
     ),
     (
       2,
@@ -202,21 +205,21 @@ Score vocal() {
         sung('C5', half, 'ah_', 'а_'),
         sung('B4', NoteValue.quarter),
         sung('A4', NoteValue.quarter),
-      ]
+      ],
     ),
     (
       3,
       [
         sung('G4', half, 'bright', 'гэгээн'),
         sung('A4', half, 'sun-', 'нар-'),
-      ]
+      ],
     ),
     (
       4,
       [
         sung('B4', half, '-light', '-ан'),
         sung('C5', half, 'falls', 'тусна'),
-      ]
+      ],
     ),
     (
       5,
@@ -225,14 +228,14 @@ Score vocal() {
         sung('C5', NoteValue.quarter, '-ly', '-лөн'),
         sung('B4', NoteValue.quarter, 'down', 'бууна'),
         sung('A4', NoteValue.quarter, 'ev-', 'мөн-'),
-      ]
+      ],
     ),
     (
       6,
       [
         sung('G4', half, '-er', '-хөд'),
         sung('A4', half, 'oh_', 'о_'),
-      ]
+      ],
     ),
     (7, [sung('B4', half), rest(id++, half)]),
   ]) {
@@ -263,22 +266,29 @@ Score ensemble() {
     String pitches, [
     NoteValue value = NoteValue.quarter,
     Set<Articulation> marks = const {},
-  ]) =>
-      chordOf(id++, pitches, value: value).copyWith(articulations: marks);
+  ]) => chordOf(id++, pitches, value: value).copyWith(articulations: marks);
   RestEvent silence(NoteValue value) => rest(id++, value);
   ChordEvent fingered(ChordEvent chord, int finger) => chord.copyWith(
-        notes: Seq([
-          for (final note in chord.notes)
-            (note as PitchedNote).copyWith(fingering: () => finger),
-        ]),
-      );
+    notes: Seq([
+      for (final note in chord.notes)
+        (note as PitchedNote).copyWith(fingering: () => finger),
+    ]),
+  );
   const held = {Articulation.fermata};
 
   score = fill(score, 0, [chord('G4').copyWith(bowing: () => Bowing.up)]);
   for (final bar in [1, 2, 3]) {
     score = fill(score, bar, [
-      for (final (i, pitch)
-          in const ['G4', 'A4', 'B4', 'C5', 'D5', 'C5', 'B4', 'A4'].indexed)
+      for (final (i, pitch) in const [
+        'G4',
+        'A4',
+        'B4',
+        'C5',
+        'D5',
+        'C5',
+        'B4',
+        'A4',
+      ].indexed)
         if (bar != 2)
           chord(pitch, eighth)
         else
@@ -287,24 +297,16 @@ Score ensemble() {
             if (i % 4 == 0) Articulation.accent,
           }).copyWith(bowing: () => i == 0 ? Bowing.down : null),
     ]);
-    score = fill(
-        score,
-        bar,
-        [
-          chord('C4 E4 G4', half),
-          chord('D4 F4 A4', half),
-        ],
-        staff: 1);
-    score = fill(
-        score,
-        bar,
-        [
-          chord('C3'),
-          chord('G2'),
-          chord('E3'),
-          chord('G2'),
-        ],
-        staff: 2);
+    score = fill(score, bar, [
+      chord('C4 E4 G4', half),
+      chord('D4 F4 A4', half),
+    ], staff: 1);
+    score = fill(score, bar, [
+      chord('C3'),
+      chord('G2'),
+      chord('E3'),
+      chord('G2'),
+    ], staff: 2);
   }
   for (final bar in [4, 5, 6, 7]) {
     score = fill(score, bar, [
@@ -314,14 +316,10 @@ Score ensemble() {
       chord('F5', eighth),
       chord('G5').copyWith(ornament: () => bar == 5 ? Ornament.trill : null),
     ]);
-    score = fill(
-        score,
-        bar,
-        [
-          silence(half),
-          chord('E4 G4 B4', half),
-        ],
-        staff: 1);
+    score = fill(score, bar, [
+      silence(half),
+      chord('E4 G4 B4', half),
+    ], staff: 1);
     score = fill(score, bar, [chord('C3', whole)], staff: 2);
   }
   for (final bar in [8, 9, 10, 11]) {
@@ -339,15 +337,11 @@ Score ensemble() {
           chord(pitch, value),
     ]);
     score = fill(score, bar, [chord('D4 F#4 A4', whole)], staff: 1);
-    score = fill(
-        score,
-        bar,
-        [
-          chord('D3'),
-          chord('A2'),
-          chord('D3', half),
-        ],
-        staff: 2);
+    score = fill(score, bar, [
+      chord('D3'),
+      chord('A2'),
+      chord('D3', half),
+    ], staff: 2);
   }
   for (final bar in [12, 13, 14]) {
     score = fill(score, bar, [
@@ -364,26 +358,21 @@ Score ensemble() {
           unit: NoteValue.quarter,
           members: Seq([chord('C#5'), chord('D5'), chord('E5')]),
         )
-      else ...[chord('C#5'), chord('D5')],
+      else ...[
+        chord('C#5'),
+        chord('D5'),
+      ],
     ]);
-    score = fill(
-        score,
-        bar,
-        [
-          chord('G4 B4'),
-          silence(NoteValue.quarter),
-          chord('A4 C#5'),
-        ],
-        staff: 1);
-    score = fill(
-        score,
-        bar,
-        [
-          silence(NoteValue.quarter),
-          chord('G2'),
-          chord('A2'),
-        ],
-        staff: 2);
+    score = fill(score, bar, [
+      chord('G4 B4'),
+      silence(NoteValue.quarter),
+      chord('A4 C#5'),
+    ], staff: 1);
+    score = fill(score, bar, [
+      silence(NoteValue.quarter),
+      chord('G2'),
+      chord('A2'),
+    ], staff: 2);
   }
   score = fill(score, 15, [chord('D5', dottedHalf, held)]);
   score = fill(score, 15, [chord('D4 F#4 A4', dottedHalf, held)], staff: 1);
@@ -417,7 +406,7 @@ Score ensemble() {
         const DynamicMark(Moment.zero, Dynamic.mp),
         const ChordSymbol(Moment.zero, root: PitchName(Step.c)),
         ChordSymbol(at(2, 4), root: const PitchName(Step.d), quality: 'm'),
-      ]
+      ],
     ),
     (4, 0, const [DynamicMark(Moment.zero, Dynamic.f)]),
     (8, 0, const [DynamicMark(Moment.zero, Dynamic.p)]),
@@ -431,7 +420,7 @@ Score ensemble() {
           quality: 'm7',
           bass: PitchName(Step.a),
         ),
-      ]
+      ],
     ),
     (10, 0, const [TextMark(Moment.zero, 'dolce')]),
     (
@@ -439,7 +428,7 @@ Score ensemble() {
       1,
       const [
         ChordSymbol(Moment.zero, root: PitchName(Step.b, Alter.flat)),
-      ]
+      ],
     ),
     (14, 0, const [DynamicMark(Moment.zero, Dynamic.pp)]),
   ]) {
@@ -490,8 +479,9 @@ Score ensemble() {
 /// [score] with the last chord of [staff] in the bar before [bar] tied to the
 /// first chord of [bar], and retuned to it where the two differ.
 Score tiedInto(Score score, int bar, {required int staff}) {
-  List<VoiceItem> itemsOf(int bar) =>
-      [...score.measures[bar].staves[staff].voice(VoiceSlot.one)!.items];
+  List<VoiceItem> itemsOf(int bar) => [
+    ...score.measures[bar].staves[staff].voice(VoiceSlot.one)!.items,
+  ];
   final before = itemsOf(bar - 1);
   final from = before.removeLast() as ChordEvent;
   final to = itemsOf(bar).first as ChordEvent;
@@ -513,15 +503,15 @@ Score tiedInto(Score score, int bar, {required int staff}) {
 }
 
 Score overBarline(Score score, int bar) => withSpanner(
-      withSlur(
-        tiedInto(score, bar, staff: 2),
-        pointAt(score, bar - 1, at(2, 4)),
-        pointAt(score, bar, Moment.zero),
-      ),
-      const OctaveLine(OctaveShift.up8),
-      pointAt(score, bar - 1, Moment.zero),
-      pointAt(score, bar + 1, Moment.zero),
-    );
+  withSlur(
+    tiedInto(score, bar, staff: 2),
+    pointAt(score, bar - 1, at(2, 4)),
+    pointAt(score, bar, Moment.zero),
+  ),
+  const OctaveLine(OctaveShift.up8),
+  pointAt(score, bar - 1, Moment.zero),
+  pointAt(score, bar + 1, Moment.zero),
+);
 
 int secondSystemStart(Score score) {
   final layout = layoutOf(score);
@@ -529,12 +519,11 @@ int secondSystemStart(Score score) {
 }
 
 int tiedBar(Score score, int staff) => score.measures.toList().indexWhere(
-      (measure) =>
-          switch (measure.staves[staff].voice(VoiceSlot.one)!.items.last) {
-        ChordEvent(:final notes) => notes.any((note) => note.tie),
-        _ => false,
-      },
-    );
+  (measure) => switch (measure.staves[staff].voice(VoiceSlot.one)!.items.last) {
+    ChordEvent(:final notes) => notes.any((note) => note.tie),
+    _ => false,
+  },
+);
 
 /// [ensemble] with [overBarline] at its first system break. What that adds
 /// can move the break, so it is added again where the break went, three
@@ -576,26 +565,27 @@ Score clefChanges() {
   ].fold(score, edit);
 
   var id = 20000;
-  List<VoiceItem> line(List<String> pitches,
-          [NoteValue value = NoteValue.quarter]) =>
-      [for (final pitch in pitches) chordOf(id++, pitch, value: value)];
+  List<VoiceItem> line(
+    List<String> pitches, [
+    NoteValue value = NoteValue.quarter,
+  ]) => [for (final pitch in pitches) chordOf(id++, pitch, value: value)];
   for (var bar = 0; bar < 8; bar++) {
     final (melody, chords, bass) = switch (bar) {
       < 4 => (
-          line(['G4', 'A4', 'B4', 'D5']),
-          line(['C4 E4 G4', 'B3 D4 G4'], half),
-          line(bar < 2 ? ['C3', 'G2'] : ['E4', 'C4'], half),
-        ),
+        line(['G4', 'A4', 'B4', 'D5']),
+        line(['C4 E4 G4', 'B3 D4 G4'], half),
+        line(bar < 2 ? ['C3', 'G2'] : ['E4', 'C4'], half),
+      ),
       < 6 => (
-          line(['D4', 'F4', 'A4']),
-          line(['D4 F4 A4'], dottedHalf),
-          line(['F4'], dottedHalf),
-        ),
+        line(['D4', 'F4', 'A4']),
+        line(['D4 F4 A4'], dottedHalf),
+        line(['F4'], dottedHalf),
+      ),
       _ => (
-          line(['F4', 'A4', 'D5']),
-          line(['D4 F4 A4'], dottedHalf),
-          line(['F4'], dottedHalf),
-        ),
+        line(['F4', 'A4', 'D5']),
+        line(['D4 F4 A4'], dottedHalf),
+        line(['F4'], dottedHalf),
+      ),
     };
     score = fill(score, bar, melody);
     score = fill(score, bar, chords, staff: 1);
@@ -606,42 +596,46 @@ Score clefChanges() {
 
 void main() {
   testWidgets(
-      'clef changes paint small before their barlines, and the courtesy '
-      'clef before the last barline of the system before', (tester) async {
-    await tester.runAsync(() async {
-      final painter = bravuraPainter();
-      await loadBravura(painter);
-      await loadTextFont();
-      final layout = layoutOf(clefChanges());
+    'clef changes paint small before their barlines, and the courtesy '
+    'clef before the last barline of the system before',
+    (tester) async {
+      await tester.runAsync(() async {
+        final painter = bravuraPainter();
+        await loadBravura(painter);
+        await loadTextFont();
+        final layout = layoutOf(clefChanges());
 
-      expect(layout.systemCount, 2);
-      for (final (index, glyph, bar) in [
-        (0, 'gClefChange', 1),
-        (0, 'cClefChange', 3),
-        (1, 'gClefChange', 1),
-      ]) {
-        final system = layout.systemAt(index);
-        final bars = system.bars;
-        final clef = system.drawables
-            .whereType<GlyphDraw>()
-            .singleWhere((draw) => draw.glyph.name == glyph)
-            .bounds;
-        final reason = '$glyph after bar $bar of system $index';
+        expect(layout.systemCount, 2);
+        for (final (index, glyph, bar) in [
+          (0, 'gClefChange', 1),
+          (0, 'cClefChange', 3),
+          (1, 'gClefChange', 1),
+        ]) {
+          final system = layout.systemAt(index);
+          final bars = system.bars;
+          final clef = system.drawables
+              .whereType<GlyphDraw>()
+              .singleWhere((draw) => draw.glyph.name == glyph)
+              .bounds;
+          final reason = '$glyph after bar $bar of system $index';
 
-        expect(clef.left, greaterThanOrEqualTo(bars[bar].right - 1e-9),
-            reason: reason);
-        expect(
-          clef.right,
-          lessThan(bar + 1 < bars.length ? bars[bar + 1].left : system.width),
-          reason: reason,
-        );
-      }
-      writeSnapshot('sheet_clefs', await pictureOf(layout, painter));
-    });
-  });
+          expect(
+            clef.left,
+            greaterThanOrEqualTo(bars[bar].right - 1e-9),
+            reason: reason,
+          );
+          expect(
+            clef.right,
+            lessThan(bar + 1 < bars.length ? bars[bar + 1].left : system.width),
+            reason: reason,
+          );
+        }
+        writeSnapshot('sheet_clefs', await pictureOf(layout, painter));
+      });
+    },
+  );
 
-  testWidgets(
-      'a sheet of systems paints each system inside its band, under '
+  testWidgets('a sheet of systems paints each system inside its band, under '
       'its header', (tester) async {
     await tester.runAsync(() async {
       final painter = bravuraPainter();
@@ -672,8 +666,7 @@ void main() {
     });
   });
 
-  testWidgets(
-      'a vocal line paints two verses with their hyphens and extenders '
+  testWidgets('a vocal line paints two verses with their hyphens and extenders '
       'inside each system\'s band', (tester) async {
     await tester.runAsync(() async {
       final painter = bravuraPainter();
@@ -701,10 +694,14 @@ void main() {
 
       expect(layout.systemCount, 2);
       expect(wordOn(0, 'Сал').origin.y, greaterThan(wordOn(0, 'Gen').origin.y));
-      expect(wordOn(0, 'Сал').bounds.left,
-          lessThan(wordOn(0, 'Gen').bounds.right));
-      expect(wordOn(0, 'Сал').bounds.right,
-          greaterThan(wordOn(0, 'Gen').bounds.left));
+      expect(
+        wordOn(0, 'Сал').bounds.left,
+        lessThan(wordOn(0, 'Gen').bounds.right),
+      );
+      expect(
+        wordOn(0, 'Сал').bounds.right,
+        greaterThan(wordOn(0, 'Gen').bounds.left),
+      );
       for (final (system, after, before) in [
         (0, 'Gen', 'tle'),
         (0, 'o', 'ver'),
@@ -743,7 +740,8 @@ void main() {
                     : draw.bounds.right <= edge),
           ),
           isNotEmpty,
-          reason: 'a hyphen ${from != null ? 'after $from' : 'before $to'} '
+          reason:
+              'a hyphen ${from != null ? 'after $from' : 'before $to'} '
               'at the system break',
         );
       }
@@ -770,8 +768,7 @@ void main() {
     });
   });
 
-  testWidgets(
-      'every tie, slur, line and ending of the score is drawn on the '
+  testWidgets('every tie, slur, line and ending of the score is drawn on the '
       'systems its bars are on', (tester) async {
     await tester.runAsync(() async {
       await loadTextFont();
@@ -783,9 +780,9 @@ void main() {
       SystemLayout systemOf(MeasureId bar) =>
           layout.systemAt(layout.systemOf(bar)!);
       Iterable<T> drawn<T extends Drawable>(SystemLayout system, Spanner of) =>
-          system.drawables
-              .whereType<T>()
-              .where((drawable) => drawable.owner == SpannerOwner(of.id));
+          system.drawables.whereType<T>().where(
+            (drawable) => drawable.owner == SpannerOwner(of.id),
+          );
       Iterable<CurveDraw> tiesOf(SystemLayout system) => system.drawables
           .whereType<CurveDraw>()
           .where((curve) => curve.owner is ElementOwner);
@@ -868,8 +865,10 @@ void main() {
       }
       final pedal = only<PedalLine>();
       expect(
-        drawn<GlyphDraw>(systemOf(pedal.first.measure), pedal)
-            .map((glyph) => glyph.glyph),
+        drawn<GlyphDraw>(
+          systemOf(pedal.first.measure),
+          pedal,
+        ).map((glyph) => glyph.glyph),
         [Glyph.keyboardPedalPed],
         reason: 'the pedal line starts with its sign',
       );
@@ -892,340 +891,365 @@ void main() {
   });
 
   testWidgets(
-      'every mark, direction, system mark and tuplet of the score is drawn',
-      (tester) async {
-    await tester.runAsync(() async {
-      await loadTextFont();
-      final layout = layoutOf(pictured());
-      final drawables = [
-        for (var i = 0; i < layout.systemCount; i++)
-          ...layout.systemAt(i).drawables,
-      ];
-      // A trill line starts with the trill's glyph too.
-      final glyphs = drawables
-          .whereType<GlyphDraw>()
-          .where((glyph) => glyph.owner is! SpannerOwner)
-          .toList();
-      final texts = drawables.whereType<TextDraw>().toList();
-      int count(Glyph glyph) => glyphs.where((g) => g.glyph == glyph).length;
+    'every mark, direction, system mark and tuplet of the score is drawn',
+    (tester) async {
+      await tester.runAsync(() async {
+        await loadTextFont();
+        final layout = layoutOf(pictured());
+        final drawables = [
+          for (var i = 0; i < layout.systemCount; i++)
+            ...layout.systemAt(i).drawables,
+        ];
+        // A trill line starts with the trill's glyph too.
+        final glyphs = drawables
+            .whereType<GlyphDraw>()
+            .where((glyph) => glyph.owner is! SpannerOwner)
+            .toList();
+        final texts = drawables.whereType<TextDraw>().toList();
+        int count(Glyph glyph) => glyphs.where((g) => g.glyph == glyph).length;
 
-      for (final (glyph, times) in const [
-        (Glyph.articStaccatoBelow, 4),
-        (Glyph.articStaccatoAbove, 4),
-        (Glyph.articAccentBelow, 1),
-        (Glyph.articAccentAbove, 1),
-        (Glyph.fermataAbove, 3),
-        (Glyph.ornamentTrill, 1),
-        (Glyph.ornamentTurn, 1),
-        (Glyph.stringsUpBow, 1),
-        (Glyph.stringsDownBow, 1),
-        (Glyph.fingering0, 1),
-        (Glyph.fingering1, 2),
-        (Glyph.fingering3, 2),
-        (Glyph.dynamicMF, 1),
-        (Glyph.dynamicMP, 1),
-        (Glyph.dynamicForte, 1),
-        (Glyph.dynamicPiano, 1),
-        (Glyph.dynamicPP, 1),
-        (Glyph.metNoteQuarterUp, 1),
-        (Glyph.segno, 1),
-        (Glyph.coda, 1),
-        (Glyph.csymAccidentalSharp, 1),
-        (Glyph.csymAccidentalFlat, 1),
-        (Glyph.tuplet3, 2),
-      ]) {
-        expect(count(glyph), times, reason: glyph.name);
-      }
-
-      final words = texts.map((text) => text.text).toList();
-      for (final text in const [
-        'Allegro',
-        '= 120',
-        'dolce',
-        'To Coda',
-        'D.S. al Coda',
-        'C',
-        'D',
-        'm',
-        'F',
-        'm7',
-        '/',
-        'B',
-      ]) {
-        expect(words, contains(text));
-      }
-      expect(
-        texts.where((text) => text.enclosed).map((text) => text.text),
-        ['A', 'B'],
-        reason: 'the rehearsal marks are the boxed texts',
-      );
-
-      // A tuplet's number and bracket belong to no event. The bracket's
-      // lines are as thick as the font says and no taller than the number,
-      // which keeps barlines, staff lines and stems out of the count.
-      final thickness =
-          EngravingStyle.standard.font.defaults.tupletBracketThickness;
-      final brackets = [
-        for (var i = 0; i < layout.systemCount; i++)
-          for (final number in layout
-              .systemAt(i)
-              .drawables
-              .whereType<GlyphDraw>()
-              .where((glyph) => glyph.glyph == Glyph.tuplet3))
-            layout
-                .systemAt(i)
-                .drawables
-                .whereType<LineDraw>()
-                .where(
-                  (line) =>
-                      line.owner == null &&
-                      line.thickness == thickness &&
-                      line.bounds.bottom - line.bounds.top <=
-                          number.bounds.bottom - number.bounds.top &&
-                      line.bounds.bottom > number.bounds.top &&
-                      line.bounds.top < number.bounds.bottom &&
-                      line.bounds.left < number.bounds.right + 8 &&
-                      line.bounds.right > number.bounds.left - 8,
-                )
-                .length,
-      ];
-      expect(
-        glyphs
-            .where((glyph) => glyph.glyph == Glyph.tuplet3)
-            .map((glyph) => glyph.owner),
-        everyElement(isNull),
-      );
-      expect(
-        brackets,
-        [0, 4],
-        reason: 'the beamed triplet is its number alone, and the triplet of '
-            'quarters has a bracket of two hooks and two halves',
-      );
-    });
-  });
-
-  testWidgets(
-      'a rehearsal mark is painted with a hollow box on the edge of its '
-      'bounds', (tester) async {
-    await tester.runAsync(() async {
-      final painter = bravuraPainter();
-      await loadBravura(painter);
-      await loadTextFont();
-      final layout = layoutOf(pictured());
-      const pad = 4;
-      final marks = [
-        for (var i = 0; i < layout.systemCount; i++)
-          ...layout
-              .systemAt(i)
-              .drawables
-              .whereType<TextDraw>()
-              .where((text) => text.enclosed),
-      ];
-      expect(marks, hasLength(2));
-
-      for (final mark in marks) {
-        final box = mark.bounds;
-        final scale = SheetScale(
-          spacePx: spacePx,
-          origin: ui.Offset(
-            pad - box.left * spacePx,
-            pad - box.top * spacePx,
-          ),
-        );
-        final width = (box.width * spacePx).ceil() + 2 * pad;
-        final alone = await render(
-          width,
-          (box.height * spacePx).ceil() + 2 * pad,
-          (canvas) => paintDrawables(canvas, painter, [mark], scale),
-          background: null,
-        );
-        final ink = inkOfImage(alone.rgba, width)!;
-        final rect = scale.rectOf(box);
-        final line = painter.font.defaults.textEnclosureThickness * spacePx;
-        final columns = columnInk(alone.rgba, width);
-        final reason = 'rehearsal mark ${mark.text}';
-
-        expect(ink.left, closeTo(rect.left, 1), reason: reason);
-        expect(ink.top, closeTo(rect.top, 1), reason: reason);
-        expect(ink.right, closeTo(rect.right, 1), reason: reason);
-        expect(ink.bottom, closeTo(rect.bottom, 1), reason: reason);
-        for (final (side, x) in [
-          ('left', rect.left + 1),
-          ('right', rect.right - 2),
+        for (final (glyph, times) in const [
+          (Glyph.articStaccatoBelow, 4),
+          (Glyph.articStaccatoAbove, 4),
+          (Glyph.articAccentBelow, 1),
+          (Glyph.articAccentAbove, 1),
+          (Glyph.fermataAbove, 3),
+          (Glyph.ornamentTrill, 1),
+          (Glyph.ornamentTurn, 1),
+          (Glyph.stringsUpBow, 1),
+          (Glyph.stringsDownBow, 1),
+          (Glyph.fingering0, 1),
+          (Glyph.fingering1, 2),
+          (Glyph.fingering3, 2),
+          (Glyph.dynamicMF, 1),
+          (Glyph.dynamicMP, 1),
+          (Glyph.dynamicForte, 1),
+          (Glyph.dynamicPiano, 1),
+          (Glyph.dynamicPP, 1),
+          (Glyph.metNoteQuarterUp, 1),
+          (Glyph.segno, 1),
+          (Glyph.coda, 1),
+          (Glyph.csymAccidentalSharp, 1),
+          (Glyph.csymAccidentalFlat, 1),
+          (Glyph.tuplet3, 2),
         ]) {
-          expect(
-            columns[x.floor()],
-            closeTo(rect.height, 0.5),
-            reason: '$reason, the $side line of its box',
-          );
+          expect(count(glyph), times, reason: glyph.name);
+        }
+
+        final words = texts.map((text) => text.text).toList();
+        for (final text in const [
+          'Allegro',
+          '= 120',
+          'dolce',
+          'To Coda',
+          'D.S. al Coda',
+          'C',
+          'D',
+          'm',
+          'F',
+          'm7',
+          '/',
+          'B',
+        ]) {
+          expect(words, contains(text));
         }
         expect(
-          columns[(rect.left + line + 2).floor()],
-          closeTo(2 * line, 0.5),
-          reason: '$reason, between its box and its letter',
+          texts.where((text) => text.enclosed).map((text) => text.text),
+          ['A', 'B'],
+          reason: 'the rehearsal marks are the boxed texts',
         );
-      }
-    });
-  });
+
+        // A tuplet's number and bracket belong to no event. The bracket's
+        // lines are as thick as the font says and no taller than the number,
+        // which keeps barlines, staff lines and stems out of the count.
+        final thickness =
+            EngravingStyle.standard.font.defaults.tupletBracketThickness;
+        final brackets = [
+          for (var i = 0; i < layout.systemCount; i++)
+            for (final number
+                in layout
+                    .systemAt(i)
+                    .drawables
+                    .whereType<GlyphDraw>()
+                    .where((glyph) => glyph.glyph == Glyph.tuplet3))
+              layout
+                  .systemAt(i)
+                  .drawables
+                  .whereType<LineDraw>()
+                  .where(
+                    (line) =>
+                        line.owner == null &&
+                        line.thickness == thickness &&
+                        line.bounds.bottom - line.bounds.top <=
+                            number.bounds.bottom - number.bounds.top &&
+                        line.bounds.bottom > number.bounds.top &&
+                        line.bounds.top < number.bounds.bottom &&
+                        line.bounds.left < number.bounds.right + 8 &&
+                        line.bounds.right > number.bounds.left - 8,
+                  )
+                  .length,
+        ];
+        expect(
+          glyphs
+              .where((glyph) => glyph.glyph == Glyph.tuplet3)
+              .map((glyph) => glyph.owner),
+          everyElement(isNull),
+        );
+        expect(
+          brackets,
+          [0, 4],
+          reason:
+              'the beamed triplet is its number alone, and the triplet of '
+              'quarters has a bracket of two hooks and two halves',
+        );
+      });
+    },
+  );
 
   testWidgets(
-      'a curve, a glyph run and a dashed line leave the ink their drawables '
-      'describe', (tester) async {
-    await tester.runAsync(() async {
-      final painter = bravuraPainter();
-      await loadBravura(painter);
-      await loadTextFont();
-      final layout = layoutOf(pictured());
-      const pad = 4;
-      final kinds = <String>{};
+    'a rehearsal mark is painted with a hollow box on the edge of its '
+    'bounds',
+    (tester) async {
+      await tester.runAsync(() async {
+        final painter = bravuraPainter();
+        await loadBravura(painter);
+        await loadTextFont();
+        final layout = layoutOf(pictured());
+        const pad = 4;
+        final marks = [
+          for (var i = 0; i < layout.systemCount; i++)
+            ...layout
+                .systemAt(i)
+                .drawables
+                .whereType<TextDraw>()
+                .where((text) => text.enclosed),
+        ];
+        expect(marks, hasLength(2));
 
-      for (var i = 0; i < layout.systemCount; i++) {
-        for (final drawable in layout.systemAt(i).drawables) {
-          final dashedLine =
-              drawable is LineDraw && drawable.dash == LineDash.dashed;
-          if (drawable is! CurveDraw &&
-              drawable is! GlyphRunDraw &&
-              !dashedLine) {
-            continue;
-          }
-          final box = drawable.bounds;
+        for (final mark in marks) {
+          final box = mark.bounds;
           final scale = SheetScale(
             spacePx: spacePx,
             origin: ui.Offset(
-              pad - (box.left * spacePx).floorToDouble(),
-              pad - (box.top * spacePx).floorToDouble(),
+              pad - box.left * spacePx,
+              pad - box.top * spacePx,
             ),
           );
-          final width = (box.width * spacePx).ceil() + 2 * pad + 1;
+          final width = (box.width * spacePx).ceil() + 2 * pad;
           final alone = await render(
             width,
-            (box.height * spacePx).ceil() + 2 * pad + 1,
-            (canvas) => paintDrawables(canvas, painter, [drawable], scale),
+            (box.height * spacePx).ceil() + 2 * pad,
+            (canvas) => paintDrawables(canvas, painter, [mark], scale),
             background: null,
           );
-          final ink = inkOfImage(alone.rgba, width);
+          final ink = inkOfImage(alone.rgba, width)!;
           final rect = scale.rectOf(box);
-          final reason = 'system $i, ${drawable.runtimeType} from x '
-              '${box.left.toStringAsFixed(2)}';
-          expectInside(ink, rect, reason);
+          final line = painter.font.defaults.textEnclosureThickness * spacePx;
+          final columns = columnInk(alone.rgba, width);
+          final reason = 'rehearsal mark ${mark.text}';
 
-          switch (drawable) {
-            case GlyphRunDraw():
-              kinds.add('glyph run');
-              expect(ink!.left, closeTo(rect.left, 1), reason: reason);
-              expect(ink.right, closeTo(rect.right, 1), reason: reason);
-            case LineDraw(:final from, :final to, :final thickness):
-              kinds.add('dashed line');
-              expect(ink!.right, closeTo(rect.right, 1), reason: reason);
-              final dashes =
-                  columnInk(alone.rgba, width).reduce((a, b) => a + b) /
-                      (thickness * spacePx);
-              expect(
-                dashes / ((to.x - from.x) * spacePx),
-                inInclusiveRange(0.6, 0.7),
-                reason: '$reason, the share of its length under dashes',
-              );
-            case CurveDraw(:final midThickness, :final endThickness):
-              final start = scale.toPx(drawable.start).dx;
-              final end = scale.toPx(drawable.end).dx;
-              expect(ink!.left, lessThanOrEqualTo(start + 1), reason: reason);
-              expect(ink.right, greaterThanOrEqualTo(end - 1), reason: reason);
-              final columns = columnInk(alone.rgba, width);
-              if (!drawable.dashed) {
-                kinds.add('curve');
-                expect(
-                  columns[scale.toPx(drawable.pointAt(0.5)).dx.floor()],
-                  closeTo((midThickness + endThickness) * spacePx, 0.5),
-                  reason: '$reason, thickness at its middle',
-                );
-                continue;
-              }
-              kinds.add('dashed curve');
-              final length = [
-                for (var step = 0; step < 64; step++)
-                  (scale.toPx(drawable.pointAt((step + 1) / 64)) -
-                          scale.toPx(drawable.pointAt(step / 64)))
-                      .distance,
-              ].reduce((a, b) => a + b);
-              final dashes =
-                  columns.reduce((a, b) => a + b) / (midThickness * spacePx);
-              expect(
-                dashes / length,
-                inInclusiveRange(0.6, 0.7),
-                reason: '$reason, the share of its length under dashes '
-                    'of its middle thickness',
-              );
-            default:
+          expect(ink.left, closeTo(rect.left, 1), reason: reason);
+          expect(ink.top, closeTo(rect.top, 1), reason: reason);
+          expect(ink.right, closeTo(rect.right, 1), reason: reason);
+          expect(ink.bottom, closeTo(rect.bottom, 1), reason: reason);
+          for (final (side, x) in [
+            ('left', rect.left + 1),
+            ('right', rect.right - 2),
+          ]) {
+            expect(
+              columns[x.floor()],
+              closeTo(rect.height, 0.5),
+              reason: '$reason, the $side line of its box',
+            );
           }
+          expect(
+            columns[(rect.left + line + 2).floor()],
+            closeTo(2 * line, 0.5),
+            reason: '$reason, between its box and its letter',
+          );
         }
-      }
-      expect(kinds, {'curve', 'dashed curve', 'dashed line', 'glyph run'});
-    });
-  });
+      });
+    },
+  );
 
   testWidgets(
-      'on the ensemble sheet a selection across a system break covers its '
-      'staves and no other, a caret stands on its staff and a playhead '
-      'spans its system', (tester) async {
-    await tester.runAsync(() async {
-      await loadTextFont();
-      final score = pictured();
-      final layout = layoutOf(score);
-      final ids = [for (final measure in score.measures) measure.id];
-      final staves = [for (final staff in score.staves) staff.id];
-      expect(layout.systemCount, greaterThanOrEqualTo(3));
+    'a curve, a glyph run and a dashed line leave the ink their drawables '
+    'describe',
+    (tester) async {
+      await tester.runAsync(() async {
+        final painter = bravuraPainter();
+        await loadBravura(painter);
+        await loadTextFont();
+        final layout = layoutOf(pictured());
+        const pad = 4;
+        final kinds = <String>{};
 
-      final second = layout.firstBarOf(1);
-      final selection = RangeSelection(
-        from: ScorePoint(ids[ids.indexOf(second) - 1], Moment(Fraction(1, 2))),
-        to: ScorePoint(second, Moment(Fraction(1, 2))),
-        top: staves[0],
-        bottom: staves[1],
-      );
-      final cursor = VoicePoint(
-        staff: staves[1],
-        voice: VoiceSlot.one,
-        at: ScorePoint(layout.firstBarOf(2), Moment(Fraction(1, 4))),
-      );
-      final script = PlaybackCompiler().compile(score);
-      final point = script.pointAt(script.totalSeconds * 0.3)!;
+        for (var i = 0; i < layout.systemCount; i++) {
+          for (final drawable in layout.systemAt(i).drawables) {
+            final dashedLine =
+                drawable is LineDraw && drawable.dash == LineDash.dashed;
+            if (drawable is! CurveDraw &&
+                drawable is! GlyphRunDraw &&
+                !dashedLine) {
+              continue;
+            }
+            final box = drawable.bounds;
+            final scale = SheetScale(
+              spacePx: spacePx,
+              origin: ui.Offset(
+                pad - (box.left * spacePx).floorToDouble(),
+                pad - (box.top * spacePx).floorToDouble(),
+              ),
+            );
+            final width = (box.width * spacePx).ceil() + 2 * pad + 1;
+            final alone = await render(
+              width,
+              (box.height * spacePx).ceil() + 2 * pad + 1,
+              (canvas) => paintDrawables(canvas, painter, [drawable], scale),
+              background: null,
+            );
+            final ink = inkOfImage(alone.rgba, width);
+            final rect = scale.rectOf(box);
+            final reason =
+                'system $i, ${drawable.runtimeType} from x '
+                '${box.left.toStringAsFixed(2)}';
+            expectInside(ink, rect, reason);
 
-      final boxes = layout.selectionBoxes(selection);
-      final caret = layout.caretOf(cursor)!;
-      final playhead = layout.playheadAt(point)!;
-      final played = layout.systemOf(point.bar.measure)!;
-      expect(boxes, hasLength(2));
-      expect(boxes[0].right, layout.systemAt(0).bars.last.right);
-      expect(
-        boxes[1].left,
-        layout.systemAt(1).bars.first.time.xAt(Moment.zero),
-      );
-      expect(boxes[0].top,
-          closeTo(layout.tops[0] + layout.systemAt(0).staves[0].top, 1e-9));
-      expect(
+            switch (drawable) {
+              case GlyphRunDraw():
+                kinds.add('glyph run');
+                expect(ink!.left, closeTo(rect.left, 1), reason: reason);
+                expect(ink.right, closeTo(rect.right, 1), reason: reason);
+              case LineDraw(:final from, :final to, :final thickness):
+                kinds.add('dashed line');
+                expect(ink!.right, closeTo(rect.right, 1), reason: reason);
+                final dashes =
+                    columnInk(alone.rgba, width).reduce((a, b) => a + b) /
+                    (thickness * spacePx);
+                expect(
+                  dashes / ((to.x - from.x) * spacePx),
+                  inInclusiveRange(0.6, 0.7),
+                  reason: '$reason, the share of its length under dashes',
+                );
+              case CurveDraw(:final midThickness, :final endThickness):
+                final start = scale.toPx(drawable.start).dx;
+                final end = scale.toPx(drawable.end).dx;
+                expect(ink!.left, lessThanOrEqualTo(start + 1), reason: reason);
+                expect(
+                  ink.right,
+                  greaterThanOrEqualTo(end - 1),
+                  reason: reason,
+                );
+                final columns = columnInk(alone.rgba, width);
+                if (!drawable.dashed) {
+                  kinds.add('curve');
+                  expect(
+                    columns[scale.toPx(drawable.pointAt(0.5)).dx.floor()],
+                    closeTo((midThickness + endThickness) * spacePx, 0.5),
+                    reason: '$reason, thickness at its middle',
+                  );
+                  continue;
+                }
+                kinds.add('dashed curve');
+                final length = [
+                  for (var step = 0; step < 64; step++)
+                    (scale.toPx(drawable.pointAt((step + 1) / 64)) -
+                            scale.toPx(drawable.pointAt(step / 64)))
+                        .distance,
+                ].reduce((a, b) => a + b);
+                final dashes =
+                    columns.reduce((a, b) => a + b) / (midThickness * spacePx);
+                expect(
+                  dashes / length,
+                  inInclusiveRange(0.6, 0.7),
+                  reason:
+                      '$reason, the share of its length under dashes '
+                      'of its middle thickness',
+                );
+              default:
+            }
+          }
+        }
+        expect(kinds, {'curve', 'dashed curve', 'dashed line', 'glyph run'});
+      });
+    },
+  );
+
+  testWidgets(
+    'on the ensemble sheet a selection across a system break covers its '
+    'staves and no other, a caret stands on its staff and a playhead '
+    'spans its system',
+    (tester) async {
+      await tester.runAsync(() async {
+        await loadTextFont();
+        final score = pictured();
+        final layout = layoutOf(score);
+        final ids = [for (final measure in score.measures) measure.id];
+        final staves = [for (final staff in score.staves) staff.id];
+        expect(layout.systemCount, greaterThanOrEqualTo(3));
+
+        final second = layout.firstBarOf(1);
+        final selection = RangeSelection(
+          from: ScorePoint(
+            ids[ids.indexOf(second) - 1],
+            Moment(Fraction(1, 2)),
+          ),
+          to: ScorePoint(second, Moment(Fraction(1, 2))),
+          top: staves[0],
+          bottom: staves[1],
+        );
+        final cursor = VoicePoint(
+          staff: staves[1],
+          voice: VoiceSlot.one,
+          at: ScorePoint(layout.firstBarOf(2), Moment(Fraction(1, 4))),
+        );
+        final script = PlaybackCompiler().compile(score);
+        final point = script.pointAt(script.totalSeconds * 0.3)!;
+
+        final boxes = layout.selectionBoxes(selection);
+        final caret = layout.caretOf(cursor)!;
+        final playhead = layout.playheadAt(point)!;
+        final played = layout.systemOf(point.bar.measure)!;
+        expect(boxes, hasLength(2));
+        expect(boxes[0].right, layout.systemAt(0).bars.last.right);
+        expect(
+          boxes[1].left,
+          layout.systemAt(1).bars.first.time.xAt(Moment.zero),
+        );
+        expect(
+          boxes[0].top,
+          closeTo(layout.tops[0] + layout.systemAt(0).staves[0].top, 1e-9),
+        );
+        expect(
           boxes[0].bottom,
           closeTo(
-              layout.tops[0] + layout.systemAt(0).staves[1].top + staffHeight,
-              1e-9));
-      expect(caret.left, caret.right);
-      expect(
+            layout.tops[0] + layout.systemAt(0).staves[1].top + staffHeight,
+            1e-9,
+          ),
+        );
+        expect(caret.left, caret.right);
+        expect(
           caret.top,
-          closeTo(layout.tops[2] + layout.systemAt(2).staffOf(staves[1])!.top,
-              1e-9));
-      expect(playhead.top, layout.tops[played]);
-      expect(playhead.bottom, layout.tops[played] + layout.heightOf(played));
-    });
-  });
+          closeTo(
+            layout.tops[2] + layout.systemAt(2).staffOf(staves[1])!.top,
+            1e-9,
+          ),
+        );
+        expect(playhead.top, layout.tops[played]);
+        expect(playhead.bottom, layout.tops[played] + layout.heightOf(played));
+      });
+    },
+  );
 
   test('a dashed path ends on a dash, and a short one is stroked whole', () {
     List<ui.Rect> dashesOf(double length) => [
-          for (final metric in dashPath(
-            ui.Path()..lineTo(length, 0),
-            LineDash.dashed,
-            spacePx,
-          ).computeMetrics())
-            metric.extractPath(0, metric.length).getBounds(),
-        ];
+      for (final metric in dashPath(
+        ui.Path()..lineTo(length, 0),
+        LineDash.dashed,
+        spacePx,
+      ).computeMetrics())
+        metric.extractPath(0, metric.length).getBounds(),
+    ];
 
     final long = dashesOf(10.2 * spacePx);
     expect(long, hasLength(13));

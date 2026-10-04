@@ -29,16 +29,16 @@ final class SheetScale {
       origin + Offset(point.x * spacePx, point.y * spacePx);
 
   Rect rectOf(Box box) => Rect.fromLTRB(
-        origin.dx + box.left * spacePx,
-        origin.dy + box.top * spacePx,
-        origin.dx + box.right * spacePx,
-        origin.dy + box.bottom * spacePx,
-      );
+    origin.dx + box.left * spacePx,
+    origin.dy + box.top * spacePx,
+    origin.dx + box.right * spacePx,
+    origin.dy + box.bottom * spacePx,
+  );
 
   SpPoint toSheet(Offset px) => SpPoint(
-        (px.dx - origin.dx) / spacePx,
-        (px.dy - origin.dy) / spacePx,
-      );
+    (px.dx - origin.dx) / spacePx,
+    (px.dy - origin.dy) / spacePx,
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -174,19 +174,20 @@ ui.Paragraph textParagraph(
   double fontSize,
   Color color,
 ) {
-  final builder = ui.ParagraphBuilder(
-    ui.ParagraphStyle(fontFamily: spec.family, fontSize: fontSize),
-  )
-    ..pushStyle(
-      ui.TextStyle(
-        color: color,
-        fontFamily: spec.family,
-        fontSize: fontSize,
-        fontWeight: spec.bold ? FontWeight.bold : FontWeight.normal,
-        fontStyle: spec.italic ? FontStyle.italic : FontStyle.normal,
-      ),
-    )
-    ..addText(text);
+  final builder =
+      ui.ParagraphBuilder(
+          ui.ParagraphStyle(fontFamily: spec.family, fontSize: fontSize),
+        )
+        ..pushStyle(
+          ui.TextStyle(
+            color: color,
+            fontFamily: spec.family,
+            fontSize: fontSize,
+            fontWeight: spec.bold ? FontWeight.bold : FontWeight.normal,
+            fontStyle: spec.italic ? FontStyle.italic : FontStyle.normal,
+          ),
+        )
+        ..addText(text);
   return builder.build()
     ..layout(const ui.ParagraphConstraints(width: double.infinity));
 }
@@ -334,13 +335,14 @@ final class GlyphPainter {
   }
 
   ui.Paragraph _build(int codepoint, double fontSize, Color color) {
-    final builder = ui.ParagraphBuilder(
-      ui.ParagraphStyle(fontFamily: family, fontSize: fontSize),
-    )
-      ..pushStyle(
-        ui.TextStyle(color: color, fontFamily: family, fontSize: fontSize),
-      )
-      ..addText(String.fromCharCode(codepoint));
+    final builder =
+        ui.ParagraphBuilder(
+            ui.ParagraphStyle(fontFamily: family, fontSize: fontSize),
+          )
+          ..pushStyle(
+            ui.TextStyle(color: color, fontFamily: family, fontSize: fontSize),
+          )
+          ..addText(String.fromCharCode(codepoint));
     return builder.build()
       ..layout(const ui.ParagraphConstraints(width: double.infinity));
   }
@@ -356,11 +358,11 @@ void paintDrawable(
 ) {
   switch (drawable) {
     case GlyphDraw(
-        :final glyph,
-        :final origin,
-        scale: final size,
-        :final stretch
-      ):
+      :final glyph,
+      :final origin,
+      scale: final size,
+      :final stretch,
+    ):
       glyphs.paint(
         canvas,
         glyph,
@@ -558,8 +560,9 @@ final class OverlayPainter extends CustomPainter {
       }
     }
 
-    final playhead =
-        position == null ? null : layout.playheadIn(index, position.point);
+    final playhead = position == null
+        ? null
+        : layout.playheadIn(index, position.point);
     if (playhead != null) {
       _line(
         canvas,

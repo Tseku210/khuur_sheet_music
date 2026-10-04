@@ -46,8 +46,10 @@ void main() {
     await tester.pumpWidget(GlyphField(playhead: playhead));
     await tester.pump();
     expect(await _darkPixels(tester), greaterThan(glyphCount * 4));
-    expect(await tester.runAsync(() => noteheadFailures(bravuraPainter())),
-        isEmpty);
+    expect(
+      await tester.runAsync(() => noteheadFailures(bravuraPainter())),
+      isEmpty,
+    );
     // The engine reports timings in batches, up to a second late.
     await tester.pump(const Duration(seconds: 2));
     timings.clear();

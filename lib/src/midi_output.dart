@@ -121,8 +121,8 @@ final class FlutterMidiOutput implements MidiOutput {
 
   @override
   void noteOff({required int channel, required int key}) => unawaited(
-        _midi.stopNote(sfId: _soundFontId!, channel: channel, key: key),
-      );
+    _midi.stopNote(sfId: _soundFontId!, channel: channel, key: key),
+  );
 
   @override
   void allNotesOff() {

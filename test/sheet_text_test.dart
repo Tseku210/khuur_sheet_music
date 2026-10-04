@@ -16,61 +16,64 @@ const TextSpec spec = TextSpec(size: 2);
 /// `abc` with the start of its baseline at [origin], in the box [extent]
 /// gives it.
 TextDraw textAt(SpPoint origin, TextExtent extent) => TextDraw(
-      'abc',
-      origin,
-      spec: spec,
-      bounds: Box(
-        origin.x,
-        origin.y - extent.ascent,
-        origin.x + extent.width,
-        origin.y + extent.descent,
-      ),
-    );
+  'abc',
+  origin,
+  spec: spec,
+  bounds: Box(
+    origin.x,
+    origin.y - extent.ascent,
+    origin.x + extent.width,
+    origin.y + extent.descent,
+  ),
+);
 
 void main() {
   testWidgets(
-      'a text is measured in staff spaces as the box its letters are painted '
-      'in, at every scale', (tester) async {
-    final extent = ParagraphMeasurer().measure('abc', spec);
-    expect(extent.width, closeTo(6, 1e-9));
-    expect(extent.ascent, closeTo(1.5, 1e-9));
-    expect(extent.descent, closeTo(0.5, 1e-9));
+    'a text is measured in staff spaces as the box its letters are painted '
+    'in, at every scale',
+    (tester) async {
+      final extent = ParagraphMeasurer().measure('abc', spec);
+      expect(extent.width, closeTo(6, 1e-9));
+      expect(extent.ascent, closeTo(1.5, 1e-9));
+      expect(extent.descent, closeTo(0.5, 1e-9));
 
-    final text = textAt(const SpPoint(2, 3), extent);
-    final painter = GlyphPainter(SmuflFont.bravura);
-    for (final spacePx in [8.0, 20.0]) {
-      final side = (10 * spacePx).toInt();
-      final image = (await tester.runAsync(
-        () => render(
-          side,
-          side,
-          (canvas) => paintDrawables(
-            canvas,
-            painter,
-            [text],
-            SheetScale(spacePx: spacePx),
+      final text = textAt(const SpPoint(2, 3), extent);
+      final painter = GlyphPainter(SmuflFont.bravura);
+      for (final spacePx in [8.0, 20.0]) {
+        final side = (10 * spacePx).toInt();
+        final image = (await tester.runAsync(
+          () => render(
+            side,
+            side,
+            (canvas) => paintDrawables(
+              canvas,
+              painter,
+              [text],
+              SheetScale(spacePx: spacePx),
+            ),
+            background: null,
           ),
-          background: null,
-        ),
-      ))!;
-      final ink = inkIn(
-        image.rgba,
-        side,
-        left: 0,
-        top: 0,
-        right: side,
-        bottom: side,
-      )!;
-      final reason = 'at $spacePx pixels a staff space';
-      expect(ink.left, closeTo(2 * spacePx, 1), reason: reason);
-      expect(ink.top, closeTo(1.5 * spacePx, 1), reason: reason);
-      expect(ink.right, closeTo(8 * spacePx, 1), reason: reason);
-      expect(ink.bottom, closeTo(3.5 * spacePx, 1), reason: reason);
-    }
-  });
+        ))!;
+        final ink = inkIn(
+          image.rgba,
+          side,
+          left: 0,
+          top: 0,
+          right: side,
+          bottom: side,
+        )!;
+        final reason = 'at $spacePx pixels a staff space';
+        expect(ink.left, closeTo(2 * spacePx, 1), reason: reason);
+        expect(ink.top, closeTo(1.5 * spacePx, 1), reason: reason);
+        expect(ink.right, closeTo(8 * spacePx, 1), reason: reason);
+        expect(ink.bottom, closeTo(3.5 * spacePx, 1), reason: reason);
+      }
+    },
+  );
 
-  testWidgets('one painter draws a text in each colour asked for',
-      (tester) async {
+  testWidgets('one painter draws a text in each colour asked for', (
+    tester,
+  ) async {
     const scale = SheetScale(spacePx: 8);
     const red = ui.Color(0xFFFF0000);
     const blue = ui.Color(0xFF0000FF);

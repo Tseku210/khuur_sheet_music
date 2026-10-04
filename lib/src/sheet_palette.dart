@@ -54,10 +54,10 @@ final class SheetPalette {
   final Color playhead;
 
   Color colorOf(InkRole role) => switch (role) {
-        InkRole.normal => ink,
-        InkRole.staffLine => staffLines,
-        InkRole.outOfRange => outOfRange,
-      };
+    InkRole.normal => ink,
+    InkRole.staffLine => staffLines,
+    InkRole.outOfRange => outOfRange,
+  };
 
   @override
   bool operator ==(Object other) =>
@@ -72,12 +72,12 @@ final class SheetPalette {
 
   @override
   int get hashCode => Object.hash(
-        ink,
-        staffLines,
-        outOfRange,
-        cursor,
-        selection,
-        playback,
-        playhead,
-      );
+    ink,
+    staffLines,
+    outOfRange,
+    cursor,
+    selection,
+    playback,
+    playhead,
+  );
 }
