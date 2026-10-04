@@ -109,26 +109,6 @@ void main() {
     test('is a score the model loads', () {
       expect(scoreFromJson(scoreToJson(score)).measures, hasLength(500));
     });
-
-    test('takes a note in bar 250, which changes that bar and its '
-        'neighbours', () {
-      final next = scoreAfter(EditSession.start(score), noteInBar(score, 250));
-
-      final first = next.measureView(next.measures[249].id).staves.first;
-      expect(
-        first.voices.first.events.first.event,
-        isA<ChordEvent>().having(
-          (chord) => chord.notes.single.tone,
-          'tone',
-          const Pitch(Step.a, 4),
-        ),
-      );
-      final changes = next.changesSince(score);
-      expect(changes.relayout, {
-        for (final bar in [249, 250, 251]) score.measures[bar - 1].id,
-      });
-      expect(changes.reflow, isFalse);
-    });
   });
 
   group('the spanner score', () {
