@@ -1764,7 +1764,7 @@ void main() {
 
   testWidgets(
     'the controller says where a note is drawn, and tells its listeners '
-    'when a scroll, a zoom, an edit or a padding moves it',
+    'when a scroll, a zoom, an edit, a padding or a staff space moves it',
     (tester) async {
       final score = tune();
       final controller = SheetController();
@@ -1854,6 +1854,29 @@ void main() {
         ),
       );
       expect(controller.rectOf(head)!.top, closeTo(top + 24, 1e-6));
+
+      // The zoom is 2. A view 216 wide at a staff space of 4 is as many
+      // staff spaces wide as one 400 wide at 8, so no line breaks anew.
+      final unscaled = shown(tester);
+      await expectTold(
+        'a staff space that scales the layout it has',
+        () => tester.pumpWidget(
+          host(
+            SheetView(
+              score: edited,
+              controller: controller,
+              padding: padding.copyWith(top: padding.top + 24),
+              staffSpace: 4,
+            ),
+            size: const Size(216, 400),
+          ),
+        ),
+      );
+      expect(shown(tester), same(unscaled));
+      expect(
+        controller.rectOf(head)!.center,
+        within(distance: 1e-6, from: middleOf(tester, head)),
+      );
     },
   );
 

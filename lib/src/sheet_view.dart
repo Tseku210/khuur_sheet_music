@@ -786,6 +786,7 @@ class _SheetViewState extends State<SheetView> {
         palette: palette,
       );
       if (!identical(layout, previous?.layout) ||
+          spacePx != previous?.spacePx ||
           padding != previous?.padding) {
         // The controller's listeners may rebuild, which a layout pass
         // does not allow. They hear of the new geometry after this
