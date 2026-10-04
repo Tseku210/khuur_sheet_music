@@ -469,8 +469,7 @@ final class SystemPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final label = this.label;
-    for (final drawable in [...system.drawables, if (label != null) label]) {
+    for (final drawable in [...system.drawables, ?label]) {
       paintDrawable(
         canvas,
         drawable,

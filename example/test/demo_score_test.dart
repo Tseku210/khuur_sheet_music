@@ -1,6 +1,6 @@
 import 'package:example/demo_score.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:score_model/score_model.dart';
+import 'package:simple_sheet_music/simple_sheet_music.dart';
 
 // What each bar should sound, written apart from the demo's own tables so a
 // slip in either shows. The right hand is one string of pitches per bar, the

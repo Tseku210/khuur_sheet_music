@@ -50,10 +50,10 @@ SheetLayout layoutOf(Score score) => SheetLayout(
       style: pictureStyle,
     );
 
-List<Drawable> inkOf(SheetLayout layout, int system) {
-  final label = layout.labelOf(system);
-  return [...layout.systemAt(system).drawables, if (label != null) label];
-}
+List<Drawable> inkOf(SheetLayout layout, int system) => [
+      ...layout.systemAt(system).drawables,
+      ?layout.labelOf(system),
+    ];
 
 Ink? inkOfImage(Uint8List rgba, int width) => inkIn(
       rgba,

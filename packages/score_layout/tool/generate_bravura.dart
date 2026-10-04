@@ -15,7 +15,7 @@ import 'dart:io';
 import 'package:score_layout/src/geometry.dart';
 import 'package:score_layout/src/smufl_metadata.dart';
 
-const metadataPath = '../../assets/bravura_metadata.json';
+const metadataPath = 'tool/bravura_metadata.json';
 const outputPath = 'lib/src/bravura.g.dart';
 
 void main(List<String> arguments) {

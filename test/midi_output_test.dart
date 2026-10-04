@@ -6,8 +6,8 @@ import 'package:flutter_midi_pro/flutter_midi_pro_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
-import 'package:simple_sheet_music/src/midi/sound_font.dart';
 import 'package:simple_sheet_music/src/midi_output.dart';
+import 'package:simple_sheet_music/src/sound_font.dart';
 
 class FakeMidiPlatform extends FlutterMidiProPlatform
     with MockPlatformInterfaceMixin {

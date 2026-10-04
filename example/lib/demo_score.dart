@@ -1,13 +1,16 @@
-import 'package:score_model/score_model.dart';
+import 'package:simple_sheet_music/simple_sheet_music.dart';
 
 /// Eight bars of 4/4 in C major at 96 beats a minute for one piano on two
-/// staves, to hear `ScorePlayer` with. The right hand has a melody and the
-/// left hand chords. Bars 3 and 4 repeat, so the script plays ten bars and
-/// those two report a second pass.
+/// staves. The right hand has a melody and the left hand chords. Bars 3 and
+/// 4 repeat, so the script plays ten bars and those two report a second
+/// pass. Bar 5 starts a new system at every sheet width.
 Score buildDemoScore() {
   var session = EditSession.start(
     Score.blank(
-        parts: const [_piano], title: 'ScorePlayer demo', measureCount: 8),
+      parts: const [_piano],
+      title: 'Eight bars in C',
+      measureCount: 8,
+    ),
   );
   final [treble, bass] = [for (final staff in session.score.staves) staff.id];
   session = _enterHand(session, treble, _melody);
@@ -33,7 +36,8 @@ Score buildDemoScore() {
       ),
       SetRepeatStart(bars[2], start: true),
       SetRepeatEnd(bars[3], const RepeatEnd()),
-    ], label: 'Tempo and repeat'),
+      SetBreak(bars[4], LayoutBreak.system),
+    ], label: 'Tempo, repeat and break'),
   ).score;
 }
 
@@ -106,6 +110,7 @@ EditSession _enterHand(
 EditSession _apply(EditSession session, Edit edit) =>
     switch (session.run(edit)) {
       Applied(:final session) => session,
-      Refused(:final reason) =>
-        throw StateError('${edit.label}: ${reason.runtimeType}'),
+      Refused(:final reason) => throw StateError(
+        '${edit.label}: ${reason.runtimeType}',
+      ),
     };
