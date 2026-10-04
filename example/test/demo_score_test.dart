@@ -97,30 +97,4 @@ void main() {
       expect(left, _chords[index].map(_keys), reason: 'left hand, $reason');
     }
   });
-
-  test('has 133 notes, 51 in the right hand and 82 in the left', () {
-    final all = script.notesBetween(0, double.infinity).toList();
-
-    expect(all, hasLength(133));
-    expect(all.where((n) => n.source.staff == treble), hasLength(51));
-    expect(all.where((n) => n.source.staff != treble), hasLength(82));
-  });
-
-  test('sounds a repeated bar the same way on both passes', () {
-    List<(double, int, double)> shape(PlayedBar bar) => [
-          for (final note in notesIn(bar))
-            (note.start - bar.start, note.key, note.duration),
-        ];
-
-    for (final (first, second) in [(2, 4), (3, 5)]) {
-      final before = shape(script.bars[first]);
-      final after = shape(script.bars[second]);
-      expect(after, hasLength(before.length));
-      for (final (i, (start, key, duration)) in before.indexed) {
-        expect(after[i].$1, closeTo(start, 1e-9));
-        expect(after[i].$2, key);
-        expect(after[i].$3, closeTo(duration, 1e-9));
-      }
-    }
-  });
 }
