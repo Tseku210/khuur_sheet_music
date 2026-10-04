@@ -1,6 +1,4 @@
 import 'dart:math' as math;
-import 'dart:typed_data';
-import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_layout/score_layout.dart';
@@ -408,58 +406,4 @@ void main() {
       }
     });
   });
-
-  testWidgets('out-of-range ink is drawn in its own colour', (tester) async {
-    await tester.runAsync(() async {
-      final painter = bravuraPainter();
-      await loadBravura(painter);
-      const alto = Instrument(
-        key: 'alto',
-        program: 0,
-        lowest: Pitch(Step.c, 4),
-        highest: Pitch(Step.c, 5),
-      );
-      final layout = layoutBar(
-        barOf([chordOf(1, 'C5 A5', value: whole)], instrument: alto),
-        style,
-        const FakeMeasurer(),
-      );
-      final sheet = sheetOf(layout);
-      const scale = SheetScale(spacePx: spacePx);
-      final image = await render(
-        sheet.width,
-        sheet.height,
-        (canvas) => paintDrawables(canvas, painter, sheet.drawables, scale),
-      );
-      writeSnapshot('bar_range', image.png);
-
-      final heads = sheet.drawables.whereType<GlyphDraw>().where(
-            (g) => g.glyph == Glyph.noteheadWhole,
-          );
-      expect(
-        heads.map((h) => h.ink),
-        unorderedEquals([InkRole.normal, InkRole.outOfRange]),
-      );
-      for (final head in heads) {
-        expect(
-          _hasReddish(image.rgba, sheet.width, scale.rectOf(head.bounds)),
-          head.ink == InkRole.outOfRange,
-          reason: '${head.glyph.name} at step ${head.origin.y}',
-        );
-      }
-    });
-  });
-}
-
-/// Whether any pixel inside [rect] is red rather than black, white or grey.
-bool _hasReddish(Uint8List rgba, int width, ui.Rect rect) {
-  for (var y = rect.top.floor(); y < rect.bottom.ceil(); y++) {
-    for (var x = rect.left.floor(); x < rect.right.ceil(); x++) {
-      final i = (y * width + x) * 4;
-      if (rgba[i] > rgba[i + 1] + 60) {
-        return true;
-      }
-    }
-  }
-  return false;
 }

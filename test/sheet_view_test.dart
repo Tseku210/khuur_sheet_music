@@ -1259,7 +1259,26 @@ void main() {
       'toImage of the whole sheet, and of the systems after the first, is '
       'the picture their drawables make on one canvas', (tester) async {
     await tester.runAsync(loadTextFont);
-    final score = pictured();
+    final ensemble = pictured();
+    final first = ensemble.parts.first;
+    // The first part's notes above E5 are out of its range here, so the
+    // sheet has ink of every role.
+    final score = ensemble.copyWith(
+      parts: ensemble.parts.replaceAt(
+        0,
+        Part(
+          id: first.id,
+          name: first.name,
+          shortName: first.shortName,
+          instrument: const Instrument(
+            key: 'violin',
+            program: 40,
+            highest: Pitch(Step.e, 5),
+          ),
+          staves: first.staves,
+        ),
+      ),
+    );
     final plan = SheetLayout(
       score,
       width: sheetWidth,
@@ -1269,6 +1288,14 @@ void main() {
     expect(plan.systemCount, greaterThanOrEqualTo(3));
     expect(plan.header, isNotEmpty);
     expect(plan.labelOf(1), isNotNull);
+    expect(
+      {
+        for (var index = 0; index < plan.systemCount; index++)
+          for (final drawable in inkOf(plan, index)) drawable.ink,
+      },
+      InkRole.values.toSet(),
+      reason: 'ink of every role',
+    );
     final size = Size(sheetWidth * staffSpace + padding.horizontal, 400);
     tester.view
       ..physicalSize = size

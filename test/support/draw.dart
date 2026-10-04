@@ -10,7 +10,6 @@ import 'package:score_layout/score_layout.dart';
 import 'package:simple_sheet_music/src/painting.dart';
 
 const ui.Color black = ui.Color(0xFF000000);
-const ui.Color red = ui.Color(0xFFC62828);
 
 const String textFamily = 'SheetText';
 
@@ -53,8 +52,8 @@ final EngravingStyle pictureStyle = EngravingStyle(
   },
 );
 
-/// Draws [drawables], already in sheet space, on [canvas] at [scale]. Ink
-/// marked out of range is red, everything else black.
+/// Draws [drawables], already in sheet space, on [canvas] at [scale], in
+/// black.
 void paintDrawables(
   ui.Canvas canvas,
   GlyphPainter painter,
@@ -62,13 +61,7 @@ void paintDrawables(
   SheetScale scale,
 ) {
   for (final drawable in drawables) {
-    paintDrawable(
-      canvas,
-      drawable,
-      painter,
-      scale,
-      drawable.ink == InkRole.outOfRange ? red : black,
-    );
+    paintDrawable(canvas, drawable, painter, scale, black);
   }
 }
 
