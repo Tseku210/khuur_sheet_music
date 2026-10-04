@@ -168,19 +168,19 @@ void main() {
       expect(boxes[2].right, xOf(layout, 2, range.to));
     });
 
-    test('a range over the bass staff alone spans only that staff', () {
-      final range = rangeOf(
-        ScorePoint(barId(0), Moment.zero),
-        ScorePoint(barId(1), at(1, 1)),
-        top: 1,
-      );
-      final bass = layout.systemAt(0).staffOf(staffId(1))!;
-      final box = layout.selectionBoxes(range).single;
-      expect(box.top, closeTo(layout.tops[0] + bass.top, 1e-9));
-      expect(
-        box.bottom,
-        closeTo(layout.tops[0] + bass.top + staffHeight, 1e-9),
-      );
+    test('a range over one staff alone spans only that staff', () {
+      for (final staff in [0, 1]) {
+        final range = rangeOf(
+          ScorePoint(barId(0), Moment.zero),
+          ScorePoint(barId(1), at(1, 1)),
+          top: staff,
+          bottom: staff,
+        );
+        final top = layout.systemAt(0).staffOf(staffId(staff))!.top;
+        final box = layout.selectionBoxes(range).single;
+        expect(box.top, closeTo(layout.tops[0] + top, 1e-9));
+        expect(box.bottom, closeTo(layout.tops[0] + top + staffHeight, 1e-9));
+      }
     });
 
     test('a sounding ref on a hidden staff gives no box', () {

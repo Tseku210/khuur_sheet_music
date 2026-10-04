@@ -636,7 +636,7 @@ void main() {
   );
 
   testWidgets('a sheet of systems paints each system inside its band, under '
-      'its header', (tester) async {
+      'its header, with a brace as tall as its part', (tester) async {
     await tester.runAsync(() async {
       final painter = bravuraPainter();
       await loadBravura(painter);
@@ -663,6 +663,25 @@ void main() {
         headerInk.bottom,
         lessThanOrEqualTo(scaleOf(layout.tops.first).origin.dy),
       );
+
+      final brace = layout
+          .systemAt(0)
+          .drawables
+          .whereType<GlyphDraw>()
+          .singleWhere((draw) => draw.glyph == Glyph.brace);
+      expect(brace.stretch, greaterThan(1.25));
+      final system = scaleOf(layout.tops.first);
+      final braceAlone = await render(
+        width,
+        height,
+        (canvas) => paintDrawables(canvas, painter, [brace], system),
+        background: null,
+      );
+      final braceInk = inkOfImage(braceAlone.rgba, width)!;
+      final box = system.rectOf(brace.bounds);
+      // The rasteriser's thickening is stretched with the glyph.
+      expect(braceInk.top, closeTo(box.top, brace.stretch));
+      expect(braceInk.bottom, closeTo(box.bottom, brace.stretch));
     });
   });
 
@@ -1241,15 +1260,17 @@ void main() {
     },
   );
 
-  test('a dashed path ends on a dash, and a short one is stroked whole', () {
-    List<ui.Rect> dashesOf(double length) => [
-      for (final metric in dashPath(
-        ui.Path()..lineTo(length, 0),
-        LineDash.dashed,
-        spacePx,
-      ).computeMetrics())
-        metric.extractPath(0, metric.length).getBounds(),
-    ];
+  test('a dashed path ends on a dash, a dotted one on a dot, and a short one '
+      'is stroked whole', () {
+    List<ui.Rect> dashesOf(double length, [LineDash dash = LineDash.dashed]) =>
+        [
+          for (final metric in dashPath(
+            ui.Path()..lineTo(length, 0),
+            dash,
+            spacePx,
+          ).computeMetrics())
+            metric.extractPath(0, metric.length).getBounds(),
+        ];
 
     final long = dashesOf(10.2 * spacePx);
     expect(long, hasLength(13));
@@ -1259,6 +1280,14 @@ void main() {
     );
     expect(long.first.left, 0);
     expect(long.last.right, closeTo(10.2 * spacePx, 1e-3));
+
+    final dotted = dashesOf(10.2 * spacePx, LineDash.dotted);
+    expect(dotted, hasLength(29));
+    expect(
+      dotted.map((dot) => dot.width),
+      everyElement(closeTo(0.1 * spacePx, 1e-3)),
+    );
+    expect(dotted.last.right, closeTo(10.2 * spacePx, 1e-3));
 
     final short = dashesOf(0.9 * spacePx);
     expect(short, hasLength(1));
