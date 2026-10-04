@@ -29,6 +29,18 @@ jobs:
       - name: Library unit tests
         run: flutter test
 
+      - name: Score model tests
+        run: dart test
+        working-directory: packages/score_model
+
+      - name: Layout engine tests
+        run: dart test
+        working-directory: packages/score_layout
+
+      - name: Example tests
+        run: flutter test
+        working-directory: example
+
       - name: Upload test artifacts
         if: failure()
         uses: actions/upload-artifact@v4
