@@ -19,10 +19,25 @@
 * switching rendering method
 
 ## Unreleased
-* **Breaking:** The package no longer bundles a SoundFont. The 261 MB `touhou.sf2` added that much to every app using the package, even with MIDI off. Pass `soundFont: AssetSoundFont(...)` or `FileSoundFont(...)` to `SimpleSheetMusic` instead. This replaces `enableMidi`, `soundFontType` and `customSoundFontPath`, and a null `soundFont` means playback is off. `MidiPlayer` now requires `soundFont`, and `MidiPlayer.initialize` takes no arguments. `SoundFontType` is removed.
+* **Breaking:** The library is rewritten on an immutable score model. `SheetView` shows a `Score` and replaces `SimpleSheetMusic`. `ScorePlayer` replaces `MidiPlayer` and the playback methods of `SimpleSheetMusicState`. The old engine and every type it exported are deleted. The README shows the new API, and this table names what replaces each old name.
+
+  | Before | Now |
+  |---|---|
+  | `SimpleSheetMusic(measures, width, height, ...)` | `SheetView(score: ...)`, sized by constraints, scrolling |
+  | `Measure([...], isNewLine:)` | A `Score` built with `Score.blank` and edits, or loaded with `scoreFromJson`. `isNewLine` becomes `SetBreak(id, LayoutBreak.system)` |
+  | `Clef.treble()`, `KeySignature.dMajor()`, `TimeSignature.fourFour()` | `SetClef`, `SetKey`, `SetMeter`, or `Score.blank(key:, meter:)` |
+  | `Note(Pitch.a4, ...)`, `ChordNote`, `Rest` | `EnterNote`, `AddToChord`, `EnterRest` |
+  | `GlobalKey<SimpleSheetMusicState>` with `playMidi`, `pauseMidi`, `stopMidi`, `setTempo(int)` | `ScorePlayer.play`, `pause`, `resume`, `stop`, `tempoScale`, `status` |
+  | `highlightColor` | `SheetPalette.playback` |
+  | `onTap(symbol, offset)` | `onTap(SheetHit)` |
+  | `FontType` | `EngravingStyle.font` (`SmuflFont`) |
+  | `MidiPlayer`, `MidiPlayerStatus` | `ScorePlayer`, `PlayerStatus` |
+  | `SoundFont`, `AssetSoundFont`, `FileSoundFont` | Unchanged |
+  | Per-symbol `color` | `SheetView.tints` |
+  | `debug`, `GlyphMetadata`, `GlyphPath`, `MeasureMetrics` exports | Deleted with nothing in their place |
+
+* **Breaking:** The package no longer bundles a SoundFont. The 261 MB `touhou.sf2` added that much to every app using the package, even with MIDI off. Pass `AssetSoundFont(...)` or `FileSoundFont(...)` to `ScorePlayer` instead. This replaces `enableMidi`, `soundFontType` and `customSoundFontPath`. `SoundFontType` is removed.
+* **Breaking:** The package no longer bundles Petaluma, or any font as SVG. It draws music with `fonts/Bravura.otf`.
 * Replace the unmaintained `flutter_midi` with `flutter_midi_pro` 4.x. `flutter_midi` used the removed v1 Android plugin API and no longer builds on current Flutter.
-* `MidiPlayer` now sends note-off when a note's duration ends, and on pause, stop, and dispose.
-* Fix the default soundfont path. It now uses the `packages/simple_sheet_music/` prefix, so consuming apps can load it.
-* Require Dart 3.6 and Flutter 3.27 or later. Allow `xml` 7.x.
-* Remove the unused `async` and discontinued `golden_toolkit` dependencies.
-* Play notes at their real pitch. `Pitch.midiNoteNumber` now counts semitones, and playback applies accidentals and the key signature.
+* Require Dart 3.13 or later.
+* Remove the `svg_path_parser`, `uuid` and `xml` dependencies, the unused `async` and the discontinued `golden_toolkit`.
