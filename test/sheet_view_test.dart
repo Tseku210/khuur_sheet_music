@@ -120,13 +120,9 @@ Finder tileOf(int index) => find.byWidgetPredicate(
 
 /// The top and the bottom of system [index] on screen, read from where its
 /// tile is.
-({double top, double bottom}) spanOf(
-  WidgetTester tester,
-  int index, {
-  double spacePx = staffSpace,
-}) {
+({double top, double bottom}) spanOf(WidgetTester tester, int index) {
   final top = tester.getTopLeft(tileOf(index)).dy;
-  return (top: top, bottom: top + shown(tester).heightOf(index) * spacePx);
+  return (top: top, bottom: top + shown(tester).heightOf(index) * staffSpace);
 }
 
 /// The top on screen of the system that holds [bar].
@@ -141,11 +137,8 @@ Iterable<int> built(WidgetTester tester) => [
 
 /// The first bar of the first system that reaches below the view's top
 /// edge.
-MeasureId firstBarInView(WidgetTester tester, {double spacePx = staffSpace}) =>
-    shown(tester).firstBarOf(
-      built(tester).firstWhere(
-        (index) => spanOf(tester, index, spacePx: spacePx).bottom > 0,
-      ),
+MeasureId firstBarInView(WidgetTester tester) => shown(tester).firstBarOf(
+      built(tester).firstWhere((index) => spanOf(tester, index).bottom > 0),
     );
 
 void expectWhollyInView(WidgetTester tester, MeasureId bar) {
@@ -1161,14 +1154,13 @@ void main() {
     const px = staffSpace * pixelRatio;
     final planned = layout.tops[2] + layout.heightOf(2) - layout.tops[1];
 
-    final (:width, :height, :rgba) = (await tester.runAsync(() async {
-      final image =
-          await controller.toImage(from: 1, to: 3, pixelRatio: pixelRatio);
-      final bytes = (await image.toByteData())!.buffer.asUint8List();
-      final size = (width: image.width, height: image.height, rgba: bytes);
-      image.dispose();
-      return size;
-    }))!;
+    final (:width, :height, :rgba) = await imageOf(
+      tester,
+      controller,
+      from: 1,
+      to: 3,
+      pixelRatio: pixelRatio,
+    );
     expect(height, (planned * px).ceil());
     expect(width, (layout.width * px).ceil());
     final ink = inkIn(
@@ -1184,14 +1176,9 @@ void main() {
     expect(ink.left, lessThan(px));
     expect(ink.right, greaterThan(width - px));
 
-    final withHeader = (await tester.runAsync(() async {
-      final image = await controller.toImage(to: 1);
-      final height = image.height;
-      image.dispose();
-      return height;
-    }))!;
+    final withHeader = await imageOf(tester, controller, to: 1);
     expect(
-      withHeader,
+      withHeader.height,
       ((layout.tops[0] + layout.heightOf(0)) * staffSpace).ceil(),
     );
   });
