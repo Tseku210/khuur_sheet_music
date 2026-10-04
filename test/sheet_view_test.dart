@@ -897,6 +897,70 @@ void main() {
     },
   );
 
+  for (final heard in const ['a scroll notification', 'the controller']) {
+    testWidgets(
+      'ensureVisible called in a build scrolls to its system in an app that '
+      'sets state when it hears $heard',
+      (tester) async {
+        final score = tune();
+        final controller = SheetController();
+        addTearDown(controller.dispose);
+        final bar = score.measures[21].id;
+        late StateSetter setApp;
+        late StateSetter setPage;
+        var times = 0;
+        void hear() => setApp(() => times++);
+        if (heard == 'the controller') {
+          controller.addListener(hear);
+        }
+        var ask = false;
+        var done = false;
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, set) {
+              setApp = set;
+              return NotificationListener<ScrollNotification>(
+                onNotification: (note) {
+                  if (heard == 'a scroll notification') {
+                    hear();
+                  }
+                  return false;
+                },
+                child: StatefulBuilder(
+                  builder: (context, set) {
+                    setPage = set;
+                    if (ask) {
+                      ask = false;
+                      unawaited(
+                        controller
+                            .ensureVisible(
+                              ScorePoint(bar, Moment.zero),
+                              duration: Duration.zero,
+                            )
+                            .then((_) => done = true),
+                      );
+                    }
+                    return host(
+                      SheetView(score: score, controller: controller),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+        final before = times;
+
+        setPage(() => ask = true);
+        await tester.pumpAndSettle();
+        expect(done, isTrue);
+        expectWhollyInView(tester, bar);
+        expect(times, greaterThan(before), reason: 'the app heard the scroll');
+      },
+    );
+  }
+
   testWidgets(
     'ensureVisible for a bar of a score the view is given in the same '
     'frame scrolls to it, and for a bar of no score ends after a frame',
@@ -2093,6 +2157,61 @@ void main() {
       );
       expect(done, isTrue, reason: 'the scroll ended when the finger came');
       await gesture.up();
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets(
+    'a finger that drags the view to where a scroll of the view goes, in a '
+    'handler that sets a zoom, has the view',
+    (tester) async {
+      final score = tune();
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      final playback = ValueNotifier<PlaybackPosition?>(null);
+      addTearDown(playback.dispose);
+      await tester.pumpWidget(
+        host(
+          SheetView(score: score, controller: controller, playback: playback),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final position = scrollOf(tester);
+      position.jumpTo(position.maxScrollExtent - 300);
+      await tester.pumpAndSettle();
+
+      // The last system goes to the top, which the end of the sheet stops.
+      playback.value = playingIn(score, 39);
+      for (var frame = 0; frame < 6; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(position.pixels, lessThan(position.maxScrollExtent));
+
+      // One packet of pointer events, which no microtask runs between.
+      final pointer = TestPointer();
+      [
+        pointer.down(const Offset(200, 390)),
+        pointer.move(const Offset(200, 350)),
+        pointer.move(const Offset(200, 250)),
+        pointer.move(const Offset(200, 150)),
+        pointer.move(const Offset(200, 20)),
+      ].forEach(tester.binding.handlePointerEventForSource);
+      expect(position.pixels, position.maxScrollExtent);
+      controller.zoom = 1.5;
+      for (var frame = 0; frame < 3; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      final held = position.pixels;
+      for (final y in const [50.0, 80.0]) {
+        await tester.sendEventToBinding(pointer.move(Offset(200, y)));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(
+        position.pixels,
+        closeTo(held - 60, 1e-6),
+        reason: 'the view follows the finger',
+      );
+      await tester.sendEventToBinding(pointer.up());
       await tester.pumpAndSettle();
     },
   );

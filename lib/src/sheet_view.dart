@@ -189,7 +189,10 @@ class SheetController extends ChangeNotifier {
   /// The scroll starts when the code that calls is done and before the next
   /// frame, never inside the call. So a listener of this controller and the
   /// handler of a scroll notification of the view's may call it, and calls
-  /// start in the order they were made.
+  /// start in the order they were made. A call made inside a build starts
+  /// when the frame of that build is drawn, and shows in the next one. A
+  /// scroll inside a build would reach the app's scroll handlers in the
+  /// middle of it.
   ///
   /// The bar may be one of a score the view is given in the same frame. A
   /// bar the sheet does not have after that frame scrolls nothing. A frame
@@ -206,7 +209,8 @@ class SheetController extends ChangeNotifier {
   ///
   /// A scroll with a duration is an animation. It waits, and its future
   /// with it, while the view's tickers are muted, as they are under a route
-  /// that covers the view.
+  /// that covers the view. A scroll that waits for a frame waits while the
+  /// app draws none, as it does in the background.
   Future<void> ensureVisible(
     ScorePoint point, {
     Duration duration = const Duration(milliseconds: 250),
@@ -705,8 +709,8 @@ class _SheetViewState extends State<SheetView> {
   /// itself. A system only the user's scroll moved is where it was, and the
   /// scroll ends. An animation that gets to its target holds too, because
   /// it gets there inside a frame that may still lay the sheet out. One
-  /// that ends anywhere else was ended by the user or by a later scroll,
-  /// and the scroll ends with it.
+  /// that ends anywhere else, or with the position still scrolling, was
+  /// ended by the user or by a later scroll, and the scroll ends with it.
   ///
   /// A scroll that has less to go than the position takes for a distance
   /// has nowhere to go. The position's own animation would jump there and
@@ -772,13 +776,16 @@ class _SheetViewState extends State<SheetView> {
             _animating = null;
           }
           // Only an animation that ran to its end leaves the view at its
-          // target. The view may have a new scroll position by now, which
-          // took the animation over, so the offset is read from that one.
-          if (isLive() && _offset == target) {
+          // target and at rest. The view may have a new scroll position by
+          // now, which took the animation over, so both are read from that
+          // one.
+          if (isLive() &&
+              _offset == target &&
+              !_scroll.position.isScrollingNotifier.value) {
             _drive(scroll, hold: true);
           } else {
             // The user or a later scroll took over on the way, be it on the
-            // last pixel.
+            // last pixel, or with a drag that went to the target itself.
             end();
           }
         });
