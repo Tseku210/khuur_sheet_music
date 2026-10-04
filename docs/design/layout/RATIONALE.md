@@ -1,6 +1,8 @@
 # Layout engine and painter
 
-The synthesized design. Its base is candidate C, with grafts from candidates A and B (see "Synthesis decision"). The sketch is in [sketch/](sketch/). It is two sibling packages that type-check. [sketch/score_layout/](sketch/score_layout/) is the pure-Dart engine and mirrors `packages/score_layout`. [sketch/simple_sheet_music/](sketch/simple_sheet_music/) is the Flutter shell and mirrors the rewritten `lib/`. [sketch/simple_sheet_music/example/usage.dart](sketch/simple_sheet_music/example/usage.dart) holds the call sites below.
+The synthesized design. Its base is candidate C, with grafts from candidates A and B (see "Synthesis decision"). The design had a sketch in `docs/design/layout/sketch/`, two sibling packages that type-checked. `sketch/score_layout/` was the pure-Dart engine, and `packages/score_layout` is the real one. `sketch/simple_sheet_music/` was the Flutter shell, and `lib/` is the real one. `sketch/simple_sheet_music/example/usage.dart` held the call sites below, which `README.md` and `example/lib/main.dart` now show.
+
+The sketch is retired, and the two packages and `lib/` are the contract. Its tree is in the history up to the commit before the one that deleted it. `git log -1 --format=%H -- docs/design/layout/sketch` names the commit that deleted it, and `git show <that commit>^:docs/design/layout/sketch/<path>` prints a file of the tree. Every "the sketch" in this document means that tree. That holds for the reconciliation lists too, where each unit says how it differs from the sketch.
 
 ## Problem
 
@@ -636,7 +638,7 @@ Three widget tests run with `flutter test` in the shell. Each loads the font as 
 
 ### Model additions
 
-Each addition is proposed for `score_model`, with its exact signature. The sketch declares stand-ins in [model_additions.dart](sketch/score_layout/lib/src/model_additions.dart) so it type-checks. The additions land before the engine package needs them (unit 3), so the package never has that file.
+Each addition is proposed for `score_model`, with its exact signature. The sketch declared stand-ins in `sketch/score_layout/lib/src/model_additions.dart` so that it type-checked. The additions land before the engine package needs them (unit 3), so the package never has that file.
 
 **B1. `PlaybackScript.pointAt`.**
 
@@ -1196,6 +1198,7 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
 - The example has 17 widget tests in `example/test/example_app_test.dart`, beside the 4 of the demo score. 17 defects were planted in the page and the tune one at a time, and each fails the test it was planted for. Two of the 17, one per window size, only hold that the page is light and the first note's head is dark where the controller says it is. They write the page's picture as `example_app_desktop.png` and `example_app_phone.png` under `SNAPSHOT_DIR`.
 - `README.md` holds the quickstart and the three call sites, the edits that build a score, the SoundFont, the three names shared with Flutter, the font's licence and the checks. Its code is the code of the throwaway package above, which analyzes clean. `CHANGELOG.md` holds the table of what replaces the old API, and its unreleased entries about the deleted engine are gone. `example/README.md` describes the page. `midi-example.png`, a picture of the old example, is deleted. The README has no picture, because nothing ran in a GUI.
 - `CLAUDE.md` is not changed by this unit. The plan gives it the new commands and layout in the same change. It is the file that instructs the agents working here, and the agent that built the unit does not change it without the owner's word. Its new text is handed to the owner. Until that text lands, `CLAUDE.md` still describes the deleted engine and names `lib/midi_example.dart`.
+- The sketch is deleted in a commit of its own, 39 files. Its `usage.dart` is not kept. `README.md` shows its quickstart, its three call sites, `moveCursor`, `startAt` and `toImage`, and the example runs the editor, the player and the badge. The two links into the sketch are plain paths now, and a note at the top of this document says where the tree is. `docs/**` stays excluded from the root's analysis, though no Dart file is left under `docs/`.
 - The root has 114 tests, the layout package 513 and the model 770. The compiled benchmark measured a dense first layout of 44.2 ms, a dense update of 0.48 ms and a spanner first layout of 182.1 ms, against budgets of 50, 1 and 200.
 - Not verified. The plan's check says that the example runs on macOS. It was built for macOS with `flutter build macos --debug` and not started. Nothing ran on a device or in a GUI, and no sound was heard. The pictures of the page come from `flutter test`, which draws the sheet's own text as boxes.
 
