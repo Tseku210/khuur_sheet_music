@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:score_layout/score_layout.dart';
@@ -185,10 +186,12 @@ class SheetController extends ChangeNotifier {
   /// completes when the scroll ends or the user takes over.
   ///
   /// The bar may be one of a score the view is given in the same frame. A
-  /// bar the sheet does not have after that frame scrolls nothing. A system
-  /// that is in view is looked at again after a frame that is already asked
-  /// for, so a zoom set just before this call is taken into account. A
-  /// scroll of the view's own that this call replaces stops where it is.
+  /// bar the sheet does not have after that frame scrolls nothing. A frame
+  /// that is already on its way is taken into account, so a zoom, an edit
+  /// or a new size of the view set just before this call does not leave the
+  /// system cut. A system that is in view is scrolled to already, and a
+  /// drag or a fling of the user's goes on. A scroll of the view's own that
+  /// this call replaces stops where it is.
   Future<void> ensureVisible(
     ScorePoint point, {
     Duration duration = const Duration(milliseconds: 250),
@@ -302,6 +305,10 @@ typedef _OwnScroll = ({
   Completer<void> done,
 });
 
+/// Where a system is in the scroll content, and how much of the content the
+/// view shows, in logical pixels.
+typedef _Place = ({double top, double bottom, double viewport});
+
 /// A scroll controller whose position starts at [start]. The view knows
 /// where that is only once it has laid the sheet out, which is after a
 /// controller's own initial offset is fixed.
@@ -331,9 +338,8 @@ class _SheetViewState extends State<SheetView> {
   /// Whether a font registration is waiting for [_afterFontsChanged].
   bool _fontsChanged = false;
 
-  /// The scroll of the view's own that is running or waits for a frame to
-  /// start, from `ensureVisible`, a moved cursor or playback. Null when
-  /// none is.
+  /// The scroll of the view's own that is running or waits for a frame,
+  /// from `ensureVisible`, a moved cursor or playback. Null when none is.
   _OwnScroll? _scrollingTo;
 
   /// Counts the starts of [_scrollingTo], so that the end of a start that
@@ -341,9 +347,10 @@ class _SheetViewState extends State<SheetView> {
   int _drives = 0;
 
   /// The start of [_scrollingTo] whose animation the scroll position is
-  /// running. Null when it runs none of the view's, because none started,
-  /// it ended, or a drag or a fling of the user's took over.
-  int? _animating;
+  /// running, and the offset it goes to. Null when it runs none of the
+  /// view's, because none started, it ended, or a drag or a fling of the
+  /// user's took over.
+  ({int drive, double target})? _animating;
 
   /// The bar the playhead was last seen in.
   MeasureId? _playing;
@@ -519,9 +526,8 @@ class _SheetViewState extends State<SheetView> {
     if (last != null && shown.layout.systemOf(last) == index) {
       return;
     }
-    if (widget.followPlayback &&
-        _scroll.hasClients &&
-        !_placeOf(shown, index).inView) {
+    final place = _placeOf(bar);
+    if (widget.followPlayback && place != null && !_showsAll(place)) {
       _scrollTo(bar, toTop: true);
     }
   }
@@ -560,33 +566,78 @@ class _SheetViewState extends State<SheetView> {
     scroll?.done.complete();
   }
 
-  /// Where system [index] of [shown] is in the scroll content, in logical
-  /// pixels, and whether the view shows all of it.
-  ({double top, double bottom, bool inView}) _placeOf(_Shown shown, int index) {
-    final position = _scroll.position;
+  /// Where the system holding [bar] is. Null when the sheet on screen has no
+  /// such bar, or the view has no scroll position yet.
+  _Place? _placeOf(MeasureId bar) {
+    final shown = _shown;
+    final index = shown?.layout.systemOf(bar);
+    if (shown == null || index == null || !_scroll.hasClients) {
+      return null;
+    }
     final top = shown.padding.top + shown.layout.tops[index] * shown.spacePx;
-    final bottom = top + shown.layout.heightOf(index) * shown.spacePx;
     return (
       top: top,
-      bottom: bottom,
-      inView:
-          top >= position.pixels &&
-          bottom <= position.pixels + position.viewportDimension,
+      bottom: top + shown.layout.heightOf(index) * shown.spacePx,
+      viewport: _scroll.position.viewportDimension,
     );
   }
 
-  /// Starts [scroll], or starts it again towards where its bar is now.
+  /// Whether the view shows all of the system at [place].
+  bool _showsAll(_Place place) {
+    final pixels = _scroll.position.pixels;
+    return place.top >= pixels && place.bottom <= pixels + place.viewport;
+  }
+
+  /// The offset [scroll] goes to for a system at [place]. Null when it has
+  /// nowhere to go, because the system is wholly in view and the scroll is
+  /// not one to the top.
+  double? _targetOf(_OwnScroll scroll, _Place place) {
+    if (!scroll.toTop && _showsAll(place)) {
+      return null;
+    }
+    final position = _scroll.position;
+    final (:top, :bottom, :viewport) = place;
+    final fits = bottom - top <= viewport;
+    return (scroll.toTop || top < position.pixels || !fits
+            ? top
+            : bottom - viewport)
+        .clamp(position.minScrollExtent, position.maxScrollExtent);
+  }
+
+  /// Whether a frame that may lay the sheet out again is on its way. It is
+  /// one that is asked for, or one that has begun and has not ended.
+  bool get _frameAhead {
+    final binding = WidgetsBinding.instance;
+    return binding.hasScheduledFrame ||
+        switch (binding.schedulerPhase) {
+          SchedulerPhase.transientCallbacks ||
+          SchedulerPhase.midFrameMicrotasks ||
+          SchedulerPhase.persistentCallbacks => true,
+          SchedulerPhase.idle || SchedulerPhase.postFrameCallbacks => false,
+        };
+  }
+
+  /// Starts [scroll], or starts it again towards where its bar is now. An
+  /// animation that goes there already runs on.
   ///
   /// A scroll to the top goes on until its system is at the top. Any other
   /// ends as soon as its system is wholly in view.
   ///
-  /// With [hold], the scroll waits for the next frame where that frame may
-  /// change the answer. An app does two things in one handler, and the view
-  /// sees the second before the frame that shows the first. A bar the sheet
-  /// on screen does not have may be in the score that frame lays out. A
-  /// system that is in view may be cut by a frame that is already asked
-  /// for, after a new zoom or an edit.
+  /// With [hold], the scroll takes a frame that is on its way into
+  /// account. An app does two things in one handler, and the view sees the
+  /// second before the frame that shows the first. A bar the sheet on
+  /// screen does not have may be in the score that frame lays out. A system
+  /// that is in view, or one the scroll jumped to, may be moved or cut by
+  /// that frame, after a new zoom, an edit or a new size of the view. So
+  /// the scroll looks again after the frame, and starts again when its
+  /// system is somewhere else in the sheet. A system only the user's scroll
+  /// moved is where it was, and the scroll ends.
   void _drive(_OwnScroll scroll, {bool hold = false}) {
+    final place = _placeOf(scroll.bar);
+    final target = place == null ? null : _targetOf(scroll, place);
+    if (target != null && target == _animating?.target) {
+      return;
+    }
     final drive = ++_drives;
     bool isLive() => drive == _drives && identical(_scrollingTo, scroll);
     void end() {
@@ -595,54 +646,49 @@ class _SheetViewState extends State<SheetView> {
       }
     }
 
-    void afterFrame() {
+    void afterFrame(VoidCallback look) {
       WidgetsBinding.instance
         ..addPostFrameCallback((_) {
           if (isLive()) {
-            _drive(scroll);
+            look();
           }
         })
         ..ensureVisualUpdate();
     }
 
-    final shown = _shown;
-    final index = shown?.layout.systemOf(scroll.bar);
-    if (shown == null || index == null || !_scroll.hasClients) {
+    if (place == null) {
       if (hold) {
-        afterFrame();
+        afterFrame(() => _drive(scroll));
       } else {
         end();
       }
       return;
     }
     final position = _scroll.position;
-    final (:top, :bottom, :inView) = _placeOf(shown, index);
-    if (inView && !scroll.toTop) {
-      if (hold && WidgetsBinding.instance.hasScheduledFrame) {
-        afterFrame();
+    if (target == null || scroll.duration == Duration.zero) {
+      if (target != null) {
+        position.jumpTo(target);
+      }
+      if (hold && _frameAhead) {
+        afterFrame(() {
+          if (_placeOf(scroll.bar) == place) {
+            end();
+          } else {
+            _drive(scroll);
+          }
+        });
       } else {
         end();
       }
       return;
     }
-    final fits = bottom - top <= position.viewportDimension;
-    final target =
-        (scroll.toTop || top < position.pixels || !fits
-                ? top
-                : bottom - position.viewportDimension)
-            .clamp(position.minScrollExtent, position.maxScrollExtent);
-    if (scroll.duration == Duration.zero) {
-      position.jumpTo(target);
-      end();
-      return;
-    }
-    _animating = drive;
+    _animating = (drive: drive, target: target);
     position
         .animateTo(target, duration: scroll.duration, curve: Curves.easeInOut)
         .whenComplete(() {
           // The animation ended or the user took over. Either way the position
           // runs nothing of the view's now.
-          if (_animating == drive) {
+          if (_animating?.drive == drive) {
             _animating = null;
           }
           end();
@@ -729,8 +775,8 @@ class _SheetViewState extends State<SheetView> {
   ///
   /// The correction holds while the scroll is idle, dragged or flung. A
   /// scroll the view itself is animating writes its own offsets on the next
-  /// tick and would undo it, and it is going to where its bar was. So the
-  /// builder starts such a scroll again after every new layout.
+  /// tick and would undo it, and it may be going to where its bar was. So
+  /// the builder has such a scroll look again after every frame it builds.
   void _keepInPlace(_ScrollAnchor? anchor, SheetLayout layout, double spacePx) {
     final index = anchor == null ? null : layout.systemOf(anchor.bar);
     if (anchor == null || index == null) {
@@ -785,21 +831,27 @@ class _SheetViewState extends State<SheetView> {
         padding: padding,
         palette: palette,
       );
-      if (!identical(layout, previous?.layout) ||
+      final moved =
+          !identical(layout, previous?.layout) ||
           spacePx != previous?.spacePx ||
-          padding != previous?.padding) {
+          padding != previous?.padding;
+      if (moved || _animating != null) {
         // The controller's listeners may rebuild, which a layout pass
         // does not allow. They hear of the new geometry after this
-        // frame, when the scroll extent is the new layout's too.
+        // frame, when the scroll extent is the new layout's too. A scroll
+        // the view is animating looks again then, because this frame may
+        // have moved its system or resized the view.
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) {
             return;
           }
           final scroll = _scrollingTo;
-          if (scroll != null) {
+          if (scroll != null && _animating != null) {
             _drive(scroll);
           }
-          _controller._moved();
+          if (moved) {
+            _controller._moved();
+          }
         });
       }
       final scale = SheetScale(spacePx: spacePx);
