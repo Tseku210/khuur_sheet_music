@@ -142,13 +142,25 @@ void main() {
     );
   });
 
-  test('a font equals itself and no reparsed copy', () {
+  test('fonts are equal when they name one family over the same tables, so '
+      'a reparsed copy is not', () {
     final metadata = bravuraMetadata();
     final first = SmuflFont.fromMetadata(family: 'Mine', metadata: metadata);
     final second = SmuflFont.fromMetadata(family: 'Mine', metadata: metadata);
+    final sharing = SmuflFont(
+      family: 'Mine',
+      glyphs: first.glyphs,
+      defaults: first.defaults,
+    );
+    final renamed = SmuflFont(
+      family: 'Other',
+      glyphs: first.glyphs,
+      defaults: first.defaults,
+    );
 
-    expect(first, first);
-    expect(first, isNot(second));
-    expect(SmuflFont.bravura, SmuflFont.bravura);
+    expect(sharing, first);
+    expect(sharing.hashCode, first.hashCode);
+    expect(renamed, isNot(first));
+    expect(second, isNot(first));
   });
 }
