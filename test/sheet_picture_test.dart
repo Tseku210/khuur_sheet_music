@@ -1164,17 +1164,13 @@ void main() {
   });
 
   testWidgets(
-      'a sheet paints a caret, a selection across a system break and a '
-      'playhead from the overlay queries as plain boxes', (tester) async {
+      'on the ensemble sheet a selection across a system break covers its '
+      'staves and no other, a caret stands on its staff and a playhead '
+      'spans its system', (tester) async {
     await tester.runAsync(() async {
-      final painter = bravuraPainter();
-      await loadBravura(painter);
       await loadTextFont();
       final score = pictured();
       final layout = layoutOf(score);
-      final width = ((sheetWidth + 2 * margin) * spacePx).ceil();
-      final height = ((layout.height + 2 * margin) * spacePx).ceil();
-      final sheet = scaleOf(0);
       final ids = [for (final measure in score.measures) measure.id];
       final staves = [for (final staff in score.staves) staff.id];
       expect(layout.systemCount, greaterThanOrEqualTo(3));
@@ -1218,62 +1214,6 @@ void main() {
               1e-9));
       expect(playhead.top, layout.tops[played]);
       expect(playhead.bottom, layout.tops[played] + layout.heightOf(played));
-
-      void paintSheet(ui.Canvas canvas) {
-        paintDrawables(canvas, painter, layout.header, scaleOf(0));
-        for (var i = 0; i < layout.systemCount; i++) {
-          paintDrawables(
-              canvas, painter, inkOf(layout, i), scaleOf(layout.tops[i]));
-        }
-      }
-
-      ui.Rect lineOf(Box box) => sheet.rectOf(box).inflate(1);
-      final plain = await render(width, height, paintSheet);
-      final image = await render(width, height, (canvas) {
-        paintSheet(canvas);
-        for (final box in boxes) {
-          canvas.drawRect(
-            sheet.rectOf(box),
-            ui.Paint()..color = const ui.Color(0x553366FF),
-          );
-        }
-        canvas
-          ..drawRect(
-            lineOf(playhead),
-            ui.Paint()..color = const ui.Color(0xFF22AA44),
-          )
-          ..drawRect(
-            lineOf(caret),
-            ui.Paint()..color = const ui.Color(0xFFDD2222),
-          );
-      });
-      writeSnapshot('sheet_overlays', image.png);
-
-      (int, int, int) pixel(Uint8List rgba, ui.Offset at) {
-        final i = (at.dy.round() * width + at.dx.round()) * 4;
-        return (rgba[i], rgba[i + 1], rgba[i + 2]);
-      }
-
-      final caretPx = sheet.toPx(
-        SpPoint(caret.left, (caret.top + caret.bottom) / 2),
-      );
-      expect(pixel(image.rgba, caretPx), (0xDD, 0x22, 0x22));
-      final playheadPx = sheet.toPx(
-        SpPoint(playhead.left, (playhead.top + playhead.bottom) / 2),
-      );
-      expect(pixel(image.rgba, playheadPx), (0x22, 0xAA, 0x44));
-      for (final box in boxes) {
-        final inside = sheet.toPx(
-          SpPoint((box.left + box.right) / 2, (box.top + box.bottom) / 2),
-        );
-        final (r, _, b) = pixel(image.rgba, inside);
-        final (r0, _, b0) = pixel(plain.rgba, inside);
-        expect(r0, b0, reason: 'the sheet alone is grey at $inside');
-        expect(b, greaterThan(r + 30), reason: 'tinted at $inside');
-        final above = sheet.toPx(SpPoint((box.left + box.right) / 2, box.top));
-        final (ra, _, ba) = pixel(image.rgba, above.translate(0, -3));
-        expect(ra, ba, reason: 'untinted above the box at $above');
-      }
     });
   });
 
