@@ -125,24 +125,12 @@ MeasureView barOf(
   Clef clef = Clef.treble,
   int lines = 5,
   Instrument instrument = piano,
-  Meter meter = Meter.fourFour,
-  KeySignature key = KeySignature.cMajor,
 }) => viewOf(
-  scoreOf(
+  scoreOf([
     [
-      [
-        staffOf(
-          one,
-          two: two,
-          clef: clef,
-          lines: lines,
-          instrument: instrument,
-        ),
-      ],
+      staffOf(one, two: two, clef: clef, lines: lines, instrument: instrument),
     ],
-    meter: meter,
-    key: key,
-  ),
+  ]),
 );
 
 /// A chord of space-separated [pitches]. Note `i` has id `id * 10 + i`.
@@ -151,7 +139,6 @@ ChordEvent chordOf(
   String pitches, {
   NoteValue value = NoteValue.quarter,
   StemDirection stem = StemDirection.auto,
-  BeamMode beam = BeamMode.auto,
   List<GraceChord> graces = const [],
   AccidentalRequest accidental = AccidentalRequest.auto,
   int tremolo = 0,
@@ -161,7 +148,6 @@ ChordEvent chordOf(
     id: EventId(id),
     value: value,
     stem: stem,
-    beam: beam,
     tremolo: tremolo,
     graces: Seq(graces),
     notes: Seq([
@@ -261,8 +247,8 @@ MeasureId barId(int bar) => MeasureId(3000 + bar);
 
 StaffId staffId(int staff) => StaffId(2000 + staff);
 
-EventRef eventRef(int id, {int bar = 0, int staff = 0}) =>
-    EventRef(measure: barId(bar), staff: staffId(staff), id: EventId(id));
+EventRef eventRef(int id, {int bar = 0}) =>
+    EventRef(measure: barId(bar), staff: staffId(0), id: EventId(id));
 
 const NoteValue eighth = NoteValue.eighth;
 const NoteValue sixteenth = NoteValue.sixteenth;
