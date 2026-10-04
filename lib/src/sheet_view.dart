@@ -190,8 +190,10 @@ class SheetController extends ChangeNotifier {
   /// that is already on its way is taken into account, so a zoom, an edit
   /// or a new size of the view set just before this call does not leave the
   /// system cut. A system that is in view is scrolled to already, and a
-  /// drag or a fling of the user's goes on. A scroll of the view's own that
-  /// this call replaces stops where it is.
+  /// drag or a fling of the user's goes on. A call that asks again for what
+  /// a scroll of the view's own is doing joins that scroll and ends with
+  /// it, so a call on every frame still gets there. Any other scroll of the
+  /// view's own stops where it is when this call replaces it.
   Future<void> ensureVisible(
     ScorePoint point, {
     Duration duration = const Duration(milliseconds: 250),
@@ -352,6 +354,12 @@ class _SheetViewState extends State<SheetView> {
   /// user's took over.
   ({int drive, double target})? _animating;
 
+  /// The scroll offset the controller's listeners last heard of. A frame
+  /// that lays the sheet out may move the offset and notify no one, to keep
+  /// its anchor in place or to stay inside a new scroll extent. From then
+  /// to the end of that frame the offset is another than this.
+  double? _toldAt;
+
   /// The bar the playhead was last seen in.
   MeasureId? _playing;
 
@@ -464,7 +472,16 @@ class _SheetViewState extends State<SheetView> {
 
   void _rebuild() => setState(() {});
 
-  void _onScroll() => _controller._moved();
+  void _onScroll() {
+    _toldAt = _offset;
+    _controller._moved();
+  }
+
+  double? get _offset => _scroll.hasClients ? _scroll.position.pixels : null;
+
+  /// Whether the frame that is ending moved the scroll offset and notified
+  /// no one.
+  bool get _movedSilently => _offset != _toldAt;
 
   /// Flutter reports every font registered at run time here, a `FontLoader`
   /// load included, whoever loaded it. A burst of registrations is handled
@@ -527,7 +544,9 @@ class _SheetViewState extends State<SheetView> {
       return;
     }
     final place = _placeOf(bar);
-    if (widget.followPlayback && place != null && !_showsAll(place)) {
+    if (widget.followPlayback &&
+        place != null &&
+        !_showsAll(place, slack: _slack)) {
       _scrollTo(bar, toTop: true);
     }
   }
@@ -537,6 +556,17 @@ class _SheetViewState extends State<SheetView> {
     required bool toTop,
     Duration duration = const Duration(milliseconds: 250),
   }) {
+    final running = _scrollingTo;
+    if (running != null &&
+        running.bar == bar &&
+        running.toTop == toTop &&
+        running.duration == duration) {
+      // The same scroll, asked for again. Starting it over would take its
+      // animation back to its first frame, and one asked for on every
+      // frame would never get there.
+      _drive(running, hold: true);
+      return running.done.future;
+    }
     _stopScrolling();
     final scroll = (
       bar: bar,
@@ -582,10 +612,19 @@ class _SheetViewState extends State<SheetView> {
     );
   }
 
-  /// Whether the view shows all of the system at [place].
-  bool _showsAll(_Place place) {
+  /// Whether the view shows all of the system at [place]. A system that is
+  /// out of view by less than [slack] counts as in it.
+  bool _showsAll(_Place place, {double slack = 0}) {
     final pixels = _scroll.position.pixels;
-    return place.top >= pixels && place.bottom <= pixels + place.viewport;
+    return place.top >= pixels - slack &&
+        place.bottom <= pixels + place.viewport + slack;
+  }
+
+  /// The distance the scroll position takes for none, which is about one
+  /// physical pixel. An animation that short is one it does not run.
+  double get _slack {
+    final position = _scroll.position;
+    return position.physics.toleranceFor(position).distance;
   }
 
   /// The offset [scroll] goes to for a system at [place]. Null when it has
@@ -630,8 +669,13 @@ class _SheetViewState extends State<SheetView> {
   /// that is in view, or one the scroll jumped to, may be moved or cut by
   /// that frame, after a new zoom, an edit or a new size of the view. So
   /// the scroll looks again after the frame, and starts again when its
-  /// system is somewhere else in the sheet. A system only the user's scroll
-  /// moved is where it was, and the scroll ends.
+  /// system is somewhere else in the sheet or the frame moved the offset
+  /// itself. A system only the user's scroll moved is where it was, and the
+  /// scroll ends.
+  ///
+  /// A scroll that has less to go than the position takes for a distance
+  /// jumps there, as the position's own animation would. That animation
+  /// would end at once, before the frame the scroll has to look after.
   void _drive(_OwnScroll scroll, {bool hold = false}) {
     final place = _placeOf(scroll.bar);
     final target = place == null ? null : _targetOf(scroll, place);
@@ -665,13 +709,14 @@ class _SheetViewState extends State<SheetView> {
       return;
     }
     final position = _scroll.position;
-    if (target == null || scroll.duration == Duration.zero) {
+    final near = target != null && (target - position.pixels).abs() < _slack;
+    if (target == null || near || scroll.duration == Duration.zero) {
       if (target != null) {
         position.jumpTo(target);
       }
       if (hold && _frameAhead) {
         afterFrame(() {
-          if (_placeOf(scroll.bar) == place) {
+          if (_placeOf(scroll.bar) == place && !_movedSilently) {
             end();
           } else {
             _drive(scroll);
@@ -831,29 +876,29 @@ class _SheetViewState extends State<SheetView> {
         padding: padding,
         palette: palette,
       );
-      final moved =
+      final relaid =
           !identical(layout, previous?.layout) ||
           spacePx != previous?.spacePx ||
           padding != previous?.padding;
-      if (moved || _animating != null) {
-        // The controller's listeners may rebuild, which a layout pass
-        // does not allow. They hear of the new geometry after this
-        // frame, when the scroll extent is the new layout's too. A scroll
-        // the view is animating looks again then, because this frame may
-        // have moved its system or resized the view.
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) {
-            return;
-          }
-          final scroll = _scrollingTo;
-          if (scroll != null && _animating != null) {
-            _drive(scroll);
-          }
-          if (moved) {
-            _controller._moved();
-          }
-        });
-      }
+      // The controller's listeners may rebuild, which a layout pass does
+      // not allow. They hear of the new geometry after this frame, when the
+      // scroll extent is the new layout's too, and of an offset this frame
+      // moved without a notification. A scroll the view is animating looks
+      // again then, because this frame may have moved its system or resized
+      // the view.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        final scroll = _scrollingTo;
+        if (scroll != null && _animating != null) {
+          _drive(scroll);
+        }
+        if (relaid || _movedSilently) {
+          _toldAt = _offset;
+          _controller._moved();
+        }
+      });
       final scale = SheetScale(spacePx: spacePx);
       final onTap = widget.onTap;
       return GestureDetector(

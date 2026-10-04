@@ -713,6 +713,15 @@ void main() {
       await tester.pump();
       expect(systemOf(10).top, closeTo(0, 1e-6));
 
+      final atTop = scrollOf(tester).pixels;
+      unawaited(controller.ensureVisible(startOf(10)));
+      await tester.pumpAndSettle();
+      expect(
+        scrollOf(tester).pixels,
+        atTop,
+        reason: 'a system at the top edge of the view is in view',
+      );
+
       await tester.pumpWidget(view(size: const Size(400, 60)));
       unawaited(controller.ensureVisible(startOf(30)));
       await tester.pumpAndSettle();
@@ -739,11 +748,17 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
       expect(done, isFalse);
+      final taken = scrollOf(tester).pixels;
 
       await tester.drag(find.byType(SheetView), const Offset(0, 30));
       await tester.pumpAndSettle();
       expect(done, isTrue);
       final offset = scrollOf(tester).pixels;
+      expect(
+        offset,
+        lessThan(taken - 1),
+        reason: 'the view followed the finger',
+      );
 
       await tester.pumpWidget(
         host(SheetView(score: raised(score, 39), controller: controller)),
@@ -1162,6 +1177,463 @@ void main() {
     },
   );
 
+  testWidgets(
+    'ensureVisible in the handler of an edit that grows the system between '
+    "its system and the cursor's, which the view keeps in place, ends with "
+    'its system in view, from in view and from out of it',
+    (tester) async {
+      final score = tune();
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      var edited = score;
+      late StateSetter setState;
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, set) {
+            setState = set;
+            return host(
+              SheetView(
+                score: edited,
+                controller: controller,
+                cursor: cursorIn(score, 11),
+              ),
+            );
+          },
+        ),
+      );
+      final layout = shown(tester);
+      final kept = layout.systemOf(score.measures[11].id)!;
+      final bar = layout.firstBarOf(kept - 2);
+      final between = score.indexOf(layout.firstBarOf(kept - 1));
+      Future<void> editAndShow(Duration duration) async {
+        var done = false;
+        setState(() => edited = raised(score, between));
+        unawaited(
+          controller
+              .ensureVisible(ScorePoint(bar, Moment.zero), duration: duration)
+              .then((_) => done = true),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          shown(tester).heightOf(kept - 1),
+          greaterThan(layout.heightOf(kept - 1) + 1),
+          reason: 'the system between grew',
+        );
+        expect(done, isTrue);
+        expectWhollyInView(tester, bar);
+      }
+
+      scrollOf(tester).jumpTo(
+        padding.top + layout.tops[kept - 2] * staffSpace - 2,
+      );
+      await tester.pump();
+      expectWhollyInView(tester, bar);
+      expectWhollyInView(tester, score.measures[11].id);
+      await editAndShow(const Duration(milliseconds: 250));
+
+      setState(() => edited = score);
+      await tester.pump();
+      scrollOf(tester).jumpTo(
+        padding.top + shown(tester).tops[kept] * staffSpace - 100,
+      );
+      await tester.pump();
+      expect(tileOf(kept - 2), findsNothing);
+      await editAndShow(Duration.zero);
+    },
+  );
+
+  testWidgets(
+    'ensureVisible in the handler of an edit that makes its system taller, '
+    'or the system above it, ends with its system in view',
+    (tester) async {
+      final score = tune();
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      var edited = score;
+      late StateSetter setState;
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, set) {
+            setState = set;
+            return host(SheetView(score: edited, controller: controller));
+          },
+        ),
+      );
+      final layout = shown(tester);
+      const system = 6;
+      final bar = layout.firstBarOf(system);
+      scrollOf(tester).jumpTo(
+        padding.top +
+            (layout.tops[system] + layout.heightOf(system)) * staffSpace -
+            viewSize.height,
+      );
+      await tester.pump();
+      expectWhollyInView(tester, bar);
+      Future<void> raiseAndShow(MeasureId raisedBar, String what) async {
+        final offset = scrollOf(tester).pixels;
+        var done = false;
+        setState(() => edited = raised(edited, score.indexOf(raisedBar)));
+        unawaited(
+          controller
+              .ensureVisible(ScorePoint(bar, Moment.zero))
+              .then((_) => done = true),
+        );
+        await tester.pumpAndSettle();
+        expect(done, isTrue, reason: what);
+        expect(scrollOf(tester).pixels, greaterThan(offset + 1), reason: what);
+        expectWhollyInView(tester, bar);
+      }
+
+      await raiseAndShow(bar, 'its own system grows down');
+      await raiseAndShow(
+        layout.firstBarOf(system - 1),
+        'the system above pushes it down',
+      );
+    },
+  );
+
+  testWidgets(
+    'ensureVisible for a system cut by less than a pixel of the screen, '
+    'after a zoom the next frame lays out at, scrolls to it at the new zoom',
+    (tester) async {
+      final score = tune();
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        host(SheetView(score: score, controller: controller)),
+      );
+      final layout = shown(tester);
+      final position = scrollOf(tester);
+      final bar = layout.firstBarOf(3);
+      final hair = position.physics.toleranceFor(position).distance / 2;
+      position.jumpTo(
+        padding.top +
+            (layout.tops[3] + layout.heightOf(3)) * staffSpace -
+            viewSize.height -
+            hair,
+      );
+      await tester.pump();
+      expect(spanOf(tester, 3).bottom, greaterThan(viewSize.height + hair / 2));
+
+      controller.zoom = 1.5;
+      var done = false;
+      unawaited(
+        controller
+            .ensureVisible(ScorePoint(bar, Moment.zero))
+            .then((_) => done = true),
+      );
+      await tester.pumpAndSettle();
+      expect(done, isTrue);
+      expectWhollyInView(tester, bar, spacePx: staffSpace * 1.5);
+    },
+  );
+
+  testWidgets(
+    'ensureVisible for a system taller than the view that is at its top, '
+    'after a zoom the next frame lays out at, shows its top at the new zoom',
+    (tester) async {
+      final score = tune();
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      Widget view({Size size = viewSize}) => host(
+        SheetView(score: score, controller: controller),
+        size: size,
+      );
+      await tester.pumpWidget(view());
+      final layout = shown(tester);
+      await tester.pumpWidget(view(size: const Size(400, 60)));
+      final system = layout.systemOf(score.measures[30].id)!;
+      final first = layout.firstBarOf(system);
+      final bar = score.measures[score.indexOf(first) + 1].id;
+      expect(layout.systemOf(bar), system);
+      final at = ScorePoint(bar, Moment.zero);
+      unawaited(controller.ensureVisible(at));
+      await tester.pumpAndSettle();
+      expect(spanOf(tester, system).top, closeTo(0, 1e-6));
+
+      controller.zoom = 1.5;
+      var done = false;
+      unawaited(controller.ensureVisible(at).then((_) => done = true));
+      await tester.pumpAndSettle();
+      expect(done, isTrue);
+      final now = shown(tester).systemOf(bar)!;
+      expect(
+        shown(tester).systemOf(first),
+        isNot(now),
+        reason: 'the new zoom breaks the line between the two bars',
+      );
+      expect(
+        tileOf(now),
+        findsOneWidget,
+        reason: 'a system that is out of view has no tile',
+      );
+      expect(tester.getTopLeft(tileOf(now)).dy, closeTo(0, 1e-6));
+    },
+  );
+
+  testWidgets(
+    'ensureVisible after a zoom set in a frame callback, as an animation of '
+    "the app's does, scrolls to its system at the new zoom",
+    (tester) async {
+      final score = tune();
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        host(SheetView(score: score, controller: controller)),
+      );
+      final layout = shown(tester);
+      final bar = layout.firstBarOf(3);
+      scrollOf(tester).jumpTo(
+        padding.top +
+            (layout.tops[3] + layout.heightOf(3)) * staffSpace -
+            viewSize.height,
+      );
+      await tester.pumpAndSettle();
+      SchedulerPhase? phase;
+      var done = false;
+      tester.binding.scheduleFrameCallback((_) {
+        phase = tester.binding.schedulerPhase;
+        controller.zoom = 1.5;
+        unawaited(
+          controller
+              .ensureVisible(ScorePoint(bar, Moment.zero))
+              .then((_) => done = true),
+        );
+      });
+      await tester.pumpAndSettle();
+      expect(phase, SchedulerPhase.transientCallbacks);
+      expect(done, isTrue);
+      expectWhollyInView(tester, bar, spacePx: staffSpace * 1.5);
+    },
+  );
+
+  testWidgets(
+    'ensureVisible called while the app builds the view shorter, as from a '
+    'didUpdateWidget, ends with its system in the shorter view',
+    (tester) async {
+      final score = tune();
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      const shorter = 250.0;
+      var height = viewSize.height;
+      MeasureId? asked;
+      SchedulerPhase? phase;
+      var done = false;
+      late StateSetter setState;
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, set) {
+            setState = set;
+            final bar = asked;
+            asked = null;
+            if (bar != null) {
+              phase = tester.binding.schedulerPhase;
+              unawaited(
+                controller
+                    .ensureVisible(ScorePoint(bar, Moment.zero))
+                    .then((_) => done = true),
+              );
+            }
+            return host(
+              SheetView(score: score, controller: controller),
+              size: Size(viewSize.width, height),
+            );
+          },
+        ),
+      );
+      final cut = built(tester).lastWhere(
+        (index) => spanOf(tester, index).bottom <= viewSize.height,
+      );
+      expect(spanOf(tester, cut).bottom, greaterThan(shorter));
+      final bar = shown(tester).firstBarOf(cut);
+      setState(() {
+        height = shorter;
+        asked = bar;
+      });
+      await tester.pumpAndSettle();
+      expect(phase, SchedulerPhase.persistentCallbacks);
+      expect(done, isTrue);
+      expectWhollyInView(tester, bar, height: shorter);
+    },
+  );
+
+  testWidgets(
+    'ensureVisible asked again on every frame for the same bar gets there, '
+    'and every call ends',
+    (tester) async {
+      final score = tune();
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        host(SheetView(score: score, controller: controller)),
+      );
+      final bar = score.measures[30].id;
+      var ended = 0;
+      // 640 ms of asking, and the scroll takes 250.
+      for (var frame = 0; frame < 40; frame++) {
+        unawaited(
+          controller
+              .ensureVisible(ScorePoint(bar, Moment.zero))
+              .then((_) => ended++),
+        );
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expectWhollyInView(tester, bar);
+      await tester.pumpAndSettle();
+      expect(ended, 40);
+    },
+  );
+
+  testWidgets(
+    'ensureVisible with no duration, for the bar the view is scrolling to, '
+    'ends the first call and jumps there',
+    (tester) async {
+      final score = tune();
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        host(SheetView(score: score, controller: controller)),
+      );
+      final at = ScorePoint(score.measures[30].id, Moment.zero);
+      var first = false;
+      var second = false;
+      unawaited(controller.ensureVisible(at).then((_) => first = true));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(first, isFalse);
+
+      unawaited(
+        controller
+            .ensureVisible(at, duration: Duration.zero)
+            .then((_) => second = true),
+      );
+      await tester.pump();
+      expect(first, isTrue);
+      expect(second, isTrue);
+      expectWhollyInView(tester, at.measure);
+    },
+  );
+
+  testWidgets(
+    'ensureVisible asked again for a bar the user scrolled out of view, '
+    'before the frame its first call waits for, scrolls to it',
+    (tester) async {
+      final score = tune();
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        host(SheetView(score: score, controller: controller)),
+      );
+      final bar = firstBarWhollyInView(tester);
+      final at = ScorePoint(bar, Moment.zero);
+      var ended = 0;
+      tester.binding.scheduleFrame();
+      unawaited(controller.ensureVisible(at).then((_) => ended++));
+      scrollOf(tester).jumpTo(600);
+      unawaited(controller.ensureVisible(at).then((_) => ended++));
+      await tester.pumpAndSettle();
+      expect(ended, 2);
+      expectWhollyInView(tester, bar);
+    },
+  );
+
+  testWidgets(
+    'ensureVisible for another bar of the system the view scrolls to ends '
+    'the first call and gets there',
+    (tester) async {
+      final score = tune();
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        host(SheetView(score: score, controller: controller)),
+      );
+      final layout = shown(tester);
+      final system = layout.systemOf(score.measures[30].id)!;
+      final first = layout.firstBarOf(system);
+      final second = score.measures[score.indexOf(first) + 1].id;
+      expect(layout.systemOf(second), system);
+      var firstDone = false;
+      var secondDone = false;
+      unawaited(
+        controller
+            .ensureVisible(ScorePoint(first, Moment.zero))
+            .then((_) => firstDone = true),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(firstDone, isFalse);
+
+      unawaited(
+        controller
+            .ensureVisible(ScorePoint(second, Moment.zero))
+            .then((_) => secondDone = true),
+      );
+      await tester.pump();
+      expect(firstDone, isTrue);
+      expect(secondDone, isFalse);
+      await tester.pumpAndSettle();
+      expect(secondDone, isTrue);
+      expectWhollyInView(tester, second);
+    },
+  );
+
+  testWidgets(
+    'a scroll of the view ends at once when a new zoom brings its system '
+    'into view on the way',
+    (tester) async {
+      final score = tune();
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        host(SheetView(score: score, controller: controller)),
+      );
+      final bar = score.measures[30].id;
+      var done = false;
+      unawaited(
+        controller
+            .ensureVisible(ScorePoint(bar, Moment.zero))
+            .then((_) => done = true),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(done, isFalse);
+
+      controller.zoom = 0.25;
+      await tester.pump(const Duration(milliseconds: 16));
+      expectWhollyInView(tester, bar, spacePx: staffSpace * 0.25);
+      expect(done, isTrue, reason: 'its system is in view at the new zoom');
+    },
+  );
+
+  testWidgets(
+    'a scroll of the view follows its system through two zooms on the way',
+    (tester) async {
+      final score = tune();
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        host(SheetView(score: score, controller: controller)),
+      );
+      final bar = score.measures[30].id;
+      var done = false;
+      unawaited(
+        controller
+            .ensureVisible(ScorePoint(bar, Moment.zero))
+            .then((_) => done = true),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      controller.zoom = 1.25;
+      await tester.pump(const Duration(milliseconds: 16));
+      controller.zoom = 1.5;
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(done, isFalse);
+      await tester.pumpAndSettle();
+      expect(done, isTrue);
+      expectWhollyInView(tester, bar, spacePx: staffSpace * 1.5);
+    },
+  );
+
   testWidgets("the scroll extent is the sheet's height on the first frame", (
     tester,
   ) async {
@@ -1192,6 +1664,14 @@ void main() {
         ),
       );
       await tester.pumpWidget(view(0));
+      await tester.pumpWidget(view(1));
+      expect(scrollOf(tester).pixels, 0);
+      expect(
+        tester.binding.hasScheduledFrame,
+        isFalse,
+        reason: 'a cursor that moves inside the view asks for no frame',
+      );
+
       await tester.pumpWidget(view(30));
       await tester.pumpAndSettle();
       expectWhollyInView(tester, score.measures[30].id);
@@ -1343,6 +1823,112 @@ void main() {
       await tester.pumpWidget(view(raised(score, 0)));
       await tester.pumpAndSettle();
       expect(topOf(tester, bar), closeTo(0, 1e-6));
+    },
+  );
+
+  testWidgets(
+    'playback that enters the system ensureVisible is scrolling to brings '
+    'it to the top of the view',
+    (tester) async {
+      final score = tune();
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      final playback = ValueNotifier<PlaybackPosition?>(null);
+      addTearDown(playback.dispose);
+      await tester.pumpWidget(
+        host(
+          SheetView(score: score, controller: controller, playback: playback),
+        ),
+      );
+      final bar = score.measures[20].id;
+      var done = false;
+      unawaited(
+        controller
+            .ensureVisible(ScorePoint(bar, Moment.zero))
+            .then((_) => done = true),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(done, isFalse);
+
+      playback.value = playingIn(score, 20);
+      await tester.pump();
+      expect(done, isTrue, reason: 'the scroll to the top took its place');
+      await tester.pumpAndSettle();
+      expect(topOf(tester, bar), closeTo(0, 1e-6));
+    },
+  );
+
+  testWidgets(
+    'playback that enters a system in view leaves the scroll alone, also '
+    'when the system is cut by less than a pixel of the screen',
+    (tester) async {
+      final score = tune();
+      final playback = ValueNotifier<PlaybackPosition?>(null);
+      addTearDown(playback.dispose);
+      await tester.pumpWidget(
+        host(SheetView(score: score, playback: playback)),
+      );
+      final layout = shown(tester);
+      final position = scrollOf(tester);
+      final hair = position.physics.toleranceFor(position).distance / 2;
+      for (final (system, below, what) in [
+        (4, -2.0, 'a system two pixels inside the view'),
+        (7, hair, 'a system cut by less than a pixel of the screen'),
+      ]) {
+        final offset =
+            padding.top +
+            (layout.tops[system] + layout.heightOf(system)) * staffSpace -
+            viewSize.height -
+            below;
+        position.jumpTo(offset);
+        await tester.pump();
+        expect(
+          spanOf(tester, system).bottom,
+          closeTo(viewSize.height + below, 1e-6),
+        );
+        playback.value = playingIn(
+          score,
+          score.indexOf(layout.firstBarOf(system)),
+        );
+        await tester.pumpAndSettle();
+        expect(position.pixels, offset, reason: what);
+      }
+    },
+  );
+
+  testWidgets(
+    'playback that enters the last system, which cannot reach the top of '
+    'the view, scrolls to the end of the sheet and never past it',
+    (tester) async {
+      final score = tune();
+      final playback = ValueNotifier<PlaybackPosition?>(null);
+      addTearDown(playback.dispose);
+      await tester.pumpWidget(
+        ScrollConfiguration(
+          behavior: const ScrollBehavior().copyWith(
+            physics: const BouncingScrollPhysics(),
+          ),
+          child: host(SheetView(score: score, playback: playback)),
+        ),
+      );
+      final position = scrollOf(tester);
+      final end = position.maxScrollExtent;
+      final last = shown(tester).systemCount - 1;
+      position.jumpTo(end - 60);
+      await tester.pump();
+      expect(spanOf(tester, last).bottom, greaterThan(viewSize.height + 1));
+
+      playback.value = playingIn(score, score.measures.length - 1);
+      var furthest = position.pixels;
+      for (var frame = 0; frame < 30; frame++) {
+        await tester.pump(const Duration(milliseconds: 16));
+        if (position.pixels > furthest) {
+          furthest = position.pixels;
+        }
+      }
+      expect(furthest, closeTo(end, 1e-6));
+      expect(position.pixels, closeTo(end, 1e-6));
     },
   );
 
@@ -2110,6 +2696,64 @@ void main() {
         controller.rectOf(head)!.center,
         within(distance: 1e-6, from: middleOf(tester, head)),
       );
+
+      // At the top of the sheet a new staff space moves no scroll offset.
+      scrollOf(tester).jumpTo(0);
+      await tester.pump();
+      await expectTold(
+        'a staff space that scales the layout at the top of the sheet',
+        () => tester.pumpWidget(
+          host(
+            SheetView(
+              score: edited,
+              controller: controller,
+              padding: padding.copyWith(top: padding.top + 24),
+            ),
+          ),
+        ),
+      );
+      expect(shown(tester), same(unscaled));
+      expect(
+        controller.rectOf(head)!.center,
+        within(distance: 1e-6, from: middleOf(tester, head, spacePx: 16)),
+      );
+    },
+  );
+
+  testWidgets(
+    'the controller tells its listeners when a view at the end of its sheet '
+    'gets taller, which moves the sheet down, and tells none when a rebuild '
+    'moves nothing',
+    (tester) async {
+      final score = tune();
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      Widget view(double height) => host(
+        SheetView(score: score, controller: controller),
+        size: Size(viewSize.width, height),
+      );
+      await tester.pumpWidget(view(viewSize.height));
+      scrollOf(tester).jumpTo(scrollOf(tester).maxScrollExtent);
+      await tester.pump();
+      final head = headOf(score, score.measures.length - 1, 1);
+      final top = controller.rectOf(head)!.top;
+      var told = 0;
+      controller.addListener(() => told++);
+
+      await tester.pumpWidget(view(viewSize.height));
+      expect(told, 0, reason: 'a rebuild that moves nothing');
+
+      await tester.pumpWidget(view(viewSize.height + 100));
+      expect(told, greaterThan(0), reason: 'a taller view');
+      expect(controller.rectOf(head)!.top, closeTo(top + 100, 1e-6));
+      expect(
+        controller.rectOf(head)!.center,
+        within(distance: 1e-6, from: middleOf(tester, head)),
+      );
+
+      final heard = told;
+      await tester.pumpWidget(view(viewSize.height + 100));
+      expect(told, heard, reason: 'a rebuild after it, which moves nothing');
     },
   );
 
