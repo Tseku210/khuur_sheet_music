@@ -752,6 +752,17 @@ typedef LeadPart = ({
   int lastStaff,
 });
 
+extension LeadPartName on LeadPart {
+  /// The name this part shows on the first system or on a later one, as it
+  /// measures. Null when it shows none.
+  ({String text, TextExtent extent})? nameOn({required bool first}) {
+    final text = first ? name : shortName;
+    return text.isEmpty
+        ? null
+        : (text: text, extent: first ? nameExtent : shortExtent);
+  }
+}
+
 /// The lead of [score]. Reused while `score.parts` is the same object.
 ///
 /// An indent is the widest name and a gap after it, when any part has a name,
@@ -808,14 +819,12 @@ List<Drawable> placeLead(
   for (final part in lead.parts) {
     final top = tops[part.firstStaff];
     final bottom = tops[part.lastStaff] + staffHeight;
-    final name = first ? part.name : part.shortName;
-    final extent = first ? part.nameExtent : part.shortExtent;
-    if (name.isNotEmpty) {
+    if (part.nameOn(first: first) case (:final text, :final extent)) {
       final x = nameRight - extent.width;
       final y = (top + bottom + extent.ascent - extent.descent) / 2;
       drawables.add(
         TextDraw(
-          name,
+          text,
           SpPoint(x, y),
           spec: spec,
           bounds: Box(

@@ -67,9 +67,12 @@ Score oneLine(Score score, int index) {
 Iterable<GlyphDraw> glyphsOf(SystemLayout system, Glyph glyph) =>
     system.drawables.whereType<GlyphDraw>().where((g) => g.glyph == glyph);
 
-Iterable<TextDraw> namesOf(SystemLayout system) => system.drawables
-    .whereType<TextDraw>()
-    .where((text) => text.spec == style.specOf(TextRole.partName));
+Iterable<TextDraw> namesOf(
+  SystemLayout system, {
+  EngravingStyle style = style,
+}) => system.drawables.whereType<TextDraw>().where(
+  (text) => text.spec == style.specOf(TextRole.partName),
+);
 
 /// Vertical lines of [system] with their x in [from] to [to], left to
 /// right, and the repeat dots among them, each named by its piece.
@@ -455,6 +458,142 @@ void main() {
             namesOf(second).single.bounds.right,
         closeTo(1, 1e-9),
       );
+    });
+
+    test('a name taller than its part takes its room from the system, half '
+        'above the first staff of the part and half below the last', () {
+      for (final (part, size) in const [(clarinet, 20.0), (piano, 40.0)]) {
+        final tall = EngravingStyle(
+          barNumbers: false,
+          text: {TextRole.partName: TextSpec(size: size)},
+        );
+        final system = systemOf(ensemble([part], 2), style: tall);
+        final name = namesOf(system, style: tall).single;
+        final tops = [for (final staff in system.staves) staff.top];
+
+        expect(name.text, part.name);
+        expect(name.bounds.bottom - name.bounds.top, size);
+        expect(name.bounds.top, closeTo(0, 1e-9), reason: part.name);
+        expect(
+          name.bounds.bottom,
+          closeTo(system.height, 1e-9),
+          reason: part.name,
+        );
+        expect(
+          (name.bounds.top + name.bounds.bottom) / 2,
+          closeTo((tops.first + tops.last + staffHeight) / 2, 1e-9),
+          reason: part.name,
+        );
+      }
+    });
+
+    test('a name reaches down beside the lyrics under its part, and moves '
+        'them only when it reaches below them', () {
+      final score = ensemble(const [clarinet], 2);
+      final sung = edit(
+        score,
+        SetLyric(
+          EventRef(
+            measure: score.measures.first.id,
+            staff: score.staves.first.id,
+            id: const EventId(10000),
+          ),
+          1,
+          const Lyric(verse: 1, text: 'la'),
+        ),
+      );
+      double lyricUnderStaff(SystemLayout system) =>
+          system.drawables
+              .whereType<TextDraw>()
+              .singleWhere((text) => text.text == 'la')
+              .bounds
+              .top -
+          system.staves.single.top;
+      EngravingStyle named(double size) => EngravingStyle(
+        barNumbers: false,
+        text: {TextRole.partName: TextSpec(size: size)},
+      );
+      final plain = systemOf(sung, style: named(2));
+      final beside = systemOf(sung, style: named(8));
+      final below = systemOf(sung, style: named(20));
+      final name = namesOf(below, style: named(20)).single;
+
+      expect(lyricUnderStaff(beside), closeTo(lyricUnderStaff(plain), 1e-9));
+      expect(beside.height, closeTo(plain.height, 1e-9));
+      expect(name.bounds.top, closeTo(0, 1e-9));
+      expect(name.bounds.bottom, closeTo(below.height, 1e-9));
+      expect(lyricUnderStaff(below), greaterThan(lyricUnderStaff(plain) + 1));
+    });
+
+    test('the lyrics between the staves of a part are part of its height', () {
+      final score = ensemble(const [piano], 2);
+      final sung = edit(
+        score,
+        SetLyric(
+          EventRef(
+            measure: score.measures.first.id,
+            staff: score.staves.first.id,
+            id: const EventId(10000),
+          ),
+          1,
+          const Lyric(verse: 1, text: 'la'),
+        ),
+      );
+      const tall = EngravingStyle(
+        barNumbers: false,
+        text: {TextRole.partName: TextSpec(size: 40)},
+      );
+      final system = systemOf(sung, style: tall);
+      final name = namesOf(system, style: tall).single;
+
+      expect(
+        system.staves.last.top - system.staves.first.top,
+        greaterThan(
+          systemOf(score, style: tall).staves.last.top -
+              systemOf(score, style: tall).staves.first.top +
+              2,
+        ),
+      );
+      expect(name.bounds.top, closeTo(0, 1e-9));
+      expect(name.bounds.bottom, closeTo(system.height, 1e-9));
+    });
+
+    test('a bar number stays as far above the top staff under a tall name '
+        'as under a short one', () {
+      final score = ensemble(const [clarinet], 2);
+      double numberOverStaff(double size) {
+        final layout = sheetOf(
+          score,
+          style: EngravingStyle(
+            text: {TextRole.partName: TextSpec(size: size)},
+          ),
+        );
+        return layout.systemAt(0).staves.first.top -
+            layout.labelOf(0)!.bounds.bottom;
+      }
+
+      expect(numberOverStaff(20), closeTo(numberOverStaff(2), 1e-9));
+      expect(numberOverStaff(2), greaterThan(0));
+    });
+
+    test('a tall name of one part keeps clear of the name of the next', () {
+      const tall = EngravingStyle(
+        barNumbers: false,
+        text: {TextRole.partName: TextSpec(size: 20)},
+      );
+      final system = systemOf(
+        ensemble(const [clarinet, drums], 2),
+        style: tall,
+      );
+      final names = namesOf(system, style: tall).toList();
+
+      expect(names.map((name) => name.text), ['Clarinet in B♭', 'Drums']);
+      expect(
+        names[1].bounds.top - names[0].bounds.bottom,
+        closeTo(tall.staffGap, 1e-9),
+      );
+      expect(names[0].bounds.top, closeTo(0, 1e-9));
+      expect(names[1].bounds.bottom, closeTo(system.height, 1e-9));
     });
   });
 

@@ -576,9 +576,8 @@ SystemPlan planSystem(SystemKey key, EngravingStyle style, TextMeasurer text) {
     for (final unit in units)
       for (final bar in unit.bars) bar.lyrics,
   ];
-  final staves = <PlannedStaff>[];
-  var y = 0.0;
-  var labelY = 0.0;
+  final reaches = <({double above, double below, List<LyricRow> rows})>[];
+  var numberRise = 0.0;
   for (final (index, staff) in units.first.staves.indexed) {
     final courtesy = next == null
         ? (above: 0.0, below: 0.0)
@@ -604,13 +603,53 @@ SystemPlan planSystem(SystemKey key, EngravingStyle style, TextMeasurer text) {
         (under, bar) => math.max(under, bar.staves[index].above),
       );
       above = math.max(above, under + numberRoom);
-      labelY = above - under - number.descent;
+      numberRise = under + number.descent;
     }
-    final top = y + (index == 0 ? 0 : style.staffGap) + above;
-    final rows = lyricRows(lyrics, key.carry, staff.staff, style, text);
-    final lyricsFrom = top + staffHeight + below;
-    staves.add((top: top, lyricsFrom: lyricsFrom, rows: rows));
-    y = lyricsFrom + lyricRoom(rows, style);
+    reaches.add((
+      above: above,
+      below: below,
+      rows: lyricRows(lyrics, key.carry, staff.staff, style, text),
+    ));
+  }
+  // A part's name is centred on its staves. One taller than they are reaches
+  // past them by the same amount at each end, and takes that room too. It
+  // stands left of the staves, so the lyric rows under the last staff are
+  // part of the room it has below.
+  for (final part in key.lead.parts) {
+    final name = part.nameOn(first: key.first);
+    if (name == null) {
+      continue;
+    }
+    var height = staffHeight;
+    for (var index = part.firstStaff; index < part.lastStaff; index++) {
+      height +=
+          reaches[index].below +
+          lyricRoom(reaches[index].rows, style) +
+          style.staffGap +
+          reaches[index + 1].above +
+          staffHeight;
+    }
+    final past = (name.extent.ascent + name.extent.descent - height) / 2;
+    final top = reaches[part.firstStaff];
+    reaches[part.firstStaff] = (
+      above: math.max(top.above, past),
+      below: top.below,
+      rows: top.rows,
+    );
+    final bottom = reaches[part.lastStaff];
+    reaches[part.lastStaff] = (
+      above: bottom.above,
+      below: math.max(bottom.below, past - lyricRoom(bottom.rows, style)),
+      rows: bottom.rows,
+    );
+  }
+  final staves = <PlannedStaff>[];
+  var y = 0.0;
+  for (final (index, reach) in reaches.indexed) {
+    final top = y + (index == 0 ? 0 : style.staffGap) + reach.above;
+    final lyricsFrom = top + staffHeight + reach.below;
+    staves.add((top: top, lyricsFrom: lyricsFrom, rows: reach.rows));
+    y = lyricsFrom + lyricRoom(reach.rows, style);
   }
   return SystemPlan(
     key: key,
@@ -618,6 +657,9 @@ SystemPlan planSystem(SystemKey key, EngravingStyle style, TextMeasurer text) {
     stretch: ragged ? math.min(fill, 1) : fill,
     staves: staves,
     height: y,
-    labelAt: SpPoint(indent, labelY),
+    labelAt: SpPoint(
+      indent,
+      staves.isEmpty ? 0 : staves.first.top - numberRise,
+    ),
   );
 }
