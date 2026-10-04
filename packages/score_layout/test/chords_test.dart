@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:score_layout/src/bar_layout.dart';
 import 'package:score_layout/src/bar_space.dart';
 import 'package:score_layout/src/chords.dart';
@@ -222,6 +224,77 @@ void main() {
       expect(headAt(items, -2).origin.x, 0);
       expect(headAt(items, -1).origin.x, greaterThan(0));
       expect(headAt(items, 0).origin.x, 0);
+    });
+
+    test('three heads on one step stand in a row from the stem outward, each '
+        'against the one before', () {
+      final view = barOf([chordOf(1, 'Cb4 C4 C#4'), chordOf(2, 'Cb5 C5 C#5')]);
+      final up = planOf(view);
+      final upHeads = headsIn(chordItems(view)).toList()
+        ..sort((a, b) => a.origin.x.compareTo(b.origin.x));
+      final downHeads = headsIn(chordItems(view, index: 1)).toList()
+        ..sort((a, b) => b.origin.x.compareTo(a.origin.x));
+
+      expect(sideOf(view), StemSide.up);
+      expect(upHeads, hasLength(3));
+      expect({for (final head in upHeads) head.origin.y}, {yOfStep(-2)});
+      expect(upHeads[0].origin.x, 0);
+      expect(upHeads[1].bounds.left, closeTo(upHeads[0].bounds.right, 0.2));
+      expect(
+        upHeads[1].bounds.left,
+        greaterThanOrEqualTo(upHeads[0].bounds.right - 1e-9),
+      );
+      expect(upHeads[2].bounds.left, closeTo(upHeads[1].bounds.right, 1e-9));
+      expect(up.reach.right, greaterThanOrEqualTo(upHeads[2].bounds.right));
+
+      expect(sideOf(view, index: 1), StemSide.down);
+      expect(downHeads, hasLength(3));
+      expect({for (final head in downHeads) head.origin.y}, {yOfStep(5)});
+      expect(downHeads[0].origin.x, 0);
+      expect(
+        downHeads[1].bounds.right,
+        lessThanOrEqualTo(downHeads[0].bounds.left + 1e-9),
+      );
+      expect(
+        downHeads[2].bounds.right,
+        closeTo(downHeads[1].bounds.left, 1e-9),
+      );
+    });
+
+    test('a unison and a second in one chord keep all three heads apart', () {
+      for (final pitches in ['C4 C#4 D4', 'C4 Db4 D4', 'C5 C#5 D5']) {
+        final items = chordItems(barOf([chordOf(1, pitches)]));
+        final heads = headsIn(items).toList();
+
+        expect(heads, hasLength(3), reason: pitches);
+        for (final (i, a) in heads.indexed) {
+          for (final b in heads.skip(i + 1)) {
+            expect(overlap(a.bounds, b.bounds), isFalse, reason: pitches);
+          }
+        }
+      }
+    });
+
+    test('the accidentals of three heads on one step stay left of every head '
+        'and clear of each other', () {
+      for (final pitches in ['Cb4 C4 C#4', 'Cb5 C5 C#5']) {
+        final items = chordItems(barOf([chordOf(1, pitches)]));
+        final heads = headsIn(items).toList();
+        final accidentals = accidentalsIn(items).toList();
+        final left = heads.map((head) => head.bounds.left).reduce(math.min);
+
+        expect(accidentals.length, greaterThanOrEqualTo(2), reason: pitches);
+        for (final (i, accidental) in accidentals.indexed) {
+          expect(accidental.bounds.right, lessThan(left), reason: pitches);
+          for (final other in accidentals.skip(i + 1)) {
+            expect(
+              overlap(accidental.bounds, other.bounds),
+              isFalse,
+              reason: pitches,
+            );
+          }
+        }
+      }
     });
 
     test('a head glyph follows the value', () {

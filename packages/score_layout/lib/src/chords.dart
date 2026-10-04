@@ -51,7 +51,7 @@ final class HeadPlan {
     required this.id,
     required this.glyph,
     required this.step,
-    required this.flipped,
+    required this.column,
     this.accidental,
     this.cautionary = false,
     this.ink = InkRole.normal,
@@ -66,8 +66,10 @@ final class HeadPlan {
   /// kit sound's position.
   final int step;
 
-  /// On the far side of the stem because of a second with its neighbour.
-  final bool flipped;
+  /// 0 for a head on its own side of the stem. A head a second or less from
+  /// one there stands in column 1, across the stem, and one that close to a
+  /// head in each of those in column 2, beyond column 1, and so on outward.
+  final int column;
 
   final Glyph? accidental;
 
@@ -99,8 +101,9 @@ final class ChordPlan {
   /// Sorted by step, lowest first.
   final List<HeadPlan> heads;
 
-  /// Accidentals and grace notes to the left of the slice line. Heads,
-  /// flipped heads, dots and the flag to the right.
+  /// Accidentals, grace notes and the further head columns of a downstem
+  /// chord to the left of the slice line. Heads, the further head columns of
+  /// an upstem chord, dots and the flag to the right.
   final SliceReach reach;
 
   /// Grace chords in order, planned at the style's grace scale.
@@ -170,7 +173,8 @@ StemSide stemSideFor(
 }
 
 /// Plans [chord]. The plan has head glyphs from its value and
-/// `StaffView.headOf`, steps, flipped heads for seconds, accidentals from
+/// `StaffView.headOf`, steps, a column for each head so that those of a
+/// second or a unison stand side by side, accidentals from
 /// `StaffView.accidentals` stacked right to left by descending step, dots in
 /// the next space up, the flag from the value, and each grace chord at its
 /// place left of the principal. A [beamed] chord's reach leaves its flag
@@ -624,9 +628,9 @@ const List<Glyph> _tremolos = [
   Glyph.tremolo4,
 ];
 
-/// The heads of one chord or grace chord, lowest first, with the heads of
-/// seconds and unisons flipped. The walk starts at the head the stem leaves
-/// and flips a head a second or less away from an unflipped neighbour.
+/// The heads of one chord or grace chord, lowest first, each in its column.
+/// The walk starts at the head the stem leaves, and a head takes the first
+/// column that holds no earlier head a second or less away.
 List<HeadPlan> _planHeads(
   Iterable<Note> notes,
   DurationBase base,
@@ -640,18 +644,20 @@ List<HeadPlan> _planHeads(
     for (final note in notes)
       (note: note, step: clef.staffStepOf(staff.writtenPitches[note.id]!)),
   ]..sort((a, b) => a.step.compareTo(b.step));
-  final flipped = List.filled(stepped.length, false);
+  final column = List.filled(stepped.length, 0);
   final up = stem == StemSide.up;
-  int? previous;
-  var previousFlipped = false;
+  final last = <int>[];
   for (var n = 0; n < stepped.length; n++) {
     final i = up ? n : stepped.length - 1 - n;
     final step = stepped[i].step;
-    final flip =
-        previous != null && (step - previous).abs() <= 1 && !previousFlipped;
-    flipped[i] = flip;
-    previous = step;
-    previousFlipped = flip;
+    var free = last.indexWhere((taken) => (step - taken).abs() > 1);
+    if (free < 0) {
+      free = last.length;
+      last.add(step);
+    } else {
+      last[free] = step;
+    }
+    column[i] = free;
   }
   return [
     for (final (i, head) in stepped.indexed)
@@ -661,7 +667,7 @@ List<HeadPlan> _planHeads(
           id: head.note.id,
           glyph: noteheadGlyph(base, staff.headOf(head.note)),
           step: head.step,
-          flipped: flipped[i],
+          column: column[i],
           accidental: mark == null
               ? null
               : accidentalGlyph(mark.alter, style.quarterTones),
@@ -763,19 +769,34 @@ final class _ChordInk {
     final stemX = stemLeft + thickness / 2;
     final drawables = <Drawable>[];
 
-    final origins = <SpPoint>[];
+    // Column 1 starts at the stem's far edge. Each column after it starts
+    // where the widest head of the one before ends.
+    final outermost = heads.fold(
+      0,
+      (most, head) => math.max(most, head.column),
+    );
+    final origins = [for (final head in heads) SpPoint(0, yOfStep(head.step))];
+    var columnFrom = up ? stemLeft + thickness : stemLeft;
+    for (var column = 1; column <= outermost; column++) {
+      var columnEnd = columnFrom;
+      for (final (i, head) in heads.indexed) {
+        if (head.column != column) {
+          continue;
+        }
+        final box = _scaled(font[head.glyph].box, scale);
+        final x = up ? columnFrom - box.left : columnFrom - box.right;
+        origins[i] = SpPoint(x, origins[i].y);
+        columnEnd = up
+            ? math.max(columnEnd, x + box.right)
+            : math.min(columnEnd, x + box.left);
+      }
+      columnFrom = columnEnd;
+    }
     final headBoxes = <NoteId, Box>{};
     Box? headsBox;
-    for (final head in heads) {
-      final box = _scaled(font[head.glyph].box, scale);
-      final x = !head.flipped
-          ? 0.0
-          : up
-          ? stemLeft + thickness - box.left
-          : stemLeft - box.right;
-      final origin = SpPoint(x, yOfStep(head.step));
-      origins.add(origin);
-      final at = box.shift(origin.x, origin.y);
+    for (final (i, head) in heads.indexed) {
+      final origin = origins[i];
+      final at = _scaled(font[head.glyph].box, scale).shift(origin.x, origin.y);
       headBoxes[head.id] = at;
       headsBox = headsBox?.union(at) ?? at;
       drawables.add(

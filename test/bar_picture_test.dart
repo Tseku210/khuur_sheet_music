@@ -81,6 +81,11 @@ final Map<String, MeasureView> bars = {
       graces: [graceOf(7, 'D5', kind: GraceKind.appoggiatura)],
     ),
   ]),
+  'clusters': barOf([
+    chordOf(1, 'Cb4 C4 C#4', value: half),
+    chordOf(2, 'C5 C#5 D5'),
+    chordOf(3, 'Cb5 C5 C#5'),
+  ]),
   'drums': barOf(
     [
       hitOf(1, [snare]),
