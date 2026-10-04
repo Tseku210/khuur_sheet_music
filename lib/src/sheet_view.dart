@@ -186,17 +186,27 @@ class SheetController extends ChangeNotifier {
   /// shortest way. A system taller than the view shows its top. The future
   /// completes when the scroll ends or the user takes over.
   ///
+  /// The scroll starts when the code that calls is done and before the next
+  /// frame, never inside the call. So a listener of this controller and the
+  /// handler of a scroll notification of the view's may call it, and calls
+  /// start in the order they were made.
+  ///
   /// The bar may be one of a score the view is given in the same frame. A
   /// bar the sheet does not have after that frame scrolls nothing. A frame
-  /// that is already on its way is taken into account, so a zoom, an edit
-  /// or a new size of the view set just before this call does not leave the
-  /// system cut. What changes after the call is followed while the scroll
-  /// runs, and not once it has ended. A system that is in view, or out of
-  /// it by less than a pixel of the screen, is scrolled to already, and a
-  /// drag or a fling of the user's goes on. A call that asks again for what
-  /// a scroll of the view's own is doing joins that scroll and ends with
-  /// it, so a call on every frame still gets there. Any other scroll of the
-  /// view's own stops where it is when this call replaces it.
+  /// that is on its way when the scroll starts is taken into account, so a
+  /// zoom, an edit or a new size of the view set by the code that calls,
+  /// before the call or after it, does not leave the system cut. What
+  /// changes later is followed while the scroll runs, and not once it has
+  /// ended. A system that is in view, or out of it by less than a pixel of
+  /// the screen, is scrolled to already, and a drag or a fling of the user's
+  /// goes on. A call that asks again for what a scroll of the view's own is
+  /// doing joins that scroll and ends with it, so a call on every frame
+  /// still gets there. Any other scroll of the view's own stops where it is
+  /// when this call replaces it.
+  ///
+  /// A scroll with a duration is an animation. It waits, and its future
+  /// with it, while the view's tickers are muted, as they are under a route
+  /// that covers the view.
   Future<void> ensureVisible(
     ScorePoint point, {
     Duration duration = const Duration(milliseconds: 250),
@@ -554,10 +564,26 @@ class _SheetViewState extends State<SheetView> {
     }
   }
 
+  /// Starts a scroll of the view's own in a microtask, which runs when the
+  /// code that asks is done and before the next frame.
+  ///
+  /// A listener of the controller and the handler of a scroll notification
+  /// ask from inside the scroll position, which has more to do when they
+  /// return. It ends a scroll that starts there, and a jump there trips its
+  /// assertions. And what a handler changes after it asks is on its way
+  /// when the scroll starts, like what it changed before.
   Future<void> _scrollTo(
     MeasureId bar, {
     required bool toTop,
     Duration duration = const Duration(milliseconds: 250),
+  }) => Future.microtask(
+    () => mounted ? _scrollNow(bar, toTop: toTop, duration: duration) : null,
+  );
+
+  Future<void> _scrollNow(
+    MeasureId bar, {
+    required bool toTop,
+    required Duration duration,
   }) {
     final running = _scrollingTo;
     if (running != null &&
@@ -678,7 +704,9 @@ class _SheetViewState extends State<SheetView> {
   /// system is somewhere else in the sheet or the frame moved the offset
   /// itself. A system only the user's scroll moved is where it was, and the
   /// scroll ends. An animation that gets to its target holds too, because
-  /// it gets there inside a frame that may still lay the sheet out.
+  /// it gets there inside a frame that may still lay the sheet out. One
+  /// that ends anywhere else was ended by the user or by a later scroll,
+  /// and the scroll ends with it.
   ///
   /// A scroll that has less to go than the position takes for a distance
   /// has nowhere to go. The position's own animation would jump there and
@@ -743,10 +771,14 @@ class _SheetViewState extends State<SheetView> {
           if (_animating?.drive == drive) {
             _animating = null;
           }
-          if (isLive() && (position.pixels - target).abs() < _slack) {
+          // Only an animation that ran to its end leaves the view at its
+          // target. The view may have a new scroll position by now, which
+          // took the animation over, so the offset is read from that one.
+          if (isLive() && _offset == target) {
             _drive(scroll, hold: true);
           } else {
-            // The user or a later scroll took over on the way.
+            // The user or a later scroll took over on the way, be it on the
+            // last pixel.
             end();
           }
         });
