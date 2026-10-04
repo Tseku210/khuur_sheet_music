@@ -176,8 +176,6 @@ final class BarLyrics {
     required this.voices,
   });
 
-  static const none = BarLyrics(syllables: [], lanes: {}, voices: {});
-
   final List<Syllable> syllables;
 
   /// Every lane with a syllable in this bar.

@@ -800,7 +800,7 @@ void main() {
           ties: const [],
           spanners: const [],
           volta: null,
-          lyrics: BarLyrics.none,
+          lyrics: bars[0].lyrics,
         ),
       ];
       final plan = breaksOf(
