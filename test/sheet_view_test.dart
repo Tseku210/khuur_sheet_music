@@ -882,6 +882,53 @@ void main() {
     },
   );
 
+  testWidgets(
+    'ensureVisible for a bar in view asks for no frame, and after a zoom '
+    'that cuts its system at the next frame it scrolls to it at the new zoom',
+    (tester) async {
+      final score = tune();
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        host(SheetView(score: score, controller: controller)),
+      );
+      final layout = shown(tester);
+      final bar = layout.firstBarOf(3);
+      scrollOf(tester).jumpTo(
+        padding.top +
+            (layout.tops[3] + layout.heightOf(3)) * staffSpace -
+            viewSize.height,
+      );
+      await tester.pumpAndSettle();
+      expectWhollyInView(tester, bar);
+      expect(tester.binding.hasScheduledFrame, isFalse);
+      unawaited(controller.ensureVisible(ScorePoint(bar, Moment.zero)));
+      expect(
+        tester.binding.hasScheduledFrame,
+        isFalse,
+        reason: 'nothing can change the answer, so it ends at once',
+      );
+
+      controller.zoom = 1.5;
+      var done = false;
+      unawaited(
+        controller
+            .ensureVisible(ScorePoint(bar, Moment.zero))
+            .then((_) => done = true),
+      );
+      await tester.pumpAndSettle();
+      expect(done, isTrue);
+      final index = shown(tester).systemOf(bar)!;
+      expect(tileOf(index), findsOneWidget);
+      final top = tester.getTopLeft(tileOf(index)).dy;
+      expect(top, greaterThanOrEqualTo(-1e-6));
+      expect(
+        top + shown(tester).heightOf(index) * staffSpace * 1.5,
+        lessThanOrEqualTo(viewSize.height + 1e-6),
+      );
+    },
+  );
+
   testWidgets("the scroll extent is the sheet's height on the first frame", (
     tester,
   ) async {

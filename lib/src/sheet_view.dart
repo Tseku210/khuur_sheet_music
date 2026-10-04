@@ -185,8 +185,10 @@ class SheetController extends ChangeNotifier {
   /// completes when the scroll ends or the user takes over.
   ///
   /// The bar may be one of a score the view is given in the same frame. A
-  /// bar the sheet does not have after that frame scrolls nothing. A scroll
-  /// of the view's own that this call replaces stops where it is.
+  /// bar the sheet does not have after that frame scrolls nothing. A system
+  /// that is in view is looked at again after a frame that is already asked
+  /// for, so a zoom set just before this call is taken into account. A
+  /// scroll of the view's own that this call replaces stops where it is.
   Future<void> ensureVisible(
     ScorePoint point, {
     Duration duration = const Duration(milliseconds: 250),
@@ -578,9 +580,12 @@ class _SheetViewState extends State<SheetView> {
   /// A scroll to the top goes on until its system is at the top. Any other
   /// ends as soon as its system is wholly in view.
   ///
-  /// With [hold], a bar the sheet on screen does not have waits for the
-  /// next frame, which may lay out a score that has it. An app that adds a
-  /// bar and asks to see it does both in one handler.
+  /// With [hold], the scroll waits for the next frame where that frame may
+  /// change the answer. An app does two things in one handler, and the view
+  /// sees the second before the frame that shows the first. A bar the sheet
+  /// on screen does not have may be in the score that frame lays out. A
+  /// system that is in view may be cut by a frame that is already asked
+  /// for, after a new zoom or an edit.
   void _drive(_OwnScroll scroll, {bool hold = false}) {
     final drive = ++_drives;
     bool isLive() => drive == _drives && identical(_scrollingTo, scroll);
@@ -590,13 +595,7 @@ class _SheetViewState extends State<SheetView> {
       }
     }
 
-    final shown = _shown;
-    final index = shown?.layout.systemOf(scroll.bar);
-    if (shown == null || index == null || !_scroll.hasClients) {
-      if (!hold) {
-        end();
-        return;
-      }
+    void afterFrame() {
       WidgetsBinding.instance
         ..addPostFrameCallback((_) {
           if (isLive()) {
@@ -604,12 +603,26 @@ class _SheetViewState extends State<SheetView> {
           }
         })
         ..ensureVisualUpdate();
+    }
+
+    final shown = _shown;
+    final index = shown?.layout.systemOf(scroll.bar);
+    if (shown == null || index == null || !_scroll.hasClients) {
+      if (hold) {
+        afterFrame();
+      } else {
+        end();
+      }
       return;
     }
     final position = _scroll.position;
     final (:top, :bottom, :inView) = _placeOf(shown, index);
     if (inView && !scroll.toTop) {
-      end();
+      if (hold && WidgetsBinding.instance.hasScheduledFrame) {
+        afterFrame();
+      } else {
+        end();
+      }
       return;
     }
     final fits = bottom - top <= position.viewportDimension;
