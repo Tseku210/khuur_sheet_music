@@ -42,8 +42,6 @@ extension type const Alter._(int quarterTones) {
   static const sharp = Alter._(2);
   static const threeQuarterSharp = Alter._(3);
   static const doubleSharp = Alter._(4);
-
-  bool get isQuarterTone => quarterTones.isOdd;
 }
 
 /// A letter plus alteration, without octave. Roots and basses of chord

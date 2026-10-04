@@ -781,11 +781,6 @@ final class WouldEmptyScore extends EditRefusal {
   const WouldEmptyScore();
 }
 
-/// The edit needs a selection and there is none, or it is the wrong kind.
-final class NeedsSelection extends EditRefusal {
-  const NeedsSelection();
-}
-
 /// A value the model cannot hold: a zero-length pickup, a string index the
 /// instrument does not have, a pitch outside the alteration range after
 /// transposition.
