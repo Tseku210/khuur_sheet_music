@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -20,13 +21,16 @@ import 'package:simple_sheet_music/src/sheet_palette.dart';
 /// systems that changed. The cursor, the selection, tints and playback
 /// repaint an overlay layer and never lay out.
 ///
-/// Its width comes from its constraints, which must bound it. Its height is
-/// unbounded, since it scrolls. Its size on screen is [staffSpace] times
-/// the controller's zoom. It never scales a score to fit a box.
+/// Its width and its height come from its constraints, which must bound
+/// both, as for any scroll view. It breaks lines at its width and scrolls
+/// up and down. It does not scroll sideways, so a bar wider than the view
+/// is cut at the view's edge. Its size on screen is [staffSpace] times the
+/// controller's zoom. It never scales a score to fit a box.
 ///
 /// An update keeps the bar the user is reading where it is. With
 /// [followCursor] that is the cursor's bar while its system is in view, and
-/// otherwise the first bar of the first system in view.
+/// otherwise the first bar of the first system in view. A view at the top
+/// of its sheet stays at the top.
 ///
 /// Each system is one node for a screen reader, labelled with the bars it
 /// holds.
@@ -109,6 +113,10 @@ class SheetView extends StatefulWidget {
 /// loupe, a delete badge, a popup) in a `Stack`. It notifies when
 /// scrolling, zoom or layout move the geometry.
 ///
+/// Every answer is about the sheet on screen. A new zoom notifies at once,
+/// while the sheet on screen is still the one laid out at the old zoom, and
+/// again after the frame that lays out at the new one.
+///
 /// The view itself listens only to the zoom. A scroll or a new layout
 /// notifies the app's listeners and builds nothing in the view.
 ///
@@ -154,34 +162,30 @@ class SheetController extends ChangeNotifier {
 
   /// What a tap at [local] would mean, snapped for entry in [voice].
   SheetHit? hitTest(Offset local, {VoiceSlot voice = VoiceSlot.one}) =>
-      switch (_view) {
-        final view? => view._layout?.hitTest(
-            view._viewport.toSheet(local),
-            voice: voice,
-            grid: view.widget.tapGrid,
-            reach: kTouchSlop / view._spacePx,
-          ),
-        null => null,
-      };
+      _view?._hitTest(local, voice);
 
   /// Where [ref] is drawn, or null when it is not drawn (a hidden staff).
-  Rect? rectOf(ElementRef ref) => _rectOf(_view?._layout?.boundsOf(ref));
+  Rect? rectOf(ElementRef ref) =>
+      _rectsOf((layout) => [layout.boundsOf(ref)]).firstOrNull;
 
   /// The caret for [cursor], a rect of no width over the cursor's staff.
-  Rect? caretOf(VoicePoint cursor) => _rectOf(_view?._layout?.caretOf(cursor));
+  Rect? caretOf(VoicePoint cursor) =>
+      _rectsOf((layout) => [layout.caretOf(cursor)]).firstOrNull;
 
   /// The rects the view shades for [selection].
-  List<Rect> rectsOf(Selection selection) => [
-        for (final box
-            in _view?._layout?.selectionBoxes(selection) ?? const <Box>[])
-          _view!._viewport.rectOf(box),
-      ];
+  List<Rect> rectsOf(Selection selection) =>
+      _rectsOf((layout) => layout.selectionBoxes(selection));
 
-  Rect? _rectOf(Box? box) => box == null ? null : _view!._viewport.rectOf(box);
+  List<Rect> _rectsOf(Iterable<Box?> Function(SheetLayout layout) find) =>
+      _view?._rectsOf(find) ?? [];
 
   /// Scrolls until the system holding [point] is wholly in view, by the
   /// shortest way. A system taller than the view shows its top. The future
   /// completes when the scroll ends or the user takes over.
+  ///
+  /// The bar may be one of a score the view is given in the same frame. A
+  /// bar the sheet does not have after that frame scrolls nothing. A scroll
+  /// of the view's own that this call replaces stops where it is.
   Future<void> ensureVisible(
     ScorePoint point, {
     Duration duration = const Duration(milliseconds: 250),
@@ -196,17 +200,20 @@ class SheetController extends ChangeNotifier {
   /// the view's palette and at its size, and assembles the systems it
   /// covers.
   ///
-  /// One image holds only so many pixels. A range taller than
-  /// [maxImageHeight] device pixels throws an [ArgumentError], so an app
-  /// exports a long score as several images. So does an empty range, and a
-  /// range outside the sheet throws a [RangeError]. A controller without a
-  /// laid-out view throws a [StateError].
+  /// One image holds only so many pixels on a side. A range taller than
+  /// [maxImageSide] device pixels throws an [ArgumentError], so an app
+  /// exports a long score as several images. A sheet wider than that throws
+  /// one too. Every range is as wide as the sheet, so only a lower
+  /// [pixelRatio] makes it fit. An empty range throws an [ArgumentError],
+  /// and a range outside the sheet throws a [RangeError]. A controller
+  /// without a laid-out view throws a [StateError].
   Future<ui.Image> toImage({int from = 0, int? to, double pixelRatio = 1}) {
     final view = _view;
-    final layout = view?._layout;
-    if (view == null || layout == null) {
+    final shown = view?._shown;
+    if (view == null || shown == null) {
       throw StateError('No SheetView has laid out a sheet for this controller');
     }
+    final layout = shown.layout;
     final end = RangeError.checkValidRange(from, to, layout.systemCount);
     if (end == from) {
       throw ArgumentError.value(to, 'to', 'The range holds no system');
@@ -218,17 +225,24 @@ class SheetController extends ChangeNotifier {
         'Must be positive and finite',
       );
     }
-    final spacePx = view._spacePx;
+    final spacePx = shown.spacePx;
+    final width = (layout.width * spacePx * pixelRatio).ceil();
+    if (width > maxImageSide) {
+      throw ArgumentError(
+        'The sheet is $width device pixels wide, over the $maxImageSide one '
+        'image holds. Lower the pixel ratio.',
+      );
+    }
     final top = from == 0 ? 0.0 : layout.tops[from];
     final bottom = layout.tops[end - 1] + layout.heightOf(end - 1);
     final height = ((bottom - top) * spacePx * pixelRatio).ceil();
-    if (height > maxImageHeight) {
+    if (height > maxImageSide) {
       throw ArgumentError(
         'Systems $from to $end are $height device pixels high, over the '
-        '$maxImageHeight one image holds. Export fewer systems at a time.',
+        '$maxImageSide one image holds. Export fewer systems at a time.',
       );
     }
-    final palette = view._palette;
+    final palette = shown.palette;
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder)..scale(pixelRatio);
     SheetScale below(double y) =>
@@ -251,18 +265,25 @@ class SheetController extends ChangeNotifier {
       ).paint(canvas, Size.zero);
     }
     final picture = recorder.endRecording();
-    return picture
-        .toImage((layout.width * spacePx * pixelRatio).ceil(), height)
-        .whenComplete(picture.dispose);
+    return picture.toImage(width, height).whenComplete(picture.dispose);
   }
 
-  /// The tallest image [toImage] makes, in device pixels. It is under the
-  /// texture limit of the devices the package targets.
-  static const int maxImageHeight = 8192;
+  /// The longest side of an image [toImage] makes, in device pixels. It is
+  /// under the texture limit of the devices the package targets.
+  static const int maxImageSide = 8192;
 
   /// How many systems the sheet has, for an app that exports in ranges.
-  int get systemCount => _view?._layout?.systemCount ?? 0;
+  int get systemCount => _view?._shown?.layout.systemCount ?? 0;
 }
+
+/// The sheet on screen, which is the layout the last frame built and what
+/// it was drawn with.
+typedef _Shown = ({
+  SheetLayout layout,
+  double spacePx,
+  EdgeInsets padding,
+  SheetPalette palette,
+});
 
 /// The bar the view keeps in place across an update, and where the top of
 /// its system sits in the sheet, in logical pixels.
@@ -284,29 +305,34 @@ class _SheetViewState extends State<SheetView> {
   late GlyphPainter _glyphs = GlyphPainter(widget.style.font);
   SheetController? _ownController;
 
-  /// The layout on screen, and the pixels per staff space it was shown at.
-  SheetLayout? _layout;
-  double _shownSpacePx = 0;
+  /// Null before the first frame. Only the builder writes it. A zoom or a
+  /// padding that the next frame lays out at is not what is on screen, so
+  /// every answer about geometry reads this and never the widget or the
+  /// controller.
+  _Shown? _shown;
 
-  /// The colours the sheet was last built with.
-  late SheetPalette _palette;
-
-  /// Set when [_layout] cannot be updated and a fresh one must replace it,
-  /// because the style changed or a text font loaded late.
+  /// Set when the layout of [_shown] cannot be updated and a fresh one must
+  /// replace it, because the style changed or a text font loaded late.
   bool _stale = false;
 
   /// Whether a font registration is waiting for [_afterFontsChanged].
   bool _fontsChanged = false;
 
-  /// The animated scroll of the view's own that is running, from
-  /// `ensureVisible`, a moved cursor or playback. Null when none is.
+  /// The scroll of the view's own that is running or waits for a frame to
+  /// start, from `ensureVisible`, a moved cursor or playback. Null when
+  /// none is.
   _OwnScroll? _scrollingTo;
 
   /// Counts the starts of [_scrollingTo], so that the end of a start that
   /// was replaced is told from the end of the scroll.
   int _drives = 0;
 
-  /// The first bar of the system the playhead was last seen in.
+  /// The start of [_scrollingTo] whose animation the scroll position is
+  /// running. Null when it runs none of the view's, because none started,
+  /// it ended, or a drag or a fling of the user's took over.
+  int? _animating;
+
+  /// The bar the playhead was last seen in.
   MeasureId? _playing;
 
   static bool _licensed = false;
@@ -314,16 +340,39 @@ class _SheetViewState extends State<SheetView> {
   SheetController get _controller =>
       widget.controller ?? (_ownController ??= SheetController());
 
-  double get _spacePx => widget.staffSpace * _controller.zoom;
-
   /// Sheet space to this widget's local pixels, scroll included.
-  SheetScale get _viewport => SheetScale(
-        spacePx: _spacePx,
+  SheetScale _viewportOf(_Shown shown) => SheetScale(
+        spacePx: shown.spacePx,
         origin: Offset(
-          widget.padding.left,
-          widget.padding.top - (_scroll.hasClients ? _scroll.offset : 0),
+          shown.padding.left,
+          shown.padding.top - (_scroll.hasClients ? _scroll.offset : 0),
         ),
       );
+
+  /// What a tap at [local] means on the sheet this view shows. A view that
+  /// shares its controller answers for its own sheet here.
+  SheetHit? _hitTest(Offset local, VoiceSlot voice) => switch (_shown) {
+        final shown? => shown.layout.hitTest(
+            _viewportOf(shown).toSheet(local),
+            voice: voice,
+            grid: widget.tapGrid,
+            reach: kTouchSlop / shown.spacePx,
+          ),
+        null => null,
+      };
+
+  /// The boxes [find] takes from the layout on screen, in this widget's
+  /// local pixels. None before the first frame.
+  List<Rect> _rectsOf(Iterable<Box?> Function(SheetLayout layout) find) {
+    final shown = _shown;
+    if (shown == null) {
+      return [];
+    }
+    final viewport = _viewportOf(shown);
+    return [
+      for (final box in find(shown.layout).nonNulls) viewport.rectOf(box),
+    ];
+  }
 
   @override
   void initState() {
@@ -437,24 +486,29 @@ class _SheetViewState extends State<SheetView> {
       });
 
   /// Brings the playhead's system to the top of the view when the playhead
-  /// enters it and it is not wholly in view. It acts once per system, so a
-  /// user who scrolls away while it plays is not pulled back on every tick.
+  /// enters it and it is not wholly in view. The playhead enters a system
+  /// when its bar is on another system than its last bar is in the layout
+  /// on screen. So a user who scrolls away while it plays is not pulled
+  /// back on every tick, nor when a zoom, a resize or an edit breaks the
+  /// lines again under a playhead that stayed in its system.
+  ///
   /// It never calls setState. The overlay painters listen to the same
   /// listenable and repaint on their own.
   void _followPlayback() {
-    final point = widget.playback?.value?.point;
-    final layout = _layout;
-    final index = point == null ? null : layout?.systemOf(point.bar.measure);
-    if (layout == null || index == null) {
-      _playing = null;
-      return;
-    }
-    final bar = layout.firstBarOf(index);
-    if (bar == _playing) {
-      return;
-    }
+    final bar = widget.playback?.value?.point.bar.measure;
+    final last = _playing;
     _playing = bar;
-    if (widget.followPlayback) {
+    final shown = _shown;
+    final index = bar == null ? null : shown?.layout.systemOf(bar);
+    if (bar == null || shown == null || index == null) {
+      return;
+    }
+    if (last != null && shown.layout.systemOf(last) == index) {
+      return;
+    }
+    if (widget.followPlayback &&
+        _scroll.hasClients &&
+        !_placeOf(shown, index).inView) {
       _scrollTo(bar, toTop: true);
     }
   }
@@ -472,42 +526,82 @@ class _SheetViewState extends State<SheetView> {
       done: Completer<void>(),
     );
     _scrollingTo = scroll;
-    _drive(scroll);
+    _drive(scroll, hold: true);
     return scroll.done.future;
   }
 
+  /// Ends the scroll of the view's own, if there is one. Its animation
+  /// stops where it is, or it would run on to a place nothing asks for any
+  /// more. A drag or a fling that took the animation's place is the user's
+  /// and is left alone.
   void _stopScrolling() {
     final scroll = _scrollingTo;
     _scrollingTo = null;
+    if (_animating != null) {
+      _animating = null;
+      // The scroll view is gone already when the view is disposed.
+      if (_scroll.hasClients) {
+        _scroll.position.jumpTo(_scroll.position.pixels);
+      }
+    }
     scroll?.done.complete();
   }
 
+  /// Where system [index] of [shown] is in the scroll content, in logical
+  /// pixels, and whether the view shows all of it.
+  ({double top, double bottom, bool inView}) _placeOf(_Shown shown, int index) {
+    final position = _scroll.position;
+    final top = shown.padding.top + shown.layout.tops[index] * shown.spacePx;
+    final bottom = top + shown.layout.heightOf(index) * shown.spacePx;
+    return (
+      top: top,
+      bottom: bottom,
+      inView: top >= position.pixels &&
+          bottom <= position.pixels + position.viewportDimension,
+    );
+  }
+
   /// Starts [scroll], or starts it again towards where its bar is now.
-  void _drive(_OwnScroll scroll) {
+  ///
+  /// A scroll to the top goes on until its system is at the top. Any other
+  /// ends as soon as its system is wholly in view.
+  ///
+  /// With [hold], a bar the sheet on screen does not have waits for the
+  /// next frame, which may lay out a score that has it. An app that adds a
+  /// bar and asks to see it does both in one handler.
+  void _drive(_OwnScroll scroll, {bool hold = false}) {
     final drive = ++_drives;
+    bool isLive() => drive == _drives && identical(_scrollingTo, scroll);
     void end() {
-      if (drive == _drives && identical(_scrollingTo, scroll)) {
+      if (isLive()) {
         _stopScrolling();
       }
     }
 
-    final layout = _layout;
-    final index = layout?.systemOf(scroll.bar);
-    if (layout == null || index == null || !_scroll.hasClients) {
-      end();
+    final shown = _shown;
+    final index = shown?.layout.systemOf(scroll.bar);
+    if (shown == null || index == null || !_scroll.hasClients) {
+      if (!hold) {
+        end();
+        return;
+      }
+      WidgetsBinding.instance
+        ..addPostFrameCallback((_) {
+          if (isLive()) {
+            _drive(scroll);
+          }
+        })
+        ..ensureVisualUpdate();
       return;
     }
     final position = _scroll.position;
-    final top = widget.padding.top + layout.tops[index] * _spacePx;
-    final bottom = top + layout.heightOf(index) * _spacePx;
-    final viewTop = position.pixels;
-    final viewBottom = viewTop + position.viewportDimension;
-    if (top >= viewTop && bottom <= viewBottom) {
+    final (:top, :bottom, :inView) = _placeOf(shown, index);
+    if (inView && !scroll.toTop) {
       end();
       return;
     }
     final fits = bottom - top <= position.viewportDimension;
-    final target = (scroll.toTop || top < viewTop || !fits
+    final target = (scroll.toTop || top < position.pixels || !fits
             ? top
             : bottom - position.viewportDimension)
         .clamp(position.minScrollExtent, position.maxScrollExtent);
@@ -516,25 +610,42 @@ class _SheetViewState extends State<SheetView> {
       end();
       return;
     }
+    _animating = drive;
     position
         .animateTo(target, duration: scroll.duration, curve: Curves.easeInOut)
-        .whenComplete(end);
+        .whenComplete(() {
+      // The animation ended or the user took over. Either way the position
+      // runs nothing of the view's now.
+      if (_animating == drive) {
+        _animating = null;
+      }
+      end();
+    });
   }
 
-  /// The bar to keep in place across the next update, read from the layout
-  /// on screen. Null before the first frame.
+  /// The bar to keep in place across the next update, read from the sheet
+  /// on screen.
   ///
   /// With [SheetView.followCursor] it is the cursor's bar, when any part of
   /// that bar's system is in the viewport. Otherwise it is the first bar of
   /// the first system that reaches below the viewport's top. A cursor the
   /// user scrolled away from is no anchor, because keeping it still would
   /// move what they are reading.
-  _ScrollAnchor? _anchorIn(SheetLayout layout, double spacePx) {
+  ///
+  /// A view at the top of its scroll extent has no anchor, cursor or not.
+  /// It stays at the top. An anchor there would turn a title block that
+  /// grows into scroll and hide it.
+  _ScrollAnchor? _anchorIn(_Shown shown) {
     if (!_scroll.hasClients || !_scroll.position.hasContentDimensions) {
       return null;
     }
-    final viewTop = _scroll.offset - widget.padding.top;
-    final viewBottom = viewTop + _scroll.position.viewportDimension;
+    final position = _scroll.position;
+    if (position.pixels <= position.minScrollExtent) {
+      return null;
+    }
+    final (:layout, :spacePx, :padding, palette: _) = shown;
+    final viewTop = position.pixels - padding.top;
+    final viewBottom = viewTop + position.viewportDimension;
     double topOf(int index) => layout.tops[index] * spacePx;
     double bottomOf(int index) =>
         (layout.tops[index] + layout.heightOf(index)) * spacePx;
@@ -565,7 +676,9 @@ class _SheetViewState extends State<SheetView> {
   /// It runs inside the LayoutBuilder callback, before the viewport lays
   /// out. `correctBy` moves the offset without notifying, so no listener
   /// rebuilds during layout and the frame paints at the corrected offset.
-  /// An offset past the new end is brought back by the scroll physics.
+  /// The correction stops at the top of the scroll extent. An offset past
+  /// the new end is brought back by the scroll physics, since the new
+  /// extent is not known here.
   ///
   /// The correction holds while the scroll is idle, dragged or flung. A
   /// scroll the view itself is animating writes its own offsets on the next
@@ -576,9 +689,13 @@ class _SheetViewState extends State<SheetView> {
     if (anchor == null || index == null) {
       return;
     }
-    final moved = layout.tops[index] * spacePx - anchor.top;
+    final position = _scroll.position;
+    final moved = math.max(
+      layout.tops[index] * spacePx - anchor.top,
+      position.minScrollExtent - position.pixels,
+    );
     if (moved != 0) {
-      _scroll.position.correctBy(moved);
+      position.correctBy(moved);
     }
   }
 
@@ -590,12 +707,11 @@ class _SheetViewState extends State<SheetView> {
             'SheetView breaks lines at its width, so it needs a bounded '
             'width. Give it one with a SizedBox or an Expanded.',
           );
-          final spacePx = _spacePx;
-          final width =
-              (constraints.maxWidth - widget.padding.horizontal) / spacePx;
-          final previous = _layout;
-          final anchor =
-              previous == null ? null : _anchorIn(previous, _shownSpacePx);
+          final spacePx = widget.staffSpace * _controller.zoom;
+          final padding = widget.padding;
+          final width = (constraints.maxWidth - padding.horizontal) / spacePx;
+          final previous = _shown;
+          final anchor = previous == null ? null : _anchorIn(previous);
           final layout = previous == null || _stale
               ? SheetLayout(
                   widget.score,
@@ -603,12 +719,17 @@ class _SheetViewState extends State<SheetView> {
                   text: _measurer,
                   style: widget.style,
                 )
-              : previous.update(widget.score, width: width);
+              : previous.layout.update(widget.score, width: width);
           _keepInPlace(anchor, layout, spacePx);
           _stale = false;
-          _shownSpacePx = spacePx;
-          if (!identical(layout, previous)) {
-            _layout = layout;
+          final palette = widget.palette ?? SheetPalette.of(context);
+          _shown = (
+            layout: layout,
+            spacePx: spacePx,
+            padding: padding,
+            palette: palette,
+          );
+          if (!identical(layout, previous?.layout)) {
             // The controller's listeners may rebuild, which a layout pass
             // does not allow. They hear of the new geometry after this
             // frame, when the scroll extent is the new layout's too.
@@ -623,16 +744,15 @@ class _SheetViewState extends State<SheetView> {
               _controller._moved();
             });
           }
-          final palette = _palette = widget.palette ?? SheetPalette.of(context);
           final scale = SheetScale(spacePx: spacePx);
           final onTap = widget.onTap;
           return GestureDetector(
             onTapUp: onTap == null
                 ? null
                 : (details) {
-                    final hit = _controller.hitTest(
+                    final hit = _hitTest(
                       details.localPosition,
-                      voice: widget.cursor?.voice ?? VoiceSlot.one,
+                      widget.cursor?.voice ?? VoiceSlot.one,
                     );
                     if (hit != null) {
                       onTap(hit);
@@ -642,7 +762,7 @@ class _SheetViewState extends State<SheetView> {
               controller: _scroll,
               slivers: [
                 SliverPadding(
-                  padding: widget.padding,
+                  padding: padding,
                   sliver: SliverMainAxisGroup(
                     slivers: [
                       SliverToBoxAdapter(

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -153,6 +154,14 @@ void expectWhollyInView(WidgetTester tester, MeasureId bar) {
   expect(span.bottom, lessThanOrEqualTo(viewSize.height + 1e-6));
 }
 
+/// The first bar of the first system that is wholly in view.
+MeasureId firstBarWhollyInView(WidgetTester tester) => shown(tester).firstBarOf(
+      built(tester).firstWhere((index) {
+        final span = spanOf(tester, index);
+        return span.top >= 0 && span.bottom <= viewSize.height;
+      }),
+    );
+
 /// The picture each tile in view holds for its painter of type [T]. Painting
 /// again replaces the picture's layer, so a layer that is the same object
 /// was not painted again.
@@ -215,11 +224,57 @@ List<String> spoken(WidgetTester tester) => [
           node.label,
     ];
 
+/// The image [controller] makes of systems [from] up to [to], as its size
+/// and its pixels.
+Future<({int width, int height, Uint8List rgba})> imageOf(
+  WidgetTester tester,
+  SheetController controller, {
+  int from = 0,
+  int? to,
+  double pixelRatio = 1,
+}) async =>
+    (await tester.runAsync(() async {
+      final image = await controller.toImage(
+        from: from,
+        to: to,
+        pixelRatio: pixelRatio,
+      );
+      final rgba = (await image.toByteData())!.buffer.asUint8List();
+      final read = (width: image.width, height: image.height, rgba: rgba);
+      image.dispose();
+      return read;
+    }))!;
+
 /// A playback position that says whether anything listens to it.
 final class HeardPlayback extends ValueNotifier<PlaybackPosition?> {
   HeardPlayback() : super(null);
 
   bool get isHeard => hasListeners;
+}
+
+/// Tints that count how often they are walked.
+final class WalkedTints extends MapView<ElementRef, Color> {
+  WalkedTints(super.map);
+
+  int walks = 0;
+
+  @override
+  Iterable<MapEntry<ElementRef, Color>> get entries {
+    walks++;
+    return super.entries;
+  }
+
+  @override
+  Iterable<ElementRef> get keys {
+    walks++;
+    return super.keys;
+  }
+
+  @override
+  void forEach(void Function(ElementRef key, Color value) action) {
+    walks++;
+    super.forEach(action);
+  }
 }
 
 void main() {
@@ -499,6 +554,70 @@ void main() {
   });
 
   testWidgets(
+      'a view at the top of its sheet stays there through a new zoom and a '
+      'title block that grows, with a cursor in view or without one',
+      (tester) async {
+    final score = tune();
+    final controller = SheetController();
+    addTearDown(controller.dispose);
+    Widget view(Score score, {VoicePoint? cursor}) => host(
+          SheetView(score: score, cursor: cursor, controller: controller),
+        );
+    double titleTop() => tester.getTopLeft(paintedBy<HeaderPainter>()).dy;
+    await tester.pumpWidget(view(score, cursor: cursorIn(score, 0)));
+    final header = shown(tester).tops.first;
+
+    controller.zoom = 1.5;
+    await tester.pump();
+    expect(shown(tester).tops.first * 1.5, greaterThan(header + 1));
+    expect(scrollOf(tester).pixels, 0, reason: 'after a larger zoom');
+    expect(titleTop(), padding.top);
+
+    controller.zoom = 0.8;
+    await tester.pump();
+    expect(scrollOf(tester).pixels, 0, reason: 'after a smaller zoom');
+
+    controller.zoom = 1;
+    await tester.pumpWidget(view(score));
+    await tester.pumpWidget(
+      view(
+        score.copyWith(
+          meta: const ScoreMeta(
+            title: 'Tune',
+            subtitle: 'A subtitle',
+            composer: 'Someone',
+          ),
+        ),
+      ),
+    );
+    expect(shown(tester).tops.first, greaterThan(header + 1));
+    expect(scrollOf(tester).pixels, 0, reason: 'after a taller title block');
+    expect(titleTop(), padding.top);
+  });
+
+  testWidgets(
+      'a new zoom that would keep the first bar in view above the top of '
+      'the sheet stops at the top', (tester) async {
+    final controller = SheetController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      host(SheetView(score: tune(), controller: controller)),
+    );
+    scrollOf(tester).jumpTo(5);
+    await tester.pump();
+    final inSheet = shown(tester).tops.first * staffSpace;
+
+    controller.zoom = 0.5;
+    await tester.pump();
+    expect(
+      inSheet - shown(tester).tops.first * staffSpace * 0.5,
+      greaterThan(5),
+      reason: 'the first system moved up the sheet by more than the scroll',
+    );
+    expect(scrollOf(tester).pixels, 0);
+  });
+
+  testWidgets(
       'ensureVisible ends with its system in view when an edit moves the '
       'system on the way', (tester) async {
     final score = tune();
@@ -606,6 +725,141 @@ void main() {
     expect(scrollOf(tester).pixels, offset);
   });
 
+  testWidgets(
+      'ensureVisible for a system in view, called while the view scrolls '
+      'to another, stops the scroll where it is', (tester) async {
+    final score = tune();
+    final controller = SheetController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      host(SheetView(score: score, controller: controller)),
+    );
+    var first = false;
+    var second = false;
+    unawaited(
+      controller
+          .ensureVisible(ScorePoint(score.measures[38].id, Moment.zero))
+          .then((_) => first = true),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(first, isFalse);
+    final offset = scrollOf(tester).pixels;
+    expect(offset, greaterThan(0));
+
+    final inView = firstBarWhollyInView(tester);
+    unawaited(
+      controller
+          .ensureVisible(ScorePoint(inView, Moment.zero))
+          .then((_) => second = true),
+    );
+    await tester.pump();
+    expect(first, isTrue);
+    expect(second, isTrue);
+    await tester.pumpAndSettle();
+    expect(scrollOf(tester).pixels, offset);
+  });
+
+  testWidgets(
+      'ensureVisible for a system in view leaves alone a fling that took '
+      'over from a scroll of the view', (tester) async {
+    final score = tune();
+    final controller = SheetController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      host(SheetView(score: score, controller: controller)),
+    );
+    unawaited(
+      controller.ensureVisible(ScorePoint(score.measures[38].id, Moment.zero)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.fling(find.byType(SheetView), const Offset(0, -200), 1500);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    final offset = scrollOf(tester).pixels;
+
+    var done = false;
+    unawaited(
+      controller
+          .ensureVisible(ScorePoint(firstBarWhollyInView(tester), Moment.zero))
+          .then((_) => done = true),
+    );
+    await tester.pump();
+    expect(done, isTrue);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(scrollOf(tester).pixels, greaterThan(offset + 1));
+  });
+
+  testWidgets('a view that goes away while it scrolls ends the scroll',
+      (tester) async {
+    final score = tune();
+    final controller = SheetController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      host(SheetView(score: score, controller: controller)),
+    );
+    var done = false;
+    unawaited(
+      controller
+          .ensureVisible(ScorePoint(score.measures[38].id, Moment.zero))
+          .then((_) => done = true),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(done, isFalse);
+
+    await tester.pumpWidget(const SizedBox());
+    expect(done, isTrue);
+  });
+
+  testWidgets(
+      'ensureVisible for a bar of a score the view is given in the same '
+      'frame scrolls to it, and for a bar of no score ends after a frame',
+      (tester) async {
+    final score = tune();
+    final longer = tune(bars: 44);
+    final controller = SheetController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      host(SheetView(score: score, controller: controller)),
+    );
+    final added = longer.measures[43].id;
+    expect(shown(tester).systemOf(added), isNull);
+    var done = false;
+    unawaited(
+      controller
+          .ensureVisible(ScorePoint(added, Moment.zero))
+          .then((_) => done = true),
+    );
+    await tester.pumpWidget(
+      host(SheetView(score: longer, controller: controller)),
+    );
+    await tester.pumpAndSettle();
+    expect(done, isTrue);
+    expect(built(tester), contains(shown(tester).systemOf(added)));
+    expectWhollyInView(tester, added);
+
+    final offset = scrollOf(tester).pixels;
+    final missing = tune(bars: 50).measures[49].id;
+    expect(shown(tester).systemOf(missing), isNull);
+    expect(tester.binding.hasScheduledFrame, isFalse);
+    done = false;
+    unawaited(
+      controller
+          .ensureVisible(ScorePoint(missing, Moment.zero))
+          .then((_) => done = true),
+    );
+    expect(
+      tester.binding.hasScheduledFrame,
+      isTrue,
+      reason: 'the request waits for a frame, so it asks for one',
+    );
+    await tester.pump();
+    expect(done, isTrue);
+    expect(scrollOf(tester).pixels, offset);
+  });
+
   testWidgets("the scroll extent is the sheet's height on the first frame",
       (tester) async {
     await tester.pumpWidget(
@@ -646,6 +900,42 @@ void main() {
   });
 
   testWidgets(
+      'a cursor that moves to the next system and back, while the view '
+      'scrolls after it, leaves its system wholly in view', (tester) async {
+    final score = tune();
+    await tester.pumpWidget(host(SheetView(score: score)));
+    final layout = shown(tester);
+    final tile = (layout.tops[6] - layout.tops[5]) * staffSpace;
+    final size = Size(viewSize.width, tile * 1.5);
+    Widget view(int system) => host(
+          SheetView(
+            score: score,
+            cursor: cursorIn(score, score.indexOf(layout.firstBarOf(system))),
+          ),
+          size: size,
+        );
+    await tester.pumpWidget(view(5));
+    await tester.pumpAndSettle();
+    scrollOf(tester).jumpTo(
+      padding.top + layout.tops[5] * staffSpace - tile * 0.2,
+    );
+    await tester.pump();
+    final start = scrollOf(tester).pixels;
+    expect(spanOf(tester, 5).top, closeTo(tile * 0.2, 1e-6));
+    expect(spanOf(tester, 5).bottom, lessThan(size.height));
+    expect(spanOf(tester, 6).bottom, greaterThan(size.height));
+
+    await tester.pumpWidget(view(6));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(scrollOf(tester).pixels, greaterThan(start));
+    await tester.pumpWidget(view(5));
+    await tester.pumpAndSettle();
+    expect(spanOf(tester, 5).top, greaterThanOrEqualTo(0));
+    expect(spanOf(tester, 5).bottom, lessThanOrEqualTo(size.height));
+  });
+
+  testWidgets(
       'playback brings a system to the top of the view once, when it enters '
       'one that is out of view, unless followPlayback is off', (tester) async {
     final score = tune();
@@ -672,6 +962,71 @@ void main() {
   });
 
   testWidgets(
+      'playback still brings its system to the top of the view when an edit '
+      'moves the system on the way', (tester) async {
+    final score = tune();
+    final playback = ValueNotifier<PlaybackPosition?>(null);
+    addTearDown(playback.dispose);
+    Widget view(Score score) =>
+        host(SheetView(score: score, playback: playback));
+    await tester.pumpWidget(view(score));
+    final bar = shown(tester).firstBarOf(
+      built(tester).firstWhere(
+        (index) => spanOf(tester, index).bottom > viewSize.height,
+      ),
+    );
+    playback.value = playingIn(score, score.indexOf(bar));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 125));
+    expect(topOf(tester, bar), greaterThan(1));
+    expectWhollyInView(tester, bar);
+
+    await tester.pumpWidget(view(raised(score, 0)));
+    await tester.pumpAndSettle();
+    expect(topOf(tester, bar), closeTo(0, 1e-6));
+  });
+
+  testWidgets(
+      'playback leaves a user who scrolled away where they are when a new '
+      "zoom breaks the playhead's system again, and follows into the next "
+      'system', (tester) async {
+    final score = tune(bars: 80);
+    final controller = SheetController();
+    addTearDown(controller.dispose);
+    final playback = ValueNotifier<PlaybackPosition?>(null);
+    addTearDown(playback.dispose);
+    await tester.pumpWidget(
+      host(
+        SheetView(score: score, playback: playback, controller: controller),
+        size: const Size(800, 400),
+      ),
+    );
+    final bar = score.measures[41].id;
+    MeasureId firstOfItsSystem() =>
+        shown(tester).firstBarOf(shown(tester).systemOf(bar)!);
+    playback.value = playingIn(score, 41, through: 0.1);
+    await tester.pumpAndSettle();
+    expect(topOf(tester, bar), closeTo(0, 1e-6));
+    final first = firstOfItsSystem();
+
+    scrollOf(tester).jumpTo(100);
+    await tester.pump();
+    controller.zoom = 1.25;
+    await tester.pump();
+    expect(firstOfItsSystem(), isNot(first));
+    final offset = scrollOf(tester).pixels;
+    playback.value = playingIn(score, 41, through: 0.2);
+    await tester.pumpAndSettle();
+    expect(scrollOf(tester).pixels, offset);
+
+    final layout = shown(tester);
+    final next = layout.firstBarOf(layout.systemOf(bar)! + 1);
+    playback.value = playingIn(score, score.indexOf(next));
+    await tester.pumpAndSettle();
+    expect(topOf(tester, next), closeTo(0, 1e-6));
+  });
+
+  testWidgets(
       'a view follows the playback it was last given, and listens to no '
       'other', (tester) async {
     final score = tune();
@@ -694,6 +1049,36 @@ void main() {
 
     await tester.pumpWidget(const SizedBox());
     expect(second.isHeard, isFalse);
+  });
+
+  testWidgets(
+      'a playback tick repaints the overlays and does not walk the tints '
+      'again', (tester) async {
+    final score = tune();
+    final tints = WalkedTints({
+      for (var bar = 0; bar < score.measures.length; bar++)
+        headOf(score, bar, 0): const Color(0xFFFF8800),
+    });
+    final playback = ValueNotifier<PlaybackPosition?>(null);
+    addTearDown(playback.dispose);
+    await tester.pumpWidget(
+      host(SheetView(score: score, tints: tints, playback: playback)),
+    );
+    final walks = tints.walks;
+    expect(walks, greaterThan(0), reason: 'the first paint reads the tints');
+
+    var overlays = picturesOf<OverlayPainter>(tester);
+    expect(overlays.length, greaterThan(1));
+    for (final through in [0.1, 0.3, 0.5, 0.7]) {
+      playback.value = playingIn(score, 1, through: through);
+      await tester.pump();
+      final painted = picturesOf<OverlayPainter>(tester);
+      for (final (tile, picture) in painted.indexed) {
+        expect(picture, isNot(same(overlays[tile])), reason: 'overlay $tile');
+      }
+      overlays = painted;
+    }
+    expect(tints.walks, walks);
   });
 
   testWidgets('a new style lays the whole sheet out again', (tester) async {
@@ -823,7 +1208,7 @@ void main() {
     expect(controller.systemCount, layout.systemCount);
     expect(
       layout.height * staffSpace * 8,
-      greaterThan(SheetController.maxImageHeight),
+      greaterThan(SheetController.maxImageSide),
     );
     expect(() => controller.toImage(pixelRatio: 8), throwsArgumentError);
     expect(() => controller.toImage(from: 2, to: 2), throwsArgumentError);
@@ -832,6 +1217,168 @@ void main() {
       () => controller.toImage(to: layout.systemCount + 1),
       throwsRangeError,
     );
+  });
+
+  testWidgets(
+      'toImage refuses a sheet wider than one image holds, and says to '
+      'lower the pixel ratio', (tester) async {
+    final controller = SheetController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      host(SheetView(score: tune(), controller: controller)),
+    );
+    final layout = shown(tester);
+    const pixelRatio = 60.0;
+    expect(
+      layout.heightOf(1) * staffSpace * pixelRatio,
+      lessThan(SheetController.maxImageSide),
+    );
+    expect(
+      layout.width * staffSpace * pixelRatio,
+      greaterThan(SheetController.maxImageSide),
+    );
+    expect(
+      () => controller.toImage(from: 1, to: 2, pixelRatio: pixelRatio),
+      throwsA(
+        isA<ArgumentError>().having(
+          (error) => '${error.message}',
+          'message',
+          contains('pixel ratio'),
+        ),
+      ),
+    );
+  });
+
+  testWidgets(
+      'toImage straight after a new zoom makes the image of the sheet on '
+      'screen', (tester) async {
+    final controller = SheetController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      host(SheetView(score: tune(), controller: controller, palette: inked)),
+    );
+    final onScreen = await imageOf(tester, controller, from: 1, to: 3);
+
+    controller.zoom = 2;
+    final image = await imageOf(tester, controller, from: 1, to: 3);
+    expect(
+      (image.width, image.height),
+      (onScreen.width, onScreen.height),
+    );
+    expect(image.rgba, onScreen.rgba);
+  });
+
+  testWidgets(
+      'toImage of the whole sheet, and of the systems after the first, is '
+      'the picture their drawables make on one canvas', (tester) async {
+    await tester.runAsync(loadTextFont);
+    final score = pictured();
+    final plan = SheetLayout(
+      score,
+      width: sheetWidth,
+      text: ParagraphMeasurer(),
+      style: pictureStyle,
+    );
+    expect(plan.systemCount, greaterThanOrEqualTo(3));
+    expect(plan.header, isNotEmpty);
+    expect(plan.labelOf(1), isNotNull);
+    final size = Size(sheetWidth * staffSpace + padding.horizontal, 400);
+    tester.view
+      ..physicalSize = size
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    const ink = Color(0xFF224466);
+    const staffLines = Color(0xFF8899AA);
+    const outOfRange = Color(0xFFC62828);
+    final controller = SheetController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      host(
+        SheetView(
+          score: score,
+          controller: controller,
+          style: pictureStyle,
+          palette: SheetPalette(
+            ink: ink,
+            staffLines: staffLines,
+            outOfRange: outOfRange,
+            cursor: inked.cursor,
+            selection: inked.selection,
+            playback: inked.playback,
+            playhead: inked.playhead,
+          ),
+        ),
+        size: size,
+      ),
+    );
+    expect(controller.systemCount, plan.systemCount);
+
+    final glyphs = bravuraPainter();
+    const scale = SheetScale(spacePx: staffSpace);
+    void paint(Canvas canvas, Iterable<Drawable> drawables) {
+      for (final drawable in drawables) {
+        paintDrawable(
+          canvas,
+          drawable,
+          glyphs,
+          scale,
+          switch (drawable.ink) {
+            InkRole.normal => ink,
+            InkRole.staffLine => staffLines,
+            InkRole.outOfRange => outOfRange,
+          },
+        );
+      }
+    }
+
+    for (final (from, pixelRatio) in [(0, 1.0), (1, 2.0)]) {
+      final top = from == 0 ? 0.0 : plan.tops[from];
+      final width = (sheetWidth * staffSpace * pixelRatio).ceil();
+      final height = ((plan.height - top) * staffSpace * pixelRatio).ceil();
+      final image = await imageOf(
+        tester,
+        controller,
+        from: from,
+        pixelRatio: pixelRatio,
+      );
+      expect(
+        (image.width, image.height),
+        (width, height),
+        reason: 'from system $from',
+      );
+      final canvas = (await tester.runAsync(
+        () => render(
+          width,
+          height,
+          (canvas) {
+            canvas.scale(pixelRatio);
+            if (from == 0) {
+              paint(canvas, plan.header);
+            }
+            for (var index = from; index < plan.systemCount; index++) {
+              canvas
+                ..save()
+                ..translate(0, (plan.tops[index] - top) * staffSpace);
+              paint(canvas, inkOf(plan, index));
+              canvas.restore();
+            }
+          },
+          background: null,
+        ),
+      ))!;
+      var differing = 0;
+      for (var at = 0; at < image.rgba.length; at++) {
+        if ((image.rgba[at] - canvas.rgba[at]).abs() > 32) {
+          differing++;
+        }
+      }
+      expect(
+        differing,
+        0,
+        reason: 'colour channels that differ, from system $from',
+      );
+    }
   });
 
   testWidgets(
@@ -980,6 +1527,64 @@ void main() {
   });
 
   testWidgets(
+      'a tap is a tap on the sheet of the view tapped, when another view '
+      'took the controller after it', (tester) async {
+    final score = tune();
+    final controller = SheetController();
+    addTearDown(controller.dispose);
+    const upper = ValueKey('upper');
+    const lower = ValueKey('lower');
+    final hits = {upper: <SheetHit>[], lower: <SheetHit>[]};
+    const size = Size(400, 300);
+    await tester.pumpWidget(
+      Directionality(
+        textDirection: TextDirection.ltr,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final MapEntry(:key, value: taps) in hits.entries)
+              SizedBox.fromSize(
+                size: size,
+                child: SheetView(
+                  key: key,
+                  score: score,
+                  controller: controller,
+                  onTap: taps.add,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+    Finder inUpper(Finder finder) =>
+        find.descendant(of: find.byKey(upper), matching: finder);
+    tester
+        .state<ScrollableState>(inUpper(find.byType(Scrollable)))
+        .position
+        .jumpTo(300);
+    await tester.pump();
+
+    final OverlayPainter(:layout, :index) = tester
+        .widgetList<CustomPaint>(inUpper(paintedBy<OverlayPainter>()))
+        .map((paint) => paint.painter! as OverlayPainter)
+        .firstWhere((painter) {
+      final tile = tester.getRect(inUpper(tileOf(painter.index)));
+      return tile.top >= 0 && tile.bottom <= size.height;
+    });
+    final head = headOf(score, score.indexOf(layout.firstBarOf(index)), 1);
+    final box = layout.boundsOf(head)!;
+    await tester.tapAt(
+      tester.getTopLeft(inUpper(tileOf(index))) +
+          Offset(
+            (box.left + box.right) / 2 * staffSpace,
+            ((box.top + box.bottom) / 2 - layout.tops[index]) * staffSpace,
+          ),
+    );
+    expect(hits[upper]!.map((hit) => hit.target), [ElementOwner(head)]);
+    expect(hits[lower], isEmpty);
+  });
+
+  testWidgets(
       'the controller says where a note is drawn, and tells its listeners '
       'when a scroll, a zoom or an edit moves it', (tester) async {
     final score = tune();
@@ -1053,6 +1658,58 @@ void main() {
       () => tester.pumpWidget(
         host(SheetView(score: raised(score, 30), controller: controller)),
       ),
+    );
+  });
+
+  testWidgets(
+      'between a new zoom and the frame that lays out at it, the controller '
+      'answers for the sheet on screen, to the listeners of the zoom too',
+      (tester) async {
+    final score = tune();
+    final controller = SheetController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      host(SheetView(score: score, controller: controller)),
+    );
+    scrollOf(tester).jumpTo(40);
+    await tester.pump();
+    final head = headOf(score, 0, 1);
+    final cursor = point(score, 0, Moment(Fraction(1, 4)));
+    final selection = RangeSelection(
+      from: ScorePoint(score.measures[0].id, Moment(Fraction(1, 4))),
+      to: ScorePoint(score.measures[0].id, Moment(Fraction(3, 4))),
+      top: score.staves.first.id,
+      bottom: score.staves.first.id,
+    );
+    final middle = middleOf(tester, head);
+    final caret = controller.caretOf(cursor);
+    final shaded = controller.rectsOf(selection);
+    expect(caret, isNotNull);
+    expect(shaded, hasLength(1));
+    expect(controller.hitTest(middle)?.target, ElementOwner(head));
+
+    final heard = <Offset>[];
+    controller.addListener(() => heard.add(controller.rectOf(head)!.center));
+    controller.zoom = 2;
+    expect(heard, hasLength(1), reason: 'a new zoom is told at once');
+    expect(heard.single, within(distance: 1e-6, from: middle));
+    expect(
+      controller.rectOf(head)!.center,
+      within(distance: 1e-6, from: middle),
+    );
+    expect(controller.caretOf(cursor), caret);
+    expect(controller.rectsOf(selection), shaded);
+    expect(controller.hitTest(middle)?.target, ElementOwner(head));
+
+    await tester.pump();
+    expect(
+      heard.length,
+      greaterThan(1),
+      reason: 'the layout at the new zoom is told after its frame',
+    );
+    expect(
+      heard.last,
+      within(distance: 1e-6, from: middleOf(tester, head, spacePx: 16)),
     );
   });
 

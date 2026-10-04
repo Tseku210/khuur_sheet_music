@@ -188,17 +188,19 @@ class SheetController extends ChangeNotifier {
   /// the view's palette and at its size, and assembles the systems it
   /// covers.
   ///
-  /// One image holds only so many pixels. A range taller than
-  /// [maxImageHeight] device pixels throws an [ArgumentError], so an app
-  /// exports a long score as several images. So does an empty range, and a
-  /// range outside the sheet throws a [RangeError]. A controller without a
-  /// laid-out view throws a [StateError].
+  /// One image holds only so many pixels on a side. A range taller than
+  /// [maxImageSide] device pixels throws an [ArgumentError], so an app
+  /// exports a long score as several images. A sheet wider than that throws
+  /// one too. Every range is as wide as the sheet, so only a lower
+  /// [pixelRatio] makes it fit. An empty range throws an [ArgumentError],
+  /// and a range outside the sheet throws a [RangeError]. A controller
+  /// without a laid-out view throws a [StateError].
   Future<ui.Image> toImage({int from = 0, int? to, double pixelRatio = 1}) =>
       throw UnimplementedError();
 
-  /// The tallest image [toImage] makes, in device pixels. It is under the
-  /// texture limit of the devices the package targets.
-  static const int maxImageHeight = 8192;
+  /// The longest side of an image [toImage] makes, in device pixels. It is
+  /// under the texture limit of the devices the package targets.
+  static const int maxImageSide = 8192;
 
   /// How many systems the sheet has, for an app that exports in ranges.
   int get systemCount => _view?._layout?.systemCount ?? 0;

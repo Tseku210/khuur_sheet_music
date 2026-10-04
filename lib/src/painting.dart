@@ -500,6 +500,10 @@ final class SystemPainter extends CustomPainter {
 /// painter reads geometry from the layout it was given and lays nothing
 /// out. The system it reads is the one its tile already shows, so the read
 /// assembles nothing new.
+///
+/// A tick paints with the same painter. So the painter finds the
+/// selection's boxes and the tinted drawables of its system once, on its
+/// first paint, and a tick costs the sounding events and the playhead.
 final class OverlayPainter extends CustomPainter {
   OverlayPainter({
     required this.layout,
@@ -525,26 +529,33 @@ final class OverlayPainter extends CustomPainter {
   final SheetPalette palette;
   final SheetScale scale;
 
+  late final SystemLayout _system = layout.systemAt(index);
+  late final List<Box> _selected = layout.selectionIn(index, selection);
+
+  // A ref with no drawables here (a hidden staff, another system) draws
+  // nothing, so neither the tints nor the sounding events need a filter.
+  // The system is asked by the event's id and never by the ref's measure,
+  // which a change of meter leaves stale.
+  late final List<(Drawable, Color)> _tinted = [
+    for (final MapEntry(key: ref, value: color) in tints.entries)
+      for (final drawable in _system.drawablesOf(ElementOwner(ref)))
+        (drawable, color),
+  ];
+
   @override
   void paint(Canvas canvas, Size size) {
-    final system = layout.systemAt(index);
     final shade = Paint()..color = palette.selection;
-    for (final box in layout.selectionIn(index, selection)) {
+    for (final box in _selected) {
       canvas.drawRect(scale.rectOf(box), shade);
+    }
+    for (final (drawable, color) in _tinted) {
+      paintDrawable(canvas, drawable, glyphs, scale, color);
     }
 
     final position = playback?.value;
-    // A ref with no drawables here (a hidden staff, another system) draws
-    // nothing, so neither list needs a filter. The system is asked by the
-    // event's id and never by the ref's measure, which a change of meter
-    // leaves stale.
-    for (final (ref, color) in <(ElementRef, Color)>[
-      for (final MapEntry(:key, :value) in tints.entries) (key, value),
-      for (final ref in position?.sounding ?? const <EventRef>[])
-        (ref, palette.playback),
-    ]) {
-      for (final drawable in system.drawablesOf(ElementOwner(ref))) {
-        paintDrawable(canvas, drawable, glyphs, scale, color);
+    for (final ref in position?.sounding ?? const <EventRef>[]) {
+      for (final drawable in _system.drawablesOf(ElementOwner(ref))) {
+        paintDrawable(canvas, drawable, glyphs, scale, palette.playback);
       }
     }
 
@@ -553,7 +564,7 @@ final class OverlayPainter extends CustomPainter {
     if (playhead != null) {
       _line(
         canvas,
-        Box(playhead, 0, playhead, system.height),
+        Box(playhead, 0, playhead, _system.height),
         palette.playhead,
       );
     }
