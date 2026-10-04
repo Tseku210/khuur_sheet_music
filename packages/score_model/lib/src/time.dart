@@ -142,24 +142,22 @@ int _gcd(int a, int b) {
   return x;
 }
 
-/// The undotted shape of a note or rest.
+/// The undotted shape of a note or rest. Each length is written in lowest
+/// terms, the form every [Fraction] is kept in.
 enum DurationBase {
-  breve(2, 1),
-  whole(1, 1),
-  half(1, 2),
-  quarter(1, 4),
-  eighth(1, 8),
-  sixteenth(1, 16),
-  thirtySecond(1, 32),
-  sixtyFourth(1, 64),
-  oneTwentyEighth(1, 128);
+  breve(Length(Fraction._(2, 1))),
+  whole(Length.whole),
+  half(Length(Fraction._(1, 2))),
+  quarter(Length(Fraction._(1, 4))),
+  eighth(Length(Fraction._(1, 8))),
+  sixteenth(Length(Fraction._(1, 16))),
+  thirtySecond(Length(Fraction._(1, 32))),
+  sixtyFourth(Length(Fraction._(1, 64))),
+  oneTwentyEighth(Length(Fraction._(1, 128)));
 
-  DurationBase(this._numerator, this._denominator);
+  DurationBase(this.length);
 
-  final int _numerator;
-  final int _denominator;
-
-  Length get length => Length(Fraction(_numerator, _denominator));
+  final Length length;
 
   /// Number of beams (or flags) this value carries. Zero for quarter and up.
   int get beams => index <= DurationBase.quarter.index
@@ -186,6 +184,9 @@ final class NoteValue {
 
   /// Written length: base × (2 − 1/2^dots).
   Length get length {
+    if (dots == 0) {
+      return base.length;
+    }
     final p = 1 << dots;
     return base.length * Fraction(2 * p - 1, p);
   }

@@ -108,10 +108,10 @@ StaffView _staffView(
   final tiedIn = [
     if (previous != null)
       for (final voice in previous.staff(id).voices)
-        if (timedEvents(voice, measure: previous.id, staff: id).lastOrNull
-            case final last?
-            when last.onset + last.duration == Moment.zero + previous.length)
-          if (last.event case final ChordEvent chord)
+        if (lastEvent(voice) case final ChordEvent chord when _tied(chord))
+          if (timedEvents(voice, measure: previous.id, staff: id).last
+              case final last
+              when last.onset + last.duration == Moment.zero + previous.length)
             for (final (_, to) in _tieEnds(
               chord,
               openingEvent(column, id, voice.slot),
@@ -147,6 +147,8 @@ StaffView _staffView(
   );
 }
 
+bool _tied(ChordEvent chord) => chord.notes.any((note) => note.tie);
+
 /// Each tied note of [chord], with the note of the same tone in [target]
 /// that the tie lands on, or null when none matches.
 List<(Note, NoteRef?)> _tieEnds(ChordEvent chord, TimedEvent? target) {
@@ -180,7 +182,7 @@ List<TieView> _ties(
   final ties = <TieView>[];
   for (final (voice, events) in lanes) {
     for (final (i, timed) in events.indexed) {
-      if (timed.event case final ChordEvent chord) {
+      if (timed.event case final ChordEvent chord when _tied(chord)) {
         final end = timed.onset + timed.duration;
         final following = events.elementAtOrNull(i + 1);
         final crosses = end == barEnd;

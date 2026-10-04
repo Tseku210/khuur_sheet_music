@@ -512,6 +512,27 @@ void main() {
       expect(staffOf(score, 0).tiedIn, isEmpty);
     });
 
+    test('carries a tie from the last note of a tuplet that ends the bar', () {
+      var score = blankScore();
+      score = fill(score, 0, [
+        rest(100, NoteValue.half),
+        rest(101, NoteValue.quarter),
+        tripletOfEighths(1, [
+          chordOf(102, 'G4', value: NoteValue.eighth),
+          chordOf(103, 'G4', value: NoteValue.eighth),
+          chordOf(104, 'F4', value: NoteValue.eighth, tie: true),
+        ]),
+      ]);
+      score = fill(score, 1, [
+        chordOf(110, 'F4'),
+        rest(111, NoteValue.quarter),
+        rest(112, NoteValue.half),
+      ]);
+
+      expect(tiesOf(staffOf(score, 0)), ['1040 -> 1100 across']);
+      expect(staffOf(score, 1).tiedIn, [const NoteId(1100)]);
+    });
+
     test('lets a tie ring when no matching note follows', () {
       final score = fill(blankScore(bars: 1), 0, [
         chordOf(100, 'F4', value: NoteValue.half, tie: true),

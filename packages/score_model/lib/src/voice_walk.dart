@@ -4,6 +4,7 @@ library;
 import 'events.dart';
 import 'measure.dart';
 import 'refs.dart';
+import 'seq.dart';
 import 'time.dart';
 import 'views.dart';
 
@@ -43,6 +44,27 @@ Iterable<TimedEvent> timedEvents(
   }
 
   return walk(voice.items, Moment.zero, Fraction.one, const []);
+}
+
+/// The last event [timedEvents] gives for [voice], found without its time.
+Event? lastEvent(Voice voice) {
+  Event? last(Seq<VoiceItem> items) {
+    for (var i = items.length - 1; i >= 0; i--) {
+      switch (items[i]) {
+        case Gap():
+          break;
+        case final Event event:
+          return event;
+        case Tuplet(:final members):
+          if (last(members) case final event?) {
+            return event;
+          }
+      }
+    }
+    return null;
+  }
+
+  return last(voice.items);
 }
 
 /// The event that opens [column] in [slot] of [staff]. Null when that voice
