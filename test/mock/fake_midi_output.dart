@@ -30,6 +30,9 @@ final class FakeMidiOutput implements MidiOutput {
   /// note off between is here twice.
   final List<String> held = [];
 
+  /// The SoundFont of every [load], in order.
+  final List<SoundFont> loaded = [];
+
   /// When set, [load] does not complete before it.
   Completer<void>? loadGate;
 
@@ -49,6 +52,7 @@ final class FakeMidiOutput implements MidiOutput {
   @override
   Future<void> load(SoundFont soundFont) async {
     _record('load');
+    loaded.add(soundFont);
     await loadGate?.future;
     if (loadError case final error?) {
       // ignore: only_throw_errors

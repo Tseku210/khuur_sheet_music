@@ -398,6 +398,10 @@ void main() {
         rig.midi.log.take(3),
         ['0.000 load', '0.000 load', '0.000 program 0 = 0/0'],
       );
+      expect(
+        rig.midi.loaded,
+        const [AssetSoundFont('piano.sf2'), AssetSoundFont('piano.sf2')],
+      );
     });
 
     testPlayer('fails when a program cannot be set, and plays the next time',
