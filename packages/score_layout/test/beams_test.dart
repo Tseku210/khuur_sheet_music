@@ -70,6 +70,7 @@ void main() {
       expect(up.values, everyElement(StemSide.up));
       expect(up.keys, hasLength(4));
       expect(down.values, everyElement(StemSide.down));
+      expect(down.keys, hasLength(4));
     });
 
     test('a tie goes to the chord farthest from the middle line', () {

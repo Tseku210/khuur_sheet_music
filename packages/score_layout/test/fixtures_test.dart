@@ -109,6 +109,21 @@ void main() {
     test('is a score the model loads', () {
       expect(scoreFromJson(scoreToJson(score)).measures, hasLength(500));
     });
+
+    test('takes the gate\'s note as one A4 at the start of voice one of the '
+        'top staff of its bar', () {
+      final next = scoreAfter(EditSession.start(score), noteInBar(score, 250));
+
+      final top = next.measureView(next.measures[249].id).staves.first;
+      expect(
+        top.voices.first.events.first.event,
+        isA<ChordEvent>().having(
+          (chord) => chord.notes.single.tone,
+          'tone',
+          const Pitch(Step.a, 4),
+        ),
+      );
+    });
   });
 
   group('the spanner score', () {

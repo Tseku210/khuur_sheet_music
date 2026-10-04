@@ -162,5 +162,21 @@ void main() {
     expect(sharing.hashCode, first.hashCode);
     expect(renamed, isNot(first));
     expect(second, isNot(first));
+    expect(
+      SmuflFont(
+        family: 'Mine',
+        glyphs: second.glyphs,
+        defaults: first.defaults,
+      ),
+      isNot(first),
+    );
+    expect(
+      SmuflFont(
+        family: 'Mine',
+        glyphs: first.glyphs,
+        defaults: second.defaults,
+      ),
+      isNot(first),
+    );
   });
 }

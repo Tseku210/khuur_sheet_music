@@ -526,6 +526,26 @@ void main() {
       );
     });
 
+    test('a repeated bar sounds each note as long on the second pass as '
+        'on the first', () {
+      final score = changeBar(
+        sessionWith([
+          [quarters(1, 'C4'), halves(2, 'E4'), quarters(3, 'G4')],
+        ]).score,
+        0,
+        repeatEnd(),
+      );
+
+      expect(notes(compiled(score)), [
+        (0.0, 0.54, 60, 0, 1),
+        (0.6, 1.08, 64, 0, 2),
+        (1.8, 0.54, 67, 0, 3),
+        (2.4, 0.54, 60, 0, 1),
+        (3.0, 1.08, 64, 0, 2),
+        (4.2, 0.54, 67, 0, 3),
+      ]);
+    });
+
     test('times tuplets, every voice and every staff', () {
       var score = blankScore(parts: const [piano], bars: 1);
       score = fill(score, 0, [
