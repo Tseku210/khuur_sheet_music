@@ -110,4 +110,47 @@ void main() {
       );
     }
   });
+
+  testWidgets('a text the painter no longer keeps stays in the picture it was '
+      'painted in, and is painted again when asked for', (tester) async {
+    const scale = SheetScale(spacePx: 8);
+    final extent = ParagraphMeasurer().measure('abc', spec);
+    final text = textAt(const SpPoint(2, 3), extent);
+    final painter = GlyphPainter(SmuflFont.bravura);
+    for (final round in [1, 2]) {
+      final image = (await tester.runAsync(
+        () => render(80, 80, (canvas) {
+          paintDrawable(canvas, text, painter, scale, black);
+          // More texts than a painter keeps, which is 1,024, off the picture.
+          for (var other = 0; other < 1100; other++) {
+            paintDrawable(
+              canvas,
+              TextDraw(
+                '$round $other',
+                const SpPoint(100, 100),
+                spec: spec,
+                bounds: const Box(100, 98.5, 106, 100.5),
+              ),
+              painter,
+              scale,
+              black,
+            );
+          }
+        }, background: null),
+      ))!;
+      final ink = inkIn(
+        image.rgba,
+        80,
+        left: 0,
+        top: 0,
+        right: 80,
+        bottom: 80,
+      )!;
+      final reason = 'in picture $round';
+      expect(ink.left, closeTo(16, 1), reason: reason);
+      expect(ink.top, closeTo(12, 1), reason: reason);
+      expect(ink.right, closeTo(64, 1), reason: reason);
+      expect(ink.bottom, closeTo(28, 1), reason: reason);
+    }
+  });
 }

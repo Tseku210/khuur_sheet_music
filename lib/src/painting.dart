@@ -222,9 +222,11 @@ final class GlyphPainter {
 
   final SmuflFont font;
 
-  /// At most [_capacity] paragraphs, the oldest dropped first. One zoom
-  /// level and one palette need 222 at most, so a zoom or a tint colour
-  /// that is no longer used falls out by itself.
+  /// At most [_capacity] paragraphs, the oldest dropped first and freed.
+  /// One zoom level and one palette need 222 at most, so a zoom or a tint
+  /// colour that is no longer used falls out by itself. A picture keeps
+  /// what was painted in it, so a paragraph may go while its picture is
+  /// open.
   final Map<(int, double, Color), ui.Paragraph> _paragraphs = {};
 
   /// The sheet's text, kept as the glyphs are. A text that sounds is
@@ -241,7 +243,7 @@ final class GlyphPainter {
     final paragraph = cache.remove(key) ?? build();
     cache[key] = paragraph;
     if (cache.length > _capacity) {
-      cache.remove(cache.keys.first);
+      cache.remove(cache.keys.first)?.dispose();
     }
     return paragraph;
   }
