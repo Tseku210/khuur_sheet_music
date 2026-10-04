@@ -192,6 +192,13 @@ In a file that needs Flutter's names, hide the model's.
 import 'package:simple_sheet_music/simple_sheet_music.dart' hide Interval, Step;
 ```
 
+## Limits
+
+- A staff draws five lines, or one line when its `lines` is 1. A staff of 2, 3, 4 or 6 lines loads and keeps its count, and draws as five lines. Tablature is not drawn.
+- The sheet is one scrolling column of systems. It has no pages and no PDF export. `toImage` draws a range of systems.
+- The zoom is the controller's. The view has no pinch gesture.
+- `ScoreMeta.copyright` is not printed on the sheet.
+
 ## Fonts and licences
 
 The package draws music with Bravura, Steinberg's music font, which it ships as `fonts/Bravura.otf` under the SIL Open Font License 1.1. `SheetView` registers `fonts/OFL.txt` with Flutter's `LicenseRegistry`, so the font's licence is on the page that `showLicensePage` opens.
