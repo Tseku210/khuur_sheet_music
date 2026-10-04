@@ -23,6 +23,7 @@ bool finite(Box box) =>
 void main() {
   test('every bar of seeded random scores lays out, with finite boxes and '
       'slices in time order', () {
+    var bars = 0;
     for (final seed in [1, 2, 3, 4, 5, 6]) {
       final random = Random(seed);
       var score = blankScore(parts: const [clarinet, piano, drums], bars: 4);
@@ -36,6 +37,7 @@ void main() {
             style,
             const FakeMeasurer(),
           );
+          bars++;
 
           for (final stretch in [1.0, 3.0]) {
             final xs = sliceXs(layout.slices, stretch, layout.lead);
@@ -64,5 +66,7 @@ void main() {
         }
       }
     }
+
+    expect(bars, greaterThan(1500));
   });
 }
