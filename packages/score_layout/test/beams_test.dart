@@ -83,6 +83,7 @@ void main() {
       );
 
       expect(sides.values, everyElement(StemSide.up));
+      expect(sides.keys, hasLength(4));
     });
 
     test('an unbeamed chord is not in the map', () {
