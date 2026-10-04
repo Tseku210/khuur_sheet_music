@@ -65,9 +65,6 @@ Broken bad(String at, Object? value, String rule) =>
 Broken badAt(String at, String rule, Map<String, Object?> set) =>
     (set: set, at: at, rule: rule);
 
-String oneOf(List<Enum> values) =>
-    'expected one of ${values.map((value) => value.name).join(', ')}';
-
 const bar0 = r'$.measures[0].staves[0]';
 const chord0 = '$bar0.voices[0].items[0]';
 const drums0 = r'$.measures[0].staves[2].voices[0].items[0]';
@@ -94,7 +91,11 @@ final broken = <Broken>[
   bad(r'$.parts[0].instrument.program', 128, 'a MIDI number is 0 to 127'),
   bad(r'$.parts[0].instrument.program', -1, 'a MIDI number is 0 to 127'),
   bad(r'$.parts[2].instrument.bank', -1, 'a bank is 0 or more'),
-  bad(r'$.parts[0].instrument.clef', 'violin', oneOf(Clef.values)),
+  bad(
+    r'$.parts[0].instrument.clef',
+    'violin',
+    'expected one of treble, treble8vb, treble8va, bass, bass8vb, soprano, mezzoSoprano, alto, tenor, baritoneC, baritoneF, percussion',
+  ),
   for (final interval in [
     [1],
     [1, 2, 3],
@@ -120,7 +121,7 @@ final broken = <Broken>[
   bad(r'$.measures[0].length', '129/2', 'a bar lasts at most 64 whole notes'),
   bad(r'$.measures[0].key', 8, 'a key has 7 flats to 7 sharps'),
   bad(r'$.measures[0].key', -8, 'a key has 7 flats to 7 sharps'),
-  bad(r'$.measures[2].mode', 'dorian', oneOf(KeyMode.values)),
+  bad(r'$.measures[2].mode', 'dorian', 'expected one of none, major, minor'),
   bad(
     r'$.measures[0].length',
     '1/384',
@@ -185,7 +186,11 @@ final broken = <Broken>[
   badAt('$bar0.directions[1]', 'directions are in time order', {
     '$bar0.directions[0].at': '1/8',
   }),
-  bad('$bar0.directions[0].dynamic', 'loud', oneOf(Dynamic.values)),
+  bad(
+    '$bar0.directions[0].dynamic',
+    'loud',
+    'expected one of pppp, ppp, pp, p, mp, mf, f, ff, fff, ffff, sf, sfz, fp, rfz',
+  ),
   bad('$bar0.directions[2].chord', 'H', 'expected a pitch name such as "F#"'),
   bad('$bar0.directions[2].bass', 'Eb4', 'expected a pitch name such as "F#"'),
   badAt(
@@ -318,7 +323,11 @@ final broken = <Broken>[
   ),
   bad(r'$.spanners[0].from.measure', 99, 'no such bar'),
   bad(r'$.spanners[0].from.at', '1', 'not inside the bar'),
-  bad(r'$.spanners[3].shift', 'up9', oneOf(OctaveShift.values)),
+  bad(
+    r'$.spanners[3].shift',
+    'up9',
+    'expected one of up8, down8, up15, down15, up22, down22',
+  ),
   bad(r'$.spanners[5].factor', 0, 'a factor is a finite number above 0'),
   bad(r'$.spanners[0].voice', missing, 'a slur or glissando names its voice'),
   bad(r'$.spanners[1].voice', 2, 'only a slur or glissando names a voice'),
