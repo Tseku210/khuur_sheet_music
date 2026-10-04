@@ -92,7 +92,8 @@ class SheetView extends StatefulWidget {
   /// finer than a 128th, the finest start the model accepts.
   final DurationBase tapGrid;
 
-  /// Scroll the cursor's system into view when the cursor moves.
+  /// Open with the cursor's system in view, and scroll it into view when
+  /// the cursor moves.
   final bool followCursor;
 
   /// While playing, scroll a system to the top of the view when the
@@ -299,9 +300,19 @@ typedef _OwnScroll = ({
   Completer<void> done,
 });
 
+/// A scroll controller whose position starts at [start]. The view knows
+/// where that is only once it has laid the sheet out, which is after a
+/// controller's own initial offset is fixed.
+class _SheetScroll extends ScrollController {
+  double start = 0;
+
+  @override
+  double get initialScrollOffset => start;
+}
+
 class _SheetViewState extends State<SheetView> {
   ParagraphMeasurer _measurer = ParagraphMeasurer();
-  final ScrollController _scroll = ScrollController();
+  final _SheetScroll _scroll = _SheetScroll();
   late GlyphPainter _glyphs = GlyphPainter(widget.style.font);
   SheetController? _ownController;
 
@@ -664,6 +675,27 @@ class _SheetViewState extends State<SheetView> {
     return (bar: layout.firstBarOf(first), top: topOf(first));
   }
 
+  /// The scroll offset a view that is [viewport] high opens [layout] at.
+  ///
+  /// A view that follows its cursor opens with the cursor's system in view,
+  /// by the rule of `ensureVisible` from the top of the sheet. Any other
+  /// opens at the top.
+  double _startOf(
+    SheetLayout layout,
+    double spacePx,
+    EdgeInsets padding,
+    double viewport,
+  ) {
+    final cursor = widget.followCursor ? widget.cursor?.at.measure : null;
+    final index = cursor == null ? null : layout.systemOf(cursor);
+    if (index == null) {
+      return 0;
+    }
+    final top = padding.top + layout.tops[index] * spacePx;
+    final bottom = top + layout.heightOf(index) * spacePx;
+    return math.max(0, bottom - top <= viewport ? bottom - viewport : top);
+  }
+
   /// Scrolls so the system holding the anchor's bar sits as far below the
   /// viewport's top as it did before the update.
   ///
@@ -720,6 +752,11 @@ class _SheetViewState extends State<SheetView> {
                   style: widget.style,
                 )
               : previous.layout.update(widget.score, width: width);
+          if (previous == null) {
+            // The scroll view makes its position after this returns.
+            _scroll.start =
+                _startOf(layout, spacePx, padding, constraints.maxHeight);
+          }
           _keepInPlace(anchor, layout, spacePx);
           _stale = false;
           final palette = widget.palette ?? SheetPalette.of(context);

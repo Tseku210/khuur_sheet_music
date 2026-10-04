@@ -893,6 +893,51 @@ void main() {
   });
 
   testWidgets(
+      "a view that opens with its cursor far down the sheet shows the cursor's "
+      'system on its first frame, unless followCursor is off', (tester) async {
+    final score = tune();
+    Widget view(int bar, {bool follow = true}) => host(
+          SheetView(
+            score: score,
+            cursor: cursorIn(score, bar),
+            followCursor: follow,
+          ),
+        );
+    await tester.pumpWidget(view(20));
+    final system = shown(tester).systemOf(score.measures[20].id)!;
+    expect(built(tester), contains(system));
+    expect(scrollOf(tester).pixels, greaterThan(0));
+    expect(spanOf(tester, system).bottom, closeTo(viewSize.height, 1e-6));
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(view(0));
+    expect(scrollOf(tester).pixels, 0);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(view(20, follow: false));
+    expect(scrollOf(tester).pixels, 0);
+  });
+
+  testWidgets(
+      'a view that opens with its cursor in a system taller than the view '
+      "shows the system's top", (tester) async {
+    final score = tune();
+    await tester.pumpWidget(host(SheetView(score: score)));
+    final system = shown(tester).systemOf(score.measures[20].id)!;
+    final size = Size(
+      viewSize.width,
+      shown(tester).heightOf(system) * staffSpace / 2,
+    );
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(
+      host(SheetView(score: score, cursor: cursorIn(score, 20)), size: size),
+    );
+    expect(tileOf(system), findsOneWidget);
+    expect(tester.getTopLeft(tileOf(system)).dy, closeTo(0, 1e-6));
+  });
+
+  testWidgets(
       'a cursor that moves to the next system and back, while the view '
       'scrolls after it, leaves its system wholly in view', (tester) async {
     final score = tune();

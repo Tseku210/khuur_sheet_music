@@ -92,7 +92,7 @@ SheetView(
 
 The hit names the staff, the voice, the time and the staff step under the tap, so the app looks nothing up.
 
-The view draws the cursor as a caret and scrolls the cursor's system into view when the cursor moves. To move the cursor from a button, call `_session.moveCursor(CursorMove.nextEvent)`.
+The view draws the cursor as a caret. It opens with the cursor's system in view and scrolls that system into view when the cursor moves. To move the cursor from a button, call `_session.moveCursor(CursorMove.nextEvent)`.
 
 `_sheet` is a `SheetController`. To zoom, set its `zoom`, as in `_sheet.zoom *= 1.25`.
 
