@@ -1076,7 +1076,7 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
 - The small clefs of several staves end at one x, one clef change gap of 0.5 before the barline. That is the gap a clef change inside a bar keeps from what follows it, and clefs at one moment end at one x there too. No gap stands before them, because the bar before already ends its content with its end padding.
 - `BarWidths.inlineHead` and `courtesy` are the widths of both parts. The room before a barline is drawn at the end of the bar before and counted once, by the bar whose head it is. A bar's inline `before` counts when the bar follows another on its system, which is when it is drawn there. When the bar starts a system, its courtesy `before` counts in the system before, where it is drawn. So the width the breaker sums stays exact, and the resume rule needs no new clause, since a courtesy clef changes the courtesy width it already reads.
 - `BarFrame` gained `beforeBarline` and `barline`. `frameUnits` sets `beforeBarline` from the next unit's inline `before`, or for the last unit from the courtesy `before` of the next system's first bar. It is the one place each barline's x is decided. `placeBarlines` starts the end barline at `frame.barline`, and `frame.right` stays where the content ends.
-- The courtesy clef is printed whatever `courtesySignatures` says, and there is no switch for it. Engravers treat a clef change at a system break as required. A player turning to the new line would otherwise read its first notes, and any courtesy key, on a clef nobody warned of. With the style off, the system before ends with the small clef before its last barline and nothing after it. A `noCourtesy` on a key or meter change removes only that courtesy. The owner may reverse this.
+- The courtesy clef is printed whatever `courtesySignatures` says, and there is no switch for it. Engravers treat a clef change at a system break as required. A player turning to the new line would otherwise read its first notes, and any courtesy key, on a clef nobody warned of. With the style off, the system before ends with the small clef before its last barline and nothing after it. A `noCourtesy` on a key or meter change removes only that courtesy. The owner kept this on 2026-10-04.
 - `startJoins` reads the inline head's `after` part. A clef before the barline stands on the other side of it, so a start repeat can still stand in for that barline or join an end repeat into one sign.
 - Ties, slurs, lines, hyphens and extenders leaving a system stop at `leaveBy` of their staff. On a staff with a courtesy clef before the last barline that is the content's end, so nothing runs under the clef. On any other staff it is the barline's end, as before, so a staff without a courtesy clef draws what it drew. `placeTies` and `placeSpanners` take the x of each staff, and `placeLyrics`, which runs once per staff, takes its own.
 - A volta ends at `frame.barline`, so the bracket over a bar whose next bar changes clef reaches its barline and stands over the clef. The bar under the bracket cannot read the next bar's clef, and does not need to. The bracket's line stands at least 2.5 spaces above the staff, a small clef reaches at most 1.33 above it (the baritone C clef), and the right hook stands at the barline, right of the clef's gap. A test holds the line and the hook above an F clef and the hook right of it.
@@ -1097,7 +1097,7 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
 **Unit 12.**
 - The unit ran before unit 11. That is safe because the player reads only `score_model` and publishes `position` as a `ValueListenable`, which is all `SheetView.playback` takes. It uses nothing of `SheetView` or `SheetLayout`, and its file does not import `score_layout`.
 - The constructor takes two optional seams, `output` and `now`. A test passes the fake `MidiOutput` of `test/mock/` and a wall time it controls. An app passes neither and gets `FlutterMidiOutput` and a `Stopwatch`. The timer is a `dart:async` timer, which a widget test already fakes, so it needs no seam of its own.
-- `MidiOutput` is in `lib/src/midi_output.dart` and is not exported, so an app cannot yet bring its own synthesizer. It has `load`, `program`, `noteOn`, `noteOff`, `allNotesOff` and `dispose`. Whether to export it is the owner's call.
+- `MidiOutput` is in `lib/src/midi_output.dart`. It has `load`, `program`, `noteOn`, `noteOff`, `allNotesOff` and `dispose`. It was not exported at first. The owner chose on 2026-10-04 to export it, so an app can bring its own synthesizer. `FlutterMidiOutput` stays internal as the default.
 - The note timer also sends the note offs. The design had it send each note, but the plugin holds a key until `stopNote`. So the timer sleeps until the next start or end of a note, and the player keeps the script second at which each sounding key ends.
 - A timer set for a script second treats that second as reached when it fires. The wall time of a script second is rounded to a microsecond, and a platform's timer can be coarser than that, so a timer can fire a moment early. Reading the clock alone then sent nothing and set a timer of no length, again and again.
 - A note that both starts and ends while the isolate is busy is not sent. A note that started in the stall and still sounds is sent late and ends on time.
@@ -1125,6 +1125,15 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
 
 ## Open questions and risks
 
+**Owner decisions of 2026-10-04.**
+- Unit 11 starts on macOS before gate 1 has run on a phone. Gate 1 runs on the owner's iPhone once it is connected, and on Android before release. If a phone fails the gate, a path painter replaces `GlyphPainter` and the view is unchanged.
+- The macOS demo gains a button that plays through `ScorePlayer`, so the owner can hear the new player before unit 13 rewrites the example.
+- The courtesy clef prints whatever `courtesySignatures` says (see the clef unit).
+- `MidiOutput` is exported (see unit 12).
+- A `Semantics` label per system tile is enough for the first release.
+- `design/score-model` stays unpushed until unit 13 lands.
+- The owner asked for examples before deciding the last-system rule, `ScoreMeta.copyright`, and the limits of the band.
+
 **Owner decisions of 2026-10-02.** The owner accepted every default below, C1 to C11, and the model additions B1, B2b, B2c, B3 and B4. `publish_to: none` on the root package is accepted too. The questions stay here as the record of what each default is.
 
 Owner questions. Each is a parameter with a default, so the architecture does not wait:
@@ -1142,7 +1151,7 @@ Owner questions. Each is a parameter with a default, so the architecture does no
 - Are model additions B1, B2b, B2c, B3 and B4 accepted? B1 is needed for the playhead. B2b and B2c can fall back to layout-side rules with no change to this shape.
 
 Left out of the first version, on purpose:
-- **No semantics tree.** A canvas-drawn score is invisible to screen readers. A `Semantics` label per system tile is the cheap first step. Is that enough for the first release?
+- **No semantics tree.** A canvas-drawn score is invisible to screen readers. A `Semantics` label per system tile is the cheap first step. The owner said on 2026-10-04 that it is enough for the first release, and unit 11 adds it.
 - **A grace note cannot be removed by a tap.** A hit on a grace head reports its principal, and the model has `AddGrace` but no edit that removes one grace. This is a model unit to add later, not a layout change.
 - **No print or PDF path.** `toImage` renders a range of systems of the scrolling sheet. Pages would be a second breaker over system heights, which the plans already give.
 - **No pinch gesture.** The controller's zoom is the size control, and each new zoom breaks lines again. A live pinch needs a transform above the viewport during the gesture, a scale recogniser that shares the arena with the scroll drag, a focal-point anchor and one relayout when the gesture ends. That is its own unit with its own test, after the view exists.
