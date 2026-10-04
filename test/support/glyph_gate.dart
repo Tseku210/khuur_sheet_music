@@ -234,15 +234,25 @@ Future<InkErrors?> measureGlyph(
 /// is the reader's own. A pointed end covers little of its last pixel and
 /// reads short, which moves the centre of a glyph pointed on one side by up
 /// to a third of a pixel at every size.
+///
+/// The size may be off by a pixel at each edge. One rasteriser thickens ink
+/// and another thins it, and a thin or pointed end reads short on top of
+/// that, so a glyph that is drawn right is up to 1.55 pixels small on a
+/// phone.
 List<String> failuresAtViewSize(InkErrors errors) => [
       if (errors.centreY > 1)
         'centre ${errors.centreY.toStringAsFixed(2)} px off vertically',
       if (errors.centreX > 0.5)
         'centre ${errors.centreX.toStringAsFixed(2)} px off horizontally',
-      if (errors.width > 1) 'width ${errors.width.toStringAsFixed(2)} px off',
-      if (errors.height > 1)
+      if (errors.width > _sizeBound)
+        'width ${errors.width.toStringAsFixed(2)} px off',
+      if (errors.height > _sizeBound)
         'height ${errors.height.toStringAsFixed(2)} px off',
     ];
+
+/// Device pixels a glyph's width or height may be off at a size the view
+/// draws at.
+const _sizeBound = 2.0;
 
 /// Why [errors] fails the gate at [tableSize], where every edge is within
 /// 0.05 staff spaces. Empty when it passes.
