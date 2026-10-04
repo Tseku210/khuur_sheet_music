@@ -1848,15 +1848,15 @@ void main() {
     );
     addTearDown(playback.dispose);
     const orange = Color(0xFFFF8800);
-    final tints = {
-      plan
-          .systemAt(0)
-          .drawables
-          .map((drawable) => drawable.owner)
-          .whereType<ElementOwner>()
-          .first
-          .ref: orange,
-    };
+    final note = plan
+        .systemAt(0)
+        .drawables
+        .map((drawable) => drawable.owner)
+        .whereType<ElementOwner>()
+        .map((owner) => owner.ref)
+        .whereType<NoteRef>()
+        .first;
+    final tints = <ElementRef, Color>{note: orange};
 
     final key = GlobalKey();
     await tester.pumpWidget(
@@ -1976,26 +1976,41 @@ void main() {
       expect(redAbove, blueAbove, reason: 'not shaded above $middle');
     }
 
-    final sounding = playback.value!.sounding
-        .where((ref) => layout.boundsOf(ref) != null)
-        .toList();
-    expect(sounding, isNotEmpty);
-    final purple = [
-      for (var at = 0; at < view.rgba.length; at += 4)
-        if (view.rgba[at] == 0x88 &&
-            view.rgba[at + 1] == 0x22 &&
-            view.rgba[at + 2] == 0xCC)
-          at,
-    ];
-    expect(purple, isNotEmpty, reason: 'a sounding note in its colour');
+    List<Offset> pixelsOf(int red, int green, int blue) => [
+          for (var at = 0; at < view.rgba.length; at += 4)
+            if (view.rgba[at] == red &&
+                view.rgba[at + 1] == green &&
+                view.rgba[at + 2] == blue)
+              Offset(at ~/ 4 % width + 0.5, at ~/ 4 ~/ width + 0.5),
+        ];
+    // Ink may leave its box by a pixel.
+    Rect placeOf(ElementRef ref) =>
+        sheet.rectOf(layout.boundsOf(ref)!).inflate(1);
 
-    final tinted = [
-      for (var at = 0; at < view.rgba.length; at += 4)
-        if (view.rgba[at] == 0xFF &&
-            view.rgba[at + 1] == 0x88 &&
-            view.rgba[at + 2] == 0x00)
-          at,
+    final sounding = [
+      for (final ref in playback.value!.sounding)
+        if (layout.boundsOf(ref) != null) placeOf(ref),
     ];
-    expect(tinted, isNotEmpty, reason: 'a tinted note in its colour');
+    expect(sounding, isNotEmpty);
+    final purple = pixelsOf(0x88, 0x22, 0xCC);
+    expect(purple, isNotEmpty, reason: 'a sounding note in its colour');
+    expect(
+      purple.where((at) => !sounding.any((place) => place.contains(at))),
+      isEmpty,
+      reason: 'the playback colour off the sounding notes',
+    );
+
+    final tinted = pixelsOf(0xFF, 0x88, 0x00);
+    expect(tinted, isNotEmpty, reason: 'the tinted note in its colour');
+    expect(
+      tinted.where((at) => !placeOf(note).contains(at)),
+      isEmpty,
+      reason: 'the tint off the tinted note',
+    );
+    expect(
+      layout.boundsOf(note.event),
+      isNot(layout.boundsOf(note)),
+      reason: "the note's event draws more than its head",
+    );
   });
 }
