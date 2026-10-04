@@ -49,9 +49,9 @@ final class SheetScale {
   int get hashCode => Object.hash(spacePx, origin);
 }
 
-/// Draws SMuFL glyphs as text in the font's family. This class is the whole
-/// seam for the glyph source. A path-based painter would replace it and
-/// nothing else.
+/// Draws SMuFL glyphs as text in the font's family, and the sheet's text.
+/// This class is the whole seam for the glyph source. A path-based painter
+/// would replace it and nothing else.
 ///
 /// The font is the unmodified Bravura OTF, declared as a package font, so
 /// in an app it is loaded before the first frame and drawing needs no async
@@ -145,14 +145,18 @@ void paintDrawable(
     case TextDraw():
       // TODO: lines and polygons with Paint in px from SheetScale. Curves
       // as a filled crescent path. Glyph runs by repeating the glyph. Text
-      // by a cached paragraph from its TextSpec.
+      // by the glyph painter, from a paragraph it keeps per text, spec,
+      // pixel size and colour as it keeps a glyph's, placed by its rounded
+      // baseline. The painter and the measurer build that paragraph with
+      // one function, so a text's box holds the letters that are painted.
       throw UnimplementedError();
   }
 }
 
 /// Paints the title block above the first system. It repaints when the
-/// header list, the palette or the scale changes. The layout hands out the
-/// same list while the sheet width and `score.meta` are unchanged.
+/// header list, the glyph painter, the palette or the scale changes. The
+/// layout hands out the same list while the sheet width and `score.meta`
+/// are unchanged.
 final class HeaderPainter extends CustomPainter {
   HeaderPainter({
     required this.header,

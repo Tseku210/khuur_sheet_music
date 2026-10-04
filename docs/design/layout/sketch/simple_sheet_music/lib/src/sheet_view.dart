@@ -1,8 +1,9 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:score_layout/score_layout.dart';
 import 'package:score_model/score_model.dart';
 
@@ -19,9 +20,16 @@ import 'sheet_palette.dart';
 /// repaints only the systems that changed. The cursor, the selection, tints
 /// and playback repaint an overlay layer and never lay out.
 ///
-/// Its width comes from its constraints, its height is unbounded (it
-/// scrolls), and its size on screen is [staffSpace] times the controller's
-/// zoom. It never scales a score to fit a box.
+/// Its width comes from its constraints, which must bound it. Its height is
+/// unbounded, since it scrolls. Its size on screen is [staffSpace] times
+/// the controller's zoom. It never scales a score to fit a box.
+///
+/// An update keeps the bar the user is reading where it is. With
+/// [followCursor] that is the cursor's bar while its system is in view, and
+/// otherwise the first bar of the first system in view.
+///
+/// Each system is one node for a screen reader, labelled with the bars it
+/// holds.
 class SheetView extends StatefulWidget {
   const SheetView({
     required this.score,
@@ -46,11 +54,13 @@ class SheetView extends StatefulWidget {
   /// The edit cursor, drawn as a caret. Usually `EditSession.cursor`.
   final VoicePoint? cursor;
 
-  /// Usually `EditSession.selection`.
+  /// Usually `EditSession.selection`. The overlay repaints for a selection
+  /// that is another object.
   final Selection selection;
 
   /// Colours for particular notes or events, drawn over the sheet, such as
   /// practice feedback or search results. Replaces the old per-symbol colour.
+  /// The overlay repaints for a map that is another object.
   final Map<ElementRef, Color> tints;
 
   /// Usually `ScorePlayer.position`. The sheet highlights the sounding
@@ -78,12 +88,14 @@ class SheetView extends StatefulWidget {
   /// finer than a 128th, the finest start the model accepts.
   final DurationBase tapGrid;
 
-  /// Scroll the cursor into view when it moves.
+  /// Scroll the cursor's system into view when the cursor moves.
   final bool followCursor;
 
-  /// Scroll the playhead into view while playing.
+  /// While playing, scroll a system to the top of the view when the
+  /// playhead enters it and it is not wholly in view.
   final bool followPlayback;
 
+  /// Room around the sheet, which scrolls with it.
   final EdgeInsets padding;
 
   @override
@@ -99,19 +111,33 @@ class SheetView extends StatefulWidget {
 ///
 /// The view itself listens only to the zoom. A scroll or a new layout
 /// notifies the app's listeners and builds nothing in the view.
+///
+/// A controller serves the view that took it last. Every query answers
+/// null, nothing or zero while no view has the controller, and before that
+/// view's first frame.
 class SheetController extends ChangeNotifier {
-  SheetController({double zoom = 1}) : _zoom = ValueNotifier(zoom);
+  /// Throws an [ArgumentError] unless [zoom] is positive and finite.
+  SheetController({double zoom = 1}) : _zoom = ValueNotifier(_checked(zoom));
 
   final ValueNotifier<double> _zoom;
   _SheetViewState? _view;
 
+  static double _checked(double zoom) {
+    if (!(zoom > 0 && zoom.isFinite)) {
+      throw ArgumentError.value(zoom, 'zoom', 'Must be positive and finite');
+    }
+    return zoom;
+  }
+
   /// Multiplies `SheetView.staffSpace`. A new zoom breaks lines again at
-  /// the next frame and keeps the bar at the top of the viewport in place.
-  /// Every set is a full break over cached bars, so an app that zooms by
-  /// pinch sets it when the gesture ends.
+  /// the next frame and keeps the bar the user is reading in place. Every
+  /// set is a full break over cached bars, so an app that zooms by pinch
+  /// sets it when the gesture ends.
+  ///
+  /// Throws an [ArgumentError] unless the value is positive and finite.
   double get zoom => _zoom.value;
   set zoom(double value) {
-    if (value == _zoom.value) {
+    if (_checked(value) == _zoom.value) {
       return;
     }
     _zoom.value = value;
@@ -141,24 +167,32 @@ class SheetController extends ChangeNotifier {
   /// Where [ref] is drawn, or null when it is not drawn (a hidden staff).
   Rect? rectOf(ElementRef ref) => throw UnimplementedError();
 
+  /// The caret for [cursor], a rect of no width over the cursor's staff.
   Rect? caretOf(VoicePoint cursor) => throw UnimplementedError();
 
   /// The rects the view shades for [selection].
   List<Rect> rectsOf(Selection selection) => throw UnimplementedError();
 
-  /// Scrolls until the system holding [point] is in view.
+  /// Scrolls until the system holding [point] is wholly in view, by the
+  /// shortest way. A system taller than the view shows its top. The future
+  /// completes when the scroll ends or the user takes over.
   Future<void> ensureVisible(
     ScorePoint point, {
     Duration duration = const Duration(milliseconds: 250),
   }) => throw UnimplementedError();
 
-  /// Systems [from] up to [to] as one image, without the overlay, at
-  /// [pixelRatio]. The header is included when [from] is 0. It draws the
-  /// same drawables the view paints and assembles the systems it covers.
+  /// Systems [from] up to [to] as one image, without the overlay and
+  /// without the view's padding, on a transparent background, at
+  /// [pixelRatio]. [to] is the system count when null. The header is
+  /// included when [from] is 0. It draws the drawables the view paints, in
+  /// the view's palette and at its size, and assembles the systems it
+  /// covers.
   ///
   /// One image holds only so many pixels. A range taller than
   /// [maxImageHeight] device pixels throws an [ArgumentError], so an app
-  /// exports a long score as several images.
+  /// exports a long score as several images. So does an empty range, and a
+  /// range outside the sheet throws a [RangeError]. A controller without a
+  /// laid-out view throws a [StateError].
   Future<ui.Image> toImage({int from = 0, int? to, double pixelRatio = 1}) =>
       throw UnimplementedError();
 
@@ -174,6 +208,16 @@ class SheetController extends ChangeNotifier {
 /// its system sits in the scrolled content, in logical pixels. With the
 /// scroll offset that is the system's offset from the top of the viewport.
 typedef _ScrollAnchor = ({MeasureId bar, double top});
+
+/// An animated scroll of the view's own, to the system holding `bar`. It
+/// goes to the system's top when `toTop`, else the shortest way that shows
+/// the whole system. `done` completes when the scroll ends.
+typedef _OwnScroll = ({
+  MeasureId bar,
+  bool toTop,
+  Duration duration,
+  Completer<void> done,
+});
 
 class _SheetViewState extends State<SheetView> {
   ParagraphMeasurer _measurer = ParagraphMeasurer();
@@ -208,17 +252,24 @@ class _SheetViewState extends State<SheetView> {
     super.initState();
     _controller._view = this;
     _controller._zoom.addListener(_rebuild);
-    _scroll.addListener(_controller._moved);
+    _scroll.addListener(_onScroll);
     widget.playback?.addListener(_followPlayback);
     PaintingBinding.instance.systemFonts.addListener(_onFontsChanged);
+    // TODO: once for the process, add the text of
+    // packages/simple_sheet_music/fonts/OFL.txt to LicenseRegistry under
+    // 'Bravura'. The tool that collects licences reads a package's LICENSE
+    // file and never a font's.
   }
 
   @override
   void didUpdateWidget(SheetView oldWidget) {
     super.didUpdateWidget(oldWidget);
     // TODO:
-    // - Swap the controller's listeners when the controller changes.
-    // - followCursor and a moved cursor: ensureVisible after this frame.
+    // - Swap the controller's listeners and its view when the controller
+    //   changes.
+    // - followCursor and a moved cursor: scroll its system into view after
+    //   this frame, since the cursor may be in a bar this build lays out
+    //   for the first time.
     // A new score needs nothing here. build() calls update(), which returns
     // the same layout when the score is identical.
     if (oldWidget.playback != widget.playback) {
@@ -232,6 +283,10 @@ class _SheetViewState extends State<SheetView> {
   }
 
   void _rebuild() => setState(() {});
+
+  /// Reads the controller at each scroll, so a controller the view is given
+  /// later hears of scrolls and the one before it does not.
+  void _onScroll() => _controller._moved();
 
   /// Whether a font registration is waiting for [_afterFontsChanged].
   bool _fontsChanged = false;
@@ -275,13 +330,16 @@ class _SheetViewState extends State<SheetView> {
     _glyphs = GlyphPainter(widget.style.font);
   });
 
-  /// Keeps the playhead's system in view. It never calls setState. The
-  /// overlay painters listen to the same listenable and repaint on their
-  /// own.
+  /// Brings the playhead's system to the top of the view when the playhead
+  /// enters it and it is not wholly in view. It acts once per system, so a
+  /// user who scrolls away while it plays is not pulled back on every tick.
+  /// It never calls setState. The overlay painters listen to the same
+  /// listenable and repaint on their own.
   void _followPlayback() {
-    // TODO: with followPlayback, when the system of the playhead's bar
-    // (layout.systemOf(position.point.bar.measure)) is outside the
-    // viewport, animate the scroll so its top sits at the viewport's top.
+    // TODO: when the system of the playhead's bar
+    // (layout.systemOf(position.point.bar.measure)) is another than at the
+    // last tick, remember it, and with followPlayback animate the scroll so
+    // its top sits at the viewport's top unless it is wholly in view.
   }
 
   /// The bar to keep in place across the next update, read from the layout
@@ -289,11 +347,11 @@ class _SheetViewState extends State<SheetView> {
   ///
   /// With [SheetView.followCursor] it is the cursor's bar, when any part of
   /// that bar's system is in the viewport. Otherwise it is the first bar of
-  /// the system at the top of the viewport. A cursor the user scrolled away
-  /// from is no anchor, because keeping it still would move what they are
-  /// reading.
+  /// the first system that reaches below the viewport's top. A cursor the
+  /// user scrolled away from is no anchor, because keeping it still would
+  /// move what they are reading.
   _ScrollAnchor? _anchorIn(SheetLayout layout, double spacePx) {
-    if (!_scroll.hasClients) {
+    if (!_scroll.hasClients || !_scroll.position.hasContentDimensions) {
       return null;
     }
     final viewportTop = _scroll.offset - widget.padding.top;
@@ -307,11 +365,16 @@ class _SheetViewState extends State<SheetView> {
         return (bar: cursor, top: top);
       }
     }
-    final atTop = layout.tops.lastIndexWhere(
-      (top) => top * spacePx <= viewportTop,
-    );
-    final index = atTop < 0 ? 0 : atTop;
-    return (bar: layout.firstBarOf(index), top: layout.tops[index] * spacePx);
+    // The last system whose top is at or above the viewport's top can lie
+    // wholly above it, in the gap before the next one. An edit that makes
+    // that system taller would then move what is read.
+    var first = 0;
+    while (first + 1 < layout.systemCount &&
+        (layout.tops[first] + layout.heightOf(first)) * spacePx <=
+            viewportTop) {
+      first++;
+    }
+    return (bar: layout.firstBarOf(first), top: layout.tops[first] * spacePx);
   }
 
   /// Scrolls so the system holding the anchor's bar sits as far below the
@@ -326,13 +389,13 @@ class _SheetViewState extends State<SheetView> {
   /// It runs inside the LayoutBuilder callback, before the viewport lays
   /// out. `correctBy` moves the offset without notifying, so no listener
   /// rebuilds during layout and the frame paints at the corrected offset.
-  /// The viewport clamps an offset past the new end by itself.
+  /// An offset past the new end is brought back by the scroll physics.
   ///
   /// The correction holds while the scroll is idle, dragged or flung. A
   /// scroll the view itself is animating writes its own offsets on the next
-  /// tick and would undo it. So the view remembers the bar such a scroll is
-  /// going to ([_scrollingTo]) and, after a correction, starts it again
-  /// towards where that bar is now.
+  /// tick and would undo it, and it is going to where its bar was. So the
+  /// view remembers such a scroll ([_scrollingTo]) and the builder starts
+  /// it again after every new layout, towards where its bar is now.
   void _keepInPlace(_ScrollAnchor? anchor, SheetLayout layout, double spacePx) {
     final index = anchor == null ? null : layout.systemOf(anchor.bar);
     if (anchor == null || index == null) {
@@ -341,22 +404,25 @@ class _SheetViewState extends State<SheetView> {
     final moved = layout.tops[index] * spacePx - anchor.top;
     if (moved != 0) {
       _scroll.position.correctBy(moved);
-      // TODO: when _scrollingTo is set, animate again to its system's top
-      // in the new layout, after this frame.
     }
   }
 
-  /// The bar an animated scroll of the view's own is going to, which is the
-  /// target of `ensureVisible` or of following playback. Null when no such
-  /// scroll is running.
-  // The sketch declares it. ensureVisible and _followPlayback set it and
-  // clear it when their scroll ends.
+  /// The animated scroll of the view's own that is running, from
+  /// `ensureVisible`, a moved cursor or playback. Null when none is.
+  // The sketch declares it. Those three set it, and it is cleared when the
+  // scroll ends or the user takes over, which completes `done`. A start
+  // that was replaced is told from the end of the scroll by a counter.
   // ignore: unused_field
-  MeasureId? _scrollingTo;
+  _OwnScroll? _scrollingTo;
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
+      assert(
+        constraints.hasBoundedWidth,
+        'SheetView breaks lines at its width, so it needs a bounded '
+        'width. Give it one with a SizedBox or an Expanded.',
+      );
       final spacePx = _spacePx;
       final width =
           (constraints.maxWidth - widget.padding.horizontal) / spacePx;
@@ -378,25 +444,34 @@ class _SheetViewState extends State<SheetView> {
       if (!identical(layout, previous)) {
         _layout = layout;
         // The controller's listeners may rebuild, which a layout pass does
-        // not allow. They hear of the new geometry after this frame.
+        // not allow. They hear of the new geometry after this frame, when
+        // the scroll extent is the new layout's too.
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
+            // TODO: when _scrollingTo is set, start it again towards where
+            // its bar is in the new layout.
             _controller._moved();
           }
         });
       }
+      // TODO: keep the palette, so toImage draws in the view's colours.
       final palette = widget.palette ?? SheetPalette.of(context);
       final scale = SheetScale(spacePx: spacePx);
+      final onTap = widget.onTap;
       return GestureDetector(
-        onTapUp: (details) {
-          final hit = _controller.hitTest(
-            details.localPosition,
-            voice: widget.cursor?.voice ?? VoiceSlot.one,
-          );
-          if (hit != null) {
-            widget.onTap?.call(hit);
-          }
-        },
+        // Without onTap the view claims no tap, so a detector around it
+        // gets them.
+        onTapUp: onTap == null
+            ? null
+            : (details) {
+                final hit = _controller.hitTest(
+                  details.localPosition,
+                  voice: widget.cursor?.voice ?? VoiceSlot.one,
+                );
+                if (hit != null) {
+                  onTap(hit);
+                }
+              },
         child: CustomScrollView(
           controller: _scroll,
           slivers: [
@@ -407,50 +482,62 @@ class _SheetViewState extends State<SheetView> {
                   SliverToBoxAdapter(
                     child: SizedBox(
                       height: layout.tops.first * spacePx,
-                      child: CustomPaint(
-                        painter: HeaderPainter(
-                          header: layout.header,
-                          glyphs: _glyphs,
-                          palette: palette,
-                          scale: scale,
+                      // Without a boundary of its own the header is painted
+                      // again on every scroll frame it is in view.
+                      child: RepaintBoundary(
+                        child: CustomPaint(
+                          painter: HeaderPainter(
+                            header: layout.header,
+                            glyphs: _glyphs,
+                            palette: palette,
+                            scale: scale,
+                          ),
                         ),
                       ),
                     ),
                   ),
                   SliverVariedExtentList(
-                    itemExtentBuilder: (index, _) =>
-                        _extentOf(layout, index) * spacePx,
+                    // The list asks for the extent of an index past the
+                    // last tile, and null says there is none.
+                    itemExtentBuilder: (index, _) => index < layout.systemCount
+                        ? _extentOf(layout, index) * spacePx
+                        : null,
                     // Only a system scrolled into view is asked for, so
                     // only those are assembled.
                     delegate: _SystemTiles(
-                      (context, index) => Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          RepaintBoundary(
-                            child: CustomPaint(
-                              painter: SystemPainter(
-                                system: layout.systemAt(index),
-                                label: layout.labelOf(index),
+                      // The scroll view makes each tile a node of its own
+                      // for a screen reader.
+                      (context, index) => Semantics(
+                        label: _labelOf(layout, index),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            RepaintBoundary(
+                              child: CustomPaint(
+                                painter: SystemPainter(
+                                  system: layout.systemAt(index),
+                                  label: layout.labelOf(index),
+                                  glyphs: _glyphs,
+                                  palette: palette,
+                                  scale: scale,
+                                ),
+                              ),
+                            ),
+                            CustomPaint(
+                              painter: OverlayPainter(
+                                layout: layout,
+                                index: index,
+                                cursor: widget.cursor,
+                                selection: widget.selection,
+                                tints: widget.tints,
+                                playback: widget.playback,
                                 glyphs: _glyphs,
                                 palette: palette,
                                 scale: scale,
                               ),
                             ),
-                          ),
-                          CustomPaint(
-                            painter: OverlayPainter(
-                              layout: layout,
-                              index: index,
-                              cursor: widget.cursor,
-                              selection: widget.selection,
-                              tints: widget.tints,
-                              playback: widget.playback,
-                              glyphs: _glyphs,
-                              palette: palette,
-                              scale: scale,
-                            ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                       childCount: layout.systemCount,
                       extent: (layout.height - layout.tops.first) * spacePx,
@@ -473,12 +560,27 @@ class _SheetViewState extends State<SheetView> {
           : layout.height) -
       layout.tops[index];
 
+  /// What a screen reader says for system [index], which is the bars it
+  /// holds by their printed numbers. Known without assembling the system.
+  String _labelOf(SheetLayout layout, int index) {
+    final score = layout.score;
+    final first = score.barNumberOf(layout.firstBarOf(index));
+    final last = index + 1 < layout.systemCount
+        ? score.barNumberOf(layout.firstBarOf(index + 1)) - 1
+        : score.barNumberOf(score.measures.last.id);
+    return first == last ? 'Bar $first' : 'Bars $first to $last';
+  }
+
   @override
   void dispose() {
     PaintingBinding.instance.systemFonts.removeListener(_onFontsChanged);
     widget.playback?.removeListener(_followPlayback);
     _controller._zoom.removeListener(_rebuild);
-    _controller._view = null;
+    // A view that takes this one's place takes the controller in its
+    // initState, which runs before this one is disposed.
+    if (identical(_controller._view, this)) {
+      _controller._view = null;
+    }
     _ownController?.dispose();
     _scroll.dispose();
     super.dispose();

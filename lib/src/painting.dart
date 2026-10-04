@@ -4,8 +4,11 @@ library;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/painting.dart';
+import 'package:flutter/rendering.dart';
 import 'package:score_layout/score_layout.dart';
+import 'package:score_model/score_model.dart';
+import 'package:simple_sheet_music/src/score_player.dart';
+import 'package:simple_sheet_music/src/sheet_palette.dart';
 
 /// The one conversion between staff spaces and logical pixels.
 ///
@@ -162,9 +165,35 @@ void paintEnclosure(
   );
 }
 
-/// Draws SMuFL glyphs as text in the font's family. This class is the whole
-/// seam for the glyph source. A path-based painter would replace it and
-/// nothing else.
+/// One line of [text] set as [spec] says, [fontSize] logical pixels high.
+/// The measurer and the painter both build their text here, so the box a
+/// layout gives a text holds the letters that are painted.
+ui.Paragraph textParagraph(
+  String text,
+  TextSpec spec,
+  double fontSize,
+  Color color,
+) {
+  final builder = ui.ParagraphBuilder(
+    ui.ParagraphStyle(fontFamily: spec.family, fontSize: fontSize),
+  )
+    ..pushStyle(
+      ui.TextStyle(
+        color: color,
+        fontFamily: spec.family,
+        fontSize: fontSize,
+        fontWeight: spec.bold ? FontWeight.bold : FontWeight.normal,
+        fontStyle: spec.italic ? FontStyle.italic : FontStyle.normal,
+      ),
+    )
+    ..addText(text);
+  return builder.build()
+    ..layout(const ui.ParagraphConstraints(width: double.infinity));
+}
+
+/// Draws SMuFL glyphs as text in the font's family, and the sheet's text.
+/// This class is the whole seam for the glyph source. A path-based painter
+/// would replace it and nothing else.
 ///
 /// The font is the unmodified Bravura OTF, declared as a package font, so
 /// in an app it is loaded before the first frame and drawing needs no async
@@ -185,7 +214,8 @@ void paintEnclosure(
 /// device pixel from the staff line it belongs on.
 ///
 /// A painter is replaced, not cleared, when its paragraphs can no longer
-/// be trusted (a new style, a font that loaded late).
+/// be trusted (a new style, a font that loaded late). The system painters
+/// compare it by identity, so a new one repaints them.
 final class GlyphPainter {
   GlyphPainter(this.font);
 
@@ -196,7 +226,24 @@ final class GlyphPainter {
   /// that is no longer used falls out by itself.
   final Map<(int, double, Color), ui.Paragraph> _paragraphs = {};
 
+  /// The sheet's text, kept as the glyphs are. A text that sounds is
+  /// painted again on every playback tick.
+  final Map<(String, TextSpec, double, Color), ui.Paragraph> _texts = {};
+
   static const int _capacity = 1024;
+
+  static ui.Paragraph _kept<K>(
+    Map<K, ui.Paragraph> cache,
+    K key,
+    ui.Paragraph Function() build,
+  ) {
+    final paragraph = cache.remove(key) ?? build();
+    cache[key] = paragraph;
+    if (cache.length > _capacity) {
+      cache.remove(cache.keys.first);
+    }
+    return paragraph;
+  }
 
   /// The family to ask the engine for. The bundled Bravura is a package
   /// font, which Flutter names with the package prefix.
@@ -220,13 +267,11 @@ final class GlyphPainter {
     double stretch = 1,
   }) {
     final fontSize = 4 * scale.spacePx * size;
-    final key = (glyph.codepoint, fontSize, color);
-    final paragraph =
-        _paragraphs.remove(key) ?? _build(glyph.codepoint, fontSize, color);
-    _paragraphs[key] = paragraph;
-    if (_paragraphs.length > _capacity) {
-      _paragraphs.remove(_paragraphs.keys.first);
-    }
+    final paragraph = _kept(
+      _paragraphs,
+      (glyph.codepoint, fontSize, color),
+      () => _build(glyph.codepoint, fontSize, color),
+    );
     final at = scale.toPx(origin);
     final baseline = paragraph.alphabeticBaseline.roundToDouble();
     if (stretch == 1) {
@@ -263,6 +308,31 @@ final class GlyphPainter {
     }
   }
 
+  /// Draws [text] with the start of its baseline at its origin, and its box
+  /// when it is enclosed. The baseline is rounded as a glyph's is.
+  void paintText(Canvas canvas, TextDraw text, SheetScale scale, Color color) {
+    final fontSize = text.spec.size * scale.spacePx;
+    final paragraph = _kept(
+      _texts,
+      (text.text, text.spec, fontSize, color),
+      () => textParagraph(text.text, text.spec, fontSize, color),
+    );
+    final at = scale.toPx(text.origin);
+    canvas.drawParagraph(
+      paragraph,
+      Offset(at.dx, at.dy - paragraph.alphabeticBaseline.roundToDouble()),
+    );
+    if (text.enclosed) {
+      paintEnclosure(
+        canvas,
+        text.bounds,
+        font.defaults.textEnclosureThickness,
+        scale,
+        color,
+      );
+    }
+  }
+
   ui.Paragraph _build(int codepoint, double fontSize, Color color) {
     final builder = ui.ParagraphBuilder(
       ui.ParagraphStyle(fontFamily: family, fontSize: fontSize),
@@ -274,4 +344,248 @@ final class GlyphPainter {
     return builder.build()
       ..layout(const ui.ParagraphConstraints(width: double.infinity));
   }
+}
+
+/// Paints one drawable in [color].
+void paintDrawable(
+  Canvas canvas,
+  Drawable drawable,
+  GlyphPainter glyphs,
+  SheetScale scale,
+  Color color,
+) {
+  switch (drawable) {
+    case GlyphDraw(
+        :final glyph,
+        :final origin,
+        scale: final size,
+        :final stretch
+      ):
+      glyphs.paint(
+        canvas,
+        glyph,
+        origin,
+        scale,
+        color,
+        size: size,
+        stretch: stretch,
+      );
+    case LineDraw(:final from, :final to, :final thickness, :final dash):
+      final start = scale.toPx(from);
+      final end = scale.toPx(to);
+      canvas.drawPath(
+        dashPath(
+          Path()
+            ..moveTo(start.dx, start.dy)
+            ..lineTo(end.dx, end.dy),
+          dash,
+          scale.spacePx,
+        ),
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = thickness * scale.spacePx,
+      );
+    case PolygonDraw(:final points):
+      canvas.drawPath(
+        Path()..addPolygon([for (final p in points) scale.toPx(p)], true),
+        Paint()..color = color,
+      );
+    case TextDraw():
+      glyphs.paintText(canvas, drawable, scale, color);
+    case CurveDraw():
+      paintCurve(canvas, drawable, scale, color);
+    case GlyphRunDraw():
+      glyphs.paintRun(canvas, drawable, scale, color);
+  }
+}
+
+/// Paints the title block above the first system. It repaints when the
+/// header list, the glyph painter, the palette or the scale changes. The
+/// layout hands out the same list while the sheet width and `score.meta`
+/// are unchanged.
+final class HeaderPainter extends CustomPainter {
+  HeaderPainter({
+    required this.header,
+    required this.glyphs,
+    required this.palette,
+    required this.scale,
+  });
+
+  /// In sheet space.
+  final List<Drawable> header;
+  final GlyphPainter glyphs;
+  final SheetPalette palette;
+  final SheetScale scale;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final drawable in header) {
+      paintDrawable(
+        canvas,
+        drawable,
+        glyphs,
+        scale,
+        palette.colorOf(drawable.ink),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(HeaderPainter oldDelegate) =>
+      !identical(oldDelegate.header, header) ||
+      !identical(oldDelegate.glyphs, glyphs) ||
+      oldDelegate.palette != palette ||
+      oldDelegate.scale != scale;
+}
+
+/// Paints one system's drawables and its bar number. The base layer.
+///
+/// It repaints only when the system object, the label, the glyph painter,
+/// the palette or the scale changes. The label is compared by value, so a
+/// label made again for the same number at the same place repaints
+/// nothing. Its `CustomPaint` sits alone inside a `RepaintBoundary`, under
+/// the overlay's `CustomPaint` in the tile's `Stack`. So a cursor move, a
+/// selection or a playback tick repaints the overlay and composites this
+/// layer as it is. Both painters on one `CustomPaint` would not do that,
+/// because a `CustomPaint` paints its painter and its foreground painter
+/// together.
+final class SystemPainter extends CustomPainter {
+  SystemPainter({
+    required this.system,
+    required this.label,
+    required this.glyphs,
+    required this.palette,
+    required this.scale,
+  });
+
+  final SystemLayout system;
+
+  /// The bar number at the start of the system, in system space.
+  final TextDraw? label;
+  final GlyphPainter glyphs;
+  final SheetPalette palette;
+  final SheetScale scale;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final label = this.label;
+    for (final drawable in [...system.drawables, if (label != null) label]) {
+      paintDrawable(
+        canvas,
+        drawable,
+        glyphs,
+        scale,
+        palette.colorOf(drawable.ink),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(SystemPainter oldDelegate) =>
+      !identical(oldDelegate.system, system) ||
+      oldDelegate.label != label ||
+      !identical(oldDelegate.glyphs, glyphs) ||
+      oldDelegate.palette != palette ||
+      oldDelegate.scale != scale;
+}
+
+/// Paints what moves over one system, which is the selection, the tints,
+/// the playback highlight, the playhead and the caret.
+///
+/// The cursor, the selection and the tints are values of this painter, so
+/// a new one repaints through [shouldRepaint] when the view rebuilds.
+/// Playback is a listenable the painter listens to directly, so a tick
+/// repaints without a build and without touching the view's state. The
+/// painter reads geometry from the layout it was given and lays nothing
+/// out. The system it reads is the one its tile already shows, so the read
+/// assembles nothing new.
+final class OverlayPainter extends CustomPainter {
+  OverlayPainter({
+    required this.layout,
+    required this.index,
+    required this.cursor,
+    required this.selection,
+    required this.tints,
+    required this.playback,
+    required this.glyphs,
+    required this.palette,
+    required this.scale,
+  }) : super(repaint: playback);
+
+  final SheetLayout layout;
+
+  /// Which system of [layout] this tile shows.
+  final int index;
+  final VoicePoint? cursor;
+  final Selection selection;
+  final Map<ElementRef, Color> tints;
+  final ValueListenable<PlaybackPosition?>? playback;
+  final GlyphPainter glyphs;
+  final SheetPalette palette;
+  final SheetScale scale;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final system = layout.systemAt(index);
+    final shade = Paint()..color = palette.selection;
+    for (final box in layout.selectionIn(index, selection)) {
+      canvas.drawRect(scale.rectOf(box), shade);
+    }
+
+    final position = playback?.value;
+    // A ref with no drawables here (a hidden staff, another system) draws
+    // nothing, so neither list needs a filter. The system is asked by the
+    // event's id and never by the ref's measure, which a change of meter
+    // leaves stale.
+    for (final (ref, color) in <(ElementRef, Color)>[
+      for (final MapEntry(:key, :value) in tints.entries) (key, value),
+      for (final ref in position?.sounding ?? const <EventRef>[])
+        (ref, palette.playback),
+    ]) {
+      for (final drawable in system.drawablesOf(ElementOwner(ref))) {
+        paintDrawable(canvas, drawable, glyphs, scale, color);
+      }
+    }
+
+    final playhead =
+        position == null ? null : layout.playheadIn(index, position.point);
+    if (playhead != null) {
+      _line(
+        canvas,
+        Box(playhead, 0, playhead, system.height),
+        palette.playhead,
+      );
+    }
+    final caret = switch (cursor) {
+      final cursor? => layout.caretIn(index, cursor),
+      null => null,
+    };
+    if (caret != null) {
+      _line(canvas, caret, palette.cursor);
+    }
+  }
+
+  void _line(Canvas canvas, Box box, Color color) {
+    final rect = scale.rectOf(box);
+    canvas.drawLine(
+      rect.topLeft,
+      rect.bottomLeft,
+      Paint()
+        ..color = color
+        ..strokeWidth = scale.spacePx * 0.2,
+    );
+  }
+
+  @override
+  bool shouldRepaint(OverlayPainter oldDelegate) =>
+      !identical(oldDelegate.layout, layout) ||
+      oldDelegate.index != index ||
+      oldDelegate.cursor != cursor ||
+      !identical(oldDelegate.selection, selection) ||
+      !identical(oldDelegate.tints, tints) ||
+      !identical(oldDelegate.playback, playback) ||
+      !identical(oldDelegate.glyphs, glyphs) ||
+      oldDelegate.palette != palette ||
+      oldDelegate.scale != scale;
 }

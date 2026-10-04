@@ -1,5 +1,5 @@
-/// Paints the engine's drawables through `GlyphPainter` and measures its
-/// text, for the tests that look at a picture.
+/// Paints the engine's drawables through the library's painter, for the
+/// tests that look at a picture.
 library;
 
 import 'dart:io';
@@ -14,70 +14,44 @@ const ui.Color red = ui.Color(0xFFC62828);
 
 const String textFamily = 'SheetText';
 
-/// `flutter test` registers no pubspec font, so the file is loaded under the
-/// family the painter asks for.
-Future<void> loadBravura(GlyphPainter painter) async {
-  final bytes = File('fonts/Bravura.otf').readAsBytesSync();
-  final loader = FontLoader(painter.family)
-    ..addFont(Future.value(ByteData.sublistView(bytes)));
+const String bravuraFile = 'fonts/Bravura.otf';
+
+/// Registers the font in the file at [path] under [family].
+Future<void> loadFontFile(String path, String family) async {
+  final loader = FontLoader(family)
+    ..addFont(Future.value(ByteData.sublistView(File(path).readAsBytesSync())));
   await loader.load();
 }
+
+/// `flutter test` registers no pubspec font, so the file is loaded under the
+/// family the painter asks for.
+Future<void> loadBravura(GlyphPainter painter) =>
+    loadFontFile(bravuraFile, painter.family);
 
 /// Loads a text font of the host under [textFamily] when it has one, so
 /// that names and titles are letters in the pictures. Without one the
 /// engine draws every letter as a box, which the tests accept.
 Future<void> loadTextFont() async {
-  final file = File('/System/Library/Fonts/Supplemental/Arial.ttf');
-  if (!file.existsSync()) {
-    return;
+  const path = '/System/Library/Fonts/Supplemental/Arial.ttf';
+  if (File(path).existsSync()) {
+    await loadFontFile(path, textFamily);
   }
-  final loader = FontLoader(textFamily)
-    ..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));
-  await loader.load();
 }
 
-ui.Paragraph textParagraph(
-  String text,
-  TextSpec spec,
-  double fontSize,
-  ui.Color color,
-) {
-  final builder = ui.ParagraphBuilder(
-    ui.ParagraphStyle(fontFamily: textFamily, fontSize: fontSize),
-  )
-    ..pushStyle(
-      ui.TextStyle(
-        color: color,
-        fontFamily: textFamily,
-        fontSize: fontSize,
-        fontWeight: spec.bold ? ui.FontWeight.bold : ui.FontWeight.normal,
-        fontStyle: spec.italic ? ui.FontStyle.italic : ui.FontStyle.normal,
+/// The standard style with every text in [textFamily]. A layout in it, with
+/// a `ParagraphMeasurer`, has text boxes that hold the letters
+/// [paintDrawables] draws.
+final EngravingStyle pictureStyle = EngravingStyle(
+  text: {
+    for (final role in TextRole.values)
+      role: TextSpec(
+        size: role.standard.size,
+        italic: role.standard.italic,
+        bold: role.standard.bold,
+        family: textFamily,
       ),
-    )
-    ..addText(text);
-  return builder.build()
-    ..layout(const ui.ParagraphConstraints(width: double.infinity));
-}
-
-/// Measures text through the paragraphs [paintDrawables] draws, so that the
-/// layout's text boxes hold the painted letters.
-final class UiMeasurer implements TextMeasurer {
-  const UiMeasurer();
-
-  /// Pixels per staff space the probe paragraph is laid out at. Text metrics
-  /// scale with the font size, so one size serves every zoom.
-  static const double _probePx = 64;
-
-  @override
-  TextExtent measure(String text, TextSpec spec) {
-    final paragraph = textParagraph(text, spec, spec.size * _probePx, black);
-    return TextExtent(
-      width: paragraph.maxIntrinsicWidth / _probePx,
-      ascent: paragraph.alphabeticBaseline / _probePx,
-      descent: (paragraph.height - paragraph.alphabeticBaseline) / _probePx,
-    );
-  }
-}
+  },
+);
 
 /// Draws [drawables], already in sheet space, on [canvas] at [scale]. Ink
 /// marked out of range is red, everything else black.
@@ -88,70 +62,13 @@ void paintDrawables(
   SheetScale scale,
 ) {
   for (final drawable in drawables) {
-    final color = drawable.ink == InkRole.outOfRange ? red : black;
-    switch (drawable) {
-      case GlyphDraw(
-          :final glyph,
-          :final origin,
-          scale: final size,
-          :final stretch
-        ):
-        painter.paint(
-          canvas,
-          glyph,
-          origin,
-          scale,
-          color,
-          size: size,
-          stretch: stretch,
-        );
-      case LineDraw(:final from, :final to, :final thickness, :final dash):
-        final start = scale.toPx(from);
-        final end = scale.toPx(to);
-        canvas.drawPath(
-          dashPath(
-            ui.Path()
-              ..moveTo(start.dx, start.dy)
-              ..lineTo(end.dx, end.dy),
-            dash,
-            scale.spacePx,
-          ),
-          ui.Paint()
-            ..color = color
-            ..style = ui.PaintingStyle.stroke
-            ..strokeWidth = thickness * scale.spacePx,
-        );
-      case PolygonDraw(:final points):
-        canvas.drawPath(
-          ui.Path()..addPolygon([for (final p in points) scale.toPx(p)], true),
-          ui.Paint()..color = color,
-        );
-      case TextDraw(:final text, :final origin, :final spec):
-        final paragraph = textParagraph(
-          text,
-          spec,
-          spec.size * scale.spacePx,
-          color,
-        );
-        final at = scale.toPx(origin);
-        canvas.drawParagraph(
-          paragraph,
-          ui.Offset(at.dx, at.dy - paragraph.alphabeticBaseline),
-        );
-        if (drawable.enclosed) {
-          paintEnclosure(
-            canvas,
-            drawable.bounds,
-            painter.font.defaults.textEnclosureThickness,
-            scale,
-            color,
-          );
-        }
-      case CurveDraw():
-        paintCurve(canvas, drawable, scale, color);
-      case GlyphRunDraw():
-        painter.paintRun(canvas, drawable, scale, color);
-    }
+    paintDrawable(
+      canvas,
+      drawable,
+      painter,
+      scale,
+      drawable.ink == InkRole.outOfRange ? red : black,
+    );
   }
 }
 

@@ -4,6 +4,22 @@
 /// It takes a list of `Staff` objects and other optional parameters to customize the appearance of the sheet music.
 library;
 
+export 'package:score_layout/score_layout.dart'
+    show
+        ChordSymbolSpelling,
+        ElementOwner,
+        EngravingStyle,
+        InkRole,
+        Owner,
+        QuarterToneGlyphs,
+        SheetHit,
+        SmuflFont,
+        SpacingPolicy,
+        SpannerOwner,
+        StringNumbers,
+        TextRole,
+        TextSpec;
+
 export '/src/font_types.dart' show FontType;
 export '/src/measure/measure.dart' show Measure;
 export '/src/music_objects/clef/clef.dart' show Clef;
@@ -33,3 +49,5 @@ export 'src/music_objects/time_signature/time_signature.dart'
 export 'src/music_objects/time_signature/time_signature_type.dart'
     show TimeSignatureType;
 export 'src/score_player.dart' show PlaybackPosition, PlayerStatus, ScorePlayer;
+export 'src/sheet_palette.dart';
+export 'src/sheet_view.dart';

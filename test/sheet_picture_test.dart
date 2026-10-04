@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:score_layout/score_layout.dart';
 import 'package:score_model/score_model.dart';
 import 'package:simple_sheet_music/src/painting.dart';
+import 'package:simple_sheet_music/src/paragraph_measurer.dart';
 
 import '../packages/score_model/test/support.dart';
 import 'support/draw.dart';
@@ -42,8 +43,12 @@ const voice = PartTemplate(
 Score edit(Score score, Edit edit) =>
     applied(EditSession.start(score).run(edit)).score;
 
-SheetLayout layoutOf(Score score) =>
-    SheetLayout(score, width: sheetWidth, text: const UiMeasurer());
+SheetLayout layoutOf(Score score) => SheetLayout(
+      score,
+      width: sheetWidth,
+      text: ParagraphMeasurer(),
+      style: pictureStyle,
+    );
 
 List<Drawable> inkOf(SheetLayout layout, int system) {
   final label = layout.labelOf(system);
@@ -675,7 +680,7 @@ void main() {
       await loadBravura(painter);
       await loadTextFont();
       final layout = layoutOf(vocal());
-      final spec = EngravingStyle.standard.specOf(TextRole.lyric);
+      final spec = pictureStyle.specOf(TextRole.lyric);
       final thickness = painter.font.defaults.lyricLineThickness;
       List<TextDraw> lyricsOn(int system) => layout
           .systemAt(system)

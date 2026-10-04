@@ -1,6 +1,7 @@
 import 'package:score_layout/score_layout.dart';
 
-/// Measures layout text with `dart:ui` paragraphs. Not exported.
+/// Measures layout text with the `dart:ui` paragraphs the painter draws.
+/// Not exported.
 ///
 /// Measures at a fixed reference size and scales to the spec's size in
 /// staff spaces, so a measurement does not depend on zoom and a bar laid
@@ -34,9 +35,10 @@ final class ParagraphMeasurer implements TextMeasurer {
   });
 
   TextExtent _measure(String text, TextSpec spec) {
-    // TODO: build a paragraph at 100 logical px in spec's family, weight and
-    // style; return width, alphabeticBaseline and height minus baseline,
-    // each times spec.size / 100.
+    // TODO: build the paragraph the painter draws, at 100 logical px in
+    // spec's family, weight and style; return maxIntrinsicWidth,
+    // alphabeticBaseline and height minus baseline, each times
+    // spec.size / 100.
     throw UnimplementedError();
   }
 }
