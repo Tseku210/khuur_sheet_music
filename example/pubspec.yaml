@@ -9,6 +9,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  score_model:
+    path: ../packages/score_model
   simple_sheet_music:
     path: ../
 

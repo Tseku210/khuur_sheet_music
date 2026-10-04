@@ -362,7 +362,7 @@ packages:
     source: path
     version: "0.0.0"
   score_model:
-    dependency: transitive
+    dependency: "direct main"
     description:
       path: "../packages/score_model"
       relative: true

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:simple_sheet_music/simple_sheet_music.dart';
 
+import 'demo_score.dart';
+
 void main() {
   runApp(const MidiExampleApp());
 }
@@ -28,12 +30,20 @@ class MidiExamplePage extends StatefulWidget {
   MidiExamplePageState createState() => MidiExamplePageState();
 }
 
-class MidiExamplePageState extends State<MidiExamplePage> {
+class MidiExamplePageState extends State<MidiExamplePage>
+    with SingleTickerProviderStateMixin {
   final GlobalKey<SimpleSheetMusicState> _sheetMusicKey = GlobalKey();
   int _tempo = 120;
   bool _isPlaying = false;
   Color _highlightColor = Colors.green;
   late final SimpleSheetMusicState _sheetMusicState;
+
+  late final ScorePlayer _scorePlayer = ScorePlayer(
+    soundFont: const AssetSoundFont('assets/soundfonts/piano.sf2'),
+    vsync: this,
+  );
+  late final _score = buildDemoScore();
+  String? _scorePlayerError;
 
   // Add more example measures for testing
   List<List<Measure>> _exampleSets = [];
@@ -55,31 +65,121 @@ class MidiExamplePageState extends State<MidiExamplePage> {
   }
 
   @override
+  void dispose() {
+    _scorePlayer.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Simple Sheet Music MIDI Example'),
       ),
-      body: Column(
-        children: [
-          _buildInfoPanel(),
-          Expanded(
-            child: SimpleSheetMusic(
-              key: _sheetMusicKey,
-              measures: _exampleSets[_currentExampleIndex],
-              initialTimeSignatureType: TimeSignatureType.fourFour,
-              width: MediaQuery.of(context).size.width,
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            _buildScorePlayerPanel(),
+            _buildInfoPanel(),
+            SizedBox(
               height: 300,
-              tempo: _tempo,
-              soundFont: const AssetSoundFont('assets/soundfonts/piano.sf2'),
-              highlightColor: _highlightColor,
+              child: SimpleSheetMusic(
+                key: _sheetMusicKey,
+                measures: _exampleSets[_currentExampleIndex],
+                initialTimeSignatureType: TimeSignatureType.fourFour,
+                width: MediaQuery.of(context).size.width,
+                height: 300,
+                tempo: _tempo,
+                soundFont: const AssetSoundFont('assets/soundfonts/piano.sf2'),
+                highlightColor: _highlightColor,
+              ),
+            ),
+            _buildExampleSelector(),
+            _buildControlPanel(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildScorePlayerPanel() {
+    return Container(
+      margin: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.green.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'New player (ScorePlayer)',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
             ),
           ),
-          _buildExampleSelector(),
-          _buildControlPanel(),
+          const SizedBox(height: 4),
+          const Text(
+            'Eight bars for piano in C major at 96 BPM. Bars 3 and 4 repeat.',
+            style: TextStyle(fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              ElevatedButton.icon(
+                onPressed: _playScore,
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Play'),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: _scorePlayer.stop,
+                icon: const Icon(Icons.stop),
+                label: const Text('Stop'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ValueListenableBuilder<PlayerStatus>(
+            valueListenable: _scorePlayer.status,
+            builder: (context, status, child) => Text('Status: ${status.name}'),
+          ),
+          ValueListenableBuilder<PlaybackPosition?>(
+            valueListenable: _scorePlayer.position,
+            builder: (context, position, child) {
+              if (position == null) {
+                return const Text('Position: stopped');
+              }
+              final bar = position.point.bar;
+              return Text(
+                'Position: bar ${_score.barNumberOf(bar.measure)}, '
+                'pass ${bar.pass}, ${position.seconds.toStringAsFixed(2)} s',
+              );
+            },
+          ),
+          if (_scorePlayerError case final error?)
+            Text(error, style: const TextStyle(color: Colors.red)),
         ],
       ),
     );
+  }
+
+  Future<void> _playScore() async {
+    setState(() {
+      _scorePlayerError = null;
+    });
+    try {
+      await _scorePlayer.play(_score);
+    } on Object catch (error) {
+      if (mounted) {
+        setState(() {
+          _scorePlayerError = '$error';
+        });
+      }
+    }
   }
 
   Widget _buildInfoPanel() {
