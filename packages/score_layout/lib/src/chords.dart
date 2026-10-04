@@ -88,8 +88,6 @@ final class ChordPlan {
     required this.chord,
     required this.stem,
     required this.heads,
-    required this.dots,
-    required this.flag,
     required this.reach,
     required this.graces,
   });
@@ -100,11 +98,6 @@ final class ChordPlan {
 
   /// Sorted by step, lowest first.
   final List<HeadPlan> heads;
-  final int dots;
-
-  /// Null for a quarter or longer. A beamed chord keeps its flag here and
-  /// its drawables leave it out.
-  final Glyph? flag;
 
   /// Accidentals and grace notes to the left of the slice line. Heads,
   /// flipped heads, dots and the flag to the right.
@@ -127,14 +120,10 @@ final class GracePlan {
   const GracePlan._(
     this._ink, {
     required this.source,
-    required this.heads,
     required this.x,
   });
 
   final GraceChord source;
-
-  /// Sorted by step, lowest first.
-  final List<HeadPlan> heads;
 
   /// Where the grace's own slice line sits, left of the principal's.
   final double x;
@@ -250,7 +239,7 @@ ChordPlan planChord({
     final x = left - gap - graceInk.right;
     graces.insert(
       0,
-      GracePlan._(graceInk, source: grace, heads: graceHeads, x: x),
+      GracePlan._(graceInk, source: grace, x: x),
     );
     left = x + graceInk.left;
   }
@@ -260,8 +249,6 @@ ChordPlan planChord({
     chord: chord,
     stem: stem,
     heads: heads,
-    dots: chord.value.dots,
-    flag: flag,
     reach: (left: math.max(0, -left), right: math.max(0, ink.right)),
     graces: graces,
   );
