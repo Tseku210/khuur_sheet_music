@@ -825,6 +825,38 @@ void main() {
       ]);
     });
 
+    test('run over a gap of another voice inside a beat only, as over a '
+        'rest', () {
+      List<List<int>> beamsOfVoiceTwo(List<VoiceItem> items) => [
+        for (final group in staffOf(
+          fill(blankScore(), 0, items, slot: VoiceSlot.two),
+          0,
+        ).voices.firstWhere((voice) => voice.slot == VoiceSlot.two).beams)
+          [for (final event in group.events) event.value],
+      ];
+
+      expect(
+        beamsOfVoiceTwo([
+          chordOf(100, 'G4', value: NoteValue.eighth),
+          Gap(len(1, 4)),
+          chordOf(101, 'G4', value: NoteValue.eighth),
+          Gap(len(1, 2)),
+        ]),
+        isEmpty,
+      );
+      expect(
+        beamsOfVoiceTwo([
+          chordOf(100, 'G4', value: NoteValue.sixteenth),
+          Gap(len(1, 16)),
+          ...run(102, 2, NoteValue.sixteenth),
+          Gap(len(3, 4)),
+        ]),
+        [
+          [100, 102, 103],
+        ],
+      );
+    });
+
     test('break at a tuplet', () {
       final score = fill(blankScore(meter: Meter.twoFour), 0, [
         ...run(100, 2, NoteValue.eighth),
