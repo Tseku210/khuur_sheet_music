@@ -38,6 +38,10 @@ const List<(String, Score Function())> _sheets = [
   ('Empty sheet', buildEmptyScore),
 ];
 
+/// The reverb the page plays through. On iOS and macOS these numbers pick
+/// the medium hall and make the reverb three tenths of the whole sound.
+const _reverb = MidiReverb(roomSize: 0.5, level: 0.3);
+
 /// Why an edit did not apply, as a sentence for the person at the page.
 String refusalSentence(EditRefusal reason) => switch (reason) {
   StaleReference() => 'That is no longer in the score.',
@@ -83,7 +87,7 @@ class _ScorePageState extends State<ScorePage>
   late final ScorePlayer _player = ScorePlayer(
     soundFont: const AssetSoundFont('assets/soundfonts/piano.sf2'),
     vsync: this,
-    output: widget.output,
+    output: widget.output ?? FlutterMidiOutput(reverb: _reverb),
   );
 
   @override
