@@ -1,6 +1,7 @@
 import 'package:score_layout/src/drawable.dart';
 import 'package:score_layout/src/geometry.dart';
 import 'package:score_layout/src/glyphs.dart';
+import 'package:score_layout/src/hit.dart';
 import 'package:score_layout/src/sheet_layout.dart';
 import 'package:score_model/score_model.dart';
 import 'package:test/test.dart';
@@ -58,7 +59,168 @@ void expectBox(Box? actual, Box expected) {
   expect(actual.bottom, closeTo(expected.bottom, 1e-9));
 }
 
+/// The noteheads and the ledger lines [layout] draws on system [index].
+List<Drawable> headsAndLedgers(SheetLayout layout, int index) => [
+  for (final drawable in layout.systemAt(index).drawables)
+    if (drawable.ink case InkRole.notehead || InkRole.ledgerLine) drawable,
+];
+
+/// Matches a drawable of [drawable]'s kind and ink at its place, whoever
+/// owns it. A place is equal within a rounding error, since a system adds
+/// its bar's x to a chord's own.
+Matcher inkOf(Drawable drawable) {
+  Matcher near(double value) => closeTo(value, 1e-9);
+  return switch (drawable) {
+    GlyphDraw(:final glyph, :final origin, :final bounds, :final ink) =>
+      isA<GlyphDraw>()
+          .having((d) => (d.glyph, d.ink, d.scale), 'glyph', (glyph, ink, 1.0))
+          .having((d) => d.origin.x, 'x', near(origin.x))
+          .having((d) => d.origin.y, 'y', near(origin.y))
+          .having((d) => d.bounds.left, 'left', near(bounds.left))
+          .having((d) => d.bounds.top, 'top', near(bounds.top))
+          .having((d) => d.bounds.right, 'right', near(bounds.right))
+          .having((d) => d.bounds.bottom, 'bottom', near(bounds.bottom)),
+    LineDraw(:final from, :final to, :final thickness, :final ink) =>
+      isA<LineDraw>()
+          .having((d) => (d.ink, d.dash), 'ink', (ink, LineDash.solid))
+          .having((d) => d.from.x, 'from x', near(from.x))
+          .having((d) => d.from.y, 'from y', near(from.y))
+          .having((d) => d.to.x, 'to x', near(to.x))
+          .having((d) => d.to.y, 'to y', near(to.y))
+          .having((d) => d.thickness, 'thickness', near(thickness)),
+    _ => throw ArgumentError.value(
+      drawable,
+      'drawable',
+      'Not a head or a line',
+    ),
+  };
+}
+
+NotePreview previewAt(
+  int bar,
+  Moment offset,
+  int step, {
+  int staff = 0,
+  DurationBase base = DurationBase.quarter,
+}) => NotePreview(
+  staff: staffId(staff),
+  at: ScorePoint(barId(bar), offset),
+  staffStep: step,
+  base: base,
+);
+
 void main() {
+  group('a note preview', () {
+    // On a treble staff the bottom line, step 0, is E4.
+    for (final (pitch, step, value, ledgers) in const [
+      ('G3', -5, NoteValue.quarter, 2),
+      ('C4', -2, NoteValue.half, 1),
+      ('D4', -1, NoteValue.quarter, 0),
+      ('B4', 4, NoteValue.whole, 0),
+      ('G5', 9, NoteValue.quarter, 0),
+      ('A5', 10, NoteValue.half, 1),
+      ('D6', 13, NoteValue.whole, 2),
+    ]) {
+      test(
+        'draws the head and the $ledgers ledger lines of a ${value.base.name} '
+        'note that stands alone at $pitch',
+        () {
+          final layout = sheetOf(
+            scoreOf([
+              [
+                staffOf([chordOf(1, pitch, value: value)]),
+              ],
+            ]),
+          );
+          final drawn = headsAndLedgers(layout, 0);
+          expect(drawn.whereType<LineDraw>(), hasLength(ledgers));
+
+          expect(
+            layout.previewIn(
+              0,
+              previewAt(0, Moment.zero, step, base: value.base),
+            ),
+            unorderedMatches(drawn.map(inkOf)),
+          );
+        },
+      );
+    }
+
+    test('between two notes stands at the caret, on its step', () {
+      final layout = sheetOf(beatsScore(1));
+      final staff = layout.systemAt(0).staves.single;
+
+      final head = layout.previewIn(0, previewAt(0, at(3, 8), 6)).single;
+
+      expect(
+        (head as GlyphDraw).origin,
+        SpPoint(
+          layout.caretIn(0, cursorAt(0, at(3, 8)))!.left,
+          staff.top + yOfStep(6),
+        ),
+      );
+      expect(head.glyph, Glyph.noteheadBlack);
+    });
+
+    test('is drawn on the system of its bar alone, and not on a hidden '
+        'staff or for a bar the score lacks', () {
+      final score = threeSystems();
+      final layout = sheetOf(score);
+      final preview = previewAt(3, Moment.zero, 4, staff: 1);
+
+      expect(
+        [for (var i = 0; i < 3; i++) layout.previewIn(i, preview).length],
+        [0, 1, 0],
+      );
+      expect(sheetOf(hidePart(score, 1)).previewIn(1, preview), isEmpty);
+      expect(layout.previewIn(1, previewAt(9, Moment.zero, 4)), isEmpty);
+    });
+
+    test('has no ledger lines on a staff of one line', () {
+      final layout = sheetOf(
+        scoreOf([
+          [
+            staffOf([chordOf(1, 'B4')], lines: 1),
+          ],
+        ]),
+      );
+
+      expect(layout.previewIn(0, previewAt(0, Moment.zero, 12)), [
+        isA<GlyphDraw>(),
+      ]);
+    });
+
+    test('of a hit is a note at the hit, and equals one of the same '
+        'place and head', () {
+      final hit = SheetHit(
+        staff: staffId(1),
+        voice: VoiceSlot.two,
+        at: ScorePoint(barId(2), at(1, 4)),
+        staffStep: -3,
+      );
+
+      final preview = NotePreview.at(hit, base: DurationBase.half);
+
+      expect(
+        preview,
+        previewAt(2, at(1, 4), -3, staff: 1, base: DurationBase.half),
+      );
+      expect(
+        preview.hashCode,
+        previewAt(2, at(1, 4), -3, staff: 1, base: DurationBase.half).hashCode,
+      );
+      for (final other in [
+        previewAt(2, at(1, 4), -3, base: DurationBase.half),
+        previewAt(1, at(1, 4), -3, staff: 1, base: DurationBase.half),
+        previewAt(2, at(1, 2), -3, staff: 1, base: DurationBase.half),
+        previewAt(2, at(1, 4), -2, staff: 1, base: DurationBase.half),
+        previewAt(2, at(1, 4), -3, staff: 1),
+      ]) {
+        expect(preview, isNot(other));
+      }
+    });
+  });
+
   group('overlays need no layout', () {
     late Score score;
     late SheetLayout layout;

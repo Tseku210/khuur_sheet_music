@@ -5,6 +5,7 @@ import 'package:score_model/score_model.dart';
 import 'assembly.dart';
 import 'bar_layout.dart';
 import 'breaking.dart';
+import 'chords.dart' show noteheadGlyph;
 import 'drawable.dart';
 import 'geometry.dart';
 import 'hit.dart';
@@ -391,6 +392,41 @@ final class SheetLayout {
     }
     final x = bar.time.xAt(cursor.at.offset);
     return Box(x, staff.top, x, staff.top + staffHeight);
+  }
+
+  /// The head of [preview] and the ledger lines it needs, in the space of
+  /// system [index]. Nothing when its bar is on another system or its staff
+  /// is hidden.
+  ///
+  /// The head stands at the x of [caretIn], where the head of a note that
+  /// is alone at that time stands. It has no stem, flag, dot or accidental,
+  /// and nothing in the system moves for it.
+  List<Drawable> previewIn(int index, NotePreview preview) {
+    final system = systemAt(index);
+    final staff = system.staffOf(preview.staff);
+    final bar = system.barOf(preview.at.measure);
+    if (staff == null || bar == null) {
+      return const [];
+    }
+    final font = style.font;
+    final step = preview.staffStep;
+    final glyph = noteheadGlyph(preview.base, NoteHead.normal);
+    final origin = SpPoint(bar.time.xAt(preview.at.offset), staff.yOf(step));
+    final head = font[glyph].box.shift(origin.x, origin.y);
+    final extension = font.defaults.legerLineExtension;
+    LineDraw ledger(int line) => LineDraw(
+      SpPoint(head.left - extension, staff.yOf(line)),
+      SpPoint(head.right + extension, staff.yOf(line)),
+      thickness: font.defaults.legerLineThickness,
+      ink: InkRole.ledgerLine,
+    );
+    return [
+      GlyphDraw(glyph, origin, bounds: head, ink: InkRole.notehead),
+      if (staff.lines > 1) ...[
+        for (var line = -2; line >= step; line -= 2) ledger(line),
+        for (var line = 10; line <= step; line += 2) ledger(line),
+      ],
+    ];
   }
 
   /// Boxes to shade for [selection], in sheet space. An item asks the score

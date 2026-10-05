@@ -51,6 +51,49 @@ final class SheetHit {
   final Owner? target;
 }
 
+/// A note that is not in the score, drawn where an entry would put it.
+///
+/// An app makes one from a [SheetHit] while a finger is down on the sheet,
+/// and enters the note when the finger lifts.
+final class NotePreview {
+  const NotePreview({
+    required this.staff,
+    required this.at,
+    required this.staffStep,
+    this.base = DurationBase.quarter,
+  });
+
+  /// A note of [base] entered where [hit] is.
+  NotePreview.at(SheetHit hit, {DurationBase base = DurationBase.quarter})
+    : this(
+        staff: hit.staff,
+        at: hit.at,
+        staffStep: hit.staffStep,
+        base: base,
+      );
+
+  final StaffId staff;
+  final ScorePoint at;
+
+  /// In the convention of [SheetHit.staffStep].
+  final int staffStep;
+
+  /// Which head is drawn. A breve, a whole note and a half note have heads
+  /// of their own, and every shorter value has the black one.
+  final DurationBase base;
+
+  @override
+  bool operator ==(Object other) =>
+      other is NotePreview &&
+      other.staff == staff &&
+      other.at == at &&
+      other.staffStep == staffStep &&
+      other.base == base;
+
+  @override
+  int get hashCode => Object.hash(staff, at, staffStep, base);
+}
+
 /// One voice of one bar in time. `onsets` holds its events' onsets in time
 /// order. Grace chords ride on their principal and are not in it.
 typedef VoiceTimes = ({List<Moment> onsets, List<TupletSpan> tuplets});

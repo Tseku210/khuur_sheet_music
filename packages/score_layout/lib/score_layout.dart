@@ -9,7 +9,7 @@ library;
 export 'src/drawable.dart';
 export 'src/geometry.dart';
 export 'src/glyphs.dart';
-export 'src/hit.dart' show SheetHit;
+export 'src/hit.dart' show NotePreview, SheetHit;
 export 'src/sheet_layout.dart';
 export 'src/smufl_font.dart';
 export 'src/style.dart';
