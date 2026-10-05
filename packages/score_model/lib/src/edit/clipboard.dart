@@ -11,7 +11,8 @@ final class ScoreClip {
     this._directions,
   );
 
-  /// Sounding length of the copied range.
+  /// Sounding length from the range's start to its end, or to the end of
+  /// the last event taken when that is later.
   final Length length;
 
   final int staffCount;
