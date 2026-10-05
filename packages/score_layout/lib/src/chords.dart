@@ -54,7 +54,7 @@ final class HeadPlan {
     required this.column,
     this.accidental,
     this.cautionary = false,
-    this.ink = InkRole.normal,
+    required this.ink,
   });
 
   final NoteId id;
@@ -385,7 +385,13 @@ List<BarItem> placeRest({
         BarItem(
           slice,
           staff,
-          GlyphDraw(glyph, origin, bounds: box, owner: owner),
+          GlyphDraw(
+            glyph,
+            origin,
+            bounds: box,
+            ink: InkRole.rest,
+            owner: owner,
+          ),
         ),
         for (var i = 0; i < value.dots; i++)
           BarItem(
@@ -408,6 +414,7 @@ List<BarItem> placeRest({
             Glyph.restWhole,
             origin,
             bounds: box.shift(origin.x, origin.y),
+            ink: InkRole.rest,
             owner: owner,
           ),
           centred: true,
@@ -464,6 +471,7 @@ List<Drawable> placeRestRun(
           Glyph.restHBarLeft,
           leftEnd,
           bounds: leftBox.shift(leftEnd.x, leftEnd.y),
+          ink: InkRole.rest,
         ),
       )
       ..add(
@@ -474,6 +482,7 @@ List<Drawable> placeRestRun(
           ),
           SpPoint(to - rightBox.width, line + (middle.top + middle.bottom) / 2),
           thickness: middle.height,
+          ink: InkRole.rest,
         ),
       )
       ..add(
@@ -481,6 +490,7 @@ List<Drawable> placeRestRun(
           Glyph.restHBarRight,
           rightEnd,
           bounds: rightBox.shift(rightEnd.x, rightEnd.y),
+          ink: InkRole.rest,
         ),
       );
     var x = (from + to - digitsWidth) / 2;
@@ -491,6 +501,7 @@ List<Drawable> placeRestRun(
           glyph,
           origin,
           bounds: font[glyph].box.shift(origin.x, origin.y),
+          ink: InkRole.rest,
         ),
       );
       x += font[glyph].advance;
@@ -680,14 +691,14 @@ List<HeadPlan> _planHeads(
 
 InkRole _inkOf(Note note, Instrument instrument) {
   if (note is! PitchedNote) {
-    return InkRole.normal;
+    return InkRole.notehead;
   }
   final low = instrument.lowest;
   final high = instrument.highest;
   final outside =
       (low != null && note.pitch.compareTo(low) < 0) ||
       (high != null && note.pitch.compareTo(high) > 0);
-  return outside ? InkRole.outOfRange : InkRole.normal;
+  return outside ? InkRole.outOfRange : InkRole.notehead;
 }
 
 _Stemming _stemmingOf(DurationBase base) =>
@@ -830,6 +841,7 @@ final class _ChordInk {
           SpPoint(span.left - extension, y),
           SpPoint(span.right + extension, y),
           thickness: defaults.legerLineThickness * scale,
+          ink: InkRole.ledgerLine,
           owner: owner,
         ),
       );
@@ -890,6 +902,7 @@ final class _ChordInk {
               glyph,
               origin,
               bounds: box.shift(origin.x, origin.y),
+              ink: InkRole.accidental,
               scale: scale,
               owner: owner,
             ),
@@ -939,6 +952,7 @@ final class _ChordInk {
         flag,
         origin,
         bounds: _scaled(metrics.box, scale).shift(origin.x, origin.y),
+        ink: InkRole.flag,
         scale: scale,
         owner: owner,
       );
@@ -975,6 +989,7 @@ final class _ChordInk {
           SpPoint(stemX, startY),
           SpPoint(stemX, tipY),
           thickness: thickness,
+          ink: InkRole.stem,
           owner: owner,
         ),
       );
@@ -1004,6 +1019,7 @@ final class _ChordInk {
                 tipY + (high.y - meets.y) * scale,
               ),
               thickness: thickness,
+              ink: InkRole.flag,
               owner: owner,
             ),
           );
@@ -1016,6 +1032,7 @@ final class _ChordInk {
           strokes.glyph,
           strokes.origin,
           bounds: strokes.box,
+          ink: InkRole.ornament,
           scale: scale,
           owner: owner,
         ),
@@ -1084,6 +1101,7 @@ GlyphDraw _dot(
     Glyph.augmentationDot,
     SpPoint(x, y),
     bounds: dot.shift(x, y),
+    ink: InkRole.dot,
     scale: scale,
     owner: owner,
   );

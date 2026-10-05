@@ -326,7 +326,7 @@ void main() {
         barOf([chordOf(1, 'C5 D5', value: whole)], instrument: alto),
       );
 
-      expect(headAt(items, 5).ink, InkRole.normal);
+      expect(headAt(items, 5).ink, InkRole.notehead);
       expect(headAt(items, 6).ink, InkRole.outOfRange);
     });
   });

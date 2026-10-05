@@ -559,6 +559,7 @@ List<Drawable> placeLyrics(
     SpPoint(x, y),
     spec: spec,
     bounds: Box(x, y - hyphen.ascent, x + hyphen.width, y + hyphen.descent),
+    ink: InkRole.lyric,
   );
   List<TextDraw> hyphensBetween(double from, double to, double y) {
     final gap = to - from;
@@ -585,6 +586,7 @@ List<Drawable> placeLyrics(
           SpPoint(from, y),
           SpPoint(to, y),
           thickness: thickness,
+          ink: InkRole.lyric,
           owner: owner,
         ),
       );
@@ -621,6 +623,7 @@ List<Drawable> placeLyrics(
               end,
               y + syllable.extent.descent,
             ),
+            ink: InkRole.lyric,
             owner: syllable.owner,
           ),
         );

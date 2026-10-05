@@ -129,9 +129,9 @@ final class SheetPalette {
   final Color? paper;
 
   Color colorOf(InkRole role) => switch (role) {
-    InkRole.normal => ink,
     InkRole.staffLine => staffLines,
     InkRole.outOfRange => outOfRange,
+    _ => ink,
   };
 
   /// This palette with the given parts replaced. A null leaves a part as it

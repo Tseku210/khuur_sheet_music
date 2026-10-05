@@ -40,14 +40,71 @@ final class SpannerOwner extends Owner {
   int get hashCode => id.hashCode;
 }
 
-/// The colour role layout assigns. The palette maps each role to a colour,
-/// so a theme change repaints and never lays out.
+/// The kind of mark a drawable is. Layout gives every drawable one, and the
+/// palette maps each role to a colour, so a theme change repaints and never
+/// lays out. Every part of one mark has that mark's role.
 enum InkRole {
-  normal,
+  // The staff and what frames it.
   staffLine,
+  barline,
 
-  /// A note outside its instrument's `lowest` to `highest` range.
+  /// A brace, and the line that joins the staves at a system's start.
+  bracket,
+  clef,
+  keySignature,
+  timeSignature,
+
+  // The parts of a chord or a rest.
+  notehead,
+
+  /// A notehead outside its instrument's `lowest` to `highest` range.
   outOfRange,
+  stem,
+
+  /// A flag, and the slash through a grace note's stem.
+  flag,
+  beam,
+  ledgerLine,
+  accidental,
+
+  /// An augmentation dot, of a chord or of a rest.
+  dot,
+  rest,
+  tuplet,
+
+  // Marks on a chord.
+  articulation,
+
+  /// An ornament sign, a trill line and a tremolo's strokes.
+  ornament,
+  bowing,
+  fingering,
+  stringNumber,
+
+  // Directions over a staff.
+  dynamics,
+  expression,
+  tempo,
+  rehearsal,
+  navigation,
+  chordSymbol,
+
+  // Lines over several notes or bars.
+  tie,
+  slur,
+  hairpin,
+  octaveLine,
+  pedal,
+  glissando,
+  volta,
+
+  // Text under and around the music.
+  lyric,
+  barNumber,
+  partName,
+  title,
+  subtitle,
+  credit,
 }
 
 /// One thing to paint, in system space unless stated otherwise.
@@ -57,7 +114,7 @@ enum InkRole {
 /// that equality, and the system painter compares a bar-number label by it,
 /// so a label made again for an unchanged system does not repaint it.
 sealed class Drawable {
-  const Drawable({this.owner, this.ink = InkRole.normal});
+  const Drawable({required this.ink, this.owner});
 
   /// Null for structure, which is staff lines, barlines, clefs and
   /// signatures, for a beam between two stems, and for a tuplet's number
@@ -83,10 +140,10 @@ final class GlyphDraw extends Drawable {
     this.glyph,
     this.origin, {
     required this.bounds,
+    required super.ink,
     this.scale = 1,
     this.stretch = 1,
     super.owner,
-    super.ink,
   });
 
   final Glyph glyph;
@@ -140,9 +197,9 @@ final class LineDraw extends Drawable {
     this.from,
     this.to, {
     required this.thickness,
+    required super.ink,
     this.dash = LineDash.solid,
     super.owner,
-    super.ink,
   });
 
   final SpPoint from;
@@ -193,7 +250,7 @@ final class LineDraw extends Drawable {
 
 /// A filled polygon, which is one beam or a beam hook.
 final class PolygonDraw extends Drawable {
-  const PolygonDraw(this.points, {super.owner, super.ink});
+  const PolygonDraw(this.points, {required super.ink, super.owner});
 
   /// Three corners or more.
   final List<SpPoint> points;
@@ -240,9 +297,9 @@ final class TextDraw extends Drawable {
     this.origin, {
     required this.spec,
     required this.bounds,
+    required super.ink,
     this.enclosed = false,
     super.owner,
-    super.ink,
   });
 
   final String text;
@@ -297,9 +354,9 @@ final class CurveDraw extends Drawable {
     required this.end,
     required this.endThickness,
     required this.midThickness,
+    required super.ink,
     this.dashed = false,
     super.owner,
-    super.ink,
   });
 
   final SpPoint start;
@@ -451,8 +508,8 @@ final class GlyphRunDraw extends Drawable {
     required this.to,
     required this.count,
     required this.bounds,
+    required super.ink,
     super.owner,
-    super.ink,
   });
 
   final Glyph glyph;

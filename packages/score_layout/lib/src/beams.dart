@@ -309,6 +309,7 @@ List<Drawable> _draw({
         s,
         SpPoint(s.x, edge(s.x)),
         thickness: defaults.stemThickness,
+        ink: InkRole.stem,
         owner: owners[i],
       ),
   ];
@@ -319,12 +320,16 @@ List<Drawable> _draw({
       final near = offset * inward;
       final far = (offset + defaults.beamThickness) * inward;
       drawables.add(
-        PolygonDraw([
-          SpPoint(from, edge(from) + near),
-          SpPoint(to, edge(to) + near),
-          SpPoint(to, edge(to) + far),
-          SpPoint(from, edge(from) + far),
-        ], owner: owner),
+        PolygonDraw(
+          [
+            SpPoint(from, edge(from) + near),
+            SpPoint(to, edge(to) + near),
+            SpPoint(to, edge(to) + far),
+            SpPoint(from, edge(from) + far),
+          ],
+          ink: InkRole.beam,
+          owner: owner,
+        ),
       );
     }
 

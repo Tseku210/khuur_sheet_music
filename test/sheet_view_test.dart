@@ -3036,7 +3036,7 @@ void main() {
       final ensemble = pictured();
       final first = ensemble.parts.first;
       // The first part's notes above E5 are out of its range here, so the
-      // sheet has ink of every role.
+      // sheet has ink of every colour.
       final score = ensemble.copyWith(
         parts: ensemble.parts.replaceAt(
           0,
@@ -3067,8 +3067,13 @@ void main() {
           for (var index = 0; index < plan.systemCount; index++)
             for (final drawable in inkOf(plan, index)) drawable.ink,
         },
-        InkRole.values.toSet(),
-        reason: 'ink of every role',
+        containsAll([
+          InkRole.staffLine,
+          InkRole.outOfRange,
+          InkRole.notehead,
+          InkRole.stem,
+        ]),
+        reason: 'ink of every colour',
       );
       final size = Size(sheetWidth * staffSpace + padding.horizontal, 400);
       tester.view
@@ -3112,9 +3117,9 @@ void main() {
             glyphs,
             scale,
             switch (drawable.ink) {
-              InkRole.normal => ink,
               InkRole.staffLine => staffLines,
               InkRole.outOfRange => outOfRange,
+              _ => ink,
             },
           );
         }

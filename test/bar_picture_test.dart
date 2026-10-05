@@ -280,6 +280,7 @@ sheetOf(
             SpPoint(x, tops[i]),
             SpPoint(x, tops[i] + staffHeight),
             thickness: defaults.thinBarlineThickness,
+            ink: InkRole.barline,
           ),
       ],
       ...placedHead,

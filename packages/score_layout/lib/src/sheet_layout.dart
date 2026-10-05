@@ -193,6 +193,7 @@ final class SheetLayout {
           at.x + extent.width,
           at.y + extent.descent,
         ),
+        ink: InkRole.barNumber,
       );
     });
   }
@@ -463,22 +464,23 @@ final class SheetLayout {
     TextMeasurer text,
   ) {
     final lines = [
-      [(meta.title, TextRole.title, _Align.centre)],
-      [(meta.subtitle, TextRole.subtitle, _Align.centre)],
+      [(meta.title, TextRole.title, InkRole.title, _Align.centre)],
+      [(meta.subtitle, TextRole.subtitle, InkRole.subtitle, _Align.centre)],
       [
-        (meta.lyricist, TextRole.credit, _Align.left),
-        (meta.composer, TextRole.credit, _Align.right),
+        (meta.lyricist, TextRole.credit, InkRole.credit, _Align.left),
+        (meta.composer, TextRole.credit, InkRole.credit, _Align.right),
       ],
     ];
     final drawables = <Drawable>[];
     var bottom = 0.0;
     for (final line in lines) {
       final texts = [
-        for (final (string, role, align) in line)
+        for (final (string, role, ink, align) in line)
           if (string.isNotEmpty)
             (
               string,
               style.specOf(role),
+              ink,
               align,
               text.measure(string, style.specOf(role)),
             ),
@@ -489,8 +491,8 @@ final class SheetLayout {
       final y =
           bottom +
           (drawables.isEmpty ? 0 : _headerLineGap) +
-          texts.map((entry) => entry.$4.ascent).reduce(math.max);
-      for (final (string, spec, align, extent) in texts) {
+          texts.map((entry) => entry.$5.ascent).reduce(math.max);
+      for (final (string, spec, ink, align, extent) in texts) {
         final x = switch (align) {
           _Align.left => 0.0,
           _Align.centre => math.max<double>(0, (width - extent.width) / 2),
@@ -507,6 +509,7 @@ final class SheetLayout {
               x + extent.width,
               y + extent.descent,
             ),
+            ink: ink,
           ),
         );
         bottom = math.max(bottom, y + extent.descent);

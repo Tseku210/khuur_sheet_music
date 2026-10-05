@@ -553,6 +553,7 @@ CurveDraw _tie(
     limit: side == Side.above ? clear - rise : clear + rise,
     endThickness: defaults.tieEndpointThickness * scale,
     midThickness: defaults.tieMidpointThickness * scale,
+    ink: InkRole.tie,
     owner: owner,
   );
 }
@@ -1094,6 +1095,7 @@ List<Drawable> _placeRun(
           limit: limit,
           endThickness: defaults.slurEndpointThickness,
           midThickness: defaults.slurMidpointThickness,
+          ink: InkRole.slur,
           owner: owner,
           dashed: dashed,
         ),
@@ -1104,6 +1106,7 @@ List<Drawable> _placeRun(
           SpPoint(startX, first.frame.at(piece.from).y),
           SpPoint(endX, last.frame.at(last.piece.until).y),
           thickness: defaults.stemThickness,
+          ink: InkRole.glissando,
           owner: owner,
         ),
       ];
@@ -1123,6 +1126,7 @@ List<Drawable> _placeRun(
             SpPoint(startX, centre + sign * startHalf),
             SpPoint(endX, centre + sign * endHalf),
             thickness: defaults.hairpinThickness,
+            ink: InkRole.hairpin,
             owner: owner,
           ),
       ];
@@ -1134,6 +1138,7 @@ List<Drawable> _placeRun(
         x: startX,
         baseline: baseline,
         font: font,
+        ink: InkRole.octaveLine,
         owner: owner,
       );
       final lineY = baseline + (room.top + room.bottom) / 2;
@@ -1145,6 +1150,7 @@ List<Drawable> _placeRun(
             SpPoint(lineStart, lineY),
             SpPoint(endX, lineY),
             thickness: defaults.octaveLineThickness,
+            ink: InkRole.octaveLine,
             dash: LineDash.dashed,
             owner: owner,
           ),
@@ -1156,6 +1162,7 @@ List<Drawable> _placeRun(
               baseline + (side == Side.above ? room.bottom : room.top),
             ),
             thickness: defaults.octaveLineThickness,
+            ink: InkRole.octaveLine,
             owner: owner,
           ),
       ];
@@ -1170,6 +1177,7 @@ List<Drawable> _placeRun(
           x: startX,
           baseline: baseline,
           font: font,
+          ink: InkRole.pedal,
           owner: owner,
         );
         glyphs.addAll(row);
@@ -1182,6 +1190,7 @@ List<Drawable> _placeRun(
             SpPoint(lineStart, baseline),
             SpPoint(endX, baseline),
             thickness: defaults.pedalLineThickness,
+            ink: InkRole.pedal,
             owner: owner,
           ),
         if (last.piece.endsHere)
@@ -1189,6 +1198,7 @@ List<Drawable> _placeRun(
             SpPoint(endX, baseline),
             SpPoint(endX, baseline + room.top),
             thickness: defaults.pedalLineThickness,
+            ink: InkRole.pedal,
             owner: owner,
           ),
       ];
@@ -1203,6 +1213,7 @@ List<Drawable> _placeRun(
           x: startX,
           baseline: baseline,
           font: font,
+          ink: InkRole.ornament,
           owner: owner,
         );
         glyphs.addAll(row);
@@ -1226,6 +1237,7 @@ List<Drawable> _placeRun(
               runStart + (count - 1) * wiggle.advance + wiggle.box.right,
               baseline + wiggle.box.bottom,
             ),
+            ink: InkRole.ornament,
             owner: owner,
           ),
       ];
@@ -1245,6 +1257,7 @@ List<Drawable> _placeRun(
             startX + extent.width,
             baseline + extent.descent,
           ),
+          ink: InkRole.tempo,
           owner: owner,
         );
         lineStart = startX + extent.width + _startGap;
@@ -1257,6 +1270,7 @@ List<Drawable> _placeRun(
             SpPoint(lineStart, lineY),
             SpPoint(endX, lineY),
             thickness: defaults.octaveLineThickness,
+            ink: InkRole.tempo,
             dash: LineDash.dashed,
             owner: owner,
           ),
@@ -1302,6 +1316,7 @@ double _rowWidth(List<Glyph> glyphs, SmuflFont font) {
   required double x,
   required double baseline,
   required SmuflFont font,
+  required InkRole ink,
   required Owner owner,
 }) {
   var at = x;
@@ -1314,6 +1329,7 @@ double _rowWidth(List<Glyph> glyphs, SmuflFont font) {
         glyph,
         origin,
         bounds: metrics.box.shift(origin.x, origin.y),
+        ink: ink,
         owner: owner,
       ),
     );
@@ -1437,7 +1453,12 @@ List<Drawable> placeVoltas(
         first.frame.tops.first +
         bracket.map((bar) => bar.of.dy).reduce(math.min);
     drawables.add(
-      LineDraw(SpPoint(x0, dy), SpPoint(x1, dy), thickness: thickness),
+      LineDraw(
+        SpPoint(x0, dy),
+        SpPoint(x1, dy),
+        thickness: thickness,
+        ink: InkRole.volta,
+      ),
     );
     if (first.of.starts) {
       final hookX = x0 + thickness / 2;
@@ -1446,6 +1467,7 @@ List<Drawable> placeVoltas(
           SpPoint(hookX, dy),
           SpPoint(hookX, dy + first.of.hook),
           thickness: thickness,
+          ink: InkRole.volta,
         ),
       );
       final extent = first.of.extent;
@@ -1462,6 +1484,7 @@ List<Drawable> placeVoltas(
             x + extent.width,
             baseline + extent.descent,
           ),
+          ink: InkRole.volta,
         ),
       );
     }
@@ -1472,6 +1495,7 @@ List<Drawable> placeVoltas(
           SpPoint(hookX, dy),
           SpPoint(hookX, dy + last.of.hook),
           thickness: thickness,
+          ink: InkRole.volta,
         ),
       );
     }
@@ -1508,6 +1532,7 @@ CurveDraw curveBetween(
   required double limit,
   required double endThickness,
   required double midThickness,
+  required InkRole ink,
   required Owner owner,
   bool dashed = false,
 }) {
@@ -1539,6 +1564,7 @@ CurveDraw curveBetween(
     end: to,
     endThickness: endThickness,
     midThickness: midThickness,
+    ink: ink,
     dashed: dashed,
     owner: owner,
   );

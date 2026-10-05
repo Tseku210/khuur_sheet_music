@@ -265,6 +265,7 @@ GlyphDraw _glyph(
   double x,
   double y,
   EngravingStyle style, {
+  required InkRole ink,
   double scale = 1,
 }) {
   final box = style.font[glyph].box;
@@ -277,6 +278,7 @@ GlyphDraw _glyph(
       x + box.right * scale,
       y + box.bottom * scale,
     ),
+    ink: ink,
     scale: scale,
   );
 }
@@ -323,6 +325,7 @@ GlyphDraw _clefAt(
     left - style.font[glyph].box.left * scale,
     yOfStep(2 * (clef.line - 1)),
     style,
+    ink: InkRole.clef,
     scale: scale,
   );
 }
@@ -392,7 +395,16 @@ BarHead keySignatureItems(
   var gap = 0.0;
   void add(Glyph glyph, int step) {
     x += gap;
-    items.add((staff: staff, drawable: _glyph(glyph, x, yOfStep(step), style)));
+    items.add((
+      staff: staff,
+      drawable: _glyph(
+        glyph,
+        x,
+        yOfStep(step),
+        style,
+        ink: InkRole.keySignature,
+      ),
+    ));
     x += style.font[glyph].advance;
     gap = glyph == Glyph.accidentalNatural ? _naturalGap : _keyGap;
   }
@@ -471,7 +483,10 @@ BarHead meterItems(
   for (final row in rows) {
     var x = (width - widthOf(row.glyphs)) / 2;
     for (final glyph in row.glyphs) {
-      items.add((staff: staff, drawable: _glyph(glyph, x, row.y, style)));
+      items.add((
+        staff: staff,
+        drawable: _glyph(glyph, x, row.y, style, ink: InkRole.timeSignature),
+      ));
       x += style.font[glyph].advance;
     }
   }
@@ -599,6 +614,7 @@ List<Drawable> _placePieces(
             Glyph.repeatDots,
             origin,
             bounds: box.shift(origin.x, origin.y),
+            ink: InkRole.barline,
           ),
         );
       }
@@ -609,6 +625,7 @@ List<Drawable> _placePieces(
             SpPoint(x + width / 2, tops[first]),
             SpPoint(x + width / 2, tops[last] + staffHeight),
             thickness: width,
+            ink: InkRole.barline,
             dash: switch (piece) {
               _Piece.dashed => LineDash.dashed,
               _Piece.dotted => LineDash.dotted,
@@ -833,6 +850,7 @@ List<Drawable> placeLead(
             x + extent.width,
             y + extent.descent,
           ),
+          ink: InkRole.partName,
         ),
       );
     }
@@ -847,6 +865,7 @@ List<Drawable> placeLead(
         SpPoint(indent + thin / 2, tops.first),
         SpPoint(indent + thin / 2, tops.last + staffHeight),
         thickness: thin,
+        ink: InkRole.bracket,
       ),
     );
   }
@@ -864,6 +883,7 @@ GlyphDraw _brace(double left, double top, double bottom, EngravingStyle style) {
     Glyph.brace,
     SpPoint(left - box.left * scale, bottom - box.bottom * scale * stretch),
     bounds: Box(left, top, left + braceWidth, bottom),
+    ink: InkRole.bracket,
     scale: scale,
     stretch: stretch,
   );

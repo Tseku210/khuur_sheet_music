@@ -58,9 +58,10 @@ const double _numberPad = 0.3;
 
 /// What one mark draws along one baseline, around its own origin.
 final class _Row {
-  _Row(this._font, {this.owner});
+  _Row(this._font, {required this.ink, this.owner});
 
   final SmuflFont _font;
+  final InkRole ink;
   final Owner? owner;
   final List<Drawable> parts = [];
   double _x = 0;
@@ -84,6 +85,7 @@ final class _Row {
         glyph,
         SpPoint(_x, dy),
         bounds: bounds,
+        ink: ink,
         scale: scale,
         owner: owner,
       ),
@@ -117,6 +119,7 @@ final class _Row {
         SpPoint(_x + inset, 0),
         spec: spec,
         bounds: bounds,
+        ink: ink,
         enclosed: enclosure != null,
         owner: owner,
       ),
@@ -495,7 +498,7 @@ List<({Articulation kind, _Hung mark})> _articulations(
     marks.add((
       kind: kind,
       mark: (
-        row: _Row(style.font, owner: owner)
+        row: _Row(style.font, ink: InkRole.articulation, owner: owner)
           ..glyph(_articulationGlyph(kind, side)),
         side: side,
         gap: _closeGap,
@@ -565,8 +568,11 @@ _Hung? _fermata(TimedEvent timed, int voices, EngravingStyle style) {
   }
   final side = _sideOf(timed.voice, voices, Side.above);
   return (
-    row: _Row(style.font, owner: ElementOwner(timed.ref))
-      ..glyph(_articulationGlyph(Articulation.fermata, side)),
+    row: _Row(
+      style.font,
+      ink: InkRole.articulation,
+      owner: ElementOwner(timed.ref),
+    )..glyph(_articulationGlyph(Articulation.fermata, side)),
     side: side,
     gap: _markGap,
   );
@@ -628,16 +634,20 @@ _Hung? _ornament(
     return null;
   }
   return (
-    row: _Row(style.font, owner: ElementOwner(plan.timed.ref))
-      ..glyph(
-        switch (ornament) {
-          Ornament.trill => Glyph.ornamentTrill,
-          Ornament.mordent => Glyph.ornamentMordent,
-          Ornament.invertedMordent => Glyph.ornamentShortTrill,
-          Ornament.turn => Glyph.ornamentTurn,
-          Ornament.invertedTurn => Glyph.ornamentTurnInverted,
-        },
-      ),
+    row:
+        _Row(
+          style.font,
+          ink: InkRole.ornament,
+          owner: ElementOwner(plan.timed.ref),
+        )..glyph(
+          switch (ornament) {
+            Ornament.trill => Glyph.ornamentTrill,
+            Ornament.mordent => Glyph.ornamentMordent,
+            Ornament.invertedMordent => Glyph.ornamentShortTrill,
+            Ornament.turn => Glyph.ornamentTurn,
+            Ornament.invertedTurn => Glyph.ornamentTurnInverted,
+          },
+        ),
     side: _sideOf(plan.timed.voice, voices, Side.above),
     gap: _markGap,
   );
@@ -748,6 +758,7 @@ List<_Hung> _stringMarks(
     }
     final row = _Row(
       style.font,
+      ink: InkRole.fingering,
       owner: ElementOwner(NoteRef(plan.timed.ref, note.id)),
     );
     _digits(finger, _fingerings).forEach(row.glyph);
@@ -761,6 +772,7 @@ List<_Hung> _stringMarks(
     }
     final row = _Row(
       style.font,
+      ink: InkRole.stringNumber,
       owner: ElementOwner(NoteRef(plan.timed.ref, note.id)),
     );
     if (style.stringNumbers == StringNumbers.circled && number <= 9) {
@@ -774,6 +786,7 @@ List<_Hung> _stringMarks(
     marks.add((
       row: _Row(
         style.font,
+        ink: InkRole.bowing,
         owner: ElementOwner(plan.timed.ref),
       )..glyph(bowing == Bowing.up ? Glyph.stringsUpBow : Glyph.stringsDownBow),
       side: side,
@@ -848,7 +861,7 @@ _Row _chordSymbol(
   // A SMuFL em is four staff spaces, so a glyph set beside text is scaled
   // by a quarter of the text's size.
   final scale = spec.size / 4;
-  final row = _Row(font);
+  final row = _Row(font, ink: InkRole.chordSymbol);
   void name(PitchName stored) {
     final name = _spelled(stored, staff, style);
     row.text(name.step.name.toUpperCase(), spec, text);
@@ -921,7 +934,7 @@ List<_Wide> _directions(
           metrics.anchors[GlyphAnchor.opticalCenter]?.x ??
           (metrics.box.left + metrics.box.right) / 2;
       add(
-        _Row(font)..glyph(glyph),
+        _Row(font, ink: InkRole.dynamics)..glyph(glyph),
         direction,
         Side.below,
         _Lane.dynamics,
@@ -932,7 +945,7 @@ List<_Wide> _directions(
   for (final direction in directions) {
     if (direction is TextMark) {
       add(
-        _Row(font)
+        _Row(font, ink: InkRole.expression)
           ..text(direction.text, style.specOf(TextRole.expression), text),
         direction,
         direction.above ? Side.above : Side.below,
@@ -1008,7 +1021,7 @@ String _bpm(double bpm) =>
 _Row _tempo(TempoMark mark, EngravingStyle style, TextMeasurer text) {
   final font = style.font;
   final spec = style.specOf(TextRole.tempo);
-  final row = _Row(font)..text(mark.text ?? '', spec, text);
+  final row = _Row(font, ink: InkRole.tempo)..text(mark.text ?? '', spec, text);
   final beat = mark.showMetronome
       ? metronomeGlyphs(mark.tempo.beat)
       : const <Glyph>[];
@@ -1079,7 +1092,7 @@ List<_Wide> _systemMarks(
       ToCoda() || Fine() || Jump() => null,
     };
     if (sign != null) {
-      add(_Row(font)..glyph(sign), _Hold.start);
+      add(_Row(font, ink: InkRole.navigation)..glyph(sign), _Hold.start);
     }
   }
   for (final mark in column.navigation) {
@@ -1091,14 +1104,15 @@ List<_Wide> _systemMarks(
     };
     if (label != null) {
       add(
-        _Row(font)..text(label, style.specOf(TextRole.navigation), text),
+        _Row(font, ink: InkRole.navigation)
+          ..text(label, style.specOf(TextRole.navigation), text),
         _Hold.end,
         slice: times.length - 1,
       );
     }
   }
   add(
-    _Row(font)..text(
+    _Row(font, ink: InkRole.rehearsal)..text(
       column.rehearsal ?? '',
       style.specOf(TextRole.rehearsal),
       text,
@@ -1227,7 +1241,7 @@ List<Glyph> _tupletNumber(TupletRatio ratio) => [
 ];
 
 _Row _numberRow(List<Glyph> digits, SmuflFont font) {
-  final row = _Row(font);
+  final row = _Row(font, ink: InkRole.tuplet);
   digits.forEach(row.glyph);
   return row;
 }
@@ -1352,7 +1366,8 @@ List<Drawable> placeTuplet(
   final toNotes = stub.side == Side.above ? 1.0 : -1.0;
   final tip = from.y + toNotes * box.height / 2;
   final corner = from.y - toNotes * thickness / 2;
-  LineDraw line(SpPoint a, SpPoint b) => LineDraw(a, b, thickness: thickness);
+  LineDraw line(SpPoint a, SpPoint b) =>
+      LineDraw(a, b, thickness: thickness, ink: InkRole.tuplet);
   return drawables
     ..add(
       line(

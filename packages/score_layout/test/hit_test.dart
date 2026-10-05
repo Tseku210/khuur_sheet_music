@@ -949,6 +949,7 @@ void main() {
         const SpPoint(0, 5),
         const SpPoint(10, 5),
         thickness: 0.2,
+        ink: InkRole.ledgerLine,
         owner: owner,
       );
       expect(
@@ -973,6 +974,7 @@ void main() {
         SpPoint(0, y),
         SpPoint(10, y),
         thickness: 0.25,
+        ink: InkRole.ledgerLine,
         owner: owner,
       );
       const here = SpPoint(5, 5);
@@ -1000,7 +1002,12 @@ void main() {
 
     test('distanceTo is zero inside a drawable\'s box and grows straight '
         'out of it, and a curve\'s is to its line', () {
-      const box = LineDraw(SpPoint(0, 5), SpPoint(10, 5), thickness: 0.2);
+      const box = LineDraw(
+        SpPoint(0, 5),
+        SpPoint(10, 5),
+        thickness: 0.2,
+        ink: InkRole.ledgerLine,
+      );
       expect(box.distanceTo(const SpPoint(5, 5)), 0);
       expect(box.distanceTo(const SpPoint(5, 6.1)), closeTo(1, 1e-9));
       expect(box.distanceTo(const SpPoint(13, 9.1)), closeTo(5, 1e-9));
@@ -1011,6 +1018,7 @@ void main() {
         end: SpPoint(10, 0),
         endThickness: 0.1,
         midThickness: 0.2,
+        ink: InkRole.slur,
       );
       expect(curve.distanceTo(const SpPoint(5, 0.05)), 0);
       expect(curve.distanceTo(const SpPoint(5, 2)), closeTo(1.9, 1e-9));

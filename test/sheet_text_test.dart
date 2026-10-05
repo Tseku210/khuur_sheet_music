@@ -25,6 +25,7 @@ TextDraw textAt(SpPoint origin, TextExtent extent) => TextDraw(
     origin.x + extent.width,
     origin.y + extent.descent,
   ),
+  ink: InkRole.expression,
 );
 
 void main() {
@@ -130,6 +131,7 @@ void main() {
                 const SpPoint(100, 100),
                 spec: spec,
                 bounds: const Box(100, 98.5, 106, 100.5),
+                ink: InkRole.expression,
               ),
               painter,
               scale,
