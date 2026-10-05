@@ -81,6 +81,49 @@ void main() {
       }
     });
 
+    test('suit the staff an event is on, whatever staff its ref names', () {
+      var score = blankScore(parts: const [drums, morinKhuur], bars: 3);
+      score = fill(score, 0, [
+        chordOf(2, 'F4', value: NoteValue.whole),
+      ], staff: 1);
+      score = fill(score, 1, [rest(3, NoteValue.whole)], staff: 1);
+      final session = EditSession.start(score);
+      EventRef misfiled(EventId id) => EventRef(
+        measure: score.locate(id)!.measure,
+        staff: score.staves[0].id,
+        id: id,
+      );
+      final chord = misfiled(const EventId(2));
+      final measureRest = score.measures[2].staves[1].voices.first.items.first;
+
+      for (final edit in [
+        AddToChord(event: chord, tone: snare),
+        AddToChord(event: misfiled(const EventId(3)), tone: snare),
+        AddToChord(event: misfiled((measureRest as Event).id), tone: snare),
+        AddGrace(event: chord, tone: snare),
+        SetTone(NoteRef(chord, const NoteId(20)), snare),
+      ]) {
+        expect(
+          refused(session.run(edit)),
+          'a pitched staff takes pitches',
+          reason: edit.label,
+        );
+      }
+      final added = applied(session.run(AddToChord(event: chord, tone: g4)));
+      expect(describe(added.score.measures[0].staves[1].voices.first.items), [
+        'F4+G4/whole',
+      ]);
+      final gone = EventRef(
+        measure: chord.measure,
+        staff: const StaffId(999),
+        id: chord.id,
+      );
+      expect(
+        refusal(session.run(AddGrace(event: gone, tone: g4))),
+        isA<StaleReference>(),
+      );
+    });
+
     test('keep a chord in name order', () {
       final session = band();
 

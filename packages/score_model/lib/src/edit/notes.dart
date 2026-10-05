@@ -5,8 +5,17 @@ part of 'session.dart';
 // changes nothing returns the same score.
 
 _Result _setNoteTone(Score score, NoteRef note, Tone tone) {
-  _checkTone(score, note.event.staff, tone);
-  return _Result(_setTone(score, _targetHead(score, note), tone));
+  final head = _targetHead(score, note);
+  _checkTone(score, _staffOf(score, note.event, head.timed), tone);
+  return _Result(_setTone(score, head, tone));
+}
+
+/// The staff that [timed], the event [ref] resolved to, is on. A ref
+/// resolves by its id alone, so the staff it names can be another one.
+/// Refused when the score no longer has the staff it names.
+StaffId _staffOf(Score score, EventRef ref, TimedEvent timed) {
+  _staff(score, ref.staff);
+  return timed.ref.staff;
 }
 
 _Result _setTie(Score score, NoteRef note, bool tied) {
@@ -68,6 +77,7 @@ _Result _addGrace(
   _Ids ids,
 ) {
   final timed = _target(score, event);
+  final staff = _staffOf(score, event, timed);
   return _changeEvent(
     score,
     timed,
@@ -80,7 +90,7 @@ _Result _addGrace(
             id: ids.event(),
             kind: kind,
             value: _checked(value),
-            notes: Seq([_noteOn(score, event.staff, ids.note(), tone)]),
+            notes: Seq([_noteOn(score, staff, ids.note(), tone)]),
           ),
         ),
       ),
@@ -297,13 +307,14 @@ Score _setTone(Score score, _Head head, Tone tone) {
 /// fill the bar, tied.
 _Result _addToChord(Score score, EventRef ref, Tone tone, _Ids ids) {
   final timed = _target(score, ref);
+  final staff = _staffOf(score, ref, timed);
   switch (timed.event) {
     case ChordEvent(:final notes) when notes.any((n) => n.tone == tone):
       return _Result(score);
     case final ChordEvent chord:
       final note = _noteOn(
         score,
-        ref.staff,
+        staff,
         ids.note(),
         tone,
         tie:
@@ -329,7 +340,7 @@ _Result _addToChord(Score score, EventRef ref, Tone tone, _Ids ids) {
           id: id,
           value: value,
           articulations: articulations,
-          notes: Seq([_noteOn(score, ref.staff, ids.note(), tone)]),
+          notes: Seq([_noteOn(score, staff, ids.note(), tone)]),
         ),
       );
     case MeasureRest(:final id, :final span, :final articulations):
@@ -350,7 +361,7 @@ _Result _addToChord(Score score, EventRef ref, Tone tone, _Ids ids) {
                 notes: Seq([
                   _noteOn(
                     score,
-                    ref.staff,
+                    staff,
                     ids.note(),
                     tone,
                     tie: k < values.length - 1,
