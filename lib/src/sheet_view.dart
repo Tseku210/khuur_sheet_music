@@ -175,7 +175,8 @@ class SheetController extends ChangeNotifier {
   Rect? caretOf(VoicePoint cursor) =>
       _rectsOf((layout) => [layout.caretOf(cursor)]).firstOrNull;
 
-  /// The rects the view shades for [selection].
+  /// The boxes of [selection], which the view marks in the palette's
+  /// selection style. The style's padding is not in them.
   List<Rect> rectsOf(Selection selection) =>
       _rectsOf((layout) => layout.selectionBoxes(selection));
 
@@ -992,6 +993,16 @@ class _SheetViewState extends State<SheetView> {
                       child: Stack(
                         fit: StackFit.expand,
                         children: [
+                          CustomPaint(
+                            painter: HighlightPainter(
+                              layout: layout,
+                              index: index,
+                              selection: widget.selection,
+                              playback: widget.playback,
+                              palette: palette,
+                              scale: scale,
+                            ),
+                          ),
                           RepaintBoundary(
                             child: CustomPaint(
                               painter: SystemPainter(

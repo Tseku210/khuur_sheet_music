@@ -28,7 +28,7 @@
   | `Clef.treble()`, `KeySignature.dMajor()`, `TimeSignature.fourFour()` | `SetClef`, `SetKey`, `SetMeter`, or `Score.blank(key:, meter:)` |
   | `Note(Pitch.a4, ...)`, `ChordNote`, `Rest` | `EnterNote`, `AddToChord`, `EnterRest` |
   | `GlobalKey<SimpleSheetMusicState>` with `playMidi`, `pauseMidi`, `stopMidi`, `setTempo(int)` | `ScorePlayer.play`, `pause`, `resume`, `stop`, `tempoScale`, `status` |
-  | `highlightColor` | `SheetPalette.playback` |
+  | `highlightColor` | `SheetPalette.playback`, a `SheetHighlight` whose `ink` is that colour |
   | `onTap(symbol, offset)` | `onTap(SheetHit)` |
   | `FontType` | `EngravingStyle.font` (`SmuflFont`) |
   | `MidiPlayer`, `MidiPlayerStatus` | `ScorePlayer`, `PlayerStatus` |

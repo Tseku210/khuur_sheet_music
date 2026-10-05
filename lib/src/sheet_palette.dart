@@ -4,12 +4,16 @@ import 'package:score_layout/score_layout.dart';
 /// A line drawn over the sheet, which is the caret or the playhead.
 @immutable
 final class SheetLine {
-  const SheetLine({required this.color, this.width = 0.2});
+  const SheetLine({required this.color, this.width = 0.2})
+    : assert(width >= 0, 'a line has no width under zero');
 
   final Color color;
 
-  /// In staff spaces, so the line grows with the zoom.
+  /// In staff spaces, so the line grows with the zoom. Zero draws no line.
   final double width;
+
+  SheetLine copyWith({Color? color, double? width}) =>
+      SheetLine(color: color ?? this.color, width: width ?? this.width);
 
   @override
   bool operator ==(Object other) =>
@@ -17,11 +21,18 @@ final class SheetLine {
 
   @override
   int get hashCode => Object.hash(color, width);
+
+  @override
+  String toString() => 'SheetLine(color: $color, width: $width)';
 }
 
 /// How the sheet marks notes, which are the selected ones or the sounding
-/// ones. A box behind them, a border around them and another ink are each
-/// drawn when given, so a style may mix them.
+/// ones. A box behind them, a border around the box and another ink are
+/// each drawn when given, so a style may mix them.
+///
+/// The box and its border lie under the notes and the staff lines, so a
+/// fill of any colour leaves them to read. Boxes that overlap make one
+/// shape with one border around it.
 ///
 /// Lengths are in staff spaces, so the mark grows with the zoom.
 @immutable
@@ -33,7 +44,8 @@ final class SheetHighlight {
     this.radius = 0,
     this.padding = 0,
     this.ink,
-  });
+  }) : assert(borderWidth >= 0, 'a border has no width under zero'),
+       assert(radius >= 0, 'a corner has no radius under zero');
 
   /// The colour of the box behind the notes. Null draws no box.
   final Color? fill;
@@ -41,19 +53,41 @@ final class SheetHighlight {
   /// The colour of the line around the box. Null draws no line.
   final Color? border;
 
-  /// The line lies inside the box, so a wider one takes no more room.
+  /// The line lies inside the box, so a wider one takes no more room. Zero
+  /// draws no line.
   final double borderWidth;
 
   /// How round the corners of the box are.
   final double radius;
 
-  /// How far the box reaches past the notes on every side.
+  /// How far the box reaches past the notes on every side. Under zero it
+  /// makes the box smaller than the notes.
   final double padding;
 
-  /// The colour the notes themselves are drawn in. Null leaves them in
-  /// their own. A selected range has a box and no ink, since it is a region
-  /// of the sheet and not a list of notes.
+  /// The colour the marked item is drawn in again. Null leaves it in its
+  /// own. The ink reaches what the item owns. For an event that is the
+  /// chord or the rest with its stem, accidentals and dots, and for one
+  /// note of a chord it is the head. A selected range has a box and no
+  /// ink, since it is a region of the sheet and not a list of notes.
   final Color? ink;
+
+  /// This style with the given parts replaced. A null leaves a part as it
+  /// is, so this cannot take a colour away.
+  SheetHighlight copyWith({
+    Color? fill,
+    Color? border,
+    double? borderWidth,
+    double? radius,
+    double? padding,
+    Color? ink,
+  }) => SheetHighlight(
+    fill: fill ?? this.fill,
+    border: border ?? this.border,
+    borderWidth: borderWidth ?? this.borderWidth,
+    radius: radius ?? this.radius,
+    padding: padding ?? this.padding,
+    ink: ink ?? this.ink,
+  );
 
   @override
   bool operator ==(Object other) =>
@@ -68,6 +102,12 @@ final class SheetHighlight {
   @override
   int get hashCode =>
       Object.hash(fill, border, borderWidth, radius, padding, ink);
+
+  @override
+  String toString() =>
+      'SheetHighlight(fill: $fill, border: $border, '
+      'borderWidth: $borderWidth, radius: $radius, padding: $padding, '
+      'ink: $ink)';
 }
 
 /// The sheet's colours and the look of what is drawn over it. Changing them

@@ -3834,6 +3834,15 @@ void main() {
             canvas
               ..save()
               ..translate(0, layout.tops[index] * staffSpace);
+            // The boxes lie under the system's ink and the rest over it.
+            HighlightPainter(
+              layout: layout,
+              index: index,
+              selection: selection,
+              playback: playback,
+              palette: inked,
+              scale: scale,
+            ).paint(canvas, Size.zero);
             paintDrawables(canvas, glyphs, inkOf(layout, index), scale);
             OverlayPainter(
               layout: layout,

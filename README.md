@@ -195,7 +195,6 @@ When `palette` is null the view derives one from the theme with `SheetPalette.of
 SheetView(
   score: score,
   palette: SheetPalette.of(context).copyWith(
-    paper: const Color(0xFFFFF8E1),
     selection: const SheetHighlight(
       fill: Color(0x332962FF),
       border: Color(0xFF2962FF),
@@ -204,6 +203,16 @@ SheetView(
     ),
     cursor: const SheetLine(color: Color(0xFFD81B60), width: 0.35),
   ),
+)
+```
+
+The theme's ink is light in dark mode. So a paper of a fixed colour needs an ink of a fixed colour with it, or the notes do not show on it.
+
+```dart
+SheetPalette.of(context).copyWith(
+  paper: const Color(0xFFFFF8E1),
+  ink: const Color(0xFF2B2118),
+  staffLines: const Color(0xFF8A7B6A),
 )
 ```
 
@@ -218,17 +227,19 @@ SheetView(
 | `cursor` | `SheetLine` | The caret at the edit cursor. |
 | `playhead` | `SheetLine` | The line that moves while the score plays. |
 
-A `SheetHighlight` draws a box behind the notes, a border around them and the notes again in another ink. Each is drawn when it is given, so a style may mix them.
+A `SheetHighlight` draws a box, a border around the box and the marked item again in another ink. Each is drawn when it is given, so a style may mix them. The box and its border lie under the notes and the staff lines, so a fill of any colour leaves the music to read. Boxes that overlap make one shape with one border around it.
 
 | Part | What it sets |
 | --- | --- |
 | `fill` | The colour of the box. |
-| `border`, `borderWidth` | The colour and the width of the line around the box. The line lies inside the box. |
+| `border`, `borderWidth` | The colour and the width of the line around the box. The line lies inside the box. A width of zero draws none. |
 | `radius` | How round the corners are. |
-| `padding` | How far the box reaches past the notes. |
-| `ink` | The colour the notes are drawn in. A selected range has a box and no ink. |
+| `padding` | How far the box reaches past the notes. Under zero it makes the box smaller than the notes. |
+| `ink` | The colour the marked item is drawn in. A selected or sounding event is the whole chord or rest, with its stem, accidentals and dots. One selected note of a chord is its head alone. A selected range has a box and no ink. |
 
-A `SheetLine` has a `color` and a `width`. Every length is in staff spaces, so a box and a line grow with the zoom.
+A `SheetLine` has a `color` and a `width`, and a width of zero draws no line. Every length is in staff spaces, so a box and a line grow with the zoom. A width or a radius under zero is refused.
+
+`SheetHighlight` and `SheetLine` have a `copyWith` too. It replaces a part and cannot take a colour away, so a style without its fill is built anew.
 
 Where a note has several of them, the ink of the selection covers a tint, and the ink of playback covers both.
 
@@ -251,7 +262,7 @@ Where a note has several of them, the ink of the selection covers a tint, and th
 
 - `staffSpace` is the number of logical pixels per staff space at zoom 1, and `SheetController.zoom` scales it.
 - `padding` is the room around the sheet.
-- `tints` maps a note or an event to a colour, for marks such as practice feedback, a colour per voice or a colour per pitch.
+- `tints` maps a note or an event to a colour, for marks such as practice feedback, a colour per voice or a colour per pitch. A tint on an event colours the whole chord or rest. A tint on one note colours its head alone.
 
 ### What cannot be changed yet
 

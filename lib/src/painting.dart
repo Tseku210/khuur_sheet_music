@@ -404,10 +404,16 @@ void paintDrawable(
   }
 }
 
+/// Whether [a] and [b] give every role the same colour, so that a system
+/// painted with one needs no new paint with the other. The styles of the
+/// overlay and the paper are no part of that.
+bool _sameInk(SheetPalette a, SheetPalette b) =>
+    InkRole.values.every((role) => a.colorOf(role) == b.colorOf(role));
+
 /// Paints the title block above the first system. It repaints when the
-/// header list, the glyph painter, the palette or the scale changes. The
-/// layout hands out the same list while the sheet width and `score.meta`
-/// are unchanged.
+/// header list, the glyph painter, a colour of the palette's ink or the
+/// scale changes. The layout hands out the same list while the sheet width
+/// and `score.meta` are unchanged.
 final class HeaderPainter extends CustomPainter {
   HeaderPainter({
     required this.header,
@@ -439,21 +445,22 @@ final class HeaderPainter extends CustomPainter {
   bool shouldRepaint(HeaderPainter oldDelegate) =>
       !identical(oldDelegate.header, header) ||
       !identical(oldDelegate.glyphs, glyphs) ||
-      oldDelegate.palette != palette ||
+      !_sameInk(oldDelegate.palette, palette) ||
       oldDelegate.scale != scale;
 }
 
 /// Paints one system's drawables and its bar number. The base layer.
 ///
 /// It repaints only when the system object, the label, the glyph painter,
-/// the palette or the scale changes. The label is compared by value, so a
-/// label made again for the same number at the same place repaints
-/// nothing. Its `CustomPaint` sits alone inside a `RepaintBoundary`, under
-/// the overlay's `CustomPaint` in the tile's `Stack`. So a cursor move, a
-/// selection or a playback tick repaints the overlay and composites this
-/// layer as it is. Both painters on one `CustomPaint` would not do that,
-/// because a `CustomPaint` paints its painter and its foreground painter
-/// together.
+/// a colour of the palette's ink or the scale changes. The label is
+/// compared by value, so a label made again for the same number at the same
+/// place repaints nothing. Its `CustomPaint` sits alone inside a
+/// `RepaintBoundary`, between the highlights' `CustomPaint` and the
+/// overlay's in the tile's `Stack`. So a cursor move, a selection, a
+/// playback tick or a new style of one of them repaints those two and
+/// composites this layer as it is. All painters on one `CustomPaint` would
+/// not do that, because a `CustomPaint` paints its painter and its
+/// foreground painter together.
 final class SystemPainter extends CustomPainter {
   SystemPainter({
     required this.system,
@@ -489,14 +496,144 @@ final class SystemPainter extends CustomPainter {
       !identical(oldDelegate.system, system) ||
       oldDelegate.label != label ||
       !identical(oldDelegate.glyphs, glyphs) ||
-      oldDelegate.palette != palette ||
+      !_sameInk(oldDelegate.palette, palette) ||
       oldDelegate.scale != scale;
 }
 
-/// Paints what moves over one system, which is the selection, the tints,
-/// the playback highlight, the playhead and the caret, each in the style
-/// the palette gives it. An ink of the selection covers a tint, and the
-/// playback highlight covers both.
+/// Paints the boxes of the selection and of the sounding notes under one
+/// system, so that a fill lies behind the notes and the staff lines. The
+/// box of a sounding note lies over the box of a selected one.
+///
+/// A tick paints with the same painter, so the selection's outline is made
+/// once, on the first paint.
+final class HighlightPainter extends CustomPainter {
+  HighlightPainter({
+    required this.layout,
+    required this.index,
+    required this.selection,
+    required this.playback,
+    required this.palette,
+    required this.scale,
+  }) : super(repaint: playback);
+
+  final SheetLayout layout;
+
+  /// Which system of [layout] this tile shows.
+  final int index;
+  final Selection selection;
+  final ValueListenable<PlaybackPosition?>? playback;
+  final SheetPalette palette;
+  final SheetScale scale;
+
+  late final Path _selected = _outlineOf(
+    layout.selectionIn(index, selection),
+    palette.selection,
+  );
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (_drawsBox(palette.selection)) {
+      _mark(canvas, _selected, palette.selection);
+    }
+    final sounding = playback?.value?.sounding;
+    if (sounding != null && _drawsBox(palette.playback)) {
+      final system = layout.systemAt(index);
+      final boxes = [
+        for (final ref in sounding) ?system.boundsOf(ElementOwner(ref)),
+      ];
+      _mark(canvas, _outlineOf(boxes, palette.playback), palette.playback);
+    }
+  }
+
+  bool _drawsBox(SheetHighlight style) =>
+      style.fill != null || (style.border != null && style.borderWidth > 0);
+
+  /// One outline around [boxes], each grown by the style's padding. Boxes
+  /// that overlap make one shape, so a fill is laid once where they do and
+  /// a border does not cut through them.
+  Path _outlineOf(Iterable<Box> boxes, SheetHighlight style) {
+    final space = scale.spacePx;
+    final rects = [
+      for (final box in boxes)
+        if (scale.rectOf(box).inflate(style.padding * space) case final rect
+            when !rect.isEmpty)
+          rect,
+    ]..sort((a, b) => a.left.compareTo(b.left));
+    return rects.isEmpty
+        ? Path()
+        : _united(
+            rects,
+            0,
+            rects.length,
+            Radius.circular(style.radius * space),
+          ).$1;
+  }
+
+  /// The outline of the rects from [from] up to [to], and its bounds.
+  ///
+  /// A union of two paths costs by their size, so a chain of unions over
+  /// the boxes costs by the square of their count. The halves are united
+  /// instead, and two halves that lie apart are put side by side with no
+  /// union, which is what most boxes need.
+  (Path, Rect) _united(List<Rect> rects, int from, int to, Radius radius) {
+    if (to - from == 1) {
+      final rect = rects[from];
+      return (Path()..addRRect(RRect.fromRectAndRadius(rect, radius)), rect);
+    }
+    final middle = (from + to) ~/ 2;
+    final (left, leftBounds) = _united(rects, from, middle, radius);
+    final (right, rightBounds) = _united(rects, middle, to, radius);
+    final apart =
+        leftBounds.right < rightBounds.left ||
+        rightBounds.right < leftBounds.left ||
+        leftBounds.bottom < rightBounds.top ||
+        rightBounds.bottom < leftBounds.top;
+    return (
+      apart
+          ? (left..addPath(right, Offset.zero))
+          : Path.combine(PathOperation.union, left, right),
+      leftBounds.expandToInclude(rightBounds),
+    );
+  }
+
+  void _mark(Canvas canvas, Path outline, SheetHighlight style) {
+    if (style.fill case final fill?) {
+      canvas.drawPath(outline, Paint()..color = fill);
+    }
+    final width = style.borderWidth * scale.spacePx;
+    if (style.border case final border? when width > 0) {
+      // A line of twice the width along the outline, cut to the outline,
+      // leaves the half inside it.
+      canvas
+        ..save()
+        ..clipPath(outline)
+        ..drawPath(
+          outline,
+          Paint()
+            ..color = border
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = width * 2,
+        )
+        ..restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(HighlightPainter oldDelegate) =>
+      !identical(oldDelegate.layout, layout) ||
+      oldDelegate.index != index ||
+      !identical(oldDelegate.selection, selection) ||
+      !identical(oldDelegate.playback, playback) ||
+      oldDelegate.palette.selection != palette.selection ||
+      oldDelegate.palette.playback != palette.playback ||
+      oldDelegate.scale != scale;
+}
+
+/// Paints what lies over one system's own ink, which is the tints, the ink
+/// of the selection, the ink of the sounding notes, the playhead and the
+/// caret, each in the style the palette gives it. An ink of the selection
+/// covers a tint, and the ink of the sounding notes covers both. Their
+/// boxes are the [HighlightPainter]'s, under the system.
 ///
 /// The cursor, the selection and the tints are values of this painter, so
 /// a new one repaints through [shouldRepaint] when the view rebuilds.
@@ -506,9 +643,9 @@ final class SystemPainter extends CustomPainter {
 /// out. The system it reads is the one its tile already shows, so the read
 /// assembles nothing new.
 ///
-/// A tick paints with the same painter. So the painter finds the
-/// selection's boxes and the tinted drawables of its system once, on its
-/// first paint, and a tick costs the sounding events and the playhead.
+/// A tick paints with the same painter. So the painter finds the selected
+/// and the tinted drawables of its system once, on its first paint, and a
+/// tick costs the sounding events and the playhead.
 final class OverlayPainter extends CustomPainter {
   OverlayPainter({
     required this.layout,
@@ -535,7 +672,6 @@ final class OverlayPainter extends CustomPainter {
   final SheetScale scale;
 
   late final SystemLayout _system = layout.systemAt(index);
-  late final List<Box> _selected = layout.selectionIn(index, selection);
 
   // A ref with no drawables here (a hidden staff, another system) draws
   // nothing, so neither the tints nor the sounding events need a filter.
@@ -557,9 +693,6 @@ final class OverlayPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    for (final box in _selected) {
-      _box(canvas, box, palette.selection);
-    }
     for (final (drawable, color) in _tinted) {
       paintDrawable(canvas, drawable, glyphs, scale, color);
     }
@@ -570,21 +703,9 @@ final class OverlayPainter extends CustomPainter {
     }
 
     final position = playback?.value;
-    final sounding = [
-      for (final ref in position?.sounding ?? const <EventRef>[])
-        ElementOwner(ref),
-    ];
-    final SheetHighlight(:fill, :border, :ink) = palette.playback;
-    if (fill != null || border != null) {
-      for (final owner in sounding) {
-        if (_system.boundsOf(owner) case final box?) {
-          _box(canvas, box, palette.playback);
-        }
-      }
-    }
-    if (ink != null) {
-      for (final owner in sounding) {
-        for (final drawable in _system.drawablesOf(owner)) {
+    if (palette.playback.ink case final ink?) {
+      for (final ref in position?.sounding ?? const <EventRef>[]) {
+        for (final drawable in _system.drawablesOf(ElementOwner(ref))) {
           paintDrawable(canvas, drawable, glyphs, scale, ink);
         }
       }
@@ -609,29 +730,11 @@ final class OverlayPainter extends CustomPainter {
     }
   }
 
-  void _box(Canvas canvas, Box box, SheetHighlight style) {
-    final SheetHighlight(:fill, :border) = style;
-    final space = scale.spacePx;
-    final shape = RRect.fromRectAndRadius(
-      scale.rectOf(box).inflate(style.padding * space),
-      Radius.circular(style.radius * space),
-    );
-    if (fill != null) {
-      canvas.drawRRect(shape, Paint()..color = fill);
-    }
-    if (border != null) {
-      final width = style.borderWidth * space;
-      canvas.drawRRect(
-        shape.deflate(width / 2),
-        Paint()
-          ..color = border
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = width,
-      );
-    }
-  }
-
   void _line(Canvas canvas, Box box, SheetLine line) {
+    // A stroke of no width would draw a hairline.
+    if (line.width <= 0) {
+      return;
+    }
     final rect = scale.rectOf(box);
     canvas.drawLine(
       rect.topLeft,
@@ -651,6 +754,9 @@ final class OverlayPainter extends CustomPainter {
       !identical(oldDelegate.tints, tints) ||
       !identical(oldDelegate.playback, playback) ||
       !identical(oldDelegate.glyphs, glyphs) ||
-      oldDelegate.palette != palette ||
+      oldDelegate.palette.selection != palette.selection ||
+      oldDelegate.palette.playback != palette.playback ||
+      oldDelegate.palette.cursor != palette.cursor ||
+      oldDelegate.palette.playhead != palette.playhead ||
       oldDelegate.scale != scale;
 }
