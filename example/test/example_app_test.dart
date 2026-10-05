@@ -798,6 +798,11 @@ void main() {
 
     expect(beamsOf(scoreOf(tester), 0), [pair]);
     expect(modes(), [BeamMode.begin, BeamMode.join]);
+    expect(
+      chordAt(scoreOf(tester), beatOf(score, 0, 3)).beam,
+      BeamMode.auto,
+      reason: 'the quarter after the pair has no beam to keep off it',
+    );
 
     await tester.tap(find.byTooltip('Undo'));
     await tester.pump();
@@ -828,6 +833,27 @@ void main() {
     await tester.pump();
 
     expect(beamsOf(scoreOf(tester), 0, bar: 3), [run]);
+  });
+
+  testWidgets('Beam leaves the note after the group unbeamed when it was', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    final score = scoreOf(tester);
+    final fourth = eighthOf(score, 0, 3, bar: 3);
+    final pair = [
+      for (final eighth in [1, 2])
+        score.eventAt(eighthOf(score, 0, eighth, bar: 3))!.ref.id,
+    ];
+    await tapNoteAt(tester, fourth);
+    await press(tester, 'Unbeam');
+    await tapNoteAt(tester, eighthOf(score, 0, 1, bar: 3));
+    await press(tester, 'Widen right');
+
+    await press(tester, 'Beam');
+
+    expect(beamsOf(scoreOf(tester), 0, bar: 3), [pair]);
+    expect(chordAt(scoreOf(tester), fourth).beam, BeamMode.none);
   });
 
   testWidgets('Beam is off unless every selected chord carries a beam and '
