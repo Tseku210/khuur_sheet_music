@@ -1,9 +1,9 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khuur_sheet_music/src/painting.dart';
+import 'package:khuur_sheet_music/src/paragraph_measurer.dart';
 import 'package:score_layout/score_layout.dart';
-import 'package:simple_sheet_music/src/painting.dart';
-import 'package:simple_sheet_music/src/paragraph_measurer.dart';
 
 import 'support/draw.dart';
 import 'support/glyph_gate.dart';

@@ -2,8 +2,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khuur_sheet_music/src/painting.dart';
 import 'package:score_layout/score_layout.dart' show Glyph, SpPoint;
-import 'package:simple_sheet_music/src/painting.dart';
 
 import 'support/draw.dart';
 import 'support/glyph_gate.dart';

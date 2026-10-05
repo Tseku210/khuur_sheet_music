@@ -9,7 +9,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:simple_sheet_music/simple_sheet_music.dart';
+import 'package:khuur_sheet_music/khuur_sheet_music.dart';
 
 import '../../test/mock/fake_midi_output.dart';
 import '../../test/support/draw.dart';
@@ -437,7 +437,7 @@ void main() {
   setUpAll(
     () => loadFontFile(
       '../fonts/Bravura.otf',
-      'packages/simple_sheet_music/Bravura',
+      'packages/khuur_sheet_music/Bravura',
     ),
   );
 

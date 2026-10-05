@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:simple_sheet_music/simple_sheet_music.dart';
+import 'package:khuur_sheet_music/khuur_sheet_music.dart';
 
 /// The selected events in time order, which is what every button of the
 /// action row works on. Each event names its staff in its `ref` and its

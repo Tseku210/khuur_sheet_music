@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khuur_sheet_music/src/painting.dart';
 import 'package:score_layout/score_layout.dart';
 import 'package:score_layout/src/bar_layout.dart';
 import 'package:score_layout/src/bar_space.dart';
@@ -8,7 +9,6 @@ import 'package:score_layout/src/beams.dart';
 import 'package:score_layout/src/signatures.dart';
 import 'package:score_layout/src/spacing.dart';
 import 'package:score_model/score_model.dart';
-import 'package:simple_sheet_music/src/painting.dart';
 
 import '../packages/score_layout/test/support/bars.dart';
 import '../packages/score_layout/test/support/fake_measurer.dart';

@@ -4,8 +4,8 @@ library;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
+import 'package:khuur_sheet_music/src/painting.dart';
 import 'package:score_layout/score_layout.dart';
-import 'package:simple_sheet_music/src/painting.dart';
 
 /// More glyphs than a dense phone screen of music holds.
 const glyphCount = 3000;

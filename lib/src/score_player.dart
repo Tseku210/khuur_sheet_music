@@ -3,9 +3,9 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:khuur_sheet_music/src/midi_output.dart';
+import 'package:khuur_sheet_music/src/sound_font.dart';
 import 'package:score_model/score_model.dart';
-import 'package:simple_sheet_music/src/midi_output.dart';
-import 'package:simple_sheet_music/src/sound_font.dart';
 
 /// Plays a score over MIDI and reports where it is, for the sheet to show.
 ///

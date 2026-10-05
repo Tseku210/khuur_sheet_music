@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:simple_sheet_music/src/midi_output.dart';
-import 'package:simple_sheet_music/src/sound_font.dart';
+import 'package:khuur_sheet_music/src/midi_output.dart';
+import 'package:khuur_sheet_music/src/sound_font.dart';
 
 /// A note on as [FakeMidiOutput] received it, with the wall second it
 /// arrived at.

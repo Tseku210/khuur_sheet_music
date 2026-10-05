@@ -1,6 +1,6 @@
 import 'package:flutter/painting.dart';
+import 'package:khuur_sheet_music/src/painting.dart';
 import 'package:score_layout/score_layout.dart';
-import 'package:simple_sheet_music/src/painting.dart';
 
 /// Measures layout text with the `dart:ui` paragraphs the painter draws.
 /// Not exported.

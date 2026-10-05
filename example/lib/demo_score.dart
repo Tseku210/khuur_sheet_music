@@ -1,4 +1,4 @@
-import 'package:simple_sheet_music/simple_sheet_music.dart';
+import 'package:khuur_sheet_music/khuur_sheet_music.dart';
 
 /// The opening of Beethoven's "Für Elise", WoO 59, for one piano on two
 /// staves. It is a pickup of an eighth and eight bars of 3/8, at 120 eighths

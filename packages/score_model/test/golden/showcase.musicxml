@@ -9,7 +9,7 @@
     <creator type="lyricist">Anon.</creator>
     <rights>CC0</rights>
     <encoding>
-      <software>simple_sheet_music</software>
+      <software>khuur_sheet_music</software>
       <supports element="accidental" type="yes"/>
       <supports element="beam" type="yes"/>
       <supports element="print" attribute="new-page" type="yes" value="yes"/>

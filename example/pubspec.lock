@@ -162,6 +162,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.0"
+  khuur_sheet_music:
+    dependency: "direct main"
+    description:
+      path: ".."
+      relative: true
+    source: path
+    version: "1.0.0"
   leak_tracker:
     dependency: transitive
     description:
@@ -360,13 +367,6 @@ packages:
       relative: true
     source: path
     version: "0.0.0"
-  simple_sheet_music:
-    dependency: "direct main"
-    description:
-      path: ".."
-      relative: true
-    source: path
-    version: "1.0.0"
   sky_engine:
     dependency: transitive
     description: flutter

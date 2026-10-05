@@ -1,4 +1,4 @@
-name: simple_sheet_music
+name: khuur_sheet_music
 description: Sheet music for Flutter. A scrolling, editable view of a score, with an immutable score model, a layout engine and MIDI playback.
 version: 1.0.0
 publish_to: none

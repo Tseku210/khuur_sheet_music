@@ -9,13 +9,13 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khuur_sheet_music/src/painting.dart';
+import 'package:khuur_sheet_music/src/paragraph_measurer.dart';
+import 'package:khuur_sheet_music/src/score_player.dart';
+import 'package:khuur_sheet_music/src/sheet_palette.dart';
+import 'package:khuur_sheet_music/src/sheet_view.dart';
 import 'package:score_layout/score_layout.dart';
 import 'package:score_model/score_model.dart';
-import 'package:simple_sheet_music/src/painting.dart';
-import 'package:simple_sheet_music/src/paragraph_measurer.dart';
-import 'package:simple_sheet_music/src/score_player.dart';
-import 'package:simple_sheet_music/src/sheet_palette.dart';
-import 'package:simple_sheet_music/src/sheet_view.dart';
 
 import '../packages/score_model/test/support.dart';
 import 'sheet_picture_test.dart' show edit, inkOf, pictured, sheetWidth, violin;

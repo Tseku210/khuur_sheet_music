@@ -6,7 +6,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_midi_pro/flutter_midi_pro.dart';
-import 'package:simple_sheet_music/src/sound_font.dart';
+import 'package:khuur_sheet_music/src/sound_font.dart';
 
 /// Where `ScorePlayer` sends a script's notes.
 ///

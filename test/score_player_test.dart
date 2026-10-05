@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:score_model/score_model.dart';
-import 'package:simple_sheet_music/simple_sheet_music.dart'
+import 'package:khuur_sheet_music/khuur_sheet_music.dart'
     show AssetSoundFont, PlaybackPosition, PlayerStatus, ScorePlayer;
+import 'package:score_model/score_model.dart';
 
 import '../packages/score_model/test/support.dart'
     show

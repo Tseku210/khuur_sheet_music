@@ -5,10 +5,10 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
+import 'package:khuur_sheet_music/src/score_player.dart';
+import 'package:khuur_sheet_music/src/sheet_palette.dart';
 import 'package:score_layout/score_layout.dart';
 import 'package:score_model/score_model.dart';
-import 'package:simple_sheet_music/src/score_player.dart';
-import 'package:simple_sheet_music/src/sheet_palette.dart';
 
 /// The one conversion between staff spaces and logical pixels.
 ///
@@ -267,7 +267,7 @@ final class GlyphPainter {
   String get family =>
       font.family == SmuflFont.bravura.family &&
           identical(font.glyphs, SmuflFont.bravura.glyphs)
-      ? 'packages/simple_sheet_music/Bravura'
+      ? 'packages/khuur_sheet_music/Bravura'
       : font.family;
 
   /// Draws [glyph] with its SMuFL origin at [origin], a point in staff

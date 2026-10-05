@@ -2,11 +2,11 @@ import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khuur_sheet_music/khuur_sheet_music.dart';
+import 'package:khuur_sheet_music/src/painting.dart';
+import 'package:khuur_sheet_music/src/paragraph_measurer.dart';
 import 'package:score_layout/score_layout.dart'
     show CurveDraw, LineDraw, SheetLayout, SpPoint, TextDraw;
-import 'package:simple_sheet_music/simple_sheet_music.dart';
-import 'package:simple_sheet_music/src/painting.dart';
-import 'package:simple_sheet_music/src/paragraph_measurer.dart';
 
 import 'sheet_palette_test.dart' show clear, quiet, red;
 import 'sheet_picture_test.dart' show pictured, sheetWidth;

@@ -10,8 +10,8 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:khuur_sheet_music/src/painting.dart';
 import 'package:score_layout/score_layout.dart';
-import 'package:simple_sheet_music/src/painting.dart';
 
 /// A pixel rectangle with fractional edges, in device pixels.
 typedef Ink = ({double left, double top, double right, double bottom});

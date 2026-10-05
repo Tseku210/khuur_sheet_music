@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:example/demo_score.dart';
 import 'package:example/selection_actions.dart';
 import 'package:flutter/material.dart';
-import 'package:simple_sheet_music/simple_sheet_music.dart';
+import 'package:khuur_sheet_music/khuur_sheet_music.dart';
 
 void main() => runApp(const ExampleApp());
 
@@ -21,7 +21,7 @@ class ExampleApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'simple_sheet_music',
+    title: 'khuur_sheet_music',
     debugShowCheckedModeBanner: false,
     theme: ThemeData(colorSchemeSeed: Colors.indigo),
     darkTheme: ThemeData(
@@ -275,7 +275,7 @@ class _ScorePageState extends State<ScorePage>
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('simple_sheet_music'),
+      title: const Text('khuur_sheet_music'),
       actions: [
         PopupMenuButton(
           tooltip: 'New sheet',

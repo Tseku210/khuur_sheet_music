@@ -1,4 +1,4 @@
-import 'package:simple_sheet_music/simple_sheet_music.dart';
+import 'package:khuur_sheet_music/khuur_sheet_music.dart';
 
 /// The tune the page's tests edit and play. Eight bars of 4/4 in C major at
 /// 96 beats a minute for one piano on two staves. The right hand has a

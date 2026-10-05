@@ -1,5 +1,5 @@
 name: example
-description: Example app for the simple_sheet_music package.
+description: Example app for the khuur_sheet_music package.
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -9,7 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  simple_sheet_music:
+  khuur_sheet_music:
     path: ../
 
 dev_dependencies:

@@ -137,7 +137,7 @@ final class _Export {
             _text('creator', meta.lyricist, {'type': 'lyricist'}),
           if (meta.copyright.isNotEmpty) _text('rights', meta.copyright),
           _el('encoding', [
-            _text('software', 'simple_sheet_music'),
+            _text('software', 'khuur_sheet_music'),
             _el('supports', const [], {'element': 'accidental', 'type': 'yes'}),
             _el('supports', const [], {'element': 'beam', 'type': 'yes'}),
             for (final attribute in ['new-page', 'new-system'])
