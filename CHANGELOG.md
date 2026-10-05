@@ -53,7 +53,7 @@
   | `SoundFont`, `AssetSoundFont`, `FileSoundFont` | Unchanged |
   | Per-symbol `color` | `SheetView.tints` |
   | Per-symbol `margin` | Nothing for one symbol. `EngravingStyle.spacing`, a `SpacingPolicy`, sets the spacing of the whole score |
-  | `debug`, `GlyphMetadata`, `GlyphPaths`, `MeasureMetrics` exports | Deleted with nothing in their place |
+  | The `debug` parameter, and the `GlyphMetadata`, `GlyphPaths` and `MeasureMetrics` exports | Deleted with nothing in their place |
 
 * **Breaking:** The package no longer bundles a SoundFont. The 261 MB `touhou.sf2` added that much to every app using the package, even with MIDI off. Pass `AssetSoundFont(...)` or `FileSoundFont(...)` to `ScorePlayer` instead. This replaces `enableMidi`, `soundFontType` and `customSoundFontPath`. `SoundFontType` is removed.
 * **Breaking:** The package no longer bundles Petaluma, or any font as SVG. It draws music with `fonts/Bravura.otf`.

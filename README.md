@@ -8,7 +8,7 @@ One import gives the score model, the view and the player.
 import 'package:khuur_sheet_music/khuur_sheet_music.dart';
 ```
 
-The package is not on pub.dev. Depend on a checkout by path, as `example/pubspec.yaml` does. It needs Dart 3.13 or later.
+The package is not on pub.dev. Depend on a checkout by path, as `example/pubspec.yaml` does. It needs Dart 3.13 and Flutter 3.47 or later.
 
 ## Show a score
 
