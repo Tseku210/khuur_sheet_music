@@ -3896,6 +3896,68 @@ void main() {
     },
   );
 
+  for (final (gone, kept) in const [('late', 'early'), ('early', 'late')]) {
+    testWidgets(
+      'a controller that two views share serves the $kept one when the '
+      '$gone one goes',
+      (tester) async {
+        final controller = SheetController();
+        addTearDown(controller.dispose);
+        final scores = {
+          'early': tune(bars: 8),
+          'late': tune(bars: 2, high: {0}),
+        };
+        Widget views(List<String> names) => Directionality(
+          textDirection: TextDirection.ltr,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final name in names)
+                SizedBox(
+                  width: 400,
+                  height: 250,
+                  child: SheetView(
+                    key: ValueKey(name),
+                    score: scores[name]!,
+                    controller: controller,
+                  ),
+                ),
+            ],
+          ),
+        );
+        int systemsOf(String name) => tester
+            .widgetList<CustomPaint>(
+              find.descendant(
+                of: find.byKey(ValueKey(name)),
+                matching: paintedBy<OverlayPainter>(),
+              ),
+            )
+            .map((paint) => paint.painter! as OverlayPainter)
+            .first
+            .layout
+            .systemCount;
+        await tester.pumpWidget(views(['early', 'late']));
+        expect(systemsOf('early'), isNot(systemsOf('late')));
+        expect(controller.systemCount, systemsOf('late'));
+
+        await tester.pumpWidget(views([kept]));
+        final layout = shown(tester);
+        expect(controller.systemCount, layout.systemCount);
+        final head = headOf(scores[kept]!, 0, 1);
+        expect(
+          controller.rectOf(head)!.center,
+          within(distance: 1e-6, from: middleOf(tester, head)),
+        );
+        final image = await imageOf(tester, controller);
+        final last = layout.systemCount - 1;
+        expect(
+          image.height,
+          ((layout.tops[last] + layout.heightOf(last)) * staffSpace).ceil(),
+        );
+      },
+    );
+  }
+
   test('a controller refuses a zoom that is not positive and finite', () {
     expect(() => SheetController(zoom: 0), throwsArgumentError);
     final controller = SheetController();

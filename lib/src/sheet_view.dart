@@ -142,16 +142,28 @@ class SheetView extends StatefulWidget {
 /// The view itself listens only to the zoom. A scroll or a new layout
 /// notifies the app's listeners and builds nothing in the view.
 ///
-/// A controller serves the view that took it last. Every query answers
-/// null, nothing or zero while no view has the controller, and before that
-/// view's first frame. A view that takes the controller or lets it go
-/// notifies no one.
+/// Views may share a controller. Each of them is drawn at its zoom, and a
+/// scroll or a new layout of any of them notifies its listeners. The
+/// queries, [ensureVisible] and [toImage] are for the view that took the
+/// controller last of those that still have it, so when that view goes,
+/// the one that took it before is served again. Every query answers null,
+/// nothing or zero while no view has the controller, and before the first
+/// frame of the view it serves. A view that takes the controller or lets
+/// it go notifies no one.
 class SheetController extends ChangeNotifier {
   /// Throws an [ArgumentError] unless [zoom] is positive and finite.
   SheetController({double zoom = 1}) : _zoom = ValueNotifier(_checked(zoom));
 
   final ValueNotifier<double> _zoom;
-  _SheetViewState? _view;
+
+  /// The views that have this controller, in the order they took it. More
+  /// than one has it when views share it, and for a frame when a view takes
+  /// another's place, since its `initState` runs before the other is
+  /// disposed.
+  final List<_SheetViewState> _views = [];
+
+  /// The view the queries are for.
+  _SheetViewState? get _view => _views.lastOrNull;
 
   static double _checked(double zoom) {
     if (!(zoom > 0 && zoom.isFinite)) {
@@ -491,18 +503,14 @@ class _SheetViewState extends State<SheetView> {
 
   void _attach(SheetController controller) {
     controller
-      .._view = this
+      .._views.add(this)
       .._zoom.addListener(_rebuild);
   }
 
-  /// A view that takes this one's place takes the controller in its
-  /// `initState`, which runs before this one is disposed. So the controller
-  /// is let go only while it is still this view's.
   void _detach(SheetController controller) {
-    controller._zoom.removeListener(_rebuild);
-    if (identical(controller._view, this)) {
-      controller._view = null;
-    }
+    controller
+      .._zoom.removeListener(_rebuild)
+      .._views.remove(this);
   }
 
   @override
