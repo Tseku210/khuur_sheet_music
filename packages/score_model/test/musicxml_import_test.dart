@@ -127,6 +127,18 @@ List<String> items(
   VoiceSlot slot = VoiceSlot.one,
 }) => describe(score.measures[bar].staves[staff].voice(slot)!.items);
 
+/// The bars [score] plays, in order, by their place in the score.
+List<int> playOrder(Score score) => [
+  for (final bar in PlaybackCompiler().compile(score).bars)
+    score.indexOf(bar.measure),
+];
+
+/// The jump of [bar]: where it goes, where it ends and its own words.
+(JumpTarget, JumpThen, String?) jumpIn(Score score, int bar) {
+  final jump = score.measures[bar].navigation.whereType<Jump>().single;
+  return (jump.target, jump.then, jump.text);
+}
+
 List<ChordEvent> chordsIn(Score score, int bar) => [
   for (final voice in score.measures[bar].staves.first.voices)
     for (final item in voice.items)
@@ -691,7 +703,8 @@ void main() {
     });
 
     test('reads back every score the edits make', () {
-      for (final seed in [1, 2, 3, 22]) {
+      // Seed 102 plays a jump with words of its own to a Fine.
+      for (final seed in [1, 2, 3, 22, 102]) {
         final random = Random(seed);
         var score = blankScore(
           parts: const [morinKhuur, clarinet, drums, piano],
@@ -704,6 +717,7 @@ void main() {
           final back = scoreFromMusicXml(text);
 
           expect(scoreToMusicXml(back), text, reason: where);
+          expect(playOrder(back), playOrder(score), reason: where);
           expect(() => reloaded(back), returnsNormally, reason: where);
         }
       }
@@ -1751,6 +1765,97 @@ void main() {
         [
           (90, null),
         ],
+      );
+    });
+
+    test('plays a jump with words of its own to where it is set to end', () {
+      var score = blankScore(bars: 4);
+      score = changeBar(
+        score,
+        1,
+        (column) => column.copyWith(navigation: Seq(const [Fine()])),
+      );
+      score = changeBar(
+        score,
+        3,
+        (column) => column.copyWith(
+          navigation: Seq(const [
+            Jump(JumpTarget.start, then: JumpThen.toFine, text: 'Da Capo'),
+          ]),
+        ),
+      );
+      final back = scoreFromMusicXml(scoreToMusicXml(score));
+
+      expect(playOrder(back), [0, 1, 2, 3, 0, 1]);
+      expect(jumpIn(back, 3), (JumpTarget.start, JumpThen.toFine, 'Da Capo'));
+    });
+
+    test('keeps where a jump ends, whatever its words say', () {
+      for (final target in JumpTarget.values) {
+        for (final then in JumpThen.values) {
+          for (final text in [
+            null,
+            'Da Capo',
+            'Да капо',
+            'D.C.',
+            'D.C. al Fine',
+            'D.S. al Coda',
+            'dal segno AL FINE',
+          ]) {
+            final jump = Jump(target, then: then, text: text);
+            final score = changeBar(
+              blankScore(),
+              1,
+              (column) => column.copyWith(navigation: Seq([jump])),
+            );
+            final back =
+                scoreFromMusicXml(
+                      scoreToMusicXml(score),
+                    ).measures[1].navigation.single
+                    as Jump;
+
+            expect(
+              (back.target, back.then, back.label),
+              (target, then, jump.label),
+              reason: '$target, $then, $text',
+            );
+          }
+        }
+      }
+    });
+
+    test('reads where a jump ends from standard words beside its own', () {
+      (JumpTarget, JumpThen, String?) jumpOf(
+        String words,
+        String other,
+        String sound,
+      ) => jumpIn(
+        imported(
+          flute([
+            [
+              opening(),
+              note('C5', 16, 'whole'),
+              direction([
+                '<words>$words</words>',
+                '<other-direction>$other</other-direction>',
+              ], more: '<sound $sound/>'),
+            ],
+          ]),
+        ),
+        0,
+      );
+
+      expect(
+        jumpOf('Da Capo', ' D.C. al Coda ', 'dacapo="yes"'),
+        (JumpTarget.start, JumpThen.toCoda, 'Da Capo'),
+      );
+      expect(
+        jumpOf('Dal Segno al Fine', 'Swing', 'dalsegno="s"'),
+        (JumpTarget.segno, JumpThen.toFine, 'Dal Segno al Fine'),
+      );
+      expect(
+        jumpOf('Dal Segno', 'D.C. al Fine', 'dalsegno="s"'),
+        (JumpTarget.segno, JumpThen.toEnd, 'Dal Segno'),
       );
     });
 

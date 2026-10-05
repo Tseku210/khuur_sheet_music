@@ -10,7 +10,9 @@
 /// carries `<transpose>`. Accidentals, ties, beams and tuplet brackets come
 /// from the measure views, as layout draws them. Tempo, rehearsal and
 /// navigation marks are written once, on the top staff of the first shown
-/// part. A hidden part is kept, with its staves marked unprinted.
+/// part. A jump whose words say another ending than its own writes its
+/// standard words beside them, unprinted. A hidden part is kept, with its
+/// staves marked unprinted.
 ///
 /// A slur, glissando or trill line is written on the notes at its ends. A
 /// hairpin, octave line, pedal line or tempo line is a direction at its
@@ -803,8 +805,14 @@ XmlElement _navigation(NavigationMark mark, XmlElement? staff) {
     Coda() => ([_el('coda')], {'coda': 'coda'}),
     ToCoda(:final label) => ([_text('words', label)], {'tocoda': 'coda'}),
     Fine(:final label) => ([_text('words', label)], {'fine': 'yes'}),
-    Jump(:final target, :final label) => (
-      [_text('words', label)],
+    Jump(:final target, :final then, :final label) => (
+      [
+        _text('words', label),
+        if (jumpEndingIn(label) != then)
+          _text('other-direction', Jump(target, then: then).label, {
+            'print-object': 'no',
+          }),
+      ],
       target == JumpTarget.start ? {'dacapo': 'yes'} : {'dalsegno': 'segno'},
     ),
   };

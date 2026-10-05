@@ -167,6 +167,20 @@ Barline barlineByStyle(String style, {required bool repeats}) =>
               .firstOrNull ??
           Barline.regular;
 
+/// Where a jump's [words] say it ends: at the Fine or the coda they name,
+/// in any case, else at the end of the score. MusicXML has no element for
+/// it. Where a jump's words say another ending than its own, export writes
+/// the jump's standard words beside them in an `<other-direction>` that
+/// does not print, and import reads the ending from those.
+JumpThen jumpEndingIn(String words) {
+  final lower = words.toLowerCase();
+  return lower.contains('al fine')
+      ? JumpThen.toFine
+      : lower.contains('al coda')
+      ? JumpThen.toCoda
+      : JumpThen.toEnd;
+}
+
 String clefSignName(ClefSign sign) => switch (sign) {
   ClefSign.g => 'G',
   ClefSign.f => 'F',

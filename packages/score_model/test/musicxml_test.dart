@@ -1055,7 +1055,30 @@ void main() {
       );
       expect(
         jump(const Jump(JumpTarget.start, text: 'Da capo')),
-        contains('<words>Da capo</words>'),
+        joined('''
+          P1 m0 @1 <direction placement="above"><direction-type><words>Da capo</words>
+          </direction-type><sound dacapo="yes"/></direction>
+        '''),
+      );
+      expect(
+        jump(
+          const Jump(JumpTarget.start, then: JumpThen.toFine, text: 'Da capo'),
+        ),
+        joined('''
+          P1 m0 @1 <direction placement="above"><direction-type><words>Da capo</words>
+          </direction-type><direction-type><other-direction print-object="no">
+          D.C. al Fine</other-direction></direction-type><sound dacapo="yes"/>
+          </direction>
+        '''),
+      );
+      expect(
+        jump(const Jump(JumpTarget.segno, text: 'D.S. al Coda')),
+        joined('''
+          P1 m0 @1 <direction placement="above"><direction-type>
+          <words>D.S. al Coda</words></direction-type><direction-type>
+          <other-direction print-object="no">D.S.</other-direction>
+          </direction-type><sound dalsegno="segno"/></direction>
+        '''),
       );
     });
 

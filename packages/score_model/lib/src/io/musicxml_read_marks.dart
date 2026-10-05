@@ -198,10 +198,10 @@ NavigationMark? _navigation(
   String? words,
 ) {
   if (sound?.getAttribute('dacapo') == 'yes') {
-    return _jump(JumpTarget.start, words);
+    return _jump(JumpTarget.start, types, words);
   }
   if (sound?.getAttribute('dalsegno') != null) {
-    return _jump(JumpTarget.segno, words);
+    return _jump(JumpTarget.segno, types, words);
   }
   if (sound?.getAttribute('tocoda') != null) {
     return const ToCoda();
@@ -226,15 +226,23 @@ NavigationMark? _navigation(
   return null;
 }
 
-Jump _jump(JumpTarget target, String? words) {
-  final lower = words?.toLowerCase() ?? '';
-  final then = lower.contains('al fine')
-      ? JumpThen.toFine
-      : lower.contains('al coda')
-      ? JumpThen.toCoda
-      : JumpThen.toEnd;
-  final plain = Jump(target, then: then);
-  return words == plain.label ? plain : Jump(target, then: then, text: words);
+/// The jump to [target] that prints [words]. It ends where its standard
+/// words in an `<other-direction>` among [types] say, else where [words]
+/// say.
+Jump _jump(JumpTarget target, List<XmlElement> types, String? words) {
+  final beside = {
+    for (final type in types)
+      if (type.name.local == 'other-direction') type.innerText.trim(),
+  };
+  final plain =
+      JumpThen.values
+          .map((then) => Jump(target, then: then))
+          .where((jump) => beside.contains(jump.label))
+          .firstOrNull ??
+      Jump(target, then: jumpEndingIn(words ?? ''));
+  return words == plain.label
+      ? plain
+      : Jump(target, then: plain.then, text: words);
 }
 
 /// The tempo of the first metronome among [types] that states one, else of
