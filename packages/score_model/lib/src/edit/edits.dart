@@ -667,7 +667,8 @@ final class SetMeterDisplay extends Edit {
 /// Every pasted entity gets a new id. Voices keep their slots, and staves
 /// beyond the bottom of the score are dropped. A head keeps its string only
 /// when the instrument it lands on has that string. A tie into the pasted music,
-/// or out of it onto a head, is cleared. The pasted range becomes the
+/// or out of it onto a head, is cleared. So is the tie of a note the paste
+/// cuts short, when it ended on a head. The pasted range becomes the
 /// selection and the cursor stays. Refused with [StaleReference] for a gone
 /// bar or staff, [OutsideMeasure] for a point outside its bar, and
 /// [InvalidValue] for a note that does not suit the staff it lands on, as

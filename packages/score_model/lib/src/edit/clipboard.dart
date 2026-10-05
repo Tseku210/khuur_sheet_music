@@ -285,18 +285,22 @@ _Result _paste(
     }
     final strings = score.partOf(staves[lane.staff]).instrument.strings.length;
     for (final run in _runs(lane.items)) {
+      final start = VoicePoint(
+        staff: staves[lane.staff],
+        voice: lane.voice,
+        at: place(run.offset),
+      );
+      final ringing = _ringingPastCut(pasted, start);
       final write = _overwrite(
         pasted,
-        VoicePoint(
-          staff: staves[lane.staff],
-          voice: lane.voice,
-          at: place(run.offset),
-        ),
+        start,
         [for (final item in run.items) _remint(item, ids, strings)],
         ids,
         overfill,
       );
-      pasted = write.score;
+      pasted = ringing == null
+          ? write.score
+          : _untieInto(write.score, start, ringing);
       written.addAll(write.events);
     }
   }
@@ -356,6 +360,34 @@ _Result _paste(
     }
   }
   return _Result(untied, selection: range);
+}
+
+/// The tones whose ties ring on, of the note that a write at [at] cuts
+/// short. Null when the write cuts no note whose tie ends on a head. The
+/// write parts such a tie from its head, and the tie would read as one
+/// that rings on.
+Set<Tone>? _ringingPastCut(Score score, VoicePoint at) {
+  final bar = score.column(at.at.measure);
+  final voice = bar.staff(at.staff).voice(at.voice);
+  if (voice == null) {
+    return null;
+  }
+  for (final timed in timedEvents(voice, measure: bar.id, staff: at.staff)) {
+    final event = timed.event;
+    if (event is ChordEvent &&
+        timed.onset < at.at.offset &&
+        at.at.offset < timed.onset + timed.duration) {
+      final next = _next(score, timed);
+      bool ends(Note note) => _tieMoves(note, next, null);
+      return event.notes.any(ends)
+          ? {
+              for (final note in event.notes)
+                if (note.tie && !ends(note)) note.tone,
+            }
+          : null;
+    }
+  }
+  return null;
 }
 
 /// [timed]'s chord without the ties that lead into or out of the music
