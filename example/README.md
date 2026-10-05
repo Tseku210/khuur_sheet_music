@@ -40,3 +40,5 @@ Editions beam each run of sixteenths whole. The meter alone starts a new beam at
 ## The SoundFont
 
 `assets/soundfonts/piano.sf2` is Upright Piano KW (small) from FreePats, released under CC0. Its readme and its licence are beside it.
+
+The page plays through a reverb, `_reverb` in `lib/main.dart`. On iOS and macOS its numbers pick the medium hall and make the reverb three tenths of the sound. Nobody has listened to it on Android.

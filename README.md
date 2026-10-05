@@ -201,6 +201,26 @@ Each part plays the program and the bank of its `Instrument`, so the SoundFont n
 
 The example app ships a 9.5 MB piano, `example/assets/soundfonts/piano.sf2`. It is [Upright Piano KW (small)](https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html#UprightKW) from FreePats, a sampled Kawai upright released under CC0. Its readme and license are next to it.
 
+### Add reverb
+
+The player asks the synthesizer for no reverb. To play with one, pass the output yourself.
+
+```dart
+late final _player = ScorePlayer(
+  soundFont: const AssetSoundFont('assets/soundfonts/piano.sf2'),
+  vsync: this,
+  output: FlutterMidiOutput(
+    reverb: const MidiReverb(roomSize: 0.5, level: 0.3),
+  ),
+);
+```
+
+The two numbers do not mean the same on every platform, so neither has a default. iOS and macOS have six rooms, from a small room to a cathedral, and pick one by `roomSize`. They take `level` as the reverb's share of the whole sound. Android gives `roomSize`, `level`, `damping` and `width` to FluidSynth, where `level` is the reverb's own output level. Listen on each platform your app ships to.
+
+`flutter_midi_pro` is one synthesizer for the whole process. The output that loaded last decides the reverb for every output, and an output with no reverb turns it off.
+
+`output` also takes your own `MidiOutput`, to play through another synthesizer.
+
 ## Place widgets over the sheet
 
 The controller reports geometry in the view's local pixels, with scrolling applied. It notifies when a scroll, a zoom or a new layout moves that geometry. So an app can place its own widgets over the sheet, such as a delete badge at the selected note.

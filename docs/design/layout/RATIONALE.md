@@ -184,7 +184,7 @@ lib/ (khuur_sheet_music)     Flutter shell; depends on both packages and flutter
   painting.dart              SheetScale, GlyphPainter, HeaderPainter, SystemPainter, OverlayPainter (internal)
   paragraph_measurer.dart    ParagraphMeasurer implements TextMeasurer (internal)
   score_player.dart          ScorePlayer, PlayerStatus, PlaybackPosition
-  midi_output.dart           MidiOutput, FlutterMidiOutput (internal)
+  midi_output.dart           MidiOutput, FlutterMidiOutput, MidiReverb
   sound_font.dart            unchanged
 fonts/Bravura.otf, fonts/OFL.txt
 ```
@@ -1160,7 +1160,7 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
 **Unit 12.**
 - The unit ran before unit 11. That is safe because the player reads only `score_model` and publishes `position` as a `ValueListenable`, which is all `SheetView.playback` takes. It uses nothing of `SheetView` or `SheetLayout`, and its file does not import `score_layout`.
 - The constructor takes two optional seams, `output` and `now`. A test passes the fake `MidiOutput` of `test/mock/` and a wall time it controls. An app passes neither and gets `FlutterMidiOutput` and a `Stopwatch`. The timer is a `dart:async` timer, which a widget test already fakes, so it needs no seam of its own.
-- `MidiOutput` is in `lib/src/midi_output.dart`. It has `load`, `program`, `noteOn`, `noteOff`, `allNotesOff` and `dispose`. It was not exported at first. The owner chose on 2026-10-04 to export it, so an app can bring its own synthesizer. `FlutterMidiOutput` stays internal as the default.
+- `MidiOutput` is in `lib/src/midi_output.dart`. It has `load`, `program`, `noteOn`, `noteOff`, `allNotesOff` and `dispose`. It was not exported at first. The owner chose on 2026-10-04 to export it, so an app can bring its own synthesizer. `FlutterMidiOutput` stayed internal as the default until 2026-10-06, when the reverb below made it public.
 - The note timer also sends the note offs. The design had it send each note, but the plugin holds a key until `stopNote`. So the timer sleeps until the next start or end of a note, and the player keeps the script second at which each sounding key ends.
 - A timer set for a script second treats that second as reached when it fires. The wall time of a script second is rounded to a microsecond, and a platform's timer can be coarser than that, so a timer can fire a moment early. Reading the clock alone then sent nothing and set a timer of no length, again and again.
 - A note that both starts and ends while the isolate is busy is not sent. A note that started in the stall and still sounds is sent late and ends on time.
@@ -1485,6 +1485,16 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
   - **A bank over 255 is a missing preset**, and **a controller keeps every view that has it.** Both are recorded where the adapter and the controller are described above.
   - After the review the suites hold 207 tests at the root, 828 in the model, 574 in the layout and 90 in the example, and all pass. `flutter analyze` reports no issues and the format check changes no file.
   - Not changed, and open. A folded rest run narrower than about five spaces draws its bar inside out. `EngravingStyle` and `SpacingPolicy` take any number, and a ratio of 0 throws from the beam's snap. `_placeRun` in `spanners.dart` builds the same row and body four times. List equality is written by hand in seven files. `sheet_view.dart` holds the scroll driver beside the widget.
+
+- **A reverb for the adapter.** The owner said yes on 2026-10-06 to a reverb as an option of `FlutterMidiOutput`, off by default and on in the example. The points below are deviations accepted during implementation, which the owner has not yet reviewed.
+  - **`MidiReverb` is an option of `FlutterMidiOutput`, and null is off.** `FlutterMidiOutput(reverb: ...)` takes a `MidiReverb` of `roomSize`, `level`, `damping` and `width`. `MidiOutput` and `ScorePlayer` do not change, since an app that brings its own synthesizer brings its own reverb. A `reverb` on `ScorePlayer` was rejected, because it would mean nothing beside an `output` of the app's own.
+  - **`FlutterMidiOutput` is exported.** An app cannot name the option otherwise. This reverses the choice of 2026-10-04 to keep it internal.
+  - **`roomSize` and `level` have no default.** The plugin gives the four numbers to FluidSynth on Android. On iOS and macOS it picks one of six `AVAudioUnitReverb` rooms by `roomSize`, takes `level` as the wet share of the whole sound, and ignores the other two. The plugin's own default level of 0.9 is nine tenths wet there. No one number is right on both, so the app chooses.
+  - **Every `load` sets the reverb, after `init` ends and before the SoundFont loads.** The reverb is the one synthesizer's, so an output with none sends `enabled: false`, or it would play through what an earlier output left on. The output that loaded last decides it for all. On Android the native call does nothing and reports success while the synthesizer is not built, and the plugin's `isInitialized` is true from the start of `init`, so the order is tested. `dispose` leaves the reverb as it is.
+  - **A number out of range is held, not refused.** `width` is held to 0 to 100, FluidSynth's range, and the others to 0 to 1. A number that is not a number is sent as 0, because Dart's `clamp` would send it as the top of the range, which is all reverb on iOS and macOS. The type asserts nothing, so a debug build and a release build agree. `SheetLine` and `SheetHighlight` assert their ranges, and that difference is open.
+  - The example plays through `MidiReverb(roomSize: 0.5, level: 0.3)`, the medium hall at three tenths wet on iOS and macOS. The numbers were chosen without listening.
+  - The root has 214 tests now, of which 7 are the reverb's. The engine did not change, so the benchmark was not run again.
+  - Not verified. Nobody has listened to the reverb. A device test that plays nothing showed that the real plugin on macOS takes the reverb and loads a SoundFont after it. No iOS or Android device ran it. On Android, FluidSynth sends each voice to its reverb by the SoundFont's reverb send and by MIDI controller 91, which the adapter does not set, so the reverb may be faint or silent there. The example's one line that passes the reverb is compiled and not tested, since the page's tests pass a fake output.
 
 ## Open questions and risks
 
