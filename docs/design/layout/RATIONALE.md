@@ -1496,6 +1496,12 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
   - The root has 214 tests now, of which 7 are the reverb's. The engine did not change, so the benchmark was not run again.
   - Not verified. Nobody has listened to the reverb. A device test that plays nothing showed that the real plugin on macOS takes the reverb and loads a SoundFont after it. No iOS or Android device ran it. On Android, FluidSynth sends each voice to its reverb by the SoundFont's reverb send and by MIDI controller 91, which the adapter does not set, so the reverb may be faint or silent there. The example's one line that passes the reverb is compiled and not tested, since the page's tests pass a fake output.
 
+- **The example's full piano.** The owner asked for a better piano than the example's, and said on 2026-10-06 to update it before the pull request.
+  - It is the full Upright Piano KW, version 2022-02-21 from FreePats, under CC0 as before. It is 57,377,848 bytes, in stereo, with two loudness layers and 38 sampled keys. The one before was 9,456,310 bytes, in mono, with one layer and 26 sampled keys. The package still bundles no SoundFont.
+  - The example app grows by 48 MB. GitHub warns about a file over 50 MiB and refuses one over 100, and this one is 54.7.
+  - On macOS in a debug build, one run each, the plugin loaded the full piano in 0.16 s and the process held about 140 MiB more after it. The small one took 0.06 s and about 40 MiB. The plugin gives each of the 16 channels its own sampler, and each loads the piano.
+  - Not verified. Nobody has listened to it. A device test that plays nothing showed that the real plugin on macOS loads it and finds its preset. No iOS or Android device ran it, and what it costs a phone in memory is not measured.
+
 ## Open questions and risks
 
 **Owner decisions of 2026-10-04.**

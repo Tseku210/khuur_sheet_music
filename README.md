@@ -199,7 +199,7 @@ The package bundles no SoundFont, because Flutter ships every asset of a package
 
 Each part plays the program and the bank of its `Instrument`, so the SoundFont needs every program the score names.
 
-The example app ships a 9.5 MB piano, `example/assets/soundfonts/piano.sf2`. It is [Upright Piano KW (small)](https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html#UprightKW) from FreePats, a sampled Kawai upright released under CC0. Its readme and license are next to it.
+The example app ships a 57 MB piano, `example/assets/soundfonts/piano.sf2`. It is [Upright Piano KW](https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html#UprightKW) from FreePats, a Kawai upright sampled in stereo at two loudnesses and released under CC0. Its readme and license are next to it. FreePats also has a 9.5 MB version in mono at one loudness, for an app that has to stay small.
 
 ### Add reverb
 

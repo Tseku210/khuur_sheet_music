@@ -30,6 +30,6 @@ cd example && flutter run -d macos   # the example app
 
 - Lints come from `pedantic_mono`. Keep `flutter analyze` clean.
 - Asset paths that code loads at runtime must use the `packages/khuur_sheet_music/` prefix. A bare `fonts/...` or `assets/...` path only resolves inside this package, not in a consuming app.
-- The package bundles no SoundFont, because Flutter ships every package asset to every consuming app. The example app bundles `example/assets/soundfonts/piano.sf2`, FreePats' CC0 Upright Piano KW (small).
+- The package bundles no SoundFont, because Flutter ships every package asset to every consuming app. The example app bundles `example/assets/soundfonts/piano.sf2`, FreePats' CC0 Upright Piano KW (full, 57 MB).
 - Commit messages use Conventional Commits: `type(scope): description`.
 - The library is open source and stays general. Khuur is its first consumer, not its target, so nothing Khuur-specific goes in `lib/` or `packages/`. Instruments, marks and examples are general, and Khuur's designs guide scope without being requirements.
