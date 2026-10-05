@@ -278,6 +278,32 @@ void main() {
       expect(boxes[1].right, xOf(layout, 1, ScorePoint(barId(2), at(1, 1))));
     });
 
+    test('a range that holds nothing gives no box, at the start of a bar '
+        'too, and neither does one that ends before it starts', () {
+      for (final point in [
+        ScorePoint(barId(0), Moment.zero),
+        ScorePoint(barId(0), at(1, 4)),
+        ScorePoint(barId(1), Moment.zero),
+        ScorePoint(barId(2), Moment.zero),
+        ScorePoint(barId(3), Moment.zero),
+      ]) {
+        expect(
+          layout.selectionBoxes(rangeOf(point, point)),
+          isEmpty,
+          reason: 'from and to at $point',
+        );
+      }
+      expect(
+        layout.selectionBoxes(
+          rangeOf(
+            ScorePoint(barId(1), at(1, 2)),
+            ScorePoint(barId(1), at(1, 4)),
+          ),
+        ),
+        isEmpty,
+      );
+    });
+
     test('a ref made before SetMeter moved its event to another bar, on '
         'another system, still gives the event\'s box', () {
       final old = eventRef(204, bar: 1);

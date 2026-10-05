@@ -371,7 +371,7 @@ final class SheetLayout {
   /// Boxes to shade on system [index] for [selection], in system space. An
   /// item gives its bounds. A range gives one box from its start to its
   /// exclusive end (which may be a bar's end) over the visible staves from
-  /// `top` to `bottom`.
+  /// `top` to `bottom`, and no box when it holds nothing.
   List<Box> selectionIn(int index, Selection selection) {
     switch (selection) {
       case NoSelection():
@@ -422,15 +422,15 @@ final class SheetLayout {
           > 0 when to.offset == Moment.zero => system.bars[end - 1].right,
           _ => system.bars[end].time.xAt(to.offset),
         };
+        final left = start.time.xAt(
+          start.measure == from.measure ? from.offset : Moment.zero,
+        );
+        // A range that ends where it starts, or before, holds nothing.
+        if (right <= left) {
+          return const [];
+        }
         return [
-          Box(
-            start.time.xAt(
-              start.measure == from.measure ? from.offset : Moment.zero,
-            ),
-            staves.first.top,
-            right,
-            staves.last.top + staffHeight,
-          ),
+          Box(left, staves.first.top, right, staves.last.top + staffHeight),
         ];
     }
   }
