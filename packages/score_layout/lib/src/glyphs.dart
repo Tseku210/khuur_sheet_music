@@ -334,6 +334,9 @@ final class GlyphMetrics {
 ///
 /// Two are equal when every default is, so an app may make its own in
 /// `build` without a new layout each time.
+///
+/// Every default is a length. One under zero, or one that is no finite
+/// number, is refused by an assert.
 final class EngravingDefaults {
   const EngravingDefaults({
     required this.arrowShaftThickness,
@@ -364,7 +367,73 @@ final class EngravingDefaults {
     required this.tieEndpointThickness,
     required this.tieMidpointThickness,
     required this.tupletBracketThickness,
-  });
+  }) : assert(
+         arrowShaftThickness >= 0 && arrowShaftThickness < double.infinity,
+       ),
+       assert(barlineSeparation >= 0 && barlineSeparation < double.infinity),
+       assert(beamSpacing >= 0 && beamSpacing < double.infinity),
+       assert(beamThickness >= 0 && beamThickness < double.infinity),
+       assert(bracketThickness >= 0 && bracketThickness < double.infinity),
+       assert(
+         dashedBarlineDashLength >= 0 &&
+             dashedBarlineDashLength < double.infinity,
+       ),
+       assert(
+         dashedBarlineGapLength >= 0 &&
+             dashedBarlineGapLength < double.infinity,
+       ),
+       assert(
+         dashedBarlineThickness >= 0 &&
+             dashedBarlineThickness < double.infinity,
+       ),
+       assert(hBarThickness >= 0 && hBarThickness < double.infinity),
+       assert(hairpinThickness >= 0 && hairpinThickness < double.infinity),
+       assert(legerLineExtension >= 0 && legerLineExtension < double.infinity),
+       assert(legerLineThickness >= 0 && legerLineThickness < double.infinity),
+       assert(lyricLineThickness >= 0 && lyricLineThickness < double.infinity),
+       assert(
+         octaveLineThickness >= 0 && octaveLineThickness < double.infinity,
+       ),
+       assert(pedalLineThickness >= 0 && pedalLineThickness < double.infinity),
+       assert(
+         repeatBarlineDotSeparation >= 0 &&
+             repeatBarlineDotSeparation < double.infinity,
+       ),
+       assert(
+         repeatEndingLineThickness >= 0 &&
+             repeatEndingLineThickness < double.infinity,
+       ),
+       assert(
+         slurEndpointThickness >= 0 && slurEndpointThickness < double.infinity,
+       ),
+       assert(
+         slurMidpointThickness >= 0 && slurMidpointThickness < double.infinity,
+       ),
+       assert(staffLineThickness >= 0 && staffLineThickness < double.infinity),
+       assert(stemThickness >= 0 && stemThickness < double.infinity),
+       assert(
+         subBracketThickness >= 0 && subBracketThickness < double.infinity,
+       ),
+       assert(
+         textEnclosureThickness >= 0 &&
+             textEnclosureThickness < double.infinity,
+       ),
+       assert(
+         thickBarlineThickness >= 0 && thickBarlineThickness < double.infinity,
+       ),
+       assert(
+         thinBarlineThickness >= 0 && thinBarlineThickness < double.infinity,
+       ),
+       assert(
+         tieEndpointThickness >= 0 && tieEndpointThickness < double.infinity,
+       ),
+       assert(
+         tieMidpointThickness >= 0 && tieMidpointThickness < double.infinity,
+       ),
+       assert(
+         tupletBracketThickness >= 0 &&
+             tupletBracketThickness < double.infinity,
+       );
 
   /// The defaults whose values [valueOf] gives by SMuFL name.
   ///

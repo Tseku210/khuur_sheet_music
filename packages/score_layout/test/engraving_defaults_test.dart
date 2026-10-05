@@ -94,19 +94,19 @@ Score dashedScore() => changeBar(
   (column) => column.copyWith(barline: Barline.dashed),
 );
 
-/// Everything the scores of [roleSheets] and [dashedScore] draw in the
-/// standard style with [defaults].
+/// Everything the sheets of [roleSheets] and [dashedScore] draw with
+/// [defaults], each in its own style.
 List<Drawable> drawnWith(EngravingDefaults defaults) => [
-  for (final score in [
-    for (final (score, _) in roleSheets) score,
-    dashedScore(),
+  for (final (score, style) in [
+    ...roleSheets,
+    (dashedScore(), EngravingStyle.standard),
   ])
     ...drawnBy(
       SheetLayout(
         score,
         width: 300,
         text: const FakeMeasurer(),
-        style: EngravingStyle(
+        style: style.copyWith(
           font: SmuflFont.bravura.copyWith(defaults: defaults),
         ),
       ),
@@ -220,6 +220,20 @@ void main() {
       for (final (ends, middle) in curveThickness.values) ...[ends, middle],
     });
     expect(used, sets.keys.toSet().difference(shaping));
+  });
+
+  test('a default under zero, or one that is no finite number, is refused, '
+      'and zero is taken', () {
+    for (final MapEntry(key: name, value: change) in withDefault.entries) {
+      for (final value in [-0.01, double.nan, double.infinity]) {
+        expect(
+          () => change(defaults, value),
+          throwsA(isA<AssertionError>()),
+          reason: '$name of $value',
+        );
+      }
+      expect(change(defaults, 0), isNot(defaults), reason: '$name of 0');
+    }
   });
 
   test('a default the engine does not read changes nothing', () {
