@@ -48,11 +48,12 @@ abstract interface class MidiOutput {
 
 /// The reverb [FlutterMidiOutput] asks the synthesizer for.
 ///
-/// Every number is 0 to 1, and none is refused. The output sends a number
-/// outside that range as the nearest end of it.
+/// [width] is 0 to 100 and every other number is 0 to 1. None is refused.
+/// The output sends a number outside its range as the nearest end of it,
+/// and one that is not a number as 0.
 ///
-/// iOS and macOS read [roomSize] and [level] otherwise than Android does,
-/// so neither has a default.
+/// iOS and macOS do not read [roomSize] and [level] as Android does, so
+/// neither has a default.
 @immutable
 final class MidiReverb {
   const MidiReverb({
@@ -76,8 +77,8 @@ final class MidiReverb {
   /// How much the reverb is damped. Only Android reads it.
   final double damping;
 
-  /// How far the reverb spreads between left and right. Only Android reads
-  /// it.
+  /// How far the reverb spreads between left and right, of 0 to 100. Only
+  /// Android reads it.
   final double width;
 
   @override
@@ -135,10 +136,10 @@ final class FlutterMidiOutput implements MidiOutput {
       MidiReverb(:final roomSize, :final level, :final damping, :final width) =>
         _midi.setReverb(
           enabled: true,
-          roomSize: roomSize.clamp(0.0, 1.0),
-          damping: damping.clamp(0.0, 1.0),
-          width: width.clamp(0.0, 1.0),
-          level: level.clamp(0.0, 1.0),
+          roomSize: _within(roomSize, 1),
+          damping: _within(damping, 1),
+          width: _within(width, _widestReverb),
+          level: _within(level, 1),
         ),
     };
     final id = await switch (soundFont) {
@@ -249,6 +250,14 @@ const _missingPreset = {'SOUND_FONT_LOAD_FAILED', 'SOUND_FONT_LOAD_FAILED2'};
 /// The largest bank the plugin's `selectInstrument` takes. On macOS and on
 /// iOS it makes a byte of the bank, and a larger one stops the app.
 const _largestBank = 255;
+
+/// The largest width the plugin's `setReverb` takes, which is FluidSynth's.
+const _widestReverb = 100.0;
+
+/// [value] held to 0 to [most]. A value that is not a number is 0, where
+/// `clamp` makes it [most].
+double _within(double value, double most) =>
+    value.isNaN ? 0 : value.clamp(0, most);
 
 /// The pitch wheel at rest, of 0 to 16383.
 const _bendCentre = 8192;

@@ -462,7 +462,8 @@ void main() {
     },
   );
 
-  testWidgets('holds every number of a reverb to 0 to 1', (tester) async {
+  testWidgets('holds a reverb\'s width to 0 to 100 and its other numbers to 0 '
+      'to 1', (tester) async {
     final over = FlutterMidiOutput(
       reverb: const MidiReverb(
         roomSize: 1.5,
@@ -485,11 +486,36 @@ void main() {
     });
 
     expect(midi.reverbs, [
-      'room 1.0 damping 1.0 width 1.0 level 1.0',
+      'room 1.0 damping 1.0 width 100.0 level 1.0',
       'room 0.0 damping 0.0 width 0.0 level 0.0',
     ]);
     over.dispose();
     under.dispose();
+  });
+
+  testWidgets('sends a width over 1 as it is', (tester) async {
+    final output = FlutterMidiOutput(
+      reverb: const MidiReverb(roomSize: 0.5, level: 0.3, width: 40),
+    );
+    await tester.runAsync(() => output.load(soundFont));
+
+    expect(midi.reverbs, ['room 0.5 damping 0.0 width 40.0 level 0.3']);
+    output.dispose();
+  });
+
+  testWidgets('sends a number that is not one as 0', (tester) async {
+    final output = FlutterMidiOutput(
+      reverb: const MidiReverb(
+        roomSize: double.nan,
+        level: double.nan,
+        damping: double.nan,
+        width: double.nan,
+      ),
+    );
+    await tester.runAsync(() => output.load(soundFont));
+
+    expect(midi.reverbs, ['room 0.0 damping 0.0 width 0.0 level 0.0']);
+    output.dispose();
   });
 
   test('two reverbs are equal when their numbers are', () {
