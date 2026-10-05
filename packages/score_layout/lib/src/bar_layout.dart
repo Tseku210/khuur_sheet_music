@@ -56,9 +56,8 @@ final class BarLayout {
   /// the bar is laid out again and line breaking sees a new object.
   final LayoutBreak? breakBefore;
 
-  /// Whether the bar can fold into a multi-measure rest. It is
-  /// `MeasureView.isRestOnly`, but false when a rest of the bar carries a
-  /// fermata, which the model lets through and a fold would hide.
+  /// Whether the bar can fold into a multi-measure rest, which is
+  /// `MeasureView.isRestOnly`.
   final bool restOnly;
 
   final BarWidths widths;
@@ -477,7 +476,7 @@ BarLayout layoutBar(
     measure: column.id,
     length: column.length,
     breakBefore: column.breakBefore,
-    restOnly: view.isRestOnly && !_holdsFermata(view),
+    restOnly: view.isRestOnly,
     widths: BarWidths(
       inlineHead: heads.inline.width,
       systemHead:
@@ -504,14 +503,6 @@ BarLayout layoutBar(
     lyrics: lyrics,
   );
 }
-
-bool _holdsFermata(MeasureView view) => view.staves.any(
-  (staff) => staff.voices.any(
-    (voice) => voice.events.any(
-      (timed) => timed.event.articulations.contains(Articulation.fermata),
-    ),
-  ),
-);
 
 BarStaff _staffOf(
   StaffView view,
