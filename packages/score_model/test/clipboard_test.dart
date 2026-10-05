@@ -498,6 +498,65 @@ void main() {
       ]);
     });
 
+    test('clears the tie of a note it cuts off from the head the tie '
+        'ended on', () {
+      for (final (clipped, written) in [
+        ((1, at(1, 2)), 'rest/quarter'),
+        ((2, Moment.zero), 'A4/quarter'),
+      ]) {
+        final session = sessionWith([
+          [chordOf(1, 'G4', value: NoteValue.whole, tie: true)],
+          [
+            chordOf(2, 'G4', value: NoteValue.half),
+            rest(3, NoteValue.quarter),
+            rest(4, NoteValue.quarter),
+          ],
+          [
+            chordOf(5, 'A4'),
+            rest(6, NoteValue.quarter),
+            rest(7, NoteValue.half),
+          ],
+        ]);
+        final (from, offset) = clipped;
+        final clip = copyOf(
+          session,
+          clipped,
+          (from, offset + len(1, 4)),
+        );
+
+        final next = pasted(session, clip, 0, at(3, 8));
+
+        expect(bar(next.score, 0), [
+          'G4/quarter.',
+          written,
+          'rest/eighth',
+          'rest/quarter',
+        ], reason: written);
+        expect(bar(next.score, 1), ['G4/half', 'rest/quarter', 'rest/quarter']);
+      }
+    });
+
+    test('keeps a let-ring tie on a note it cuts short before a rest', () {
+      final session = sessionWith([
+        [chordOf(1, 'G4', value: NoteValue.whole, tie: true)],
+        [
+          chordOf(2, 'F4', value: NoteValue.half),
+          rest(3, NoteValue.quarter),
+          rest(4, NoteValue.quarter),
+        ],
+      ]);
+      final clip = copyOf(session, (1, at(1, 2)), (1, at(3, 4)));
+
+      final next = pasted(session, clip, 0, at(3, 8));
+
+      expect(bar(next.score, 0), [
+        'G4/quarter.~',
+        'rest/quarter',
+        'rest/eighth',
+        'rest/quarter',
+      ]);
+    });
+
     test('replaces every voice of the staff for its length', () {
       var score = fill(blankScore(), 0, [
         chordOf(1, 'F4'),
