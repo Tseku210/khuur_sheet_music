@@ -454,6 +454,69 @@ void main() {
         expect(point.y, lessThan(high.top));
       }
     });
+
+    test('a slur in one voice of two that ends beside the stem standing '
+        'farthest out stays inside its band and arcs', () {
+      Score twoVoices(VoiceSlot voice, String first, String second) {
+        var session = blank(bars: 4);
+        session = applied(
+          session.run(SetBreak(idOf(session, 1), LayoutBreak.system)),
+        );
+        for (final (i, pitch) in [first, second].indexed) {
+          session = enterAt(
+            session,
+            2,
+            at(i, 2),
+            tone: Pitch.parse(pitch),
+            value: NoteValue.half,
+            voice: voice,
+          );
+        }
+        session = enterAt(
+          session,
+          2,
+          Moment.zero,
+          tone: Pitch.parse(voice == VoiceSlot.one ? 'C4' : 'C6'),
+          value: NoteValue.whole,
+          voice: voice == VoiceSlot.one ? VoiceSlot.two : VoiceSlot.one,
+        );
+        return applied(
+          session.run(
+            AddSpanner(
+              kind: const Slur(),
+              staff: session.score.staves.first.id,
+              voice: voice,
+              first: pointAt(session.score, 2, Moment.zero),
+              last: pointAt(session.score, 2, at(1, 2)),
+            ),
+          ),
+        ).score;
+      }
+
+      for (final (voice, first, second) in [
+        (VoiceSlot.one, 'C5', 'F5'),
+        (VoiceSlot.one, 'C5', 'G5'),
+        (VoiceSlot.one, 'G5', 'C5'),
+        (VoiceSlot.two, 'C4', 'G4'),
+        (VoiceSlot.two, 'G4', 'C4'),
+      ]) {
+        final reason = '$voice from $first to $second';
+        final layout = sheetOf(twoVoices(voice, first, second), width: 60);
+        expectInsideBands(layout);
+        final slur = curvesOf(layout.systemAt(1)).single;
+        final out = voice == VoiceSlot.one ? -1 : 1;
+        expect(
+          out * (slur.control1.y - slur.start.y),
+          greaterThan(0.25),
+          reason: reason,
+        );
+        expect(
+          out * (slur.control2.y - slur.end.y),
+          greaterThan(0.25),
+          reason: reason,
+        );
+      }
+    });
   });
 
   group('lines', () {
