@@ -101,6 +101,47 @@ The view draws the cursor as a caret. It opens with the cursor's system in view 
 
 `_sheet` is a `SheetController`. To zoom, set its `zoom`, as in `_sheet.zoom *= 1.25`.
 
+## Show where a note will go
+
+A finger hides the place it points at. So a touch editor shows the note under a held finger before it enters one. `SheetView.preview` draws a note that is not in the score, which is its head and the ledger lines it needs. Nothing in the sheet moves for it. `SheetController.entryAt` tells where a note entered at a point would go.
+
+```dart
+SheetHit? _held;
+
+void _hold(Offset at) => setState(
+  () => _held = _sheet.entryAt(at, voice: _session.cursor.voice),
+);
+
+GestureDetector(
+  onLongPressStart: (details) => _hold(details.localPosition),
+  onLongPressMoveUpdate: (details) => _hold(details.localPosition),
+  onLongPressEnd: (_) {
+    final hit = _held;
+    setState(() => _held = null);
+    if (hit != null) _enter(hit);
+  },
+  child: SheetView(
+    score: _session.score,
+    controller: _sheet,
+    tapGrid: _value.base,
+    preview: switch (_held) {
+      final hit? => NotePreview.at(hit, base: _value.base),
+      null => null,
+    },
+  ),
+)
+```
+
+`_enter` is `_onTap` above without its first lines, the ones that select a note.
+
+`entryAt` gives the hit of `hitTest` without a target. It looks at nothing that is drawn, where `hitTest` at a note or a rest gives the time of that note or rest. A bar rest is drawn in the middle of its bar and starts at the bar's start, so a preview from `hitTest` would stand a long way from the finger.
+
+The preview has the head of its `base`, so a whole note, a half note and a shorter one each look like themselves. It is drawn in the palette's `preview` colour.
+
+A long press that has started gets no call when the system takes its pointer away. So the app also clears `_held` in the `onPointerCancel` of a `Listener` around the detector.
+
+The package has no magnifying glass. The example app puts Flutter's `RawMagnifier` over the sheet beside the finger, in `example/lib/main.dart`.
+
 ## Play the score
 
 ```dart
@@ -245,6 +286,7 @@ SheetPalette.of(context).copyWith(
 | `selection` | `SheetHighlight` | The selected notes and ranges. |
 | `playback` | `SheetHighlight` | The notes that sound now. |
 | `cursor` | `SheetLine` | The caret at the edit cursor. |
+| `preview` | `Color?` | The note of `SheetView.preview`. Null draws it in the cursor's colour. |
 | `playhead` | `SheetLine` | The line that moves while the score plays. |
 
 A `SheetHighlight` draws a box, a border around the box and the marked item again in another ink. Each is drawn when it is given, so a style may mix them. The box and its border lie under the notes and the staff lines, so a fill of any colour leaves the music to read. Boxes that overlap make one shape with one border around it.
