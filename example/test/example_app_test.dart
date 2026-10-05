@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:example/demo_score.dart';
 import 'package:example/main.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -184,6 +185,14 @@ Future<void> tapClearOf(WidgetTester tester, VoicePoint at) async {
     }
   }
   fail('nothing clear to tap on the staff at ${at.at}');
+}
+
+/// Holds a finger down on the sheet at [local] until the long press starts.
+Future<TestGesture> holdAt(WidgetTester tester, Offset local) async {
+  final gesture = await tester.startGesture(onScreen(tester, local));
+  await tester.pump(kLongPressTimeout);
+  await tester.pump();
+  return gesture;
 }
 
 /// Taps the note or the rest that holds [at], and gives its event.
@@ -1270,6 +1279,198 @@ void main() {
     expect([
       for (var bar = 0; bar < 4; bar++) ...tiesIn(scoreOf(tester), 0, bar: bar),
     ], everyElement(isFalse));
+  });
+
+  testWidgets('a held finger shows a glass and the note that letting go '
+      'would enter, both follow the finger, and the note is entered when the '
+      'finger lifts', (tester) async {
+    await pumpApp(tester, size: phone, demo: true);
+    await openSheet(tester, 'Empty sheet');
+    final score = scoreOf(tester);
+    final sheet = controllerOf(tester);
+    final staff = score.staves[0].id;
+    List<List<String>> written() => [
+      for (var bar = 0; bar < 4; bar++) writtenIn(scoreOf(tester), 0, bar: bar),
+    ];
+    final empty = written();
+    // Half a space over the staff, which is G5, and the middle line, B4.
+    final over = sheet.caretOf(beatOf(score, 0, 1))!.topCenter;
+    final middle = sheet.caretOf(beatOf(score, 0, 3, bar: 1))!.center;
+
+    final gesture = await holdAt(tester, over - const Offset(0, 4));
+    expect(find.byType(RawMagnifier), findsOneWidget);
+    expect(
+      sheetOf(tester).preview,
+      NotePreview(staff: staff, at: beatOf(score, 0, 1).at, staffStep: 9),
+    );
+    expect(written(), empty);
+
+    await gesture.moveTo(onScreen(tester, middle));
+    await tester.pump();
+    expect(find.byType(RawMagnifier), findsOneWidget);
+    expect(
+      sheetOf(tester).preview,
+      NotePreview(
+        staff: staff,
+        at: beatOf(score, 0, 3, bar: 1).at,
+        staffStep: 4,
+      ),
+    );
+    expect(written(), empty);
+
+    await gesture.up();
+    await tester.pump();
+    expect(find.byType(RawMagnifier), findsNothing);
+    expect(sheetOf(tester).preview, isNull);
+    expect(written(), [
+      ['bar rest'],
+      ['half rest', 'quarter rest', 'quarter B4'],
+      ['bar rest'],
+      ['bar rest'],
+    ]);
+
+    // The whole value has a head of its own and a grid of whole bars.
+    await tester.tap(find.text('1'));
+    await tester.pump();
+    final late = sheet.caretOf(beatOf(score, 0, 3, bar: 2))!.topCenter;
+    final whole = await holdAt(tester, late - const Offset(0, 4));
+    expect(
+      sheetOf(tester).preview,
+      NotePreview(
+        staff: staff,
+        at: beatOf(score, 0, 0, bar: 2).at,
+        staffStep: 9,
+        base: DurationBase.whole,
+      ),
+    );
+    await whole.up();
+    await tester.pump();
+    expect(written()[2], ['whole G5']);
+  });
+
+  testWidgets('a hold that the system takes away, and a hold off every '
+      'system, enter nothing', (tester) async {
+    await pumpApp(tester, size: phone, demo: true);
+    await openSheet(tester, 'Empty sheet');
+    final score = scoreOf(tester);
+    final sheet = controllerOf(tester);
+    final spot = sheet.caretOf(beatOf(score, 0, 1))!.center;
+
+    final taken = await holdAt(tester, spot);
+    expect(find.byType(RawMagnifier), findsOneWidget);
+    expect(sheetOf(tester).preview, isNotNull);
+    await taken.cancel();
+    await tester.pump();
+    expect(find.byType(RawMagnifier), findsNothing);
+    expect(sheetOf(tester).preview, isNull);
+    expect(scoreOf(tester), same(score));
+
+    final off = Offset(
+      spot.dx,
+      tester.getSize(find.byType(SheetView)).height - 8,
+    );
+    expect(sheet.entryAt(off), isNull);
+    final gesture = await holdAt(tester, off);
+    expect(find.byType(RawMagnifier), findsOneWidget);
+    expect(sheetOf(tester).preview, isNull);
+    await gesture.up();
+    await tester.pump();
+    expect(find.byType(RawMagnifier), findsNothing);
+    expect(scoreOf(tester), same(score));
+    expect(find.byType(SnackBar), findsNothing);
+  });
+
+  testWidgets('the glass stays on the sheet and clear of the finger, over it '
+      'where the sheet has room and beside it where it has none, and looks '
+      'at the spot under the finger', (tester) async {
+    await pumpApp(tester, size: phone, demo: true);
+    final area = tester.getRect(find.byType(SheetView));
+    final low = area.height - 40;
+
+    for (final (name, spot, side) in [
+      ('low on the sheet', Offset(195, low), 'over'),
+      ('at the left edge', Offset(2, low), 'over'),
+      ('at the right edge', Offset(area.width - 2, low), 'over'),
+      ('at the top', const Offset(300, 30), 'left'),
+      ('at the top left', const Offset(40, 30), 'right'),
+    ]) {
+      final gesture = await holdAt(tester, spot);
+      final finger = onScreen(tester, spot);
+      final glass = tester.getRect(find.byType(RawMagnifier));
+      final looksAt =
+          glass.center +
+          tester
+              .widget<RawMagnifier>(find.byType(RawMagnifier))
+              .focalPointOffset;
+
+      expect(area.expandToInclude(glass), area, reason: name);
+      expect(glass.inflate(27).contains(finger), isFalse, reason: name);
+      expect(
+        switch (side) {
+          'over' => glass.bottom < finger.dy,
+          'left' => glass.right < finger.dx,
+          _ => glass.left > finger.dx,
+        },
+        isTrue,
+        reason: '$name: $glass is not $side $finger',
+      );
+      expect((looksAt - finger).distance, closeTo(0, 1e-9), reason: name);
+
+      await gesture.cancel();
+      await tester.pump();
+    }
+  });
+
+  testWidgets('the glass shows the note under the held finger at twice its '
+      'size', (tester) async {
+    await tester.runAsync(loadPageFonts);
+    await pumpApp(tester, size: phone, demo: true);
+    await openSheet(tester, 'Empty sheet');
+    final score = scoreOf(tester);
+    final spot = controllerOf(tester).caretOf(beatOf(score, 0, 2))!.center;
+    await holdAt(tester, spot);
+    final finger = onScreen(tester, spot);
+    final glass = tester.getRect(find.byType(RawMagnifier));
+    final preview = Theme.of(tester.element(find.byType(SheetView)))
+        .colorScheme
+        .primary;
+
+    final boundary = tester.renderObject<RenderRepaintBoundary>(
+      find.byKey(pageKey),
+    );
+    final (:rgba, :png) = (await tester.runAsync(() async {
+      final image = await boundary.toImage();
+      final rgba = await image.toByteData();
+      final png = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+      return (rgba: rgba!.buffer.asUint8List(), png: png!.buffer.asUint8List());
+    }))!;
+    writeSnapshot('example_app_hold', png);
+
+    // Pixels of the preview's colour in [box].
+    int inked(Rect box) {
+      var count = 0;
+      for (var y = box.top.ceil(); y < box.bottom.floor(); y++) {
+        for (var x = box.left.ceil(); x < box.right.floor(); x++) {
+          final at = (y * phone.width.round() + x) * 4;
+          final off =
+              (rgba[at] - (preview.r * 255).round()).abs() +
+              (rgba[at + 1] - (preview.g * 255).round()).abs() +
+              (rgba[at + 2] - (preview.b * 255).round()).abs();
+          if (off < 24) {
+            count++;
+          }
+        }
+      }
+      return count;
+    }
+
+    final onSheet = inked(
+      Rect.fromCenter(center: finger, width: 40, height: 40),
+    );
+    final inGlass = inked(glass);
+    expect(onSheet, greaterThan(40), reason: 'the note is under the finger');
+    expect(inGlass / onSheet, closeTo(4, 1), reason: '$inGlass of $onSheet');
   });
 
   testWidgets('Auto bars decides whether a note longer than the rest of its '

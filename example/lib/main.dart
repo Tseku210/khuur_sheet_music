@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:example/demo_score.dart';
 import 'package:example/selection_actions.dart';
 import 'package:flutter/material.dart';
@@ -71,6 +73,11 @@ class _ScorePageState extends State<ScorePage>
   bool _autoBars = true;
   bool _autoBeams = true;
   ScoreClip? _clip;
+
+  /// A finger held down on the sheet, with where it is in the view's own
+  /// pixels and what a note let go there would be. The hit is null off
+  /// every system.
+  ({Offset at, SheetHit? hit})? _held;
   final SheetController _sheet = SheetController();
   final ScrollController _rowScroll = ScrollController();
   late final ScorePlayer _player = ScorePlayer(
@@ -94,6 +101,11 @@ class _ScorePageState extends State<ScorePage>
       );
       return;
     }
+    _enter(hit);
+  }
+
+  /// Enters a note of the picked value where [hit] is.
+  void _enter(SheetHit hit) {
     final tone = _session.score.toneForStaffStep(
       hit.staff,
       hit.at,
@@ -117,6 +129,21 @@ class _ScorePageState extends State<ScorePage>
     // for it to move into.
     if (entered && _session.cursor == at) {
       _say('The score ends here.', offerBar: true);
+    }
+  }
+
+  void _onHold(Offset at) => setState(
+    () =>
+        _held = (at: at, hit: _sheet.entryAt(at, voice: _session.cursor.voice)),
+  );
+
+  /// Enters the note that the held finger showed. A finger held on a note
+  /// enters one there, where a tap selects the note.
+  void _onLetGo() {
+    final hit = _held?.hit;
+    setState(() => _held = null);
+    if (hit != null) {
+      _enter(hit);
     }
   }
 
@@ -237,19 +264,44 @@ class _ScorePageState extends State<ScorePage>
       child: Column(
         children: [
           Expanded(
-            child: SheetView(
-              key: ValueKey(_sheetsOpened),
-              score: _session.score,
-              cursor: _session.cursor,
-              selection: _session.selection,
-              playback: _player.position,
-              controller: _sheet,
-              palette: _palette(context),
-              // A note starts on a beat of its own value. On a finer grid
-              // a whole note tapped in the middle of a bar is cut at the
-              // beats and the barline and tied.
-              tapGrid: _value.base,
-              onTap: _onTap,
+            child: LayoutBuilder(
+              builder: (context, constraints) => Stack(
+                fit: StackFit.expand,
+                children: [
+                  // A long press that has started ends without a call when
+                  // the system takes its pointer away.
+                  Listener(
+                    onPointerCancel: (_) => setState(() => _held = null),
+                    child: GestureDetector(
+                      onLongPressStart: (details) =>
+                          _onHold(details.localPosition),
+                      onLongPressMoveUpdate: (details) =>
+                          _onHold(details.localPosition),
+                      onLongPressEnd: (_) => _onLetGo(),
+                      child: SheetView(
+                        key: ValueKey(_sheetsOpened),
+                        score: _session.score,
+                        cursor: _session.cursor,
+                        preview: switch (_held?.hit) {
+                          final hit? => NotePreview.at(hit, base: _value.base),
+                          null => null,
+                        },
+                        selection: _session.selection,
+                        playback: _player.position,
+                        controller: _sheet,
+                        palette: _palette(context),
+                        // A note starts on a beat of its own value. On a
+                        // finer grid a whole note tapped in the middle of a
+                        // bar is cut at the beats and the barline and tied.
+                        tapGrid: _value.base,
+                        onTap: _onTap,
+                      ),
+                    ),
+                  ),
+                  if (_held case (:final at, hit: _))
+                    _loupe(at, constraints.biggest),
+                ],
+              ),
             ),
           ),
           _underSheet(),
@@ -264,6 +316,72 @@ class _ScorePageState extends State<ScorePage>
       ),
     ),
   );
+
+  static const Size _loupeSize = Size(132, 88);
+
+  /// How far the glass stands off the finger.
+  static const double _loupeGap = 28;
+
+  /// The middle of the glass for a finger at [finger] on a sheet of [sheet]
+  /// pixels. The glass stands over the finger. Where the sheet has no room
+  /// above, it stands beside the finger, to the left when it fits there. It
+  /// stays on the sheet.
+  Offset _loupeCentre(Offset finger, Size sheet) {
+    final half = _loupeSize.center(Offset.zero);
+    double within(double value, double low, double high) =>
+        math.max(low, math.min(value, high));
+    final over = finger.dy - _loupeGap - half.dy;
+    if (over >= half.dy) {
+      return Offset(within(finger.dx, half.dx, sheet.width - half.dx), over);
+    }
+    final left = finger.dx - _loupeGap - half.dx;
+    return Offset(
+      left >= half.dx
+          ? left
+          : within(
+              finger.dx + _loupeGap + half.dx,
+              half.dx,
+              sheet.width - half.dx,
+            ),
+      within(finger.dy, half.dy, sheet.height - half.dy),
+    );
+  }
+
+  /// A glass that shows the sheet under a finger at [finger] at twice its
+  /// size, with the note that letting go would enter.
+  Widget _loupe(Offset finger, Size sheet) {
+    final centre = _loupeCentre(finger, sheet);
+    return Positioned.fromRect(
+      rect: Rect.fromCenter(
+        center: centre,
+        width: _loupeSize.width,
+        height: _loupeSize.height,
+      ),
+      child: RawMagnifier(
+        size: _loupeSize,
+        // Without it the shadow is drawn over the glass too.
+        clipBehavior: Clip.antiAlias,
+        magnificationScale: 2,
+        focalPointOffset: finger - centre,
+        decoration: MagnifierDecoration(
+          shape: RoundedRectangleBorder(
+            borderRadius: const BorderRadius.all(Radius.circular(16)),
+            side: BorderSide(
+              color: Theme.of(context).colorScheme.outline,
+              width: 1.5,
+            ),
+          ),
+          shadows: const [
+            BoxShadow(
+              color: Color(0x40000000),
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   /// The theme's palette with a selection of the page's own, a round box
   /// with a border. The copy keeps the sheet in step with light and dark
