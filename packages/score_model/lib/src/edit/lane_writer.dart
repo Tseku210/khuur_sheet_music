@@ -1,7 +1,7 @@
 part of 'session.dart';
 
 final class _LaneWrite {
-  const _LaneWrite(this.score, this.end, this.first, this.last);
+  const _LaneWrite(this.score, this.end, this.first, this.last, this.events);
 
   final Score score;
 
@@ -12,6 +12,9 @@ final class _LaneWrite {
   /// The first and last events written.
   final EventRef first;
   final EventRef last;
+
+  /// Every event written, with the later pieces of one split at a barline.
+  final Set<EventId> events;
 }
 
 /// Writes [music] into one voice lane from [at], overwriting whatever
@@ -57,11 +60,13 @@ _LaneWrite _overwrite(
 
   EventRef? first;
   EventRef? last;
+  final events = <EventId>{};
   void placed(Iterable<Content> parts) {
     final written = {
       for (final part in parts)
         for (final event in _eventsIn(part)) event.id,
     };
+    events.addAll(written);
     final timed = lane.events(i).where((e) => written.contains(e.event.id));
     first ??= timed.first.ref;
     last = timed.last.ref;
@@ -155,6 +160,7 @@ _LaneWrite _overwrite(
     ),
     first!,
     last!,
+    events,
   );
 }
 

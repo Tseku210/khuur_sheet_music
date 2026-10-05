@@ -272,6 +272,7 @@ _Result _paste(
           for (final (:offset, item: _) in lane.items) ?holding(lane, offset),
     },
   );
+  final written = <EventId>{};
   for (final lane in clip._lanes) {
     if (lane.staff >= staves.length) {
       continue;
@@ -287,7 +288,7 @@ _Result _paste(
     }
     final strings = score.partOf(staves[lane.staff]).instrument.strings.length;
     for (final run in _runs(lane.items)) {
-      pasted = _overwrite(
+      final write = _overwrite(
         pasted,
         VoicePoint(
           staff: staves[lane.staff],
@@ -297,7 +298,9 @@ _Result _paste(
         [for (final item in run.items) _remint(item, ids, strings)],
         ids,
         overfill,
-      ).score;
+      );
+      pasted = write.score;
+      written.addAll(write.events);
     }
   }
   for (final direction in clip._directions) {
@@ -331,11 +334,9 @@ _Result _paste(
           ),
     ]),
   );
-  bool inRange(ScorePoint point) =>
-      !_precedes(pasted, point, range.from) &&
-      _precedes(pasted, point, range.to);
-  bool inside(TimedEvent event) =>
-      inRange(ScorePoint(event.ref.measure, event.onset));
+  // A note the paste only shortened is not pasted music, though its later
+  // pieces start in the range.
+  bool inside(TimedEvent event) => written.contains(event.event.id);
   var untied = pasted;
   for (
     var bar = max(0, pasted.indexOf(range.from.measure) - 1);

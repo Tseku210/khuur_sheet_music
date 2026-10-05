@@ -444,6 +444,48 @@ void main() {
       expect(bar(next.score, 1), ['F4/quarter', 'rest/quarter', 'rest/half']);
     });
 
+    test('keeps the tie inside a note it only shortens', () {
+      final session = sessionWith([
+        [chordOf(1, 'G4', value: NoteValue.whole)],
+        [
+          chordOf(2, 'F4', value: NoteValue.half),
+          rest(3, NoteValue.quarter),
+          rest(4, NoteValue.quarter),
+        ],
+      ]);
+      final clip = copyOf(session, (1, at(1, 8)), (1, at(3, 4)));
+
+      final next = pasted(session, clip, 0, at(1, 4));
+
+      expect(bar(next.score, 0), [
+        'G4/half~',
+        'G4/eighth',
+        'rest/quarter',
+        'rest/eighth',
+      ]);
+    });
+
+    test('clears the tie of a note it shortens onto a pasted head', () {
+      final session = sessionWith([
+        [chordOf(1, 'G4', value: NoteValue.whole, tie: true)],
+        [
+          chordOf(2, 'F4', value: NoteValue.half),
+          chordOf(3, 'G4'),
+          rest(4, NoteValue.quarter),
+        ],
+      ]);
+      final clip = copyOf(session, (1, at(1, 8)), (1, at(3, 4)));
+
+      final next = pasted(session, clip, 0, at(1, 4));
+
+      expect(bar(next.score, 0), [
+        'G4/half~',
+        'G4/eighth',
+        'G4/quarter',
+        'rest/eighth',
+      ]);
+    });
+
     test('replaces every voice of the staff for its length', () {
       var score = fill(blankScore(), 0, [
         chordOf(1, 'F4'),
