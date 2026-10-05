@@ -686,6 +686,7 @@ final class OverlayPainter extends CustomPainter {
     required this.glyphs,
     required this.palette,
     required this.scale,
+    this.preview,
   }) : super(repaint: playback);
 
   final SheetLayout layout;
@@ -693,6 +694,7 @@ final class OverlayPainter extends CustomPainter {
   /// Which system of [layout] this tile shows.
   final int index;
   final VoicePoint? cursor;
+  final NotePreview? preview;
   final Selection selection;
   final Map<ElementRef, Color> tints;
   final ValueListenable<PlaybackPosition?>? playback;
@@ -757,6 +759,12 @@ final class OverlayPainter extends CustomPainter {
     if (caret != null) {
       _line(canvas, caret, palette.cursor);
     }
+    if (preview case final preview?) {
+      final color = palette.preview ?? palette.cursor.color;
+      for (final drawable in layout.previewIn(index, preview)) {
+        paintDrawable(canvas, drawable, glyphs, scale, color);
+      }
+    }
   }
 
   void _line(Canvas canvas, Box box, SheetLine line) {
@@ -779,6 +787,7 @@ final class OverlayPainter extends CustomPainter {
       !identical(oldDelegate.layout, layout) ||
       oldDelegate.index != index ||
       oldDelegate.cursor != cursor ||
+      oldDelegate.preview != preview ||
       !identical(oldDelegate.selection, selection) ||
       !identical(oldDelegate.tints, tints) ||
       !identical(oldDelegate.playback, playback) ||
@@ -787,5 +796,6 @@ final class OverlayPainter extends CustomPainter {
       oldDelegate.palette.playback != palette.playback ||
       oldDelegate.palette.cursor != palette.cursor ||
       oldDelegate.palette.playhead != palette.playhead ||
+      oldDelegate.palette.preview != palette.preview ||
       oldDelegate.scale != scale;
 }

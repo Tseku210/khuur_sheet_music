@@ -2552,6 +2552,52 @@ void main() {
     },
   );
 
+  testWidgets('a preview note paints the marks again and neither the notes '
+      'nor the layout, and an equal one paints nothing', (tester) async {
+    final score = tune(bars: 4);
+    NotePreview previewOn(int step) => NotePreview(
+      staff: score.staves.first.id,
+      at: ScorePoint(score.measures.first.id, Moment.zero),
+      staffStep: step,
+    );
+    Widget view(NotePreview? preview) =>
+        host(SheetView(score: score, palette: inked, preview: preview));
+    await tester.pumpWidget(view(null));
+    final layout = shown(tester);
+    final notes = picturesOf<SystemPainter>(tester);
+    var marks = picturesOf<OverlayPainter>(tester);
+    expect(marks, isNotEmpty);
+
+    Future<void> expectMarksPainted(
+      NotePreview? preview, {
+      required bool again,
+    }) async {
+      await tester.pumpWidget(view(preview));
+      final now = picturesOf<OverlayPainter>(tester);
+      expect(
+        [
+          for (final (tile, picture) in now.indexed)
+            identical(picture, marks[tile]),
+        ],
+        everyElement(!again),
+      );
+      expect(
+        paintersOf<OverlayPainter>(tester).map((painter) => painter.preview),
+        everyElement(preview),
+      );
+      expect(shown(tester), same(layout));
+      expect(picturesOf<SystemPainter>(tester), [
+        for (final picture in notes) same(picture),
+      ]);
+      marks = now;
+    }
+
+    await expectMarksPainted(previewOn(4), again: true);
+    await expectMarksPainted(previewOn(4), again: false);
+    await expectMarksPainted(previewOn(5), again: true);
+    await expectMarksPainted(null, again: true);
+  });
+
   testWidgets('a cursor that moves to the next system and back, while the view '
       'scrolls after it, leaves its system wholly in view', (tester) async {
     final score = tune();

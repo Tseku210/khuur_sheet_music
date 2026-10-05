@@ -127,6 +127,7 @@ final class SheetPalette {
     required this.selection,
     required this.playback,
     required this.playhead,
+    this.preview,
     this.paper,
     this.inks = const {},
   });
@@ -169,6 +170,9 @@ final class SheetPalette {
   /// The moving playhead line.
   final SheetLine playhead;
 
+  /// The note of `SheetView.preview`. Null draws it in the cursor's colour.
+  final Color? preview;
+
   /// The colour behind the sheet, on screen and in an image the controller
   /// makes. Null draws none, so the sheet shows what lies under the view.
   final Color? paper;
@@ -189,8 +193,8 @@ final class SheetPalette {
       };
 
   /// This palette with the given parts replaced. A null leaves a part as it
-  /// is, so this cannot take the [paper] away. A map of [inks] replaces the
-  /// whole map.
+  /// is, so this cannot take the [preview] colour or the [paper] away. A map
+  /// of [inks] replaces the whole map.
   SheetPalette copyWith({
     Color? ink,
     Color? staffLines,
@@ -199,6 +203,7 @@ final class SheetPalette {
     SheetHighlight? selection,
     SheetHighlight? playback,
     SheetLine? playhead,
+    Color? preview,
     Color? paper,
     Map<InkRole, Color>? inks,
   }) => SheetPalette(
@@ -209,6 +214,7 @@ final class SheetPalette {
     selection: selection ?? this.selection,
     playback: playback ?? this.playback,
     playhead: playhead ?? this.playhead,
+    preview: preview ?? this.preview,
     paper: paper ?? this.paper,
     inks: inks ?? this.inks,
   );
@@ -223,6 +229,7 @@ final class SheetPalette {
       other.selection == selection &&
       other.playback == playback &&
       other.playhead == playhead &&
+      other.preview == preview &&
       other.paper == paper &&
       mapEquals(other.inks, inks);
 
@@ -235,6 +242,7 @@ final class SheetPalette {
     selection,
     playback,
     playhead,
+    preview,
     paper,
     Object.hashAllUnordered(
       inks.entries.map((entry) => Object.hash(entry.key, entry.value)),

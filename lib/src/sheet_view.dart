@@ -39,6 +39,7 @@ class SheetView extends StatefulWidget {
   const SheetView({
     required this.score,
     this.cursor,
+    this.preview,
     this.selection = const NoSelection(),
     this.tints = const {},
     this.playback,
@@ -58,6 +59,13 @@ class SheetView extends StatefulWidget {
 
   /// The edit cursor, drawn as a caret. Usually `EditSession.cursor`.
   final VoicePoint? cursor;
+
+  /// A note that is not in the score, drawn where an entry would put it.
+  /// The view draws its head and the ledger lines it needs in the palette's
+  /// preview colour, and lays nothing out for it, so nothing moves under a
+  /// finger. An app that shows where a held finger would put a note sets it
+  /// from [SheetController.entryAt] and clears it when the finger lifts.
+  final NotePreview? preview;
 
   /// Usually `EditSession.selection`. The overlay repaints for a selection
   /// that is another object.
@@ -1040,6 +1048,7 @@ class _SheetViewState extends State<SheetView> {
                               layout: layout,
                               index: index,
                               cursor: widget.cursor,
+                              preview: widget.preview,
                               selection: widget.selection,
                               tints: widget.tints,
                               playback: widget.playback,

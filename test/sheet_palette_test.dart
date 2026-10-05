@@ -100,6 +100,7 @@ Future<Pixels> marksOf(
   Selection selection = const NoSelection(),
   Map<ElementRef, Color> tints = const {},
   VoicePoint? cursor,
+  NotePreview? preview,
   PlaybackPosition? playing,
   bool notes = false,
   SheetScale at = scale,
@@ -129,6 +130,7 @@ Future<Pixels> marksOf(
       layout: layout,
       index: 0,
       cursor: cursor,
+      preview: preview,
       selection: selection,
       tints: tints,
       playback: playback,
@@ -414,6 +416,47 @@ void main() {
     }
     expect(pixels.at(boxes.first.centerLeft.translate(1, 0)), red);
     expect(pixels.at(boxes.last.centerRight.translate(-1, 0)), red);
+  });
+
+  test('a preview note is painted in the preview colour, or in the '
+      "cursor's without one, on its head and its ledger lines alone", () async {
+    final score = tune(bars: 4);
+    final layout = layoutOf(score);
+    // Under the staff, where a head needs the ledger lines of steps -2 and
+    // -4.
+    final preview = NotePreview(
+      staff: score.staves.first.id,
+      at: ScorePoint(score.measures.first.id, Moment(Fraction(3, 8))),
+      staffStep: -4,
+    );
+    final marks = [
+      for (final drawable in layout.previewIn(0, preview))
+        scale.rectOf(drawable.bounds),
+    ];
+    expect(marks, hasLength(3));
+    const caret = SheetLine(color: green);
+
+    for (final (palette, color) in [
+      (quiet.copyWith(preview: red), red),
+      (quiet.copyWith(cursor: caret), green),
+      (quiet.copyWith(cursor: caret, preview: red), red),
+    ]) {
+      final pixels = await marksOf(layout, palette, preview: preview);
+      expect(
+        [for (final mark in marks) pixels.holds(mark, color)],
+        everyElement(isTrue),
+        reason: '$color',
+      );
+      expect(
+        pixels.painted.where(
+          (at) => !marks.any((mark) => mark.inflate(1).contains(at)),
+        ),
+        isEmpty,
+        reason: '$color',
+      );
+    }
+    final without = await marksOf(layout, quiet.copyWith(preview: red));
+    expect(without.painted, isEmpty);
   });
 
   test('a style with nothing to draw draws nothing, and a border wider than '
@@ -998,6 +1041,13 @@ void main() {
         true,
       ),
       (
+        'preview',
+        (SheetPalette p) => p.copyWith(preview: green),
+        false,
+        none,
+        true,
+      ),
+      (
         'paper',
         (SheetPalette p) => p.copyWith(paper: green),
         false,
@@ -1293,6 +1343,11 @@ void main() {
     );
     expect(one, isNot(quiet));
     expect(quiet.inks, isEmpty);
+    expect(quiet.copyWith(preview: red), isNot(quiet));
+    expect(
+      quiet.copyWith(preview: red).hashCode,
+      isNot(quiet.copyWith(preview: blue).hashCode),
+    );
 
     expect(one.copyWith(ink: red).inks, one.inks);
     expect(one.copyWith(inks: {InkRole.staffLine: green}).inks, {
@@ -1310,6 +1365,7 @@ void main() {
       selection: SheetHighlight(border: red),
       playback: SheetHighlight(fill: green),
       playhead: SheetLine(color: blue, width: 0.1),
+      preview: Color(0xFF555555),
       paper: Color(0xFF444444),
     );
     List<Object?> partsOf(SheetPalette palette) => [
@@ -1320,6 +1376,7 @@ void main() {
       palette.selection,
       palette.playback,
       palette.playhead,
+      palette.preview,
       palette.paper,
     ];
     final copies = [
@@ -1330,6 +1387,7 @@ void main() {
       inked.copyWith(selection: other.selection),
       inked.copyWith(playback: other.playback),
       inked.copyWith(playhead: other.playhead),
+      inked.copyWith(preview: other.preview),
       inked.copyWith(paper: other.paper),
     ];
 

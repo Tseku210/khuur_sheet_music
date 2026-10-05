@@ -13,6 +13,7 @@ export 'package:score_layout/score_layout.dart'
         EngravingDefaults,
         EngravingStyle,
         InkRole,
+        NotePreview,
         Owner,
         QuarterToneGlyphs,
         SheetHit,
