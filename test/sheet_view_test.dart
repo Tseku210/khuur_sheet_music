@@ -3531,6 +3531,85 @@ void main() {
   );
 
   testWidgets(
+    'the controller tells its listeners when a new tap grid changes where a '
+    'note entered at a point would go, and tells none for the grid it has',
+    (tester) async {
+      final score = tune();
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      Widget view(DurationBase grid) => host(
+        SheetView(score: score, controller: controller, tapGrid: grid),
+      );
+      await tester.pumpWidget(view(DurationBase.sixteenth));
+      // Between two notes and clear of both, where the grid decides.
+      final spot = Offset(
+        ui.lerpDouble(
+          controller.rectOf(headOf(score, 0, 2))!.left,
+          controller.rectOf(headOf(score, 0, 3))!.left,
+          0.7,
+        )!,
+        middleOf(tester, headOf(score, 0, 2)).dy,
+      );
+      final fine = controller.entryAt(spot)!.at;
+      expect(fine.offset, isNot(Moment.zero));
+      final heard = <ScorePoint>[];
+      controller.addListener(() => heard.add(controller.entryAt(spot)!.at));
+
+      await tester.pumpWidget(view(DurationBase.whole));
+      expect(heard, [ScorePoint(score.measures[0].id, Moment.zero)]);
+
+      await tester.pumpWidget(view(DurationBase.whole));
+      expect(heard, hasLength(1));
+    },
+  );
+
+  testWidgets(
+    'the controller says where the head of a preview note is drawn, which is '
+    'where a note of its value at its place has its head, at a zoom and '
+    'after a scroll, and nowhere in a bar the score lacks or with no view',
+    (tester) async {
+      final score = tune();
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      // B4, on the middle line, is on the third beat of every bar.
+      NotePreview onNote(MeasureId bar) => NotePreview(
+        staff: score.staves.first.id,
+        at: ScorePoint(bar, Moment(Fraction(1, 2))),
+        staffStep: 4,
+      );
+      void expectOnNote(int bar) => expect(
+        controller.rectOfPreview(onNote(score.measures[bar].id)),
+        within(
+          distance: 1e-6,
+          from: controller.rectOf(headOf(score, bar, 2))!,
+        ),
+        reason: 'bar $bar',
+      );
+      expect(controller.rectOfPreview(onNote(score.measures[0].id)), isNull);
+
+      await tester.pumpWidget(
+        host(SheetView(score: score, controller: controller)),
+      );
+      expectOnNote(0);
+      expectOnNote(30);
+      expect(controller.rectOfPreview(onNote(const MeasureId(-1))), isNull);
+
+      controller.zoom = 2;
+      await tester.pump();
+      scrollOf(tester).jumpTo(60);
+      await tester.pump();
+      expect(
+        controller.rectOf(headOf(score, 0, 2))!.center,
+        within(
+          distance: 1e-6,
+          from: middleOf(tester, headOf(score, 0, 2), spacePx: 16),
+        ),
+      );
+      expectOnNote(0);
+    },
+  );
+
+  testWidgets(
     'the controller says where a note is drawn, and tells its listeners '
     'when a scroll, a zoom, an edit, a padding or a staff space moves it',
     (tester) async {

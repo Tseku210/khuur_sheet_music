@@ -65,6 +65,9 @@ class SheetView extends StatefulWidget {
   /// preview colour, and lays nothing out for it, so nothing moves under a
   /// finger. An app that shows where a held finger would put a note sets it
   /// from [SheetController.entryAt] and clears it when the finger lifts.
+  /// The place under a still finger changes when the sheet scrolls, zooms
+  /// or is laid out again, so the app asks again when the controller
+  /// notifies.
   final NotePreview? preview;
 
   /// Usually `EditSession.selection`. The overlay repaints for a selection
@@ -96,14 +99,16 @@ class SheetView extends StatefulWidget {
   /// Logical pixels per staff space at zoom 1.
   final double staffSpace;
 
-  /// The grid a tap snaps to when it is not on a note. Inside a tuplet the
-  /// grid counts in the tuplet's written time. Its type keeps it from being
-  /// finer than a 128th, the finest start the model accepts.
+  /// The grid a tap snaps to. A tap within a staff space of where a note or
+  /// a rest of its voice starts takes that start, whatever the grid. Inside
+  /// a tuplet the grid counts in the tuplet's written time. Its type keeps
+  /// it from being finer than a 128th, the finest start the model accepts.
   ///
   /// An app that enters one note value at a time passes that value's base,
-  /// so that a note starts on a beat of its own value. On a finer grid a
-  /// long note starts anywhere in its bar, and the model cuts it at the
-  /// beats and the barline and ties the pieces.
+  /// so that a note starts on a beat of its own value everywhere but at
+  /// such a start. A long note that starts off the beats of its own value,
+  /// on a finer grid or at such a start, is cut at the beats and the
+  /// barline, and the model ties the pieces.
   final DurationBase tapGrid;
 
   /// Open with the cursor's system in view, and scroll it into view when
@@ -126,7 +131,8 @@ class SheetView extends StatefulWidget {
 /// Geometry is in the view's local logical pixels and accounts for
 /// scrolling, so an app can position its own widgets over the sheet (a
 /// loupe, a delete badge, a popup) in a `Stack`. It notifies when
-/// scrolling, zoom or layout move the geometry.
+/// scrolling, zoom or layout move the geometry, and when a new tap grid
+/// changes what a point means.
 ///
 /// Every answer is about the sheet on screen. A new zoom notifies at once,
 /// while the sheet on screen is still the one laid out at the old zoom, and
@@ -183,9 +189,16 @@ class SheetController extends ChangeNotifier {
   /// Where a note entered at [local] in [voice] would go, whatever is drawn
   /// there, on the view's tap grid. The hit has no target. An app asks this
   /// for a finger held on the sheet, and shows the answer as the view's
-  /// preview.
+  /// preview. It asks again when the finger lifts, since a hit it kept may
+  /// be of a sheet that has moved since.
   SheetHit? entryAt(Offset local, {VoiceSlot voice = VoiceSlot.one}) =>
       _view?._entryAt(local, voice);
+
+  /// Where the head of [preview] is drawn, or null when it is not drawn (a
+  /// hidden staff, or a bar the score lacks). A glass that shows where a
+  /// note will go looks here.
+  Rect? rectOfPreview(NotePreview preview) =>
+      _rectsOf((layout) => [layout.boundsOfPreview(preview)]).firstOrNull;
 
   /// Where [ref] is drawn, or null when it is not drawn (a hidden staff).
   Rect? rectOf(ElementRef ref) =>
@@ -509,6 +522,15 @@ class _SheetViewState extends State<SheetView> {
     if (oldWidget.style != widget.style) {
       _stale = true;
       _glyphs = GlyphPainter(widget.style.font);
+    }
+    if (oldWidget.tapGrid != widget.tapGrid) {
+      // The controller's listeners may rebuild, which a build does not
+      // allow.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _controller._moved();
+        }
+      });
     }
     final cursor = widget.cursor;
     if (widget.followCursor && cursor != null && cursor != oldWidget.cursor) {
