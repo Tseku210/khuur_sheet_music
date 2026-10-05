@@ -235,7 +235,8 @@ void main() {
       expect(down.last.dy, 3.5);
     });
 
-    test('the boxes cover the beam and its stems at stretch 1', () {
+    test('the boxes are as wide as the beam and its stems at stretch 1, and '
+        'reach from the heads to the beam', () {
       final layout = layoutOf(
         barOf([
           chordOf(1, 'C4', value: eighth),
@@ -250,10 +251,46 @@ void main() {
       final planned = layout.beams.single.boxes.reduce((a, b) => a.union(b));
 
       expect(planned.left, closeTo(box.left, 1e-9));
-      expect(planned.top, closeTo(box.top, 1e-9));
       expect(planned.right, closeTo(box.right, 1e-9));
-      expect(planned.bottom, closeTo(box.bottom, 1e-9));
       expect(box.bottom, greaterThan(yOfStep(-2) - 0.5));
+    });
+
+    test('the boxes hold a sloped beam and its stems at any stretch, and are '
+        'no taller than a bar pressed to its rods needs', () {
+      for (final pitches in [
+        ['C4', 'D4', 'E4', 'F4'],
+        ['F4', 'E4', 'D4', 'C4'],
+        ['C5', 'D5', 'E5', 'F5'],
+        ['F5', 'E5', 'D5', 'C5'],
+      ]) {
+        final layout = layoutOf(
+          barOf([
+            for (final (i, pitch) in pitches.indexed)
+              chordOf(i + 1, pitch, value: eighth),
+          ]),
+        );
+        final plan = layout.beams.single;
+        expect(plan.first.dy, isNot(plan.last.dy), reason: '$pitches slopes');
+        final planned = plan.boxes.reduce((a, b) => a.union(b));
+        Box drawnAt(double stretch) => drawn(
+          layout,
+          stretch,
+        ).map((d) => d.bounds).reduce((a, b) => a.union(b));
+
+        for (final stretch in [0.0, 0.5, 1.0, 2.0]) {
+          final box = drawnAt(stretch);
+          final reason = '$pitches at stretch $stretch';
+          expect(box.top, greaterThan(planned.top - 1e-9), reason: reason);
+          expect(box.bottom, lessThan(planned.bottom + 1e-9), reason: reason);
+        }
+        final pressed = drawnAt(0);
+        expect(planned.top, closeTo(pressed.top, 1e-9), reason: '$pitches');
+        expect(
+          planned.bottom,
+          closeTo(pressed.bottom, 1e-9),
+          reason: '$pitches',
+        );
+      }
     });
   });
 
