@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:score_layout/score_layout.dart'
-    show LineDraw, SheetLayout, SpPoint, TextDraw;
+    show CurveDraw, LineDraw, SheetLayout, SpPoint, TextDraw;
 import 'package:simple_sheet_music/simple_sheet_music.dart';
 import 'package:simple_sheet_music/src/painting.dart';
 import 'package:simple_sheet_music/src/paragraph_measurer.dart';
@@ -56,12 +56,18 @@ Future<Pixels> systemOf(
   return (width: width, rgba: picture.rgba);
 }
 
-/// The ink in the pixels whose corner is in [area], in pixels fully covered.
+/// The red ink in the pixels whose corner is in [area], in pixels fully
+/// covered. Ink of another colour counts for nothing.
 double inkIn(Pixels pixels, Rect area) {
   var alpha = 0;
   for (var y = area.top.floor(); y < area.bottom.floor(); y++) {
     for (var x = area.left.floor(); x < area.right.floor(); x++) {
-      alpha += pixels.rgba[(y * pixels.width + x) * 4 + 3];
+      final i = (y * pixels.width + x) * 4;
+      if (pixels.rgba[i] > 0 &&
+          pixels.rgba[i + 1] == 0 &&
+          pixels.rgba[i + 2] == 0) {
+        alpha += pixels.rgba[i + 3];
+      }
     }
   }
   return alpha / 255;
@@ -69,7 +75,8 @@ double inkIn(Pixels pixels, Rect area) {
 
 void main() {
   test('a copy of the bundled font with other defaults is drawn with the '
-      'bundled font file, and a font of another family with its own', () async {
+      'bundled font file, and a font of another family or over another glyph '
+      'table with its own', () async {
     await loadBravura(bravuraPainter());
     final copy = fontWith(
       (defaults) => defaults.copyWith(stemThickness: 0.2),
@@ -82,6 +89,13 @@ void main() {
       defaults: copy.defaults,
     );
     expect(GlyphPainter(declared).family, 'Declared');
+
+    final parsed = SmuflFont(
+      family: SmuflFont.bravura.family,
+      glyphs: Map.of(copy.glyphs),
+      defaults: copy.defaults,
+    );
+    expect(GlyphPainter(parsed).family, SmuflFont.bravura.family);
   });
 
   test('a stem is as thick as the defaults of the font say', () async {
@@ -174,6 +188,136 @@ void main() {
         }
       }
       expect(marks, 2);
+    }
+  });
+
+  test('a line, a curve and a box of no thickness draw nothing', () async {
+    await loadTextFont();
+    final font = fontWith(
+      (defaults) => defaults.copyWith(
+        stemThickness: 0,
+        slurEndpointThickness: 0,
+        slurMidpointThickness: 0,
+        textEnclosureThickness: 0,
+      ),
+    );
+    final layout = SheetLayout(
+      pictured(),
+      width: sheetWidth,
+      text: ParagraphMeasurer(),
+      style: EngravingStyle(font: font, text: pictureStyle.text),
+    );
+    final lines = quiet.copyWith(
+      ink: clear,
+      staffLines: clear,
+      outOfRange: clear,
+      inks: {InkRole.stem: red, InkRole.slur: red},
+    );
+    var stems = 0;
+    final slurs = <bool>{};
+    var marks = 0;
+
+    for (var index = 0; index < layout.systemCount; index++) {
+      final drawables = layout.systemAt(index).drawables;
+      stems += drawables
+          .whereType<LineDraw>()
+          .where((line) => line.ink == InkRole.stem)
+          .length;
+      slurs.addAll([
+        for (final curve in drawables.whereType<CurveDraw>())
+          if (curve.ink == InkRole.slur) curve.dashed,
+      ]);
+      final pixels = await systemOf(layout, index, font, lines);
+      expect(
+        pixels.rgba.every((byte) => byte == 0),
+        isTrue,
+        reason: 'the stems and the slurs of system $index',
+      );
+
+      final boxed = drawables.whereType<TextDraw>().where(
+        (text) => text.enclosed,
+      );
+      if (boxed.isEmpty) {
+        continue;
+      }
+      final letters = await systemOf(
+        layout,
+        index,
+        font,
+        only(InkRole.rehearsal),
+      );
+      for (final mark in boxed) {
+        marks++;
+        final box = scale.rectOf(mark.bounds);
+        expect(
+          inkIn(letters, box.deflate(spacePx * 0.15)),
+          greaterThan(0),
+          reason: 'the letter of rehearsal mark ${mark.text}',
+        );
+        expect(
+          inkIn(letters, box.inflate(2)) -
+              inkIn(letters, box.deflate(spacePx * 0.15)),
+          0,
+          reason: 'the box of rehearsal mark ${mark.text}',
+        );
+      }
+    }
+    expect(stems, greaterThan(0));
+    expect(slurs, {true, false}, reason: 'a dashed slur and a solid one');
+    expect(marks, 2);
+  });
+
+  test('a slur whose ends have no thickness is drawn without an '
+      'outline', () async {
+    final layout = SheetLayout(
+      pictured(),
+      width: sheetWidth,
+      text: ParagraphMeasurer(),
+    );
+    final slurs = [
+      for (var index = 0; index < layout.systemCount; index++)
+        for (final curve
+            in layout.systemAt(index).drawables.whereType<CurveDraw>())
+          if (curve.ink == InkRole.slur && !curve.dashed) (index, curve),
+    ];
+    expect(slurs, isNotEmpty);
+
+    for (final (index, slur) in slurs) {
+      final width = (sheetWidth * spacePx + 80).ceil();
+      final height = (layout.heightOf(index) * spacePx + 80).ceil();
+      Future<double> inkWith(double ends) async {
+        final picture = await render(
+          width,
+          height,
+          (canvas) => paintCurve(
+            canvas,
+            CurveDraw(
+              start: slur.start,
+              control1: slur.control1,
+              control2: slur.control2,
+              end: slur.end,
+              endThickness: ends,
+              midThickness: slur.midThickness,
+              ink: slur.ink,
+            ),
+            scale,
+            red,
+          ),
+          background: null,
+        );
+        return inkIn(
+          (width: width, rgba: picture.rgba),
+          Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+        );
+      }
+
+      final bare = await inkWith(0);
+      expect(bare, greaterThan(0));
+      expect(
+        bare,
+        lessThan(await inkWith(0.01)),
+        reason: 'the slur from x ${slur.start.x} of system $index',
+      );
     }
   });
 

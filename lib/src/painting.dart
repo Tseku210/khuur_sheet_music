@@ -83,6 +83,8 @@ Path dashPath(Path path, LineDash dash, double spacePx) {
 /// `midThickness` thick there and the ink stays within half of both
 /// thicknesses of the centreline, which is what `CurveDraw.bounds` allows.
 /// A dashed curve is its centreline alone, stroked `midThickness` wide.
+/// A stroke of no width is not drawn, since the engine would draw a
+/// hairline for it.
 void paintCurve(
   Canvas canvas,
   CurveDraw curve,
@@ -97,6 +99,9 @@ void paintCurve(
     ..color = color
     ..style = PaintingStyle.stroke;
   if (curve.dashed) {
+    if (curve.midThickness <= 0) {
+      return;
+    }
     final centreline = Path()
       ..moveTo(start.dx, start.dy)
       ..cubicTo(
@@ -133,21 +138,24 @@ void paintCurve(
       start.dy,
     )
     ..close();
-  canvas
-    ..drawPath(crescent, Paint()..color = color)
-    ..drawPath(
-      crescent,
-      stroke
-        ..strokeWidth = curve.endThickness * scale.spacePx
-        // A mitred tip can reach two end thicknesses past the curve's end,
-        // which is outside its bounds.
-        ..strokeJoin = StrokeJoin.round,
-    );
+  canvas.drawPath(crescent, Paint()..color = color);
+  if (curve.endThickness <= 0) {
+    return;
+  }
+  canvas.drawPath(
+    crescent,
+    stroke
+      ..strokeWidth = curve.endThickness * scale.spacePx
+      // A mitred tip can reach two end thicknesses past the curve's end,
+      // which is outside its bounds.
+      ..strokeJoin = StrokeJoin.round,
+  );
 }
 
 /// Draws the box of a `TextDraw` that is `enclosed`, as around a rehearsal
 /// mark. [bounds] is the box's outer edge, so the line, [thickness] staff
-/// spaces wide, is stroked half its width inside it.
+/// spaces wide, is stroked half its width inside it. A line of no width is
+/// not drawn.
 void paintEnclosure(
   Canvas canvas,
   Box bounds,
@@ -156,6 +164,9 @@ void paintEnclosure(
   Color color,
 ) {
   final width = thickness * scale.spacePx;
+  if (width <= 0) {
+    return;
+  }
   canvas.drawRect(
     scale.rectOf(bounds).deflate(width / 2),
     Paint()
@@ -353,7 +364,7 @@ final class GlyphPainter {
   }
 }
 
-/// Paints one drawable in [color].
+/// Paints one drawable in [color]. A line of no thickness is not drawn.
 void paintDrawable(
   Canvas canvas,
   Drawable drawable,
@@ -378,6 +389,9 @@ void paintDrawable(
         stretch: stretch,
       );
     case LineDraw(:final from, :final to, :final thickness, :final dash):
+      if (thickness <= 0) {
+        return;
+      }
       final start = scale.toPx(from);
       final end = scale.toPx(to);
       canvas.drawPath(
