@@ -51,6 +51,8 @@ if (session.run(edit) case Applied(session: final next)) {
 
 `EnterNote`, `AddToChord` and `EnterRest` write music. `SetClef`, `SetKey` and `SetMeter` change the clef, the key and the meter. `SetBreak(measure, LayoutBreak.system)` starts a new system at a bar. `example/lib/demo_score.dart` builds an eight-bar tune from these edits.
 
+A note longer than the rest of its bar is cut at the barline and tied, and a note that ends the score gets an empty bar after it. `EnterNote(overfill: Overfill.refuse, appendBar: false, ...)` turns both off. The long note is then refused with `WouldCrossBarline`, and the app adds bars with `InsertMeasures`. Beams follow the meter. `EnterNote(beam: BeamMode.none, ...)` enters a note that takes no beam, and `SetBeam` sets how a note beams afterwards.
+
 `scoreToJson` and `scoreFromJson` save and load a score. `scoreToMusicXml` and `scoreFromMusicXml` write and read MusicXML.
 
 ## Edit by tap
