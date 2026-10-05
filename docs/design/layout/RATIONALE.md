@@ -1339,6 +1339,46 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
     - Which colour of the theme each part takes is still not checked.
   - `test/sheet_palette_test.dart` has 21 tests after the fixes. 6 failed before them, and so did the layout package's test of a range that holds nothing. 112 defects were planted one at a time in the code after the fixes, and 109 were caught. The default width of a border got through, and a test pins it now. The two that change a colour the theme's palette takes got through and stay, as said above.
   - The root has 184 tests now, the example 58, the model 784 and the layout package 514.
+- **A colour for each kind of mark.** Layout gave a drawable one of three roles, `normal`, `staffLine` and `outOfRange`, and the palette mapped a role to a colour. So every mark beside the staff lines took the one `ink`, and an app could not grey its barlines or colour its lyrics.
+  - `InkRole` is now the list of kinds of mark, with 40 names. `normal` is gone. `Drawable.ink` is a required named parameter of all six drawables, so no drawable is made without a role and the compiler found every site.
+  - `SheetPalette.inks` maps a role to a colour. `colorOf` reads it first and falls back to `staffLines` for the staff lines, `outOfRange` for a notehead out of range and `ink` for every other role. An empty map is the look from before.
+  - Two shapes were compared for the palette.
+
+    | Shape | Verdict |
+    | --- | --- |
+    | A map from a role to a colour. | Taken. A new role needs no new parameter, a test can walk `InkRole.values`, and an app names only the roles it changes. |
+    | A named colour for each role, as `ink` and `staffLines` are. | Dropped. That is 40 parameters on the constructor and on `copyWith`, and one more with every role. |
+
+  - Two palettes are compared by what their maps hold, so a palette built in `build` with a new map of the same colours repaints nothing. `copyWith(inks:)` replaces the whole map. A merge could not take a colour away.
+  - A system and the header repaint when some role gets another colour, which the painters ask of `colorOf` for every role. So a colour in `inks` that is the colour its role had already repaints nothing.
+  - Every part of one thing has that thing's role. These are the choices that were not plain.
+    - The line that joins the staves at the start of a system is `barline`. It was `bracket` at first, with the brace. It is as thick as a thin barline, and an app that greys its barlines would have left it black. The brace's role is named `brace`, which is all it holds now.
+    - Repeat dots are `barline`. The slash through a grace note's stem is `flag`. A tremolo's strokes, an arpeggio and a trill line are `ornament`. A fermata and a harmonic are `articulation`.
+    - The bar and the count of a rest of several bars are `rest`. A rest's dot is `dot`, as a note's is. Cautionary parentheses are `accidental`.
+    - The text and the dashes of a tempo line are `tempo`, and so is the note of a metronome mark. A segno and a coda sign are `navigation`.
+    - `fingering` was added to the list in the brief, since the model has fingerings and no other role fits them.
+    - `outOfRange` is the notehead alone. The stem and the ledger lines of that note keep their own roles.
+  - `packages/score_layout/test/ink_roles_test.dart` pins the role of each kind of thing by what it is, found by its owner, its glyph or its shape. One test fails when a role is drawn by none of its scores. The scores are in `test/support/role_scores.dart`, which the root's tests import too.
+  - 162 wrong roles were planted one site at a time on a copy of the tree, and each failed a test by an assertion. A dump of every drawable of the test scores, 7,339 lines, is the same before and after in every field but the role.
+  - `test/sheet_palette_test.dart` paints the header and every system of those scores with a colour of its own for each role, and finds a pixel of that colour in the box of every drawable, for all 40 roles. 18 defects were planted in the palette and the painters, and 16 failed a test. The two that got through make the palette's hash spread less. They break no rule, since equal palettes still hash alike, so they stay.
+  - Not built. A colour for one voice or one staff is what `tints` are for. A `ThemeExtension` that carries a palette is still not built.
+- **Line thicknesses an app can change.** Every line the engine draws takes its thickness from the font's `EngravingDefaults`. An app could not make one, since the type was not exported, so the only way to a thinner stem was to parse changed font metadata.
+  - `EngravingDefaults.copyWith` changes some defaults and `SmuflFont.copyWith(defaults:)` gives a font that holds them. The root library exports `EngravingDefaults`. An app writes `EngravingStyle(font: font.copyWith(defaults: font.defaults.copyWith(stemThickness: 0.16)))`.
+  - `EngravingDefaults` is compared by value now, and a font compares its defaults by value. Before, a font compared both of its tables by identity. With that rule a style built in `build` from a copy of the defaults would be another style on every build, and every build would lay the score out again. The glyph table is still compared by identity, since it has an entry for every glyph. So a font parsed twice from metadata is still two fonts. One assertion of the fonts' equality test changed with the rule, from unequal to equal, for a font over the same glyph table with defaults of equal values.
+  - Two shapes were compared.
+
+    | Shape | Verdict |
+    | --- | --- |
+    | A copy of the font holds other defaults. | Taken. The engine does not change, and the font already is the one object that holds the family and the metrics. |
+    | A set of line thicknesses on `EngravingStyle` overrides the font's. | Dropped. Every read of `style.font.defaults` in the engine would have to go through the style, and a thickness would have two homes. |
+
+  - `EngravingStyle` has no `copyWith`, so a style with another font is built anew. That is as it was for every other part of the style.
+  - The engine reads 22 of the 28 defaults. It reads none of `arrowShaftThickness`, `bracketThickness`, `dashedBarlineDashLength`, `dashedBarlineGapLength`, `hBarThickness` and `subBracketThickness`, so a change to one of those changes nothing. The bar of a rest of several bars is as thick as a glyph of the font, and no default sets it.
+  - `packages/score_layout/test/engraving_defaults_test.dart` holds the table of which default sets which kind of mark. Each of the 22 changes the marks of its kind, each of the 6 changes nothing, and every line and every curve the test scores draw is as thick as a default of its own kind says, at full size or at the size of a grace note. 7 defects were planted in the engine, and each failed a test.
+  - The painter asked for the bundled font file only for a font equal to `SmuflFont.bravura`. A copy with other defaults is not equal, so every glyph of it would have come from a fallback font in an app. The painter now takes the bundled file for a font of the bundled family over the bundled glyph table. No test had drawn a glyph with a copy. One does now, with the file loaded under the bundled name alone, and it drew a box 13 pixels too wide before the change.
+  - `test/line_thickness_test.dart` paints through the root library's exports. A stem is 0.4 staff spaces of ink across when the app says so, and the box of a rehearsal mark is as thick as its default, which the painter reads and not the layout. The view lays the sheet out again and paints with the new font when the defaults change, and keeps its layout for a style of equal defaults built anew. 6 defects were planted, 5 in the shell and 1 in the font's equality, and each failed a test.
+  - The root has 191 tests now, the example 58, the model 784 and the layout package 546. The benchmark reads 40.093 of 50 ms for the first layout of 500 bars, 0.462 of 1 ms for an update and 167.697 of 200 ms for 2000 bars.
+  - Not verified. Nothing ran on a device or in a GUI. The pictures come from `flutter test`.
 
 
 ## Open questions and risks
