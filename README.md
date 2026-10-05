@@ -183,7 +183,7 @@ The look of a sheet is set by three values of `SheetView`. Each has a default, s
 
 | Value | What it holds | A change |
 | --- | --- | --- |
-| `palette` | Colours, and the styles of the selection, the cursor, the playhead and the sounding notes. | Repaints. Nothing is laid out again. |
+| `palette` | Colours, one for each kind of mark if the app wants that, and the styles of the selection, the cursor, the playhead and the sounding notes. | Repaints. Nothing is laid out again. |
 | `style` | Fonts, text sizes, spacing and what is printed. | Lays the score out again. |
 | `tints` | A colour for one note or one event. | Repaints. |
 
@@ -216,11 +216,26 @@ SheetPalette.of(context).copyWith(
 )
 ```
 
+`inks` gives one kind of mark a colour of its own. `InkRole` lists the kinds, such as the stems, the beams, the barlines, the clefs, the lyrics and the dynamics. A kind that is not in the map takes `ink`. The staff lines take `staffLines` and a note out of range takes `outOfRange`, unless the map has a colour for them.
+
+```dart
+SheetPalette.of(context).copyWith(
+  inks: const {
+    InkRole.barline: Color(0xFF9E9E9E),
+    InkRole.lyric: Color(0xFF1565C0),
+    InkRole.dynamics: Color(0xFFC62828),
+  },
+)
+```
+
+`copyWith(inks:)` replaces the whole map. The palette compares two maps by what they hold, so a map built in `build` repaints nothing while its colours stay the same.
+
 | Part | Type | What it sets |
 | --- | --- | --- |
-| `ink` | `Color` | Notes, signatures, text and every other mark. |
+| `ink` | `Color` | Every mark that has no colour of its own. |
 | `staffLines` | `Color` | The staff lines. |
 | `outOfRange` | `Color` | A note its instrument cannot play. |
+| `inks` | `Map<InkRole, Color>` | A colour for one kind of mark, in place of the three above. |
 | `paper` | `Color?` | The colour behind the sheet, on screen and in an image from `toImage`. Null draws none. |
 | `selection` | `SheetHighlight` | The selected notes and ranges. |
 | `playback` | `SheetHighlight` | The notes that sound now. |
@@ -266,7 +281,6 @@ Where a note has several of them, the ink of the selection covers a tint, and th
 
 ### What cannot be changed yet
 
-- Every mark beside the staff lines takes the one `ink`. Stems, barlines, lyrics and dynamics have no colour of their own, short of a tint on a note.
 - The thickness of stems, beams, barlines and staff lines comes from the music font.
 
 ## Names that Flutter also declares

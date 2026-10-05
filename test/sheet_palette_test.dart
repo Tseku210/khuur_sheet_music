@@ -6,11 +6,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:score_layout/score_layout.dart';
 import 'package:score_model/score_model.dart';
 import 'package:simple_sheet_music/src/painting.dart';
+import 'package:simple_sheet_music/src/paragraph_measurer.dart';
 import 'package:simple_sheet_music/src/score_player.dart';
 import 'package:simple_sheet_music/src/sheet_palette.dart';
 import 'package:simple_sheet_music/src/sheet_view.dart';
 
-import 'sheet_picture_test.dart' show layoutOf, sheetWidth;
+import '../packages/score_layout/test/support/role_scores.dart';
+import 'sheet_picture_test.dart' show inkOf, layoutOf, sheetWidth;
 import 'sheet_view_test.dart'
     show
         cursorIn,
@@ -61,6 +63,21 @@ extension on Pixels {
     for (var i = 0; i < rgba.length; i += 4)
       if (rgba[i + 3] != 0) Offset(i ~/ 4 % width + 0.5, i ~/ 4 ~/ width + 0.5),
   ];
+
+  /// Whether some pixel that [rect] touches has just [color].
+  bool holds(Rect rect, Color color) {
+    final height = rgba.length ~/ 4 ~/ width;
+    for (var y = rect.top.floor(); y < rect.bottom.ceil(); y++) {
+      for (var x = rect.left.floor(); x < rect.right.ceil(); x++) {
+        if (x >= 0 && x < width && y >= 0 && y < height) {
+          if (at(Offset(x + 0.5, y + 0.5)) == color) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
 
   /// How many pixels of the row through [point] are more than half covered.
   int widthAt(Offset point) {
@@ -936,6 +953,12 @@ void main() {
         true,
       ),
       ('paper', (SheetPalette p) => p.copyWith(paper: green), false, false),
+      (
+        'inks',
+        (SheetPalette p) => p.copyWith(inks: {InkRole.staffLine: blue}),
+        true,
+        false,
+      ),
     ]) {
       palette = change(palette);
       await expectPainted(part, palette, notes: notes, marks: marks);
@@ -981,6 +1004,134 @@ void main() {
     expect(palette.playback, SheetHighlight(ink: palette.playback.ink));
     expect([palette.cursor.width, palette.playhead.width], [0.2, 0.2]);
     expect(palette.paper, isNull);
+  });
+
+  test(
+    'a kind of mark takes the colour inks has for it, and without one '
+    'the ink, or the colour of the staff lines or of a note out of range',
+    () {
+      final palette = quiet.copyWith(staffLines: blue, outOfRange: red);
+      for (final role in InkRole.values) {
+        expect(
+          palette.colorOf(role),
+          switch (role) {
+            InkRole.staffLine => blue,
+            InkRole.outOfRange => red,
+            _ => black,
+          },
+          reason: '$role with no colour of its own',
+        );
+        final own = palette.copyWith(inks: {role: green});
+        for (final other in InkRole.values) {
+          expect(
+            own.colorOf(other),
+            other == role ? green : palette.colorOf(other),
+            reason: '$other, with a colour for $role',
+          );
+        }
+      }
+    },
+  );
+
+  test('every mark of a sheet is painted in the colour inks has for its '
+      'kind', () async {
+    await loadTextFont();
+    final inks = {
+      for (final (i, role) in InkRole.values.indexed)
+        role: Color.fromARGB(255, 250 - i * 6, 10 + i * 6, i.isEven ? 0 : 255),
+    };
+    final palette = quiet.copyWith(inks: inks);
+    final glyphs = bravuraPainter();
+    final width = (sheetWidth * spacePx + 80).ceil();
+    final drawn = <InkRole>{};
+
+    Future<void> expectInked(
+      String what,
+      List<Drawable> drawables,
+      CustomPainter painter,
+      double height,
+    ) async {
+      final picture = await render(
+        width,
+        (height * spacePx + 80).ceil(),
+        (canvas) => painter.paint(canvas, Size.zero),
+        background: null,
+      );
+      final pixels = (width: width, rgba: picture.rgba);
+      for (final drawable in drawables) {
+        expect(
+          pixels.holds(scale.rectOf(drawable.bounds), inks[drawable.ink]!),
+          isTrue,
+          reason: '$what, ${drawable.ink} at x ${drawable.bounds.left}',
+        );
+        drawn.add(drawable.ink);
+      }
+    }
+
+    for (final (sheet, (score, style)) in roleSheets.indexed) {
+      final layout = SheetLayout(
+        score,
+        width: sheetWidth,
+        text: ParagraphMeasurer(),
+        style: style,
+      );
+      if (layout.header.isNotEmpty) {
+        await expectInked(
+          'the header of sheet $sheet',
+          layout.header,
+          HeaderPainter(
+            header: layout.header,
+            glyphs: glyphs,
+            palette: palette,
+            scale: scale,
+          ),
+          layout.tops.first,
+        );
+      }
+      for (var index = 0; index < layout.systemCount; index++) {
+        await expectInked(
+          'system $index of sheet $sheet',
+          inkOf(layout, index),
+          SystemPainter(
+            system: layout.systemAt(index),
+            label: layout.labelOf(index),
+            glyphs: glyphs,
+            palette: palette,
+            scale: scale,
+          ),
+          layout.heightOf(index),
+        );
+      }
+    }
+
+    expect(InkRole.values.toSet().difference(drawn), isEmpty);
+  });
+
+  test('two palettes are equal when their inks hold the same colours, and a '
+      'copy replaces the whole map', () {
+    final one = quiet.copyWith(
+      inks: {InkRole.staffLine: red, InkRole.outOfRange: blue},
+    );
+    final same = quiet.copyWith(
+      inks: {InkRole.outOfRange: blue, InkRole.staffLine: red},
+    );
+    expect(same, one);
+    expect(same.hashCode, one.hashCode);
+    expect(quiet.copyWith(inks: {InkRole.staffLine: red}), isNot(one));
+    expect(
+      quiet.copyWith(
+        inks: {InkRole.staffLine: red, InkRole.outOfRange: green},
+      ),
+      isNot(one),
+    );
+    expect(one, isNot(quiet));
+    expect(quiet.inks, isEmpty);
+
+    expect(one.copyWith(ink: red).inks, one.inks);
+    expect(one.copyWith(inks: {InkRole.staffLine: green}).inks, {
+      InkRole.staffLine: green,
+    });
+    expect(one.copyWith(inks: const {}), quiet);
   });
 
   test('copyWith replaces the parts it is given and keeps the others', () {

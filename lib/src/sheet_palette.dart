@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:score_layout/score_layout.dart';
 
@@ -113,9 +114,9 @@ final class SheetHighlight {
 /// The sheet's colours and the look of what is drawn over it. Changing them
 /// repaints and never lays out.
 ///
-/// Layout gives each drawable an [InkRole], and the palette maps roles to
-/// colours. The cursor, the selection and playback have styles of their
-/// own.
+/// Layout gives each drawable an [InkRole], which is its kind of mark, and
+/// the palette maps roles to colours. The cursor, the selection and
+/// playback have styles of their own.
 @immutable
 final class SheetPalette {
   const SheetPalette({
@@ -127,6 +128,7 @@ final class SheetPalette {
     required this.playback,
     required this.playhead,
     this.paper,
+    this.inks = const {},
   });
 
   /// Derived from the ambient theme's colour scheme, so the sheet follows
@@ -144,12 +146,15 @@ final class SheetPalette {
     );
   }
 
-  /// Notes, signatures, text and every other mark.
+  /// Every mark that has no colour of its own in [inks], but for the staff
+  /// lines and a note out of range.
   final Color ink;
 
+  /// The staff lines, when [inks] has no colour for them.
   final Color staffLines;
 
-  /// A note the part's instrument cannot play.
+  /// A note the part's instrument cannot play, when [inks] has no colour
+  /// for it.
   final Color outOfRange;
 
   /// The caret at the edit cursor.
@@ -168,14 +173,24 @@ final class SheetPalette {
   /// makes. Null draws none, so the sheet shows what lies under the view.
   final Color? paper;
 
-  Color colorOf(InkRole role) => switch (role) {
-    InkRole.staffLine => staffLines,
-    InkRole.outOfRange => outOfRange,
-    _ => ink,
-  };
+  /// A colour for one kind of mark, which it takes in place of [ink],
+  /// [staffLines] or [outOfRange]. Two palettes are compared by what their
+  /// maps hold, so give a new map for a new colour and leave this one as it
+  /// is.
+  final Map<InkRole, Color> inks;
+
+  /// The colour a mark of [role] is drawn in.
+  Color colorOf(InkRole role) =>
+      inks[role] ??
+      switch (role) {
+        InkRole.staffLine => staffLines,
+        InkRole.outOfRange => outOfRange,
+        _ => ink,
+      };
 
   /// This palette with the given parts replaced. A null leaves a part as it
-  /// is, so this cannot take the [paper] away.
+  /// is, so this cannot take the [paper] away. A map of [inks] replaces the
+  /// whole map.
   SheetPalette copyWith({
     Color? ink,
     Color? staffLines,
@@ -185,6 +200,7 @@ final class SheetPalette {
     SheetHighlight? playback,
     SheetLine? playhead,
     Color? paper,
+    Map<InkRole, Color>? inks,
   }) => SheetPalette(
     ink: ink ?? this.ink,
     staffLines: staffLines ?? this.staffLines,
@@ -194,6 +210,7 @@ final class SheetPalette {
     playback: playback ?? this.playback,
     playhead: playhead ?? this.playhead,
     paper: paper ?? this.paper,
+    inks: inks ?? this.inks,
   );
 
   @override
@@ -206,7 +223,8 @@ final class SheetPalette {
       other.selection == selection &&
       other.playback == playback &&
       other.playhead == playhead &&
-      other.paper == paper;
+      other.paper == paper &&
+      mapEquals(other.inks, inks);
 
   @override
   int get hashCode => Object.hash(
@@ -218,5 +236,8 @@ final class SheetPalette {
     playback,
     playhead,
     paper,
+    Object.hashAllUnordered(
+      inks.entries.map((entry) => Object.hash(entry.key, entry.value)),
+    ),
   );
 }
