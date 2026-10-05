@@ -25,7 +25,7 @@ export 'package:score_layout/score_layout.dart'
         TextSpec;
 export 'package:score_model/score_model.dart';
 
-export 'src/midi_output.dart' show MidiOutput;
+export 'src/midi_output.dart' show FlutterMidiOutput, MidiOutput, MidiReverb;
 export 'src/score_player.dart';
 export 'src/sheet_palette.dart';
 export 'src/sheet_view.dart';
