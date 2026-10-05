@@ -249,8 +249,11 @@ final class GlyphPainter {
   }
 
   /// The family to ask the engine for. The bundled Bravura is a package
-  /// font, which Flutter names with the package prefix.
-  String get family => font == SmuflFont.bravura
+  /// font, which Flutter names with the package prefix. A copy of it with
+  /// other engraving defaults is the same font file.
+  String get family =>
+      font.family == SmuflFont.bravura.family &&
+          identical(font.glyphs, SmuflFont.bravura.glyphs)
       ? 'packages/simple_sheet_music/Bravura'
       : font.family;
 

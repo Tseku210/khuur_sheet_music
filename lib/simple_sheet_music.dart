@@ -10,6 +10,7 @@ export 'package:score_layout/score_layout.dart'
     show
         ChordSymbolSpelling,
         ElementOwner,
+        EngravingDefaults,
         EngravingStyle,
         InkRole,
         Owner,

@@ -184,7 +184,7 @@ The look of a sheet is set by three values of `SheetView`. Each has a default, s
 | Value | What it holds | A change |
 | --- | --- | --- |
 | `palette` | Colours, one for each kind of mark if the app wants that, and the styles of the selection, the cursor, the playhead and the sounding notes. | Repaints. Nothing is laid out again. |
-| `style` | Fonts, text sizes, spacing and what is printed. | Lays the score out again. |
+| `style` | Fonts, text sizes, spacing, the thickness of the lines and what is printed. | Lays the score out again. |
 | `tints` | A colour for one note or one event. | Repaints. |
 
 ### The palette
@@ -271,17 +271,33 @@ Where a note has several of them, the ink of the selection covers a tint, and th
 | `barNumbers`, `courtesySignatures`, `meterEverySystem`, `multiMeasureRests` | What is printed. |
 | `justifyLastSystemFrom` | How full the last system must be before it is stretched to the full width. |
 | `quarterTones`, `stringNumbers`, `chordSymbols` | Which glyphs and spellings these marks use. |
-| `font` | The music font. The package bundles Bravura. |
+| `font` | The music font, with the thickness of every line the engine draws. The package bundles Bravura. |
+
+The thickness of the stems, the beams, the barlines, the staff lines and the other lines comes from the font's `EngravingDefaults`, in staff spaces. A copy of the font holds other ones.
+
+```dart
+const font = SmuflFont.bravura;
+
+SheetView(
+  score: score,
+  style: EngravingStyle(
+    font: font.copyWith(
+      defaults: font.defaults.copyWith(
+        stemThickness: 0.16,
+        staffLineThickness: 0.1,
+      ),
+    ),
+  ),
+)
+```
+
+The defaults are compared by value, so a style built in `build` lays nothing out again while its numbers stay the same. The engine draws nothing with `arrowShaftThickness`, `bracketThickness`, `dashedBarlineDashLength`, `dashedBarlineGapLength`, `hBarThickness` and `subBracketThickness`, so a change to one of those changes nothing.
 
 ### Sizes and single notes
 
 - `staffSpace` is the number of logical pixels per staff space at zoom 1, and `SheetController.zoom` scales it.
 - `padding` is the room around the sheet.
 - `tints` maps a note or an event to a colour, for marks such as practice feedback, a colour per voice or a colour per pitch. A tint on an event colours the whole chord or rest. A tint on one note colours its head alone.
-
-### What cannot be changed yet
-
-- The thickness of stems, beams, barlines and staff lines comes from the music font.
 
 ## Names that Flutter also declares
 
