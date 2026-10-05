@@ -16,7 +16,8 @@ import '../packages/score_model/test/support.dart'
         fill,
         piano,
         pointAt,
-        rest;
+        rest,
+        withSpanner;
 import 'mock/fake_midi_output.dart';
 import 'mock/fake_wall_time.dart';
 
@@ -755,6 +756,33 @@ void main() {
         ]);
       },
     );
+
+    testPlayer('holds what a pedal line catches until the pedal lifts', (
+      tester,
+      rig,
+    ) async {
+      var score = tune();
+      score = withSpanner(
+        score,
+        const PedalLine(),
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(1, 2)),
+      );
+      await rig.player.play(score);
+      await tester.pump(second * 4);
+
+      // The line ends with the third quarter, so the pedal lifts at second 3.
+      expect(rig.midi.log.skip(2), [
+        '0.000 on 0:60',
+        '1.000 on 0:62',
+        '2.000 on 0:64',
+        '3.000 off 0:60',
+        '3.000 off 0:62',
+        '3.000 off 0:64',
+        '3.000 on 0:65',
+        '3.900 off 0:65',
+      ]);
+    });
 
     testPlayer(
       'does not send a note that began and ended while the isolate was busy',
