@@ -1,106 +1,150 @@
 import 'package:simple_sheet_music/simple_sheet_music.dart';
 
-/// Eight bars of 4/4 in C major at 96 beats a minute for one piano on two
-/// staves. The right hand has a melody and the left hand chords. Bars 3 and
-/// 4 repeat, so the script plays ten bars and those two report a second
-/// pass.
+/// The opening of Beethoven's "Für Elise", WoO 59, for one piano on two
+/// staves. It is a pickup of an eighth and eight bars of 3/8, at 120 eighths
+/// a minute. The last bar is a quarter long and repeats from the pickup, so
+/// the script plays every bar twice.
 Score buildDemoScore() {
+  final blank = Score.blank(
+    parts: const [_piano],
+    measureCount: _right.length,
+    meter: const Meter([3], 8),
+  );
   var session = EditSession.start(
-    Score.blank(
-      parts: const [_piano],
-      title: 'Eight bars in C',
-      measureCount: 8,
+    blank.copyWith(
+      meta: const ScoreMeta(
+        title: 'Für Elise',
+        subtitle: 'The opening',
+        composer: 'Ludwig van Beethoven',
+      ),
     ),
   );
-  final [treble, bass] = [for (final staff in session.score.staves) staff.id];
-  session = _enterHand(session, treble, _melody);
-  session = _enterHand(session, bass, _chords);
-
-  // Writing the last note of bar 8 puts the cursor in a bar of its own, and
-  // the score appends one to hold it.
   final bars = [for (final column in session.score.measures) column.id];
-  session = _apply(session, DeleteMeasures(bars.last, bars.last));
+  final [treble, bass] = [for (final staff in session.score.staves) staff.id];
+
+  session = _apply(
+    session,
+    Batch([
+      SetBarLength(bars.first, NoteValue.eighth.length),
+      SetBarLength(bars.last, NoteValue.quarter.length),
+    ], label: 'Pickup'),
+  );
+  session = _enterHand(session, treble, bars, _right);
+  session = _enterHand(session, bass, bars, _left);
 
   return _apply(
     session,
     Batch([
       SetTempoMarks(
-        bars[0],
+        bars.first,
         Seq([
           const TempoMark(
             offset: Moment.zero,
-            tempo: Tempo(96),
-            text: 'Andante',
+            tempo: Tempo(120, beat: NoteValue.eighth),
+            text: 'Poco moto',
+            showMetronome: false,
           ),
         ]),
       ),
-      SetRepeatStart(bars[2], start: true),
-      SetRepeatEnd(bars[3], const RepeatEnd()),
-    ], label: 'Tempo and repeat'),
+      SetDirections(
+        staff: treble,
+        measure: bars.first,
+        directions: Seq([const DynamicMark(Moment.zero, Dynamic.pp)]),
+      ),
+      SetRepeatEnd(bars.last, const RepeatEnd()),
+    ], label: 'Marks and repeat'),
   ).score;
 }
 
+// A name would be printed before the first system, as for a part of an
+// ensemble, and leave a phone's first system no room for bar 1.
 const _piano = PartTemplate(
-  name: 'Piano',
+  name: '',
   instrument: Instrument(key: 'piano', program: 0),
   staves: 2,
   clefs: [Clef.treble, Clef.bass],
 );
 
-/// One chord of space-separated pitches, held for a written value.
-typedef _Entry = (String pitches, NoteValue value);
+/// A note of a written value, or a rest where the pitch is null.
+typedef _Entry = (String? pitch, NoteValue value);
 
-const _q = NoteValue.quarter;
+const _s = NoteValue.sixteenth;
 const _e = NoteValue.eighth;
-const _h = NoteValue.half;
-const _w = NoteValue.whole;
+const _q = NoteValue.quarter;
 
-/// The right hand, one list per bar.
-const List<List<_Entry>> _melody = [
-  [('E4', _q), ('G4', _q), ('C5', _e), ('B4', _e), ('C5', _q)],
-  [('A4', _q), ('A4', _e), ('B4', _e), ('C5', _q), ('E5', _q)],
-  [('D5', _q), ('C5', _e), ('A4', _e), ('F4', _q), ('A4', _q)],
-  [('G4', _e), ('A4', _e), ('B4', _e), ('C5', _e), ('D5', _q), ('G4', _q)],
-  [('E5', _q), ('D5', _e), ('C5', _e), ('G4', _q), ('E4', _q)],
-  [('F4', _e), ('G4', _e), ('A4', _e), ('C5', _e), ('A4', _q), ('F4', _q)],
-  [('D5', _q), ('B4', _e), ('G4', _e), ('B4', _q), ('D5', _q)],
-  [('E5', _q), ('D5', _q), ('C5', _h)],
+const List<_Entry> _turn = [
+  ('E5', _s),
+  ('D#5', _s),
+  ('E5', _s),
+  ('B4', _s),
+  ('D5', _s),
+  ('C5', _s),
 ];
 
-/// The left hand, one list per bar: C, Am, F, G, C, F, G with a seventh, C.
-const List<List<_Entry>> _chords = [
-  [('C3 E3 G3', _h), ('C3 E3 G3', _h)],
-  [('A2 C3 E3', _h), ('A2 C3 E3', _h)],
-  [('F2 A2 C3', _q), ('F2 A2 C3', _q), ('F2 A2 C3', _q), ('F2 A2 C3', _q)],
-  [('G2 B2 D3', _q), ('G2 B2 D3', _q), ('G2 B2 D3', _q), ('G2 B2 D3', _q)],
-  [('C3 E3 G3', _h), ('C3 E3 G3', _h)],
-  [('F2 A2 C3', _h), ('F2 A2 C3', _h)],
-  [('G2 B2 D3', _h), ('G2 B2 D3 F3', _h)],
-  [('C3 E3 G3', _w)],
+/// The right hand, one list per bar, the pickup first.
+const List<List<_Entry>> _right = [
+  [('E5', _s), ('D#5', _s)],
+  _turn,
+  [('A4', _e), (null, _s), ('C4', _s), ('E4', _s), ('A4', _s)],
+  [('B4', _e), (null, _s), ('E4', _s), ('G#4', _s), ('B4', _s)],
+  [('C5', _e), (null, _s), ('E4', _s), ('E5', _s), ('D#5', _s)],
+  _turn,
+  [('A4', _e), (null, _s), ('C4', _s), ('E4', _s), ('A4', _s)],
+  [('B4', _e), (null, _s), ('E4', _s), ('C5', _s), ('B4', _s)],
+  [('A4', _q)],
 ];
 
-/// Enters [bars] in voice one of [staff] from the start of the score. The
-/// cursor moves on by the length of each chord, so the bars follow each other.
+const List<_Entry> _aMinor = [('A2', _s), ('E3', _s), ('A3', _s)];
+const List<_Entry> _eMajor = [('E2', _s), ('E3', _s), ('G#3', _s)];
+
+/// The left hand, one list per bar. A bar with nothing in it keeps its rest,
+/// and so does the end of a bar after its last note.
+const List<List<_Entry>> _left = [
+  [],
+  [],
+  _aMinor,
+  _eMajor,
+  _aMinor,
+  [],
+  _aMinor,
+  _eMajor,
+  _aMinor,
+];
+
+/// Enters each list of [hand] in voice one of [staff], from the start of its
+/// bar. No bar is added after a note that ends the score.
 EditSession _enterHand(
   EditSession session,
   StaffId staff,
-  List<List<_Entry>> bars,
+  List<MeasureId> bars,
+  List<List<_Entry>> hand,
 ) {
-  final start = ScorePoint(session.score.measures.first.id, Moment.zero);
-  var entered = session.placeCursor(
-    VoicePoint(staff: staff, voice: VoiceSlot.one, at: start),
-  );
-  for (final (pitches, value) in bars.expand((bar) => bar)) {
-    final [first, ...above] = [
-      for (final name in pitches.split(' ')) Pitch.parse(name),
-    ];
-    entered = _apply(
-      entered,
-      EnterNote(at: entered.cursor, tone: first, value: value),
+  var entered = session;
+  for (final (bar, entries) in hand.indexed) {
+    entered = entered.placeCursor(
+      VoicePoint(
+        staff: staff,
+        voice: VoiceSlot.one,
+        at: ScorePoint(bars[bar], Moment.zero),
+      ),
     );
-    final chord = entered.selection.singleEvent!;
-    for (final tone in above) {
-      entered = _apply(entered, AddToChord(event: chord, tone: tone));
+    var afterNote = false;
+    for (final (pitch, value) in entries) {
+      entered = _apply(
+        entered,
+        pitch == null
+            ? EnterRest(at: entered.cursor, value: value, appendBar: false)
+            : EnterNote(
+                at: entered.cursor,
+                tone: Pitch.parse(pitch),
+                value: value,
+                // The score beams a run of sixteenths whole. The meter would
+                // start a new beam at every eighth.
+                beam: afterNote ? BeamMode.join : BeamMode.auto,
+                appendBar: false,
+              ),
+      );
+      afterNote = pitch != null;
     }
   }
   return entered;

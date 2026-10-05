@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:example/demo_score.dart';
 import 'package:example/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -10,16 +11,21 @@ import 'package:simple_sheet_music/simple_sheet_music.dart';
 
 import '../../test/mock/fake_midi_output.dart';
 import '../../test/support/draw.dart';
+import 'support/eight_bars.dart';
 
 const Size desktop = Size(800, 600);
 const Size phone = Size(390, 844);
 
 final Key pageKey = UniqueKey();
 
+/// Shows the page over [eightBars], so that what a test edits and plays
+/// does not hang on the tune the app ships with. With [demo] the page opens
+/// as the app does, with the tune of its own.
 Future<void> pumpApp(
   WidgetTester tester, {
   Size size = desktop,
   MidiOutput? output,
+  bool demo = false,
 }) async {
   tester.view
     ..physicalSize = size
@@ -28,7 +34,7 @@ Future<void> pumpApp(
   await tester.pumpWidget(
     RepaintBoundary(
       key: pageKey,
-      child: ExampleApp(output: output),
+      child: ExampleApp(output: output, score: demo ? null : eightBars()),
     ),
   );
   await tester.pump();
@@ -275,43 +281,77 @@ void main() {
     ),
   );
 
-  for (final (name, size) in [
-    ('a desktop window', desktop),
-    ('a phone', phone),
-  ]) {
-    testWidgets('fits $name and shows more than one system', (tester) async {
-      await pumpApp(tester, size: size);
+  testWidgets('opens with the demo tune when it is given no score', (
+    tester,
+  ) async {
+    await pumpApp(tester, demo: true);
 
-      expect(tester.takeException(), isNull);
-      expect(controllerOf(tester).systemCount, greaterThan(1));
-    });
+    final demo = buildDemoScore();
+    expect(scoreOf(tester).meta.title, demo.meta.title);
+    expect(writtenIn(scoreOf(tester), 0), writtenIn(demo, 0));
+    expect(writtenIn(scoreOf(tester), 0), isNot(writtenIn(eightBars(), 0)));
+  });
 
-    testWidgets('fits $name with the action row showing, and the row scrolls '
-        'to its last button', (tester) async {
-      await pumpApp(tester, size: size);
+  testWidgets("on a phone the demo tune's pickup shares its system with the "
+      'bar after it', (tester) async {
+    await pumpApp(tester, size: phone, demo: true);
+    final score = scoreOf(tester);
+    Rect firstNoteOf(int bar) =>
+        controllerOf(tester)
+            .rectOf(score.eventAt(eighthOf(score, 0, 0, bar: bar))!.ref)!;
 
-      await tapFirstNote(tester);
+    expect(
+      [
+        for (final bar in [0, 1]) writtenIn(score, 0, bar: bar).first,
+      ],
+      ['sixteenth E5', 'sixteenth E5'],
+      reason: 'both bars open on the same note, so on the same height',
+    );
+    expect(firstNoteOf(1).top, closeTo(firstNoteOf(0).top, 1e-6));
+    expect(firstNoteOf(1).left, greaterThan(firstNoteOf(0).right));
+  });
 
-      expect(tester.takeException(), isNull);
-      expect(actionButton('Widen left'), findsOneWidget);
-      expect(
-        tester
-            .widget<Scrollbar>(
-              find.ancestor(
-                of: actionButton('Widen left'),
-                matching: find.byType(Scrollbar),
-              ),
-            )
-            .thumbVisibility,
-        isTrue,
-        reason: 'the thumb says how much of the row is past the edge',
-      );
+  for (final (tune, demo) in [('the demo tune', true), ('eight bars', false)]) {
+    for (final (name, size) in [
+      ('a desktop window', desktop),
+      ('a phone', phone),
+    ]) {
+      testWidgets('$tune fits $name and shows more than one system', (
+        tester,
+      ) async {
+        await pumpApp(tester, size: size, demo: demo);
 
-      await press(tester, 'Deselect');
+        expect(tester.takeException(), isNull);
+        expect(controllerOf(tester).systemCount, greaterThan(1));
+      });
 
-      expect(tester.takeException(), isNull);
-      expect(sheetOf(tester).selection.isEmpty, isTrue);
-    });
+      testWidgets('$tune fits $name with the action row showing, and the '
+          'row scrolls to its last button', (tester) async {
+        await pumpApp(tester, size: size, demo: demo);
+
+        await tapFirstNote(tester);
+
+        expect(tester.takeException(), isNull);
+        expect(actionButton('Widen left'), findsOneWidget);
+        expect(
+          tester
+              .widget<Scrollbar>(
+                find.ancestor(
+                  of: actionButton('Widen left'),
+                  matching: find.byType(Scrollbar),
+                ),
+              )
+              .thumbVisibility,
+          isTrue,
+          reason: 'the thumb says how much of the row is past the edge',
+        );
+
+        await press(tester, 'Deselect');
+
+        expect(tester.takeException(), isNull);
+        expect(sheetOf(tester).selection.isEmpty, isTrue);
+      });
+    }
   }
 
   testWidgets("the sheet keeps the theme's colours in dark mode, under a "
@@ -1421,11 +1461,11 @@ void main() {
     testWidgets('draws dark ink on a light page where the first note is, '
         'at the $name size', (tester) async {
       await tester.runAsync(loadPageFonts);
-      await pumpApp(tester, size: size);
+      await pumpApp(tester, size: size, demo: true);
       final ref = await tapFirstNote(tester);
       final rect = controllerOf(tester).rectOf(ref)!;
-      // The head sits on the bottom line, so this is its lower half, clear
-      // of the line.
+      // The head sits in the top space, so this is its lower half, clear of
+      // the lines.
       final head = onScreen(tester, Offset(rect.center.dx, rect.bottom - 2));
       final margin = onScreen(tester, const Offset(4, 4));
 

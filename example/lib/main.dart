@@ -7,11 +7,15 @@ void main() => runApp(const ExampleApp());
 
 /// One score to read, edit and play.
 class ExampleApp extends StatelessWidget {
-  const ExampleApp({this.output, super.key});
+  const ExampleApp({this.output, this.score, super.key});
 
   /// Where the player sends its notes. Null plays through the device's
   /// synthesizer.
   final MidiOutput? output;
+
+  /// The score the page opens with. Null opens the tune of
+  /// [buildDemoScore].
+  final Score? score;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -22,7 +26,7 @@ class ExampleApp extends StatelessWidget {
       colorSchemeSeed: Colors.indigo,
       brightness: Brightness.dark,
     ),
-    home: ScorePage(output: output),
+    home: ScorePage(output: output, score: score),
   );
 }
 
@@ -38,9 +42,10 @@ String refusalSentence(EditRefusal reason) => switch (reason) {
 };
 
 class ScorePage extends StatefulWidget {
-  const ScorePage({this.output, super.key});
+  const ScorePage({this.output, this.score, super.key});
 
   final MidiOutput? output;
+  final Score? score;
 
   @override
   State<ScorePage> createState() => _ScorePageState();
@@ -48,7 +53,9 @@ class ScorePage extends StatefulWidget {
 
 class _ScorePageState extends State<ScorePage>
     with SingleTickerProviderStateMixin {
-  EditSession _session = EditSession.start(buildDemoScore());
+  late EditSession _session = EditSession.start(
+    widget.score ?? buildDemoScore(),
+  );
   NoteValue _value = NoteValue.quarter;
   bool _autoBars = true;
   bool _autoBeams = true;

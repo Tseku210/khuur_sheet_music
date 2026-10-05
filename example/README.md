@@ -1,6 +1,6 @@
 # simple_sheet_music example
 
-One page that shows a score, edits it and plays it. `lib/main.dart` is the page. `lib/selection_actions.dart` holds the selection and the table of the actions on it. `lib/demo_score.dart` builds the tune of eight bars.
+One page that shows a score, edits it and plays it. `lib/main.dart` is the page. `lib/selection_actions.dart` holds the selection and the table of the actions on it. `lib/demo_score.dart` builds the tune, the opening of Beethoven's "Für Elise".
 
 - Tap a staff to enter a note of the value picked under the sheet.
 - Auto bars decides whether entry adds bars by itself. With it on, a note longer than the rest of its bar is cut at the bar line and tied, and a note that ends the score gets an empty bar after it. With it off, the long note is refused with a message, and the page says when a note ends the score. Add bar puts one bar at the end.
@@ -23,9 +23,15 @@ Playback runs on Android, iOS and macOS.
 flutter test
 ```
 
-`test/example_app_test.dart` drives the page with a fake MIDI output. To write a picture of the page, set `SNAPSHOT_DIR` to a directory before the run.
+`test/example_app_test.dart` drives the page with a fake MIDI output. It opens the page over the tune of `test/support/eight_bars.dart`, so what it edits and plays does not hang on the tune the app ships with. `ExampleApp(score: ...)` opens the page over any score. To write a picture of the page, set `SNAPSHOT_DIR` to a directory before the run.
 
 `integration_test/glyph_gate_test.dart` checks glyph placement on a device. The comment at its top gives the two commands.
+
+## The tune
+
+The tune is the opening of "Für Elise", WoO 59, by Ludwig van Beethoven. It is a pickup and eight bars of 3/8, and the last bar repeats from the pickup. The work is in the public domain. Its notes were entered by hand for this example and come from no edition.
+
+Editions beam each run of sixteenths whole. The meter alone starts a new beam at every eighth of 3/8, so `demo_score.dart` enters those notes with `BeamMode.join`.
 
 ## The SoundFont
 

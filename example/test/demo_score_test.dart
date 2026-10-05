@@ -2,99 +2,160 @@ import 'package:example/demo_score.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simple_sheet_music/simple_sheet_music.dart';
 
-// What each bar should sound, written apart from the demo's own tables so a
-// slip in either shows. The right hand is one string of pitches per bar, the
-// left hand one string per chord.
-const _melody = [
-  'E4 G4 C5 B4 C5',
-  'A4 A4 B4 C5 E5',
-  'D5 C5 A4 F4 A4',
-  'G4 A4 B4 C5 D5 G4',
-  'E5 D5 C5 G4 E4',
-  'F4 G4 A4 C5 A4 F4',
-  'D5 B4 G4 B4 D5',
-  'E5 D5 C5',
+// What each bar should hold, written apart from the demo's own tables so a
+// slip in either shows. One string for each hand of each bar, the pickup
+// first. `s`, `e` and `q` are a sixteenth, an eighth and a quarter, and `r`
+// is a rest.
+const _right = [
+  's:E5 s:D#5',
+  's:E5 s:D#5 s:E5 s:B4 s:D5 s:C5',
+  'e:A4 s:r s:C4 s:E4 s:A4',
+  'e:B4 s:r s:E4 s:G#4 s:B4',
+  'e:C5 s:r s:E4 s:E5 s:D#5',
+  's:E5 s:D#5 s:E5 s:B4 s:D5 s:C5',
+  'e:A4 s:r s:C4 s:E4 s:A4',
+  'e:B4 s:r s:E4 s:C5 s:B4',
+  'q:A4',
 ];
 
-const _chords = [
-  ['C3 E3 G3', 'C3 E3 G3'],
-  ['A2 C3 E3', 'A2 C3 E3'],
-  ['F2 A2 C3', 'F2 A2 C3', 'F2 A2 C3', 'F2 A2 C3'],
-  ['G2 B2 D3', 'G2 B2 D3', 'G2 B2 D3', 'G2 B2 D3'],
-  ['C3 E3 G3', 'C3 E3 G3'],
-  ['F2 A2 C3', 'F2 A2 C3'],
-  ['G2 B2 D3', 'G2 B2 D3 F3'],
-  ['C3 E3 G3'],
+const _left = [
+  'bar rest',
+  'bar rest',
+  's:A2 s:E3 s:A3 s:r e:r',
+  's:E2 s:E3 s:G#3 s:r e:r',
+  's:A2 s:E3 s:A3 s:r e:r',
+  'bar rest',
+  's:A2 s:E3 s:A3 s:r e:r',
+  's:E2 s:E3 s:G#3 s:r e:r',
+  's:A2 s:E3 s:A3 s:r',
 ];
 
-/// The bars in the order they play, as (index, pass). Bars 3 and 4 repeat.
-const _played = [
-  (0, 1),
-  (1, 1),
-  (2, 1),
-  (3, 1),
-  (2, 2),
-  (3, 2),
-  (4, 1),
-  (5, 1),
-  (6, 1),
-  (7, 1),
+/// How long each bar is, in eighths.
+const _eighths = [1, 3, 3, 3, 3, 3, 3, 3, 2];
+
+const _values = {
+  's': NoteValue.sixteenth,
+  'e': NoteValue.eighth,
+  'q': NoteValue.quarter,
+};
+
+/// The value and the pitch of each note and rest of [bar], a null pitch for
+/// a rest.
+List<(NoteValue, String?)> _events(String bar) => [
+  if (bar != 'bar rest')
+    for (final [value, pitch] in bar.split(' ').map((e) => e.split(':')))
+      (_values[value]!, pitch == 'r' ? null : pitch),
 ];
 
-List<int> _keys(String pitches) => [
-  for (final name in pitches.split(' ')) Pitch.parse(name).midiKey,
+List<int> _keys(String bar) => [
+  for (final (_, pitch) in _events(bar))
+    if (pitch != null) Pitch.parse(pitch).midiKey,
 ];
 
 void main() {
   final score = buildDemoScore();
   final script = PlaybackCompiler().compile(score);
-  final treble = score.staves.first.id;
+  final [treble, bass] = [for (final staff in score.staves) staff.id];
 
-  Iterable<PlaybackNote> notesIn(PlayedBar bar) =>
-      script.notesBetween(bar.start, bar.end);
+  VoiceView voiceOne(int staff, int bar) =>
+      score.measureView(score.measures[bar].id).staves[staff].voices.first;
 
-  test('is eight bars of one piano part on two staves', () {
-    expect(score.measures.length, 8);
+  List<int> keysIn(PlayedBar bar, StaffId staff) => [
+    for (final note in script.notesBetween(bar.start, bar.end))
+      if (note.source.staff == staff) note.key,
+  ];
+
+  test('is a pickup and eight bars in 3/8 for one piano on two staves', () {
+    expect(score.meta.title, 'Für Elise');
+    expect(score.meta.composer, 'Ludwig van Beethoven');
     expect(score.parts.length, 1);
     expect(score.staves.length, 2);
     expect(script.channels.map((c) => (c.program, c.bank)), [(0, 0)]);
-  });
-
-  test('plays bars 3 and 4 twice and the rest once', () {
     expect([
-      for (final bar in script.bars) (score.indexOf(bar.measure), bar.pass),
-    ], _played);
+      for (final column in score.measures)
+        column.length.wholeNotes * Fraction(8),
+    ], _eighths.map(Fraction.new));
+    expect(score.measures.map((column) => column.meter).toSet(), {
+      const Meter([3], 8),
+    });
   });
 
-  test('runs at 96 beats a minute, 2.5 seconds a bar', () {
-    expect(script.totalSeconds, closeTo(25, 1e-9));
-    for (final (i, bar) in script.bars.indexed) {
-      expect(bar.start, closeTo(2.5 * i, 1e-9));
+  test('holds each hand note for note and rest for rest', () {
+    for (final (staff, hand) in [_right, _left].indexed) {
+      for (final (bar, written) in hand.indexed) {
+        expect(
+          [
+            for (final timed in voiceOne(staff, bar).events)
+              switch (timed.event) {
+                ChordEvent(:final value, :final notes) => (
+                  value,
+                  notes.map((note) => '${note.tone}').join(' '),
+                ),
+                RestEvent(:final value) => (value, null),
+                MeasureRest() => null,
+              },
+          ],
+          written == 'bar rest' ? [null] : _events(written),
+          reason: 'staff $staff, bar $bar',
+        );
+      }
     }
   });
 
-  test('sounds the melody and the chords it was written with', () {
+  test('plays every bar twice, the pickup with them', () {
+    expect(
+      [for (final bar in script.bars) (score.indexOf(bar.measure), bar.pass)],
+      [
+        for (final pass in [1, 2])
+          for (var bar = 0; bar < 9; bar++) (bar, pass),
+      ],
+    );
+  });
+
+  test('runs at 120 eighths a minute, half a second an eighth', () {
+    var eighths = 0;
+    for (final bar in script.bars) {
+      expect(bar.start, closeTo(eighths / 2, 1e-9));
+      eighths += _eighths[score.indexOf(bar.measure)];
+    }
+    expect(eighths, 48);
+    expect(script.totalSeconds, closeTo(24, 1e-9));
+  });
+
+  test('sounds the notes of both hands in both passes', () {
     for (final bar in script.bars) {
       final index = score.indexOf(bar.measure);
-      final reason = 'bar ${index + 1}, pass ${bar.pass}';
-
-      final right = [
-        for (final note in notesIn(bar))
-          if (note.source.staff == treble) note.key,
-      ];
-      expect(right, _keys(_melody[index]), reason: 'right hand, $reason');
-
-      final byStart = <double, List<int>>{};
-      for (final note in notesIn(bar)) {
-        if (note.source.staff != treble) {
-          (byStart[note.start] ??= []).add(note.key);
-        }
-      }
-      final left = [
-        for (final start in byStart.keys.toList()..sort())
-          (byStart[start]!..sort()),
-      ];
-      expect(left, _chords[index].map(_keys), reason: 'left hand, $reason');
+      final reason = 'bar $index, pass ${bar.pass}';
+      expect(
+        keysIn(bar, treble),
+        _keys(_right[index]),
+        reason: 'right, $reason',
+      );
+      expect(keysIn(bar, bass), _keys(_left[index]), reason: 'left, $reason');
     }
+  });
+
+  test('beams each run of sixteenths whole, as the score does', () {
+    List<int> beamed(int staff) => [
+      for (var bar = 0; bar < score.measures.length; bar++)
+        ...voiceOne(staff, bar).beams.map((group) => group.events.length),
+    ];
+
+    expect(beamed(0), [2, 6, 3, 3, 3, 6, 3, 3]);
+    expect(beamed(1), [3, 3, 3, 3, 3, 3]);
+  });
+
+  test('is marked pianissimo and Poco moto at its first note', () {
+    final first = score.measures.first;
+    expect(first.tempos.single.text, 'Poco moto');
+    expect(first.tempos.single.offset, Moment.zero);
+    expect(
+      first.tempos.single.showMetronome,
+      isFalse,
+      reason: 'the composer gave no metronome mark',
+    );
+    expect(first.staves.first.directions, [
+      const DynamicMark(Moment.zero, Dynamic.pp),
+    ]);
   });
 }
