@@ -30,10 +30,10 @@ const SheetPalette inked = SheetPalette(
   ink: Color(0xFF000000),
   staffLines: Color(0xFF000000),
   outOfRange: Color(0xFFC62828),
-  cursor: Color(0xFFDD2222),
-  selection: Color(0x553366FF),
-  playback: Color(0xFF8822CC),
-  playhead: Color(0xFF22AA44),
+  cursor: SheetLine(color: Color(0xFFDD2222)),
+  selection: SheetHighlight(fill: Color(0x553366FF)),
+  playback: SheetHighlight(ink: Color(0xFF8822CC)),
+  playhead: SheetLine(color: Color(0xFF22AA44)),
 );
 
 int eventOf(int bar, int beat) => 10000 + bar * 4 + beat;
@@ -3698,7 +3698,7 @@ void main() {
     final palette = paintersOf<SystemPainter>(tester).first.palette;
     expect(palette.ink, scheme.onSurface);
     expect(palette.outOfRange, scheme.error);
-    expect(palette.cursor, scheme.primary);
+    expect(palette.cursor.color, scheme.primary);
   });
 
   testWidgets("a view registers the music font's licence once", (tester) async {

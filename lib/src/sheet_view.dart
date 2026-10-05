@@ -219,11 +219,11 @@ class SheetController extends ChangeNotifier {
       Future.value();
 
   /// Systems [from] up to [to] as one image, without the overlay and
-  /// without the view's padding, on a transparent background, at
-  /// [pixelRatio]. [to] is the system count when null. The header is
-  /// included when [from] is 0. It draws the drawables the view paints, in
-  /// the view's palette and at its size, and assembles the systems it
-  /// covers.
+  /// without the view's padding, at [pixelRatio]. [to] is the system count
+  /// when null. The header is included when [from] is 0. It draws the
+  /// drawables the view paints, in the view's palette and at its size, on
+  /// the palette's paper or, when it has none, on a transparent background.
+  /// It assembles the systems it covers.
   ///
   /// One image holds only so many pixels on a side. A range taller than
   /// [maxImageSide] device pixels throws an [ArgumentError], so an app
@@ -269,7 +269,11 @@ class SheetController extends ChangeNotifier {
     }
     final palette = shown.palette;
     final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder)..scale(pixelRatio);
+    final canvas = Canvas(recorder);
+    if (palette.paper case final paper?) {
+      canvas.drawColor(paper, BlendMode.src);
+    }
+    canvas.scale(pixelRatio);
     SheetScale below(double y) =>
         SheetScale(spacePx: spacePx, origin: Offset(0, (y - top) * spacePx));
     if (from == 0) {
@@ -952,6 +956,78 @@ class _SheetViewState extends State<SheetView> {
       });
       final scale = SheetScale(spacePx: spacePx);
       final onTap = widget.onTap;
+      final sheet = CustomScrollView(
+        controller: _scroll,
+        slivers: [
+          SliverPadding(
+            padding: padding,
+            sliver: SliverMainAxisGroup(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: SizedBox(
+                    height: layout.tops.first * spacePx,
+                    child: RepaintBoundary(
+                      child: CustomPaint(
+                        painter: HeaderPainter(
+                          header: layout.header,
+                          glyphs: _glyphs,
+                          palette: palette,
+                          scale: scale,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                SliverVariedExtentList(
+                  itemExtentBuilder: (index, _) => index < layout.systemCount
+                      ? _extentOf(layout, index) * spacePx
+                      : null,
+                  // Only a system scrolled into view is asked for,
+                  // so only those are assembled.
+                  delegate: _SystemTiles(
+                    // The scroll view makes each tile a node of its
+                    // own for a screen reader.
+                    (context, index) => Semantics(
+                      label: _labelOf(layout, index),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          RepaintBoundary(
+                            child: CustomPaint(
+                              painter: SystemPainter(
+                                system: layout.systemAt(index),
+                                label: layout.labelOf(index),
+                                glyphs: _glyphs,
+                                palette: palette,
+                                scale: scale,
+                              ),
+                            ),
+                          ),
+                          CustomPaint(
+                            painter: OverlayPainter(
+                              layout: layout,
+                              index: index,
+                              cursor: widget.cursor,
+                              selection: widget.selection,
+                              tints: widget.tints,
+                              playback: widget.playback,
+                              glyphs: _glyphs,
+                              palette: palette,
+                              scale: scale,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    childCount: layout.systemCount,
+                    extent: (layout.height - layout.tops.first) * spacePx,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
       return GestureDetector(
         onTapUp: onTap == null
             ? null
@@ -964,77 +1040,11 @@ class _SheetViewState extends State<SheetView> {
                   onTap(hit);
                 }
               },
-        child: CustomScrollView(
-          controller: _scroll,
-          slivers: [
-            SliverPadding(
-              padding: padding,
-              sliver: SliverMainAxisGroup(
-                slivers: [
-                  SliverToBoxAdapter(
-                    child: SizedBox(
-                      height: layout.tops.first * spacePx,
-                      child: RepaintBoundary(
-                        child: CustomPaint(
-                          painter: HeaderPainter(
-                            header: layout.header,
-                            glyphs: _glyphs,
-                            palette: palette,
-                            scale: scale,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  SliverVariedExtentList(
-                    itemExtentBuilder: (index, _) => index < layout.systemCount
-                        ? _extentOf(layout, index) * spacePx
-                        : null,
-                    // Only a system scrolled into view is asked for,
-                    // so only those are assembled.
-                    delegate: _SystemTiles(
-                      // The scroll view makes each tile a node of its
-                      // own for a screen reader.
-                      (context, index) => Semantics(
-                        label: _labelOf(layout, index),
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            RepaintBoundary(
-                              child: CustomPaint(
-                                painter: SystemPainter(
-                                  system: layout.systemAt(index),
-                                  label: layout.labelOf(index),
-                                  glyphs: _glyphs,
-                                  palette: palette,
-                                  scale: scale,
-                                ),
-                              ),
-                            ),
-                            CustomPaint(
-                              painter: OverlayPainter(
-                                layout: layout,
-                                index: index,
-                                cursor: widget.cursor,
-                                selection: widget.selection,
-                                tints: widget.tints,
-                                playback: widget.playback,
-                                glyphs: _glyphs,
-                                palette: palette,
-                                scale: scale,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      childCount: layout.systemCount,
-                      extent: (layout.height - layout.tops.first) * spacePx,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        // The box is there without a paper too. A box that came and went
+        // with the paper would build the scroll view anew, at offset zero.
+        child: ColoredBox(
+          color: palette.paper ?? const Color(0x00000000),
+          child: sheet,
         ),
       );
     },

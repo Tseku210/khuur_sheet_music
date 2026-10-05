@@ -494,7 +494,9 @@ final class SystemPainter extends CustomPainter {
 }
 
 /// Paints what moves over one system, which is the selection, the tints,
-/// the playback highlight, the playhead and the caret.
+/// the playback highlight, the playhead and the caret, each in the style
+/// the palette gives it. An ink of the selection covers a tint, and the
+/// playback highlight covers both.
 ///
 /// The cursor, the selection and the tints are values of this painter, so
 /// a new one repaints through [shouldRepaint] when the view rebuilds.
@@ -545,20 +547,46 @@ final class OverlayPainter extends CustomPainter {
         (drawable, color),
   ];
 
+  // A range has a box and no ink, since it lists no notes.
+  late final List<Drawable> _picked = switch (selection) {
+    ItemSelection(:final items) when palette.selection.ink != null => [
+      for (final ref in items) ..._system.drawablesOf(ElementOwner(ref)),
+    ],
+    _ => const [],
+  };
+
   @override
   void paint(Canvas canvas, Size size) {
-    final shade = Paint()..color = palette.selection;
     for (final box in _selected) {
-      canvas.drawRect(scale.rectOf(box), shade);
+      _box(canvas, box, palette.selection);
     }
     for (final (drawable, color) in _tinted) {
       paintDrawable(canvas, drawable, glyphs, scale, color);
     }
+    if (palette.selection.ink case final ink?) {
+      for (final drawable in _picked) {
+        paintDrawable(canvas, drawable, glyphs, scale, ink);
+      }
+    }
 
     final position = playback?.value;
-    for (final ref in position?.sounding ?? const <EventRef>[]) {
-      for (final drawable in _system.drawablesOf(ElementOwner(ref))) {
-        paintDrawable(canvas, drawable, glyphs, scale, palette.playback);
+    final sounding = [
+      for (final ref in position?.sounding ?? const <EventRef>[])
+        ElementOwner(ref),
+    ];
+    final SheetHighlight(:fill, :border, :ink) = palette.playback;
+    if (fill != null || border != null) {
+      for (final owner in sounding) {
+        if (_system.boundsOf(owner) case final box?) {
+          _box(canvas, box, palette.playback);
+        }
+      }
+    }
+    if (ink != null) {
+      for (final owner in sounding) {
+        for (final drawable in _system.drawablesOf(owner)) {
+          paintDrawable(canvas, drawable, glyphs, scale, ink);
+        }
       }
     }
 
@@ -581,14 +609,36 @@ final class OverlayPainter extends CustomPainter {
     }
   }
 
-  void _line(Canvas canvas, Box box, Color color) {
+  void _box(Canvas canvas, Box box, SheetHighlight style) {
+    final SheetHighlight(:fill, :border) = style;
+    final space = scale.spacePx;
+    final shape = RRect.fromRectAndRadius(
+      scale.rectOf(box).inflate(style.padding * space),
+      Radius.circular(style.radius * space),
+    );
+    if (fill != null) {
+      canvas.drawRRect(shape, Paint()..color = fill);
+    }
+    if (border != null) {
+      final width = style.borderWidth * space;
+      canvas.drawRRect(
+        shape.deflate(width / 2),
+        Paint()
+          ..color = border
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = width,
+      );
+    }
+  }
+
+  void _line(Canvas canvas, Box box, SheetLine line) {
     final rect = scale.rectOf(box);
     canvas.drawLine(
       rect.topLeft,
       rect.bottomLeft,
       Paint()
-        ..color = color
-        ..strokeWidth = scale.spacePx * 0.2,
+        ..color = line.color
+        ..strokeWidth = scale.spacePx * line.width,
     );
   }
 
