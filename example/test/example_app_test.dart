@@ -292,6 +292,38 @@ Score twoDrums() => Score.blank(
   measureCount: 2,
 );
 
+/// One bar of 4/4 on one staff. Voice two has a quarter note and a quarter
+/// rest, and voice one its bar rest.
+Score restInVoiceTwo() {
+  final blank = Score.blank(
+    parts: const [
+      PartTemplate(
+        name: '',
+        instrument: Instrument(key: 'piano', program: 0),
+      ),
+    ],
+    measureCount: 1,
+  );
+  VoicePoint quarter(int index) => VoicePoint(
+    staff: blank.staves.first.id,
+    voice: VoiceSlot.two,
+    at: ScorePoint(blank.measures.first.id, Moment(Fraction(index, 4))),
+  );
+  return [
+        EnterNote(
+          at: quarter(0),
+          tone: Pitch.parse('E4'),
+          value: NoteValue.quarter,
+        ),
+        EnterRest(at: quarter(1), value: NoteValue.quarter),
+      ]
+      .fold(
+        EditSession.start(blank),
+        (session, edit) => (session.run(edit) as Applied).session,
+      )
+      .score;
+}
+
 /// Taps the note or the rest that holds [at], and gives its event.
 Future<EventRef> tapNoteAt(WidgetTester tester, VoicePoint at) async {
   await bringIntoView(tester, at);
@@ -793,6 +825,74 @@ void main() {
       'eighth B4',
       'quarter C5',
     ]);
+  });
+
+  testWidgets('Delete is off on a rest of voice one, which is the room its '
+      'bar has left, and on again with a note beside it', (tester) async {
+    await pumpApp(tester);
+    await tapNoteAt(tester, beatOf(scoreOf(tester), 0, 1));
+    expect(isOn(tester, 'Delete'), isTrue);
+
+    await press(tester, 'Delete');
+
+    expect(selectedOf(tester), [(0, 'quarter rest')]);
+    expect(isOn(tester, 'Delete'), isFalse);
+
+    await press(tester, 'Widen right');
+
+    expect(selectedOf(tester), [(0, 'quarter rest'), (0, 'eighth C5')]);
+    expect(isOn(tester, 'Delete'), isTrue);
+  });
+
+  testWidgets('Delete takes a rest of voice two away', (tester) async {
+    await pumpApp(tester, score: restInVoiceTwo());
+    final score = scoreOf(tester);
+    List<String> voiceTwo() => [
+      for (final voice in scoreOf(
+        tester,
+      ).measureView(score.measures.first.id).staves.first.voices)
+        if (voice.slot == VoiceSlot.two)
+          for (final timed in voice.events) writtenOf(timed.event),
+    ];
+    expect(voiceTwo(), ['quarter E4', 'quarter rest']);
+    await tapNoteAt(
+      tester,
+      VoicePoint(
+        staff: score.staves.first.id,
+        voice: VoiceSlot.two,
+        at: ScorePoint(score.measures.first.id, Moment.zero),
+      ),
+    );
+    await press(tester, 'Widen right');
+    await press(tester, 'Narrow left');
+    expect(selectedOf(tester), [(0, 'quarter rest')]);
+
+    expect(isOn(tester, 'Delete'), isTrue);
+    await press(tester, 'Delete');
+
+    expect(voiceTwo(), ['quarter E4']);
+  });
+
+  testWidgets('Delete stays on over what was pasted when only rests are left '
+      'of it, and clears a line drawn over them', (tester) async {
+    await pumpApp(tester);
+    await tapFirstNote(tester);
+    await press(tester, 'Widen right');
+    await press(tester, 'Copy');
+    await press(tester, 'Paste');
+    expect(sheetOf(tester).selection, isA<RangeSelection>());
+    await press(tester, 'Delete');
+    expect(writtenIn(scoreOf(tester), 0).take(2), [
+      'quarter rest',
+      'quarter rest',
+    ]);
+    await press(tester, 'Crescendo');
+    expect(linesOf(scoreOf(tester)), hasLength(1));
+
+    expect(isOn(tester, 'Delete'), isTrue);
+    await press(tester, 'Delete');
+
+    expect(linesOf(scoreOf(tester)), isEmpty);
   });
 
   testWidgets('Widen right and Widen left take in the note across a bar line', (

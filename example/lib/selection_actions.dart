@@ -200,6 +200,14 @@ List<SelectionAction> selectionActions(
     _ => null,
   };
   final tie = _tie(picked);
+  // Erase finds nothing to clear in a rest of voice one, which is the room
+  // its bar has left. In the other voices it clears a rest to a gap, and
+  // from a range it clears the lines and the directions too.
+  final clears =
+      picked.selection is RangeSelection ||
+      events.any(
+        (timed) => timed.event is ChordEvent || timed.voice != VoiceSlot.one,
+      );
 
   // A head picked alone gives way to its chord, so that every button acts
   // on whole events once there are several.
@@ -233,7 +241,7 @@ List<SelectionAction> selectionActions(
     (
       label: 'Delete',
       icon: Icons.delete_outline,
-      press: RunEdit(Erase(picked.selection)),
+      press: clears ? RunEdit(Erase(picked.selection)) : null,
     ),
     (
       label: 'Widen left',
