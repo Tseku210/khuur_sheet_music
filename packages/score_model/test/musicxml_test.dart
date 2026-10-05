@@ -1087,6 +1087,36 @@ void main() {
       ]);
     });
 
+    test('writes a tempo in plain digits, however large or small', () {
+      Score marked(double bpm) => changeBar(
+        blankScore(bars: 1),
+        0,
+        (column) => column.copyWith(
+          tempos: Seq([TempoMark(offset: Moment.zero, tempo: Tempo(bpm))]),
+        ),
+      );
+      (String, String?) written(double bpm) {
+        final root = exported(marked(bpm)).rootElement;
+        return (
+          root.findAllElements('per-minute').single.innerText,
+          root.findAllElements('sound').single.getAttribute('tempo'),
+        );
+      }
+
+      expect(written(1e300), ('1${'0' * 300}', '1${'0' * 300}'));
+      expect(written(1.5e21), ('15${'0' * 20}', '15${'0' * 20}'));
+      expect(written(0.0004), ('0.0004', '0.0004'));
+      expect(written(2.5e-7), ('0.00000025', '0.00000025'));
+      expect(written(120.1234), ('120.123', '120.123'));
+      expect(written(120), ('120', '120'));
+      expect(
+        scoreFromMusicXml(
+          scoreToMusicXml(marked(0.0004)),
+        ).measures.single.tempos.single.tempo.bpm,
+        0.0004,
+      );
+    });
+
     test('writes score marks once, in the first shown part', () {
       List<String> marks(Score score) => [
         for (final name in ['rehearsal', 'segno', 'coda', 'metronome', 'sound'])

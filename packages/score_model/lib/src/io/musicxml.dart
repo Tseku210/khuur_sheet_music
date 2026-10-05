@@ -1059,9 +1059,30 @@ String _beamType(BeamJoin join) => switch (join) {
   BeamJoin.backwardHook => 'backward hook',
 };
 
-/// [value] with at most three decimals and no trailing zeros.
-String _number(num value) =>
-    value.toStringAsFixed(3).replaceFirst(RegExp(r'\.?0+$'), '');
+/// [value] rounded to three decimals, or under one to its first three
+/// digits that are not zero, so that a small tempo is not written as 0.
+String _number(num value) => _digits(
+  double.parse(
+    value.abs() < 1 ? value.toStringAsPrecision(3) : value.toStringAsFixed(3),
+  ),
+);
+
+/// [value] in plain digits, the fewest that read back as it. Dart writes a
+/// number from 1e21 up or under 1e-6 with an exponent, which a MusicXML
+/// decimal has no form for.
+String _digits(double value) {
+  final sign = value < 0 ? '-' : '';
+  final text = '${value.abs()}';
+  final e = text.indexOf('e');
+  if (e < 0) {
+    return '$sign${text.replaceFirst(RegExp(r'\.0$'), '')}';
+  }
+  final digits = text.substring(0, e).replaceFirst('.', '');
+  final exponent = int.parse(text.substring(e + 1));
+  return exponent < 0
+      ? '${sign}0.${'0' * (-exponent - 1)}$digits'
+      : '$sign$digits${'0' * (exponent + 1 - digits.length)}';
+}
 
 XmlElement _el(
   String name, [
