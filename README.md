@@ -311,7 +311,7 @@ A `SheetHighlight` draws a box, a border around the box and the marked item agai
 | `padding` | How far the box reaches past the notes. Under zero it makes the box smaller than the notes. |
 | `ink` | The colour the marked item is drawn in. A selected or sounding event is the whole chord or rest, with its stem, accidentals and dots. One selected note of a chord is its head alone. A selected range has a box and no ink. |
 
-A `SheetLine` has a `color` and a `width`, and a width of zero draws no line. Every length is in staff spaces, so a box and a line grow with the zoom. A width or a radius under zero is refused.
+A `SheetLine` has a `color` and a `width`, and a width of zero draws no line. Every length is in staff spaces, so a box and a line grow with the zoom. A width or a radius under zero fails an `assert`, so only a debug build refuses it. In a release build a width under zero draws no line and no border. A radius under zero goes to Flutter's `RRect` as it is. Flutter checks it in a debug build only and gives it no meaning, so do not pass one.
 
 `SheetHighlight` and `SheetLine` have a `copyWith` too. It replaces a part and cannot take a colour away, so a style without its fill is built anew.
 
