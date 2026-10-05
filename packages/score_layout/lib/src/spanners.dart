@@ -748,14 +748,22 @@ SpannerPiece _piece(
       final untilDx = endChord == null ? 0.0 : _centre(endChord.plan);
       final x0 = xs[fromSlice] + fromDx;
       final x1 = xs[untilSlice] + untilDx;
-      final clear = free(x0, x1);
+      Box? headsOf(PlacedChord? chord) =>
+          chord?.plan.headsBox.shift(xs[chord.slice], 0);
+      final ends = [?headsOf(startChord), ?headsOf(endChord)];
+      // An end stands clear of its chord's whole heads box, which reaches
+      // past the head's centre to a stem on its far side. The room covers
+      // both boxes, so no end lies past its limit.
+      final clear = free(
+        ends.fold(math.min(x0, x1), (x, box) => math.min(x, box.left)),
+        ends.fold(math.max(x0, x1), (x, box) => math.max(x, box.right)),
+      );
       final limit = clear + s * slurRise;
       double dy(PlacedChord? chord) {
-        if (chord == null) {
-          return clear + s * _slurGap;
-        }
-        final heads = chord.plan.headsBox.shift(xs[chord.slice], 0);
-        return free(heads.left, heads.right) + s * _slurGap;
+        final heads = headsOf(chord);
+        return heads == null
+            ? clear + s * _slurGap
+            : free(heads.left, heads.right) + s * _slurGap;
       }
 
       final from = (
