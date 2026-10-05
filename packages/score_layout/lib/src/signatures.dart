@@ -865,7 +865,7 @@ List<Drawable> placeLead(
         SpPoint(indent + thin / 2, tops.first),
         SpPoint(indent + thin / 2, tops.last + staffHeight),
         thickness: thin,
-        ink: InkRole.bracket,
+        ink: InkRole.barline,
       ),
     );
   }
@@ -883,7 +883,7 @@ GlyphDraw _brace(double left, double top, double bottom, EngravingStyle style) {
     Glyph.brace,
     SpPoint(left - box.left * scale, bottom - box.bottom * scale * stretch),
     bounds: Box(left, top, left + braceWidth, bottom),
-    ink: InkRole.bracket,
+    ink: InkRole.brace,
     scale: scale,
     stretch: stretch,
   );

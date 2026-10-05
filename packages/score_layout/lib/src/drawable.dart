@@ -46,10 +46,12 @@ final class SpannerOwner extends Owner {
 enum InkRole {
   // The staff and what frames it.
   staffLine,
+
+  /// A barline, a repeat's dots and the line that joins the staves at a
+  /// system's start.
   barline,
 
-  /// A brace, and the line that joins the staves at a system's start.
-  bracket,
+  brace,
   clef,
   keySignature,
   timeSignature,
@@ -69,7 +71,11 @@ enum InkRole {
 
   /// An augmentation dot, of a chord or of a rest.
   dot,
+
+  /// A rest, and the bar and the count of a rest of several bars.
   rest,
+
+  /// A tuplet's number and its bracket.
   tuplet,
 
   // Marks on a chord.
@@ -84,6 +90,8 @@ enum InkRole {
   // Directions over a staff.
   dynamics,
   expression,
+
+  /// A tempo mark, and the text and the dashes of a tempo line.
   tempo,
   rehearsal,
   navigation,

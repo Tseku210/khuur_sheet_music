@@ -837,22 +837,17 @@ void main() {
       );
     });
 
-    test('draws a brace and the line that joins the staves as bracket', () {
+    test('draws a brace as brace', () {
       expectRole(
         glyphs(structure, 'brace'),
-        InkRole.bracket,
-        'A brace is bracket.',
-        count: 1,
-      );
-      expectRole(
-        upright(structure).where(joinsAll),
-        InkRole.bracket,
-        "The line that joins staves at a system's start is bracket.",
+        InkRole.brace,
+        'A brace is brace.',
         count: 1,
       );
     });
 
-    test('draws every barline and repeat dots as barline', () {
+    test('draws every barline, the line that joins the staves and repeat '
+        'dots as barline', () {
       final barlines = upright(structure).where((line) => !joinsAll(line));
 
       expect(
@@ -861,6 +856,12 @@ void main() {
         reason: 'thin and thick barlines are both here',
       );
       expectRole(barlines, InkRole.barline, 'Every barline is barline.');
+      expectRole(
+        upright(structure).where(joinsAll),
+        InkRole.barline,
+        "The line that joins staves at a system's start is barline.",
+        count: 1,
+      );
       expectRole(
         glyphs(structure, 'repeatDots'),
         InkRole.barline,
