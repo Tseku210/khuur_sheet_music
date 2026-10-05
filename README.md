@@ -95,7 +95,7 @@ SheetView(
 
 The hit names the staff, the voice, the time and the staff step under the tap, so the app looks nothing up.
 
-`tapGrid` is the grid a tap off a note snaps to, a sixteenth unless given. With the base of the value being entered, a note starts on a beat of its own value. On a finer grid a whole note tapped in the middle of a bar starts there, and the model cuts it at the beats and the barline and ties the pieces.
+`tapGrid` is the grid a tap snaps to, a sixteenth unless given. With the base of the value being entered, a note starts on a beat of its own value. A tap within a staff space of where a note or a rest of its voice starts takes that start, whatever the grid. A whole note that starts in the middle of a bar, on a finer grid or at such a start, is cut at the beats and the barline, and the model ties the pieces.
 
 The view draws the cursor as a caret. It opens with the cursor's system in view and scrolls that system into view when the cursor moves. To move the cursor from a button, call `_session.moveCursor(CursorMove.nextEvent)`.
 
@@ -106,17 +106,24 @@ The view draws the cursor as a caret. It opens with the cursor's system in view 
 A finger hides the place it points at. So a touch editor shows the note under a held finger before it enters one. `SheetView.preview` draws a note that is not in the score, which is its head and the ledger lines it needs. Nothing in the sheet moves for it. `SheetController.entryAt` tells where a note entered at a point would go.
 
 ```dart
-SheetHit? _held;
+Offset? _held;
 
-void _hold(Offset at) => setState(
-  () => _held = _sheet.entryAt(at, voice: _session.cursor.voice),
-);
+late final _sheet = SheetController()
+  ..addListener(() {
+    if (_held != null) setState(() {});
+  });
+
+SheetHit? get _heldEntry => switch (_held) {
+  final at? => _sheet.entryAt(at, voice: _session.cursor.voice),
+  null => null,
+};
 
 GestureDetector(
-  onLongPressStart: (details) => _hold(details.localPosition),
-  onLongPressMoveUpdate: (details) => _hold(details.localPosition),
+  onLongPressStart: (details) => setState(() => _held = details.localPosition),
+  onLongPressMoveUpdate: (details) => setState(() => _held = details.localPosition),
+  onLongPressCancel: () => setState(() => _held = null),
   onLongPressEnd: (_) {
-    final hit = _held;
+    final hit = _heldEntry;
     setState(() => _held = null);
     if (hit != null) _enter(hit);
   },
@@ -124,7 +131,7 @@ GestureDetector(
     score: _session.score,
     controller: _sheet,
     tapGrid: _value.base,
-    preview: switch (_held) {
+    preview: switch (_heldEntry) {
       final hit? => NotePreview.at(hit, base: _value.base),
       null => null,
     },
@@ -134,13 +141,17 @@ GestureDetector(
 
 `_enter` is `_onTap` above without its first lines, the ones that select a note.
 
-`entryAt` gives the hit of `hitTest` without a target. It looks at nothing that is drawn, where `hitTest` at a note or a rest gives the time of that note or rest. A bar rest is drawn in the middle of its bar and starts at the bar's start, so a preview from `hitTest` would stand a long way from the finger.
+The app keeps the place of the finger and asks the controller for the hit each time it builds, and once more when the finger lifts. A hit it kept would go stale. A sheet that scrolls or zooms under a still finger has another place under it, and a new `tapGrid` snaps the same place to another beat. The controller tells its listeners of each, so the listener above builds again while a finger is held.
 
-The preview has the head of its `base`, so a whole note, a half note and a shorter one each look like themselves. It is drawn in the palette's `preview` colour.
+The controller answers for the sheet on screen, which is a frame behind a score the app has just changed. An app that can take a bar away under a held finger, with an undo say, checks `_session.score.contains(hit.at.measure)` before it enters the note.
 
-A long press that has started gets no call when the system takes its pointer away. So the app also clears `_held` in the `onPointerCancel` of a `Listener` around the detector.
+`entryAt` gives the hit of `hitTest` without a target. `hitTest` at a note or a rest gives the time of that note or rest, and `entryAt` looks at no drawn mark. A bar rest is drawn in the middle of its bar and starts at the bar's start, so a preview from `hitTest` would stand a long way from the finger. Both snap to `tapGrid` by the same rule.
 
-The package has no magnifying glass. The example app puts Flutter's `RawMagnifier` over the sheet beside the finger, in `example/lib/main.dart`.
+The preview has the head of its `base`, so a whole note, a half note and a shorter one each look like themselves. A drum's note has the head of its kit sound, which `NotePreview.at` takes as `head`. The preview is drawn in the palette's `preview` colour.
+
+`onLongPressCancel` is called when the system takes the pointer of a long press away, also after the press has started. It is called for a tap and a scroll too, which never become a long press. So it clears the hold and enters nothing.
+
+The package has no magnifying glass. The example app puts Flutter's `RawMagnifier` over the sheet beside the finger, in `example/lib/main.dart`. Its glass looks at `SheetController.rectOfPreview`, which is where the head of the preview is drawn. A long value starts on a beat that can be far from the finger, and a glass that looked at the finger would miss the note.
 
 ## Play the score
 
