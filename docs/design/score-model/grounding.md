@@ -18,7 +18,7 @@ The goal is to rewrite `simple_sheet_music` into a notation engine for the compo
 
 ## Consumer: the Khuur app
 
-The app lives at `/Users/tsekushi/dev/work/khuur_app`.
+The app lives at [Tseku210/khuur_app](https://github.com/Tseku210/khuur_app).
 
 - Today the app contains only a tuner. No composer exists yet, and the app does not depend on `simple_sheet_music`. The composer is greenfield on the consumer side as well.
 - The app is Flutter, targets Android and iOS only, and uses Dart SDK 3.13.
