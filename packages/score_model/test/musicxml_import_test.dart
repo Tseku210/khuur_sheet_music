@@ -1315,6 +1315,42 @@ void main() {
       expect(beamsOf(score, 1), isEmpty);
     });
 
+    test('gives a chord no beam mode that the mode of one before it makes '
+        'needless', () {
+      String beamed(String state) => '<beam number="1">$state</beam>';
+      final score = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 1, '16th', beamed('begin')),
+            note('D5', 1, '16th', beamed('end')),
+            note('E5', 2, 'eighth', beamed('begin')),
+            note('F5', 2, 'eighth', beamed('continue')),
+            note('G5', 2, 'eighth', beamed('end')),
+            note('rest', 2, 'eighth'),
+            note('rest', 8, 'half'),
+          ],
+        ]),
+      );
+
+      // Without its sixteenths the run no longer splits at the beat, so F5
+      // joins E5 by itself.
+      expect(
+        [for (final chord in chordsIn(score, 0)) chord.beam],
+        [
+          BeamMode.auto,
+          BeamMode.auto,
+          BeamMode.begin,
+          BeamMode.auto,
+          BeamMode.auto,
+        ],
+      );
+      expect(beamsOf(score, 0), [
+        [0, 1],
+        [2, 3, 4],
+      ]);
+    });
+
     test('leaves beams to the meter when the file draws none', () {
       final score = imported(
         flute([

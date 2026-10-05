@@ -126,10 +126,17 @@ AccidentalRequest _request(
 /// The beam modes that make one voice's [events] group as the file beams
 /// them, where [joins] says whether each chord joins the chord before.
 ///
-/// A mode is given to the first chord that groups otherwise, and the voice
-/// is regrouped. `begin` always parts a chord from the one before, and
-/// `join` always joins it when both carry a beam, so a chord given a mode
-/// stays right and each is given one at most once.
+/// A pass gives a mode to the first chord that groups otherwise and to each
+/// chord after it that needs the same mode, up to the first that needs the
+/// other, and the voice is regrouped. That gives the modes one chord per
+/// regrouping would. A `begin` on one chord only ever joins others, and a
+/// `join` only ever parts them, because a run splits per beat while it
+/// holds a sixteenth. So a chord that needs the pass's mode goes on needing
+/// it, while one that needs the other may stop.
+///
+/// `begin` always parts a chord from the one before, and `join` always
+/// joins it when both carry a beam, so a chord given a mode stays right and
+/// each is given one at most once.
 Map<EventId, BeamMode> _beamModes(
   List<TimedEvent> events,
   Meter meter,
@@ -141,41 +148,42 @@ Map<EventId, BeamMode> _beamModes(
       if (timed.event case final ChordEvent chord) (index: i, chord: chord),
   ];
   final modes = <EventId, BeamMode>{};
-  final unbeamable = <EventId>{};
   while (true) {
     final joined = {
       for (final group in beamGroups(current, meter)) ...group.events.skip(1),
     };
-    final wrong = chords.indexWhere(
-      (at) =>
-          !modes.containsKey(at.chord.id) &&
-          !unbeamable.contains(at.chord.id) &&
-          joined.contains(at.chord.id) != (joins[at.chord.id] ?? false),
-    );
-    if (wrong < 0) {
+    BeamMode? given;
+    for (final (i, (:index, :chord)) in chords.indexed) {
+      if (modes.containsKey(chord.id) ||
+          joined.contains(chord.id) == (joins[chord.id] ?? false)) {
+        continue;
+      }
+      final BeamMode mode;
+      if (joined.contains(chord.id)) {
+        mode = BeamMode.begin;
+      } else if (chord.value.base.beams > 0 &&
+          i > 0 &&
+          chords[i - 1].chord.value.base.beams > 0) {
+        mode = BeamMode.join;
+      } else {
+        continue;
+      }
+      if (mode != (given ??= mode)) {
+        break;
+      }
+      modes[chord.id] = mode;
+      final timed = current[index];
+      current[index] = TimedEvent(
+        ref: timed.ref,
+        voice: timed.voice,
+        event: chord.copyWith(beam: mode),
+        onset: timed.onset,
+        duration: timed.duration,
+        tuplets: timed.tuplets,
+      );
+    }
+    if (given == null) {
       return modes;
     }
-    final (:index, :chord) = chords[wrong];
-    final BeamMode mode;
-    if (joined.contains(chord.id)) {
-      mode = BeamMode.begin;
-    } else if (chord.value.base.beams > 0 &&
-        wrong > 0 &&
-        chords[wrong - 1].chord.value.base.beams > 0) {
-      mode = BeamMode.join;
-    } else {
-      unbeamable.add(chord.id);
-      continue;
-    }
-    modes[chord.id] = mode;
-    final timed = current[index];
-    current[index] = TimedEvent(
-      ref: timed.ref,
-      voice: timed.voice,
-      event: chord.copyWith(beam: mode),
-      onset: timed.onset,
-      duration: timed.duration,
-      tuplets: timed.tuplets,
-    );
   }
 }
