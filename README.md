@@ -175,14 +175,88 @@ ListenableBuilder(
 final image = await _sheet.toImage(pixelRatio: 3);
 ```
 
-`toImage` draws the sheet without the cursor, the selection and the playhead, on a transparent background. One image holds at most `SheetController.maxImageSide` device pixels on a side, which is 8192. To export a longer score, pass `from` and `to` and make one image per range of systems. `systemCount` gives the number of systems.
+`toImage` draws the sheet without the cursor, the selection and the playhead. The background is the palette's `paper`, or transparent when the palette has none. One image holds at most `SheetController.maxImageSide` device pixels on a side, which is 8192. To export a longer score, pass `from` and `to` and make one image per range of systems. `systemCount` gives the number of systems.
 
-## Change the colours and the engraving
+## Change the look
 
-- `palette` takes a `SheetPalette`. When it is null, the view derives one from the theme with `SheetPalette.of`, so the sheet follows light and dark mode.
-- `tints` maps a note or an event to a colour, for marks such as practice feedback.
-- `style` takes an `EngravingStyle`. Its `text` map sets the size and the font family of each `TextRole`.
-- `staffSpace` is the number of logical pixels per staff space at zoom 1.
+The look of a sheet is set by three values of `SheetView`. Each has a default, so an app changes only what it wants to.
+
+| Value | What it holds | A change |
+| --- | --- | --- |
+| `palette` | Colours, and the styles of the selection, the cursor, the playhead and the sounding notes. | Repaints. Nothing is laid out again. |
+| `style` | Fonts, text sizes, spacing and what is printed. | Lays the score out again. |
+| `tints` | A colour for one note or one event. | Repaints. |
+
+### The palette
+
+When `palette` is null the view derives one from the theme with `SheetPalette.of`, so the sheet follows light and dark mode. `copyWith` changes some parts of it and keeps the others.
+
+```dart
+SheetView(
+  score: score,
+  palette: SheetPalette.of(context).copyWith(
+    paper: const Color(0xFFFFF8E1),
+    selection: const SheetHighlight(
+      fill: Color(0x332962FF),
+      border: Color(0xFF2962FF),
+      radius: 0.5,
+      padding: 0.3,
+    ),
+    cursor: const SheetLine(color: Color(0xFFD81B60), width: 0.35),
+  ),
+)
+```
+
+| Part | Type | What it sets |
+| --- | --- | --- |
+| `ink` | `Color` | Notes, signatures, text and every other mark. |
+| `staffLines` | `Color` | The staff lines. |
+| `outOfRange` | `Color` | A note its instrument cannot play. |
+| `paper` | `Color?` | The colour behind the sheet, on screen and in an image from `toImage`. Null draws none. |
+| `selection` | `SheetHighlight` | The selected notes and ranges. |
+| `playback` | `SheetHighlight` | The notes that sound now. |
+| `cursor` | `SheetLine` | The caret at the edit cursor. |
+| `playhead` | `SheetLine` | The line that moves while the score plays. |
+
+A `SheetHighlight` draws a box behind the notes, a border around them and the notes again in another ink. Each is drawn when it is given, so a style may mix them.
+
+| Part | What it sets |
+| --- | --- |
+| `fill` | The colour of the box. |
+| `border`, `borderWidth` | The colour and the width of the line around the box. The line lies inside the box. |
+| `radius` | How round the corners are. |
+| `padding` | How far the box reaches past the notes. |
+| `ink` | The colour the notes are drawn in. A selected range has a box and no ink. |
+
+A `SheetLine` has a `color` and a `width`. Every length is in staff spaces, so a box and a line grow with the zoom.
+
+Where a note has several of them, the ink of the selection covers a tint, and the ink of playback covers both.
+
+### The engraving style
+
+`EngravingStyle` holds what changes the layout. Every part has a default, so `EngravingStyle(staffGap: 6)` changes one.
+
+| Part | What it sets |
+| --- | --- |
+| `text` | A `TextSpec` for each `TextRole`, with a size in staff spaces, `italic`, `bold` and a font `family`. The roles are the lyrics, chord symbols, expressions, tempo marks, rehearsal marks, navigation marks, volta numbers, string numbers, bar numbers, part names, the title, the subtitle and the credits. |
+| `spacing` | A `SpacingPolicy`, which is the space after a quarter note, the ratio between a note and one twice as long, the least gap between glyphs, the padding at the start of a bar and the width of a run of empty bars. |
+| `staffGap`, `lyricGap`, `systemGap` | The clear space between staves, above a row of lyrics and between systems. |
+| `graceScale` | The size of grace notes. |
+| `barNumbers`, `courtesySignatures`, `meterEverySystem`, `multiMeasureRests` | What is printed. |
+| `justifyLastSystemFrom` | How full the last system must be before it is stretched to the full width. |
+| `quarterTones`, `stringNumbers`, `chordSymbols` | Which glyphs and spellings these marks use. |
+| `font` | The music font. The package bundles Bravura. |
+
+### Sizes and single notes
+
+- `staffSpace` is the number of logical pixels per staff space at zoom 1, and `SheetController.zoom` scales it.
+- `padding` is the room around the sheet.
+- `tints` maps a note or an event to a colour, for marks such as practice feedback, a colour per voice or a colour per pitch.
+
+### What cannot be changed yet
+
+- Every mark beside the staff lines takes the one `ink`. Stems, barlines, lyrics and dynamics have no colour of their own, short of a tint on a note.
+- The thickness of stems, beams, barlines and staff lines comes from the music font.
 
 ## Names that Flutter also declares
 

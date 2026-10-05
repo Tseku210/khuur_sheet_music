@@ -133,7 +133,7 @@ final image = await _sheet.toImage(pixelRatio: 3);
 | `Clef.treble()`, `KeySignature.dMajor()`, `TimeSignature.fourFour()` | `SetClef`, `SetKey`, `SetMeter`, or `Score.blank(key:, meter:)` |
 | `Note(Pitch.a4, ...)`, `ChordNote`, `Rest` | `EnterNote`, `AddToChord`, `EnterRest` |
 | `GlobalKey<SimpleSheetMusicState>` with `playMidi`, `pauseMidi`, `stopMidi`, `setTempo(int)` | `ScorePlayer.play`, `pause`, `resume`, `stop`, `tempoScale`, `status` |
-| `highlightColor` | `SheetPalette.playback` |
+| `highlightColor` | `SheetPalette.playback`, a `SheetHighlight` whose `ink` is that colour |
 | `onTap(symbol, offset)` | `onTap(SheetHit)` |
 | `FontType` | `EngravingStyle.font` (`SmuflFont`) |
 | `MidiPlayer`, `MidiPlayerStatus` | `ScorePlayer`, `PlayerStatus` |
@@ -501,7 +501,7 @@ The app sees five things:
 - The scroll extent is the layout's height from the first frame. A sliver list guesses its extent from the tiles laid out so far, even when every tile's extent is known. A probe saw 9,450 reported for a true 27,450. The tiles' delegate (`_SystemTiles`) reports the sum, and the same probe then reads 27,450 at the top.
 
 Theming is split by effect:
-- `SheetPalette` maps each `InkRole` to a colour and holds the overlay colours. It only repaints.
+- `SheetPalette` maps each `InkRole` to a colour and holds the styles of the overlay and the paper (see the styles of the overlay in the list after unit 13). It only repaints.
 - `EngravingStyle` holds layout policy. It compares by value, and a different style relays out. Its font compares by `SmuflFont ==`, which is the family and the identity of the metrics tables. The bundled Bravura is a const, so it equals itself everywhere. A font from `SmuflFont.fromMetadata` equals only itself, so an app parses once and keeps the font.
 
 The interface is deep. Behind `SheetView(score:)` sit identity diffing, three cache levels, line breaking, justification, cross-system spanners, lazy assembly, scroll anchoring and picture reuse. The controller exists because some app needs (overlays, other gestures, export) cannot be callbacks. Its methods add the pixel and scroll conversion that only the view knows, so none of them is a pass-through.
@@ -1300,6 +1300,28 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
   - The first review added two tests, for the opening of the row on a phone and for twice the text size. 25 tests failed before the names stood under the icons. The fixes after the independent review came with 9 tests, and 8 tests failed before the fixes went in. Against the final code 81 defects were planted one at a time, 8 in the model, 23 in the page and 50 in the table, and 79 failed a test. A Slur that starts on a rest and a Beam that is on with a quarter among eighths got through. Two new cases hold them now.
   - The root has 163 tests now, the example 57, the model 784 and the layout package 513.
   - Not verified. Nothing ran on a device or in a GUI. The pictures of the page come from `flutter test`.
+- **The styles of the overlay and the paper.** The project owner asked whether an app can set the colours, the styling and the look of the selection. It could set seven colours, a tint per note and the engraving style. The selection was a filled rectangle of one colour, and the caret and the playhead were lines of a fixed width. This unit is the shell's part, and no file of `packages/` changed for it.
+  - `SheetPalette.selection` and `playback` are a `SheetHighlight`, which is a fill, a border with its width, a corner radius, a padding and an ink. `cursor` and `playhead` are a `SheetLine`, a colour and a width. `paper` is the colour behind the sheet. `copyWith` changes some parts of a palette, so an app keeps the theme's palette and replaces one style.
+  - Three shapes were compared.
+
+    | Shape | Verdict |
+    | --- | --- |
+    | The styles are parts of the palette. | Taken. The palette is already everything that repaints and never lays out, and a style is that too. |
+    | A second value on the view holds the shapes, and the colours stay in the palette. | Dropped. The look of the selection would be split over two arguments of the view. |
+    | The app paints the selection itself in a callback that gets the canvas and the box. | Dropped. It makes the painter's pixel space a public contract, and a closure has no equality, so the overlay would repaint on every build. |
+
+  - The four parts changed type, from a colour to a style. That breaks a caller of the palette's constructor. The rewrite is unreleased, and one shape for the selection is worth more than the old argument.
+  - Every length is in staff spaces, as the layout's are, so a box and a line grow with the zoom. The border lies inside the box, so the padding alone says how far the mark reaches.
+  - A selected range has a box and no ink. It is a region of the sheet, and the model has no list of the notes in it for the painter to draw again. An app that wants them in a colour passes `tints`.
+  - The order of painting is the selection's boxes, the tints, the selection's ink, the box of the sounding notes, their ink, the playhead and the caret. So the ink of the selection covers a tint, and the ink of playback covers both.
+  - The paper's box is in the tree without a paper too, in a clear colour. A box that came and went with the paper built the scroll view anew at offset zero. A test saw the offset go from 300 to 0. `toImage` fills the image with the paper first, and stays transparent without one.
+  - The two types are named `SheetHighlight` and `SheetLine`, after `SheetView` and `SheetPalette`, because a bare `LineStyle` is a name an app or a chart package may have.
+  - The theme's palette looks as before. Its selection is a fill, its sounding notes are an ink, and its lines are a fifth of a staff space wide. The new test checks that shape and not which colour of the theme each part takes, which is still the owner's to settle.
+  - The example gives its selection a round box with a border, as a use of the styles. Its palette is a copy of the theme's, so it follows dark mode.
+  - `test/sheet_palette_test.dart` has 13 tests. 7 failed with the types in place and the old painting, and the test of the offset failed before the box stayed in the tree. The example's test failed before the page passed a palette. 52 defects were planted one at a time, 49 in the library and 3 in the example, and every one failed a test.
+  - Not built. A colour per kind of mark is the next unit, since stems, barlines, lyrics and dynamics all take the one `ink`. The thickness of lines comes from the font's defaults, which the library does not export. A `ThemeExtension` that carries a palette through the app's theme is not built either.
+  - The root has 176 tests now, the example 58, the model 784 and the layout package 513.
+  - Not verified. Nothing ran on a device or in a GUI. The pictures come from `flutter test`.
 
 
 ## Open questions and risks
