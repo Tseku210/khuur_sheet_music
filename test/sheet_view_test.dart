@@ -172,15 +172,27 @@ MeasureId firstBarWhollyInView(WidgetTester tester) => shown(tester).firstBarOf(
   }),
 );
 
+/// Every painter of type [T] in view, with the picture its tile holds for
+/// it.
+List<({T painter, Layer picture})> paintedIn<T extends CustomPainter>(
+  WidgetTester tester,
+) => [
+  for (final element in tester.elementList(paintedBy<T>()))
+    if (element.renderObject! case final RenderBox box
+        when (box.localToGlobal(Offset.zero) & box.size).overlaps(
+          Offset.zero & viewSize,
+        ))
+      (
+        painter: (element.widget as CustomPaint).painter! as T,
+        picture: _boundaryOf(box).debugLayer!.lastChild!,
+      ),
+];
+
 /// The picture each tile in view holds for its painter of type [T]. Painting
 /// again replaces the picture's layer, so a layer that is the same object
 /// was not painted again.
 List<Layer> picturesOf<T extends CustomPainter>(WidgetTester tester) => [
-  for (final box in tester.renderObjectList<RenderBox>(paintedBy<T>()))
-    if ((box.localToGlobal(Offset.zero) & box.size).overlaps(
-      Offset.zero & viewSize,
-    ))
-      _boundaryOf(box).debugLayer!.lastChild!,
+  for (final painted in paintedIn<T>(tester)) painted.picture,
 ];
 
 RenderRepaintBoundary _boundaryOf(RenderObject object) {

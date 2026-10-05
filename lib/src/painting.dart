@@ -421,16 +421,23 @@ void paintDrawable(
   }
 }
 
-/// Whether [a] and [b] give every role the same colour, so that a system
-/// painted with one needs no new paint with the other. The styles of the
-/// overlay and the paper are no part of that.
-bool _sameInk(SheetPalette a, SheetPalette b) =>
-    InkRole.values.every((role) => a.colorOf(role) == b.colorOf(role));
+/// Whether [a] and [b] give the same colour to every kind of mark among
+/// [drawables], so that what was painted with one needs no new paint with
+/// the other. The colour of a kind of mark that is not drawn, the styles of
+/// the overlay and the paper are no part of that.
+bool _sameInk(Iterable<Drawable> drawables, SheetPalette a, SheetPalette b) {
+  final changed = {
+    for (final role in InkRole.values)
+      if (a.colorOf(role) != b.colorOf(role)) role,
+  };
+  return changed.isEmpty ||
+      drawables.every((drawable) => !changed.contains(drawable.ink));
+}
 
 /// Paints the title block above the first system. It repaints when the
-/// header list, the glyph painter, a colour of the palette's ink or the
-/// scale changes. The layout hands out the same list while the sheet width
-/// and `score.meta` are unchanged.
+/// header list, the glyph painter, the colour of a kind of mark it shows or
+/// the scale changes. The layout hands out the same list while the sheet
+/// width and `score.meta` are unchanged.
 final class HeaderPainter extends CustomPainter {
   HeaderPainter({
     required this.header,
@@ -462,14 +469,15 @@ final class HeaderPainter extends CustomPainter {
   bool shouldRepaint(HeaderPainter oldDelegate) =>
       !identical(oldDelegate.header, header) ||
       !identical(oldDelegate.glyphs, glyphs) ||
-      !_sameInk(oldDelegate.palette, palette) ||
+      !_sameInk(header, oldDelegate.palette, palette) ||
       oldDelegate.scale != scale;
 }
 
 /// Paints one system's drawables and its bar number. The base layer.
 ///
 /// It repaints only when the system object, the label, the glyph painter,
-/// a colour of the palette's ink or the scale changes. The label is
+/// the colour of a kind of mark it shows or the scale changes. So a new
+/// colour for the lyrics repaints the systems that have lyrics. The label is
 /// compared by value, so a label made again for the same number at the same
 /// place repaints nothing. Its `CustomPaint` sits alone inside a
 /// `RepaintBoundary`, between the highlights' `CustomPaint` and the
@@ -495,9 +503,11 @@ final class SystemPainter extends CustomPainter {
   final SheetPalette palette;
   final SheetScale scale;
 
+  Iterable<Drawable> get _drawables => system.drawables.followedBy([?label]);
+
   @override
   void paint(Canvas canvas, Size size) {
-    for (final drawable in [...system.drawables, ?label]) {
+    for (final drawable in _drawables) {
       paintDrawable(
         canvas,
         drawable,
@@ -513,7 +523,7 @@ final class SystemPainter extends CustomPainter {
       !identical(oldDelegate.system, system) ||
       oldDelegate.label != label ||
       !identical(oldDelegate.glyphs, glyphs) ||
-      !_sameInk(oldDelegate.palette, palette) ||
+      !_sameInk(_drawables, oldDelegate.palette, palette) ||
       oldDelegate.scale != scale;
 }
 

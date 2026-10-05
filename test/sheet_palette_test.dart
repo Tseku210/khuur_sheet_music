@@ -20,9 +20,11 @@ import 'sheet_view_test.dart'
         host,
         imageOf,
         inked,
+        paintedIn,
         picturesOf,
         playingIn,
         scrollOf,
+        shown,
         tune;
 import 'support/draw.dart';
 import 'support/glyph_gate.dart';
@@ -877,10 +879,46 @@ void main() {
     var overlays = picturesOf<OverlayPainter>(tester);
     expect(systems.length, greaterThan(1));
 
+    List<SystemPainter> systemsInView() => [
+      for (final painted in paintedIn<SystemPainter>(tester)) painted.painter,
+    ];
+    // A kind of mark that the header shows alone, one that every system
+    // shows and one that only some do.
+    bool Function(SystemPainter) showing(InkRole role) =>
+        (painter) => [
+          ...painter.system.drawables,
+          ?painter.label,
+        ].any((drawable) => drawable.ink == role);
+    bool all(SystemPainter _) => true;
+    bool none(SystemPainter _) => false;
+    final signed = showing(InkRole.timeSignature);
+    expect(
+      shown(tester).header.map((drawable) => drawable.ink).toSet(),
+      {InkRole.title},
+    );
+    expect(systemsInView().map(showing(InkRole.title)), [
+      for (final _ in systems) false,
+    ]);
+    expect(
+      systemsInView().map(showing(InkRole.staffLine)),
+      [
+        for (final _ in systems) true,
+      ],
+    );
+    expect(
+      systemsInView().map(showing(InkRole.outOfRange)),
+      everyElement(isFalse),
+    );
+    expect(
+      systemsInView().map(signed),
+      containsAll([true, false]),
+    );
+
     Future<void> expectPainted(
       String part,
       SheetPalette palette, {
-      required bool notes,
+      required bool title,
+      required bool Function(SystemPainter) notes,
       required bool marks,
     }) async {
       await tester.pumpWidget(view(palette));
@@ -889,13 +927,14 @@ void main() {
       final overlaysNow = picturesOf<OverlayPainter>(tester);
       expect(
         identical(headerNow, header),
-        !notes,
+        !title,
         reason: 'the header, after $part',
       );
+      final painters = systemsInView();
       for (final (tile, picture) in systemsNow.indexed) {
         expect(
           identical(picture, systems[tile]),
-          !notes,
+          !notes(painters[tile]),
           reason: 'system $tile, after $part',
         );
       }
@@ -912,18 +951,20 @@ void main() {
     }
 
     var palette = inked;
-    for (final (part, change, notes, marks) in [
-      ('ink', (SheetPalette p) => p.copyWith(ink: red), true, false),
+    for (final (part, change, title, notes, marks) in [
+      ('ink', (SheetPalette p) => p.copyWith(ink: red), true, all, false),
       (
         'staffLines',
         (SheetPalette p) => p.copyWith(staffLines: red),
-        true,
+        false,
+        all,
         false,
       ),
       (
         'outOfRange',
         (SheetPalette p) => p.copyWith(outOfRange: blue),
-        true,
+        false,
+        none,
         false,
       ),
       (
@@ -931,6 +972,7 @@ void main() {
         (SheetPalette p) =>
             p.copyWith(selection: const SheetHighlight(fill: green)),
         false,
+        none,
         true,
       ),
       (
@@ -938,30 +980,93 @@ void main() {
         (SheetPalette p) =>
             p.copyWith(playback: const SheetHighlight(fill: green)),
         false,
+        none,
         true,
       ),
       (
         'cursor',
         (SheetPalette p) => p.copyWith(cursor: const SheetLine(color: green)),
         false,
+        none,
         true,
       ),
       (
         'playhead',
         (SheetPalette p) => p.copyWith(playhead: const SheetLine(color: blue)),
         false,
+        none,
         true,
       ),
-      ('paper', (SheetPalette p) => p.copyWith(paper: green), false, false),
       (
-        'inks',
+        'paper',
+        (SheetPalette p) => p.copyWith(paper: green),
+        false,
+        none,
+        false,
+      ),
+      (
+        'the staff lines in inks',
         (SheetPalette p) => p.copyWith(inks: {InkRole.staffLine: blue}),
+        false,
+        all,
+        false,
+      ),
+      (
+        'the title in inks',
+        (SheetPalette p) => p.copyWith(inks: {...p.inks, InkRole.title: green}),
         true,
+        none,
+        false,
+      ),
+      (
+        'the time signature in inks',
+        (SheetPalette p) =>
+            p.copyWith(inks: {...p.inks, InkRole.timeSignature: green}),
+        false,
+        signed,
         false,
       ),
     ]) {
       palette = change(palette);
-      await expectPainted(part, palette, notes: notes, marks: marks);
+      await expectPainted(
+        part,
+        palette,
+        title: title,
+        notes: notes,
+        marks: marks,
+      );
+    }
+  });
+
+  testWidgets('an image of the sheet is painted in the colours inks has', (
+    tester,
+  ) async {
+    final controller = SheetController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      host(
+        SheetView(
+          score: tune(bars: 12),
+          controller: controller,
+          style: pictureStyle,
+          palette: inked.copyWith(
+            inks: {InkRole.notehead: red, InkRole.title: blue},
+          ),
+        ),
+      ),
+    );
+
+    expect(controller.systemCount, greaterThan(1));
+    for (final from in [0, 1]) {
+      final image = await imageOf(tester, controller, from: from);
+      final pixels = (width: image.width, rgba: image.rgba);
+      final colours = {for (final at in pixels.painted) pixels.at(at)};
+      expect(colours, contains(red), reason: 'the noteheads from $from');
+      expect(
+        colours.contains(blue),
+        from == 0,
+        reason: 'the title from $from',
+      );
     }
   });
 
@@ -1105,6 +1210,68 @@ void main() {
     }
 
     expect(InkRole.values.toSet().difference(drawn), isEmpty);
+  });
+
+  test('a painter repaints for a new colour of a kind of mark it shows, and '
+      'for no other', () {
+    final glyphs = bravuraPainter();
+    final repainted = <InkRole>{};
+    void expectRepaint(
+      String what,
+      List<Drawable> drawables,
+      bool Function(SheetPalette now, SheetPalette before) repaints,
+    ) {
+      for (final role in InkRole.values) {
+        final shows = drawables.any((drawable) => drawable.ink == role);
+        final coloured = quiet.copyWith(inks: {role: red});
+        expect(repaints(coloured, quiet), shows, reason: '$what, for $role');
+        expect(
+          repaints(quiet, coloured),
+          shows,
+          reason: '$what, for $role taken away',
+        );
+        if (shows) {
+          repainted.add(role);
+        }
+      }
+    }
+
+    for (final (sheet, (score, style)) in roleSheets.indexed) {
+      final layout = SheetLayout(
+        score,
+        width: sheetWidth,
+        text: ParagraphMeasurer(),
+        style: style,
+      );
+      HeaderPainter header(SheetPalette palette) => HeaderPainter(
+        header: layout.header,
+        glyphs: glyphs,
+        palette: palette,
+        scale: scale,
+      );
+      expectRepaint(
+        'the header of sheet $sheet',
+        layout.header,
+        (now, before) => header(now).shouldRepaint(header(before)),
+      );
+      for (var index = 0; index < layout.systemCount; index++) {
+        final label = layout.labelOf(index);
+        SystemPainter system(SheetPalette palette) => SystemPainter(
+          system: layout.systemAt(index),
+          label: label,
+          glyphs: glyphs,
+          palette: palette,
+          scale: scale,
+        );
+        expectRepaint(
+          'system $index of sheet $sheet',
+          inkOf(layout, index),
+          (now, before) => system(now).shouldRepaint(system(before)),
+        );
+      }
+    }
+
+    expect(InkRole.values.toSet().difference(repainted), isEmpty);
   });
 
   test('two palettes are equal when their inks hold the same colours, and a '
