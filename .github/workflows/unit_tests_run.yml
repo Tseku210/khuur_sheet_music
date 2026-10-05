@@ -26,17 +26,23 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
+      # Each suite runs even when one before it failed, so that one run
+      # shows every failure.
       - name: Library unit tests
+        if: ${{ !cancelled() }}
         run: flutter test
 
       - name: Score model tests
+        if: ${{ !cancelled() }}
         run: dart test
         working-directory: packages/score_model
 
       - name: Layout engine tests
+        if: ${{ !cancelled() }}
         run: dart test
         working-directory: packages/score_layout
 
       - name: Example tests
+        if: ${{ !cancelled() }}
         run: flutter test
         working-directory: example
