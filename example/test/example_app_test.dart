@@ -617,6 +617,65 @@ void main() {
     expect(scoreOf(tester), same(before));
   });
 
+  testWidgets('a tap on the rest of an empty bar enters a note where the '
+      'finger is, and selects the note as a tap beside the rest does', (
+    tester,
+  ) async {
+    await pumpApp(tester, demo: true);
+    await openSheet(tester, 'Empty sheet');
+    final empty = scoreOf(tester);
+    final sheet = controllerOf(tester);
+    final rest = empty.eventAt(beatOf(empty, 0, 0))!.ref;
+    final finger = sheet.rectOf(rest)!.center;
+    expect(sheet.hitTest(finger)!.target, ElementOwner(rest));
+    final under = sheet.entryAt(finger)!;
+    expect(
+      (under.at, under.staffStep),
+      (beatOf(empty, 0, 2).at, 5),
+      reason:
+          'a bar rest hangs in the middle of its bar, under the '
+          'fourth line',
+    );
+
+    await tester.tapAt(onScreen(tester, finger));
+    await tester.pump();
+
+    expect(writtenIn(scoreOf(tester), 0), [
+      'half rest',
+      'quarter C5',
+      'quarter rest',
+    ]);
+    expect(selectedOf(tester), [(0, 'quarter C5')]);
+  });
+
+  testWidgets('a tap on the rest a deleted note left enters a note in its '
+      'place', (tester) async {
+    await pumpApp(tester);
+    final beat2 = beatOf(scoreOf(tester), 0, 1);
+    await tapNoteAt(tester, beat2);
+    await press(tester, 'Delete');
+    await press(tester, 'Deselect');
+    expect(writtenIn(scoreOf(tester), 0), [
+      'quarter E4',
+      'quarter rest',
+      'eighth C5',
+      'eighth B4',
+      'quarter C5',
+    ]);
+
+    // The rest now, as [tapNoteAt] taps a rest as it taps a note.
+    await tapNoteAt(tester, beat2);
+
+    expect(writtenIn(scoreOf(tester), 0), [
+      'quarter E4',
+      'quarter B4',
+      'eighth C5',
+      'eighth B4',
+      'quarter C5',
+    ]);
+    expect(selectedOf(tester), [(0, 'quarter B4')]);
+  });
+
   testWidgets('the action row takes the place of the hint while something is '
       'selected, between the sheet and the panel', (tester) async {
     await pumpApp(tester);
