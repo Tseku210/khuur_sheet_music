@@ -83,6 +83,9 @@ final class FlutterMidiOutput implements MidiOutput {
     // changes. Sending it to rest first keeps [_bends] true either way, and
     // clears what an earlier output left on the channel.
     _bend(soundFontId, channel, 0);
+    if (bank > _largestBank) {
+      return;
+    }
     try {
       await _midi.selectInstrument(
         sfId: soundFontId,
@@ -159,8 +162,13 @@ final class FlutterMidiOutput implements MidiOutput {
 
 /// What the plugin's `selectInstrument` fails with when the SoundFont lacks
 /// the preset, on macOS and on iOS. Android keeps the channel's sound and
-/// reports nothing.
+/// reports nothing. A bank over [_largestBank] is such a preset too, and
+/// is never asked for.
 const _missingPreset = {'SOUND_FONT_LOAD_FAILED', 'SOUND_FONT_LOAD_FAILED2'};
+
+/// The largest bank the plugin's `selectInstrument` takes. On macOS and on
+/// iOS it makes a byte of the bank, and a larger one stops the app.
+const _largestBank = 255;
 
 /// The pitch wheel at rest, of 0 to 16383.
 const _bendCentre = 8192;

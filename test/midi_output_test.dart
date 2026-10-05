@@ -154,6 +154,31 @@ void main() {
   });
 
   testWidgets(
+    'a bank the plugin cannot take is a preset the SoundFont lacks, and the '
+    'largest it can take is asked for',
+    (tester) async {
+      final output = FlutterMidiOutput();
+      await tester.runAsync(() => output.load(soundFont));
+
+      await output.program(channel: 0, program: 40, bank: 255);
+      await output.program(channel: 1, program: 40, bank: 256);
+      await output.program(channel: 2, program: 40, bank: 15360);
+      output
+        ..noteOn(channel: 1, key: 60, velocity: 80, cents: 0)
+        ..dispose();
+
+      expect(midi.calls, [
+        'bend sf7 0 = 8192',
+        'select sf7 0 = 255/40',
+        'bend sf7 1 = 8192',
+        'bend sf7 2 = 8192',
+        'on sf7 1:60 v80',
+        'unload sf7',
+      ]);
+    },
+  );
+
+  testWidgets(
     'bends a channel for a quarter tone, and back for the next note that '
     'is not one',
     (tester) async {
