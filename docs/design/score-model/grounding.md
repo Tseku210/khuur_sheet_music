@@ -1,5 +1,7 @@
 # Score model: grounding
 
+The package was renamed `khuur_sheet_music` on 2026-10-05. This document keeps the name it had when it was written.
+
 These are the facts that every candidate design starts from. They were gathered on 2026-09-30 by reading this repository, the Khuur app repository, and the public store listings for Maestro.
 
 ## Goal

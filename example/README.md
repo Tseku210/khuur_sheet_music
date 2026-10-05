@@ -1,4 +1,4 @@
-# simple_sheet_music example
+# khuur_sheet_music example
 
 One page that shows a score, edits it and plays it. `lib/main.dart` is the page. `lib/selection_actions.dart` holds the selection and the table of the actions on it. `lib/demo_score.dart` builds the tune, the opening of Beethoven's "Für Elise", and the empty sheet.
 

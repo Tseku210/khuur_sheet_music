@@ -1,6 +1,6 @@
 # Layout engine and painter
 
-The synthesized design. Its base is candidate C, with grafts from candidates A and B (see "Synthesis decision"). The design had a sketch in `docs/design/layout/sketch/`, two sibling packages that type-checked. `sketch/score_layout/` was the pure-Dart engine, and `packages/score_layout` is the real one. `sketch/simple_sheet_music/` was the Flutter shell, and `lib/` is the real one. `sketch/simple_sheet_music/example/usage.dart` held the call sites below, which `README.md` and `example/lib/main.dart` now show.
+The synthesized design. Its base is candidate C, with grafts from candidates A and B (see "Synthesis decision"). The design had a sketch in `docs/design/layout/sketch/`, two sibling packages that type-checked. `sketch/score_layout/` was the pure-Dart engine, and `packages/score_layout` is the real one. `sketch/khuur_sheet_music/` was the Flutter shell, and `lib/` is the real one. `sketch/khuur_sheet_music/example/usage.dart` held the call sites below, which `README.md` and `example/lib/main.dart` now show.
 
 The sketch is retired, and the two packages and `lib/` are the contract. Its tree is in the history up to the commit before the one that deleted it. `git log -1 --format=%H -- docs/design/layout/sketch` names the commit that deleted it, and `git show <that commit>^:docs/design/layout/sketch/<path>` prints a file of the tree. Every "the sketch" in this document means that tree. That holds for the reconciliation lists too, where each unit says how it differs from the sketch.
 
@@ -25,7 +25,7 @@ These constraints from the grounding shape the design:
 ### README quickstart
 
 ```dart
-import 'package:simple_sheet_music/simple_sheet_music.dart';
+import 'package:khuur_sheet_music/khuur_sheet_music.dart';
 
 // One import gives the score model and the view.
 SheetView(score: scoreFromJson(jsonDecode(saved)))
@@ -178,7 +178,7 @@ packages/score_layout/       pure Dart, no Flutter; depends on score_model
   text.dart                  TextMeasurer (port), TextSpec, TextRole
   model_additions.dart       sketch only: stand-ins for B1, B2b and B2c. The package never has this file
   tool/generate_bravura.dart writes bravura.g.dart from the font's metadata
-lib/ (simple_sheet_music)    Flutter shell; depends on both packages and flutter_midi_pro
+lib/ (khuur_sheet_music)     Flutter shell; depends on both packages and flutter_midi_pro
   sheet_view.dart            SheetView, SheetController
   sheet_palette.dart         SheetPalette
   painting.dart              SheetScale, GlyphPainter, HeaderPainter, SystemPainter, OverlayPainter (internal)
@@ -486,7 +486,7 @@ The app sees five things:
 - `EngravingStyle`, for everything that changes layout;
 - `ScorePlayer`.
 
-`simple_sheet_music.dart` re-exports `score_model` and the few `score_layout` types an app names. So one import is enough. `SheetLayout`, `SystemLayout` and `LayoutDelta` are not among them.
+`khuur_sheet_music.dart` re-exports `score_model` and the few `score_layout` types an app names. So one import is enough. `SheetLayout`, `SystemLayout` and `LayoutDelta` are not among them.
 
 **How an app runs an edit and sees the relayout.** It calls `session.run(edit)`. On `Applied` it stores the session with `setState`. `SheetView` receives the new `score` and calls `layout.update(score)`. That call returns the same object when the score is identical, so an unrelated rebuild costs nothing. The app never sees `ScoreChanges`, a cache or a relayout call.
 
@@ -1129,11 +1129,11 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
 - `itemExtentBuilder` gives null past the last system. The list asks for the extent of the index after the last tile, and the sketch read `tops` out of range there.
 - Each tile has a `Semantics` label from the printed bar numbers, `Bars 5 to 8`, or `Bar 5` for a system of one bar. It is known without assembling the system. The words are English and are not localised. The tile sets no `container`, because the scroll view already makes each of its children a node of its own. A test holds one node per system in view, and one for a system that is alone in its view. The title block has no label.
 - The header has a `RepaintBoundary` of its own. Without one a scroll painted it again on every frame it was in view. The sketch had none.
-- The `LicenseRegistry` entry is added by the first view's `initState`, once per process, under the name `Bravura`. It reads `packages/simple_sheet_music/fonts/OFL.txt`, which is now a declared asset.
+- The `LicenseRegistry` entry is added by the first view's `initState`, once per process, under the name `Bravura`. It reads `packages/khuur_sheet_music/fonts/OFL.txt`, which is now a declared asset.
 - A controller serves the view that took it last. A view that takes another's place, under a new key, takes the controller in its `initState`, and Flutter disposes the view before it only at the end of that frame. So a view lets go of a controller only while the controller is still its own. A first version asserted that a controller has one view at a time and let go without looking. The assertion failed on that replacement, and without it the old view's `dispose` left the controller with no view. A test replaces a view and holds that the controller serves the new one. The view reads its controller at each scroll, so a controller it is given later hears of scrolls and the one before it does not.
 - The view sets `onTapUp` only when it has an `onTap`, so a view without one claims no tap and a detector around it gets them. An unbounded width fails an assertion that says what to wrap the view in.
 - The view imports `widgets.dart`. Only `SheetPalette.of` reads Material, for the theme's colour scheme.
-- `lib/simple_sheet_music.dart` exports `SheetView`, `SheetController`, `SheetPalette` and the `score_layout` types of the sketch's list. `InkRole` is added, because `SheetPalette.colorOf` takes one. `PlaybackPoint` is left out. It is a `score_model` type that `score_layout` does not export, and the sketch's export of it did not analyze. The re-export of `score_model` waits for unit 13, because `Clef`, `KeySignature`, `Note` and `Pitch` name a type there and in the old engine's exports. Until then an app imports `package:score_model/score_model.dart` beside the library.
+- `lib/khuur_sheet_music.dart` exports `SheetView`, `SheetController`, `SheetPalette` and the `score_layout` types of the sketch's list. `InkRole` is added, because `SheetPalette.colorOf` takes one. `PlaybackPoint` is left out. It is a `score_model` type that `score_layout` does not export, and the sketch's export of it did not analyze. The re-export of `score_model` waits for unit 13, because `Clef`, `KeySignature`, `Note` and `Pitch` name a type there and in the old engine's exports. Until then an app imports `package:score_model/score_model.dart` beside the library.
 - Test 9 counts no `paint` calls, so the painters carry no counter for a test. Painting again replaces the picture layer of a repaint boundary. The test holds that each system's layer and the header's are the same objects, and each tile's overlay layer a new one, after a playback position, a cursor, a selection, a tint and an edit below the view. For the scroll it listens to the SDK's `debugOnRebuildDirtyWidget` and `debugOnProfilePaint`, and holds that the view is not built and the header is not painted.
 - The view has 43 tests in `test/sheet_view_test.dart`, 15 of them from the review below, and the text path 2 in `test/sheet_text_test.dart`. The root has 202, the layout package 501 and the model 769. Neither package changed, so the compiled benchmark was not rerun.
 - 98 defects were planted one at a time, and each of the 30 new tests was failed by at least one. One of them removed a `container` flag from the tile's `Semantics` and failed nothing, because the scroll view already makes each tile a node, so the flag was deleted and 97 remain. 95 are caught. Two get through and stay. A licence read from the bare `fonts/OFL.txt` resolves inside this package's own tests. A view without the guard that handles a burst of font registrations once does the same work more often and ends with the same layout.
@@ -1186,10 +1186,10 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
 - No sound was heard. The tests run against the fake output, and against a fake of the plugin's platform for the adapter. Nothing ran on a device.
 
 **Unit 13.**
-- The old engine is deleted. 47 files left `lib/src/`, 25 left `test/` and 2 left the example, 6,670 lines in all. A script walked the imports from `lib/simple_sheet_music.dart`. It named every file of `lib/` that the library does not reach, and every test and fake that reaches one of those. What stays in `lib/src/` is the seven files of the module map.
+- The old engine is deleted. 47 files left `lib/src/`, 25 left `test/` and 2 left the example, 6,670 lines in all. A script walked the imports from `lib/khuur_sheet_music.dart`. It named every file of `lib/` that the library does not reach, and every test and fake that reaches one of those. What stays in `lib/src/` is the seven files of the module map.
 - `sound_font.dart` moved from `lib/src/midi/` to `lib/src/`, the sketch's path. Its doc says now that each part plays the program and the bank of its `Instrument`.
 - The export list is the sketch's, with the two changes of unit 11. `InkRole` stays, because `SheetPalette.colorOf` takes one. `PlaybackPoint` is not named, because the export of `score_model` carries it.
-- Three of the four assets are deleted. `bravura_metadata.json` moved to `packages/score_layout/tool/`, beside the generator, because the generator and the test of `SmuflFont.fromMetadata` read it. The generator reproduces the committed table byte for byte from there. The package has no `assets/` directory now. A macOS build of the example holds two files under `packages/simple_sheet_music/`, which are `fonts/Bravura.otf` and `fonts/OFL.txt`.
+- Three of the four assets are deleted. `bravura_metadata.json` moved to `packages/score_layout/tool/`, beside the generator, because the generator and the test of `SmuflFont.fromMetadata` read it. The generator reproduces the committed table byte for byte from there. The package has no `assets/` directory now. A macOS build of the example holds two files under `packages/khuur_sheet_music/`, which are `fonts/Bravura.otf` and `fonts/OFL.txt`.
 - `svg_path_parser`, `uuid` and `xml` left the root's dependencies. `xml` stays a dependency of `score_model`, which reads and writes MusicXML.
 - The SDK floor of the root and of the example is ^3.13.0. The `flutter` constraint is `>=3.47.0`, the release that ships Dart 3.13. It was the sketch's `>=3.27.0` until the fifth review round, and pub refused an older Flutter on the Dart floor already.
 - The new floor turns on four lints of `pedantic_mono` in the root. `use_primary_constructors`, `use_declaring_parameters` and `unnecessary_type_name_in_constructor` are off, as in both packages. They asked for a change in 69 places. `use_null_aware_elements` stays on, and the two places it found are fixed.
@@ -1463,6 +1463,15 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
   - The example's tests tap the bar rest of the empty sheet and the rest a deleted note left. Each enters a note where the finger is and selects it. Before the fix both failed, with the bar unchanged. Three more ask for Delete's state on a rest of voice one, on a rest of voice two and on a pasted range of rests with a hairpin over it.
   - The root has 201 tests now, the example 90, the model 792 and the layout package 570. The engine did not change, so the benchmark was not run again.
   - Not verified. No finger tapped a rest on a device in this session. The pictures come from `flutter test`.
+- **The package is named `khuur_sheet_music`.** The owner renamed it on 2026-10-05. Until then it had the name of the project it was forked from, `simple_sheet_music`.
+  - A script made the change. It moved `lib/simple_sheet_music.dart` to `lib/khuur_sheet_music.dart` and replaced the name in the pubspecs, the imports, the two asset names the library asks for, the example and the documents. `flutter pub get` rewrote the example's lock file. The new name sorts before `score_layout`, so `dart fix` sorted the imports of 16 files again.
+  - A line that names the upstream project keeps that project's name. The two grounding documents keep the old name, since they describe the engine before the rewrite, and each says so at its top. `score_layout` and `score_model` keep their names.
+  - The MusicXML writer names the library in `<software>`, and now writes the new name. The reader does not read that element.
+  - The name is the owner's. The rule that nothing specific to Khuur goes in `lib/` or `packages/` is unchanged, and so is what the library holds.
+  - An app that depends on the package changes the name in its pubspec and its imports. An app that names `packages/simple_sheet_music/` in an asset path or a font family changes that too.
+  - No test tied the font's family to the package's name. With the family left on the old name every test passed, since a test loads the font file under whatever family the painter asks for. An app would have drawn a box for each glyph. `test/package_name_test.dart` now reads the name from `pubspec.yaml` and asks for the family Flutter gives a font of that package. The licence file's path was tied already, by the test of the licence entry. A script of this session, which is not in the tree, built the example's asset bundle before and after. It found the font family and the licence file under the names the library asks for both times, and missed each when its name was left old.
+  - The root has 202 tests now, the example 90, the model 792 and the layout package 570. The engine did not change, so the benchmark was not run again for this unit.
+  - Not verified. No device ran the renamed app.
 
 
 ## Open questions and risks
@@ -1514,7 +1523,7 @@ Risks:
 - **Platform text font.** Lyrics and text use the platform font, so line breaks may differ per platform (C5). On-device goldens need a bundled text font.
 - **Memo growth.** The memo holds every system that was ever looked at and still exists. After a full scroll through a long score that is every system. It is bounded by the system count and pruned on update, but it is not bounded by the viewport. Measure it on the 500-bar score before adding an eviction rule.
 - **Limits of the band.** A bar reserves room without seeing its neighbours. Two lines over one staff can cross when one is pushed outward by a bar the other does not cover. A slur is raised over the notes under its middle half only, so a tall note beside a low end note can touch it. A system holding one bar wider than the sheet has a plan wider than the sheet. All of these stay inside the band. The owner accepted them for the first release on 2026-10-04, after seeing each one rendered. A leap of about a twelfth beside a slur's end is where the slur starts to touch.
-- **Publishing.** `score_layout` and `score_model` would have to be published before `simple_sheet_music` could go on pub.dev.
+- **Publishing.** `score_layout` and `score_model` would have to be published before `khuur_sheet_music` could go on pub.dev.
 
 ## Next implementation step
 

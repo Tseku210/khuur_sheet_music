@@ -530,7 +530,7 @@ Three models reviewed the edits, view, playback and file formats before MusicXML
 
 ### Scope: a general library
 
-Accepted by the project owner on 2026-09-30. `simple_sheet_music` is an open-source library, so the model stays general. The Khuur composer is its first consumer, and its designs are direction for that app, not requirements for the library.
+Accepted by the project owner on 2026-09-30. `khuur_sheet_music` is an open-source library, so the model stays general. The Khuur composer is its first consumer, and its designs are direction for that app, not requirements for the library.
 
 - **The library ships no instruments.** `Instrument` is a plain const value, so each app defines the instruments it offers. `Instrument.morinKhuur` was removed. The tests keep a two-string fiddle as test data in `support.dart`.
 - **Examples and docs use general instruments.** The usage example defines a violin.

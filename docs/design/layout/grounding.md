@@ -1,5 +1,7 @@
 # Layout engine grounding for the simple_sheet_music rewrite
 
+The package was renamed `khuur_sheet_music` on 2026-10-05. This document keeps the name it had when it was written.
+
 Citations give `file:line` plus the symbol name, as of commit `37ac3a5`. Model paths are relative to `packages/score_model/`. In that commit:
 - `lib/src/playback.dart` keeps the compiler and the public types. Its stages are in `playback_order.dart`, `playback_tempo.dart`, `playback_dynamics.dart`, `playback_attacks.dart` and `playback_pedal.dart`.
 - The edits are applied in `edit/apply.dart`, `notes.dart`, `rhythm.dart`, `erase.dart`, `directions.dart`, `context.dart`, `transpose.dart` and `parts.dart`.

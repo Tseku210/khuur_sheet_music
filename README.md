@@ -1,11 +1,11 @@
-# simple_sheet_music
+# khuur_sheet_music
 
 Sheet music for Flutter. `SheetView` shows a `Score` as a scrolling sheet. An app edits the score through an `EditSession`, and `ScorePlayer` plays it over MIDI while the sheet follows the sound.
 
 One import gives the score model, the view and the player.
 
 ```dart
-import 'package:simple_sheet_music/simple_sheet_music.dart';
+import 'package:khuur_sheet_music/khuur_sheet_music.dart';
 ```
 
 The package is not on pub.dev. Depend on a checkout by path, as `example/pubspec.yaml` does. It needs Dart 3.13 or later.
@@ -365,7 +365,7 @@ The library exports all of the score model, and two of the model's names are als
 In a file that needs Flutter's names, hide the model's.
 
 ```dart
-import 'package:simple_sheet_music/simple_sheet_music.dart' hide Interval, Step;
+import 'package:khuur_sheet_music/khuur_sheet_music.dart' hide Interval, Step;
 ```
 
 ## Limits
