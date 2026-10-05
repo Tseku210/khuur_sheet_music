@@ -103,7 +103,7 @@ The view draws the cursor as a caret. It opens with the cursor's system in view 
 
 ## Show where a note will go
 
-A finger hides the place it points at. So a touch editor shows the note under a held finger before it enters one. `SheetView.preview` draws a note that is not in the score, which is its head and the ledger lines it needs. Nothing in the sheet moves for it. `SheetController.entryAt` tells where a note entered at a point would go.
+A finger hides the place it points at. So a touch editor shows the note under a held finger before it enters one. `SheetView.preview` draws a note that is not in the score, with its head, its stem, its flag and the ledger lines it needs. Nothing in the sheet moves for it. `SheetController.entryAt` tells where a note entered at a point would go.
 
 ```dart
 Offset? _held;
@@ -147,11 +147,11 @@ The controller answers for the sheet on screen, which is a frame behind a score 
 
 `entryAt` gives the hit of `hitTest` without a target. `hitTest` at a note or a rest gives the time of that note or rest, and `entryAt` looks at no drawn mark. A bar rest is drawn in the middle of its bar and starts at the bar's start, so a preview from `hitTest` would stand a long way from the finger. Both snap to `tapGrid` by the same rule.
 
-The preview has the head of its `base`, so a whole note, a half note and a shorter one each look like themselves. A drum's note has the head of its kit sound, which `NotePreview.at` takes as `head`. The preview is drawn in the palette's `preview` colour.
+The preview is the note of its `base` as it stands alone in its bar. A whole note has no stem, a half note and a quarter have one, and an eighth and every shorter value have a flag. The stem goes up for a note under the middle line and down for every other. The preview has no dot and no accidental. A note that is entered may get a beam, or a stem from its voice, that the preview does not show. A drum's note has the head of its kit sound, which `NotePreview.at` takes as `head`. The preview is drawn in the palette's `preview` colour.
 
 `onLongPressCancel` is called when the system takes the pointer of a long press away, also after the press has started. It is called for a tap and a scroll too, which never become a long press. So it clears the hold and enters nothing.
 
-The package has no magnifying glass. The example app puts Flutter's `RawMagnifier` over the sheet beside the finger, in `example/lib/main.dart`. Its glass looks at `SheetController.rectOfPreview`, which is where the head of the preview is drawn. A long value starts on a beat that can be far from the finger, and a glass that looked at the finger would miss the note.
+The package has no magnifying glass. The example app puts Flutter's `RawMagnifier` over the sheet beside the finger, in `example/lib/main.dart`. Its glass looks at the middle of `SheetController.rectOfPreview`, which is where the preview is drawn with its stem, its flag and its ledger lines. A long value starts on a beat that can be far from the finger, and a glass that looked at the finger would miss the note. A zoomed note can be taller than the glass shows, and the example then keeps the head in the glass.
 
 ## Play the score
 
