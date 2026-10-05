@@ -31,6 +31,8 @@ flutter test
 
 The tune is the opening of "Für Elise", WoO 59, by Ludwig van Beethoven. It is a pickup and eight bars of 3/8, and the last bar repeats from the pickup. The work is in the public domain. Its notes were entered by hand for this example and come from no edition.
 
+The pedal is down under each bar of the left hand's notes, so they ring on. It lifts at the barline, or before the two notes of the right hand that lead into the next bar. Where it lifts is this example's choice and comes from no edition.
+
 Editions beam each run of sixteenths whole. The meter alone starts a new beam at every eighth of 3/8, so `demo_score.dart` enters those notes with `BeamMode.join`.
 
 ## The SoundFont

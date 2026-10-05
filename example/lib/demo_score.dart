@@ -3,7 +3,8 @@ import 'package:simple_sheet_music/simple_sheet_music.dart';
 /// The opening of Beethoven's "Für Elise", WoO 59, for one piano on two
 /// staves. It is a pickup of an eighth and eight bars of 3/8, at 120 eighths
 /// a minute. The last bar is a quarter long and repeats from the pickup, so
-/// the script plays every bar twice.
+/// the script plays every bar twice. The pedal is down under each bar of the
+/// left hand's notes, so they ring on.
 Score buildDemoScore() {
   final blank = Score.blank(
     parts: const [_piano],
@@ -52,6 +53,13 @@ Score buildDemoScore() {
         directions: Seq([const DynamicMark(Moment.zero, Dynamic.pp)]),
       ),
       SetRepeatEnd(bars.last, const RepeatEnd()),
+      for (final (bar, rest) in _pedalled)
+        AddSpanner(
+          kind: const PedalLine(),
+          staff: bass,
+          first: ScorePoint(bars[bar], Moment.zero),
+          last: ScorePoint(bars[bar], Moment(Fraction(rest, 16))),
+        ),
     ], label: 'Marks and repeat'),
   ).score;
 }
@@ -109,6 +117,19 @@ const List<List<_Entry>> _left = [
   _aMinor,
   _eMajor,
   _aMinor,
+];
+
+/// The bars the pedal is down in, each with the sixteenth that the last
+/// rest under the pedal starts on. The pedal goes down with the bar and
+/// lifts after that rest, at the barline or before the two notes of the
+/// right hand that lead into the next bar.
+const List<(int, int)> _pedalled = [
+  (2, 4),
+  (3, 4),
+  (4, 3),
+  (6, 4),
+  (7, 3),
+  (8, 3),
 ];
 
 /// Enters each list of [hand] in voice one of [staff], from the start of its

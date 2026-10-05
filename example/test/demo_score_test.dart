@@ -33,6 +33,11 @@ const _left = [
 /// How long each bar is, in eighths.
 const _eighths = [1, 3, 3, 3, 3, 3, 3, 3, 2];
 
+/// The sixteenth the pedal lifts on, for each bar that has a pedal. It goes
+/// down with the bar. It lifts at the barline, or before the two notes of
+/// the right hand that lead into the next bar.
+const _lifts = {2: 6, 3: 6, 4: 4, 6: 6, 7: 4, 8: 4};
+
 const _values = {
   's': NoteValue.sixteenth,
   'e': NoteValue.eighth,
@@ -46,6 +51,20 @@ List<(NoteValue, String?)> _events(String bar) => [
     for (final [value, pitch] in bar.split(' ').map((e) => e.split(':')))
       (_values[value]!, pitch == 'r' ? null : pitch),
 ];
+
+/// The onset and the length of each note of [bar], in sixteenths.
+List<(int, int)> _spans(String bar) {
+  final spans = <(int, int)>[];
+  var onset = 0;
+  for (final (value, pitch) in _events(bar)) {
+    final length = (value.length / NoteValue.sixteenth.length).numerator;
+    if (pitch != null) {
+      spans.add((onset, length));
+    }
+    onset += length;
+  }
+  return spans;
+}
 
 List<int> _keys(String bar) => [
   for (final (_, pitch) in _events(bar))
@@ -132,6 +151,50 @@ void main() {
         reason: 'right, $reason',
       );
       expect(keysIn(bar, bass), _keys(_left[index]), reason: 'left, $reason');
+    }
+  });
+
+  test("has a pedal line under each bar of the left hand's notes", () {
+    expect(
+      {
+        for (final spanner in score.spanners)
+          if (spanner.kind is PedalLine)
+            score.indexOf(spanner.first.measure): (
+              spanner.staff,
+              spanner.first.offset,
+              spanner.last.measure == spanner.first.measure,
+              score.lineEnd(spanner),
+            ),
+      },
+      {
+        for (final MapEntry(key: bar, value: lift) in _lifts.entries)
+          bar: (bass, Moment.zero, true, Moment(Fraction(lift, 16))),
+      },
+    );
+  });
+
+  test('rings each note let go under the pedal until the pedal lifts, in '
+      'both passes, and sounds the others their own length', () {
+    const sixteenth = 0.25;
+    for (final bar in script.bars) {
+      final index = score.indexOf(bar.measure);
+      final lift = _lifts[index];
+      for (final (staff, hand) in [(treble, _right), (bass, _left)]) {
+        final sounded = [
+          for (final note in script.notesBetween(bar.start, bar.end))
+            if (note.source.staff == staff) note,
+        ];
+        for (final (i, (onset, length)) in _spans(hand[index]).indexed) {
+          // A key is let go after nine tenths of its note.
+          final let = onset + length * 0.9;
+          final end = lift != null && let < lift ? lift : let;
+          expect(
+            sounded[i].duration,
+            closeTo((end - onset) * sixteenth, 1e-9),
+            reason: 'bar $index, pass ${bar.pass}, note $i of $staff',
+          );
+        }
+      }
     }
   });
 
