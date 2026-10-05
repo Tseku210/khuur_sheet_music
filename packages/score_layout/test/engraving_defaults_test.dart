@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:score_layout/score_layout.dart';
 import 'package:score_model/score_model.dart';
 import 'package:test/test.dart';
@@ -234,6 +236,53 @@ void main() {
       }
       expect(change(defaults, 0), isNot(defaults), reason: '$name of 0');
     }
+  });
+
+  test('every sheet is laid out with any default at zero, at three and at '
+      'eight staff spaces', () {
+    for (final MapEntry(key: name, value: change) in withDefault.entries) {
+      for (final value in [0.0, 3.0, 8.0]) {
+        expect(
+          () => drawnWith(change(defaults, value)),
+          returnsNormally,
+          reason: '$name of $value',
+        );
+      }
+    }
+  });
+
+  test('an extender thicker than its syllable is high lies under the staff '
+      'and in its system', () {
+    const thickness = 8.0;
+    final layout = SheetLayout(
+      lyricScore(),
+      width: 300,
+      text: const FakeMeasurer(),
+      style: EngravingStyle(
+        font: SmuflFont.bravura.copyWith(
+          defaults: defaults.copyWith(lyricLineThickness: thickness),
+        ),
+      ),
+    );
+    var extenders = 0;
+    for (var index = 0; index < layout.systemCount; index++) {
+      final system = layout.systemAt(index);
+      final lines = system.drawables.whereType<LineDraw>();
+      final staff = [
+        for (final line in lines)
+          if (line.ink == InkRole.staffLine) line.from.y,
+      ].reduce(math.max);
+      for (final extender in lines.where((l) => l.ink == InkRole.lyric)) {
+        extenders++;
+        expect(extender.thickness, thickness);
+        expect(extender.from.y - thickness / 2, greaterThan(staff));
+        expect(
+          extender.from.y + thickness / 2,
+          lessThanOrEqualTo(system.height),
+        );
+      }
+    }
+    expect(extenders, 1);
   });
 
   test('a default the engine does not read changes nothing', () {

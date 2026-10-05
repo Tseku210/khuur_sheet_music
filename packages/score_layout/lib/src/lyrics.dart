@@ -305,7 +305,8 @@ typedef LyricRow = ({LyricLane lane, double ascent, double descent});
 /// The lyric rows under [staff] on a system of [bars], top row first. There is
 /// a row for every lane a bar has a syllable in and every lane [carry] holds
 /// open. A row is as tall as its tallest syllable in the system. A lane that is
-/// only carried in has no syllable here, so its hyphen sets the height.
+/// only carried in has no syllable here, so its hyphen sets the height. No
+/// row is lower than an extender's line needs.
 List<LyricRow> lyricRows(
   Iterable<BarLyrics> bars,
   LyricCarry carry,
@@ -314,10 +315,16 @@ List<LyricRow> lyricRows(
   TextMeasurer text,
 ) {
   final hyphen = text.measure('-', style.specOf(TextRole.lyric));
+  // An extender lies on the baseline, half of it under the line.
+  final line = style.font.defaults.lyricLineThickness / 2;
   final rows = <LyricLane, LyricRow>{
     for (final lane in carry.open.keys)
       if (lane.staff == staff)
-        lane: (lane: lane, ascent: hyphen.ascent, descent: hyphen.descent),
+        lane: (
+          lane: lane,
+          ascent: math.max(hyphen.ascent, line),
+          descent: math.max(hyphen.descent, line),
+        ),
   };
   for (final bar in bars) {
     for (final MapEntry(key: lane, value: here) in bar.lanes.entries) {
@@ -327,8 +334,8 @@ List<LyricRow> lyricRows(
       final row = rows[lane];
       rows[lane] = (
         lane: lane,
-        ascent: math.max(row?.ascent ?? 0, here.ascent),
-        descent: math.max(row?.descent ?? 0, here.descent),
+        ascent: math.max(row?.ascent ?? line, here.ascent),
+        descent: math.max(row?.descent ?? line, here.descent),
       );
     }
   }
