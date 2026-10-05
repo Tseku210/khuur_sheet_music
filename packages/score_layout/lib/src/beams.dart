@@ -53,13 +53,14 @@ final class BeamPlan {
   /// Per event, per level, how it joins.
   final List<List<BeamJoin>> joins;
 
-  /// What the beam and its stems cover at stretch 1, x from the bar's
+  /// What the beam and its stems cover, x at stretch 1 from the bar's
   /// first slice and y from the staff's top line. The first box is the
   /// beam's own, and one box per stem follows, from its head to the far
   /// edge of the beam. The bar's skyline takes them, so what stands over one
   /// note of the group is that note's stem and not the group's tallest
   /// note. A stretch moves the stems apart and keeps both end heights, so
-  /// the vertical range holds at any stretch.
+  /// the beam is steepest with the bar pressed to its rods. The vertical
+  /// range is the beam's at that stretch, and holds it at any other.
   final List<Box> boxes;
 
   @override
@@ -146,11 +147,14 @@ double _distanceFromMiddle(ChordEvent chord, StaffView staff, Moment at) {
 /// from or straddles a staff line, so a beam never floats inside a staff
 /// space. [xs] holds the slices' x at stretch 1, where the slope is
 /// decided. The ends are stored as offsets from their slices, so a
-/// stretched system flattens the beam and keeps its end heights.
+/// stretched system flattens the beam and keeps its end heights. [rods]
+/// holds the slices' x with the bar pressed to its rods, where the beam is
+/// steepest and its boxes are sized.
 BeamPlan planBeam(
   BeamGroup group,
   List<PlacedChord> chords, {
   required List<double> xs,
+  required List<double> rods,
   required EngravingStyle style,
 }) {
   final stem = chords.first.plan.stem;
@@ -162,6 +166,7 @@ BeamPlan planBeam(
         final line = stemOf(placed.plan);
         return (
           x: xs[placed.slice] + line.x,
+          pressed: rods[placed.slice] + line.x,
           start: line.start,
           far: line.far,
           keep: line.keep,
@@ -202,9 +207,10 @@ BeamPlan planBeam(
   final yLast = _snap(yFirst + slope * (x1 - x0), up: up, thickness: thickness);
 
   final half = style.font.defaults.stemThickness / 2;
-  final drawnSlope = x1 == x0 ? 0.0 : (yLast - yFirst) / (x1 - x0);
-  final edgeLeft = yFirst - drawnSlope * half;
-  final edgeRight = yLast + drawnSlope * half;
+  final span = stems.last.pressed - stems.first.pressed;
+  final steepest = span == 0 ? 0.0 : (yLast - yFirst) / span;
+  final edgeLeft = yFirst - steepest * half;
+  final edgeRight = yLast + steepest * half;
   final top = math.min(edgeLeft, edgeRight) - (up ? 0 : depth);
   final bottom = math.max(edgeLeft, edgeRight) + (up ? depth : 0);
   final boxes = [

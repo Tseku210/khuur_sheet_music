@@ -5,6 +5,7 @@ import 'package:score_layout/src/chords.dart';
 import 'package:score_layout/src/drawable.dart';
 import 'package:score_layout/src/geometry.dart';
 import 'package:score_layout/src/glyphs.dart';
+import 'package:score_layout/src/sheet_layout.dart';
 import 'package:score_layout/src/spacing.dart';
 import 'package:score_layout/src/style.dart';
 import 'package:score_model/score_model.dart';
@@ -12,6 +13,7 @@ import 'package:test/test.dart';
 
 import 'support/bars.dart';
 import 'support/fake_measurer.dart';
+import 'support/sheets.dart';
 
 const EngravingStyle style = EngravingStyle.standard;
 
@@ -292,6 +294,39 @@ void main() {
         );
       }
     });
+  });
+
+  test('sloped beams stay inside the band of a system on a sheet too narrow '
+      'for its bar', () {
+    final bass = scoreOf([
+      [
+        staffOf([
+          for (var half = 0; half < 2; half++)
+            for (final (i, pitch) in ['D3', 'E3', 'F3', 'G3'].indexed)
+              chordOf(half * 4 + i + 1, pitch, value: eighth),
+        ], clef: Clef.bass),
+      ],
+    ]);
+    final treble = scoreOf([
+      [
+        staffOf([
+          for (var beat = 0; beat < 4; beat++)
+            for (final (i, pitch) in ['B4', 'C5', 'D5', 'E5'].indexed)
+              chordOf(beat * 4 + i + 1, pitch, value: sixteenth),
+        ]),
+      ],
+    ]);
+
+    for (final (score, widths) in [
+      (bass, [40.0, 22.0, 18.0, 12.0]),
+      (treble, [60.0, 36.0, 30.0, 20.0]),
+    ]) {
+      for (final width in widths) {
+        expectInsideBands(
+          SheetLayout(score, width: width, text: const FakeMeasurer()),
+        );
+      }
+    }
   });
 
   group('placeBeam', () {

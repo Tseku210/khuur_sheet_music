@@ -293,6 +293,7 @@ BarLayout layoutBar(
     voltaLabelRoom(view, label) - lead,
   );
   final xs = sliceXs(slices, 1, 0);
+  final rods = sliceXs(slices, 0, 0);
 
   final beams = <BeamPlan>[];
   for (final (staff, staffView) in view.staves.indexed) {
@@ -330,6 +331,7 @@ BarLayout layoutBar(
             group,
             [for (final id in group.events) chords[id]!],
             xs: xs,
+            rods: rods,
             style: style,
           ),
         );
