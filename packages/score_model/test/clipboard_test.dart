@@ -512,6 +512,107 @@ void main() {
       }
     });
 
+    test('writes into the tuplet it starts in, as note entry does', () {
+      for (final slot in [VoiceSlot.one, VoiceSlot.two]) {
+        final start = blank();
+        var session = applied(
+          start.run(
+            EnterTuplet(
+              at: point(start.score, 0, Moment.zero, voice: slot),
+              ratio: TupletRatio.triplet,
+              unit: NoteValue.eighth,
+            ),
+          ),
+        );
+        session = enterAt(
+          session,
+          0,
+          at(1, 12),
+          tone: g4,
+          value: NoteValue.eighth,
+          voice: slot,
+        );
+        session = enterAt(
+          session,
+          1,
+          Moment.zero,
+          value: NoteValue.eighth,
+          voice: slot,
+        );
+        final clip = copyOf(session, (1, Moment.zero), (1, at(1, 8)));
+        final entered = enterAt(
+          session,
+          0,
+          at(1, 12),
+          value: NoteValue.eighth,
+          voice: slot,
+        );
+
+        final next = pasted(session, clip, 0, at(1, 12));
+
+        expect(
+          bar(next.score, 0, slot: slot).first,
+          '3:2[rest/eighth, F4/eighth, rest/eighth]',
+        );
+        expect(
+          bar(next.score, 0, slot: slot),
+          bar(entered.score, 0, slot: slot),
+        );
+      }
+    });
+
+    test('keeps a tuplet it is pasted into twice', () {
+      final start = blank();
+      var session = applied(
+        start.run(
+          EnterTuplet(
+            at: point(start.score, 0, Moment.zero),
+            ratio: TupletRatio.triplet,
+            unit: NoteValue.eighth,
+          ),
+        ),
+      );
+      session = enterAt(session, 1, Moment.zero, value: NoteValue.eighth);
+      final clip = copyOf(session, (1, Moment.zero), (1, at(1, 8)));
+
+      final once = pasted(session, clip, 0, Moment.zero);
+      final twice = pasted(once, clip, 0, Moment.zero);
+
+      expect(bar(once.score, 0), [
+        '3:2[F4/eighth, rest/eighth, rest/eighth]',
+        'rest/quarter',
+        'rest/half',
+      ]);
+      expect(bar(twice.score, 0), bar(once.score, 0));
+    });
+
+    test('writes a later item into the tuplet it reaches', () {
+      final session = sessionWith([
+        [
+          chordOf(4, 'C5'),
+          Tuplet(
+            id: const TupletId(5),
+            ratio: TupletRatio.triplet,
+            unit: NoteValue.quarter,
+            members: Seq([
+              for (final id in [1, 2, 3]) rest(id, NoteValue.quarter),
+            ]),
+          ),
+          rest(6, NoteValue.quarter),
+        ],
+        [chordOf(7, 'F4'), chordOf(8, 'G4'), rest(9, NoteValue.half)],
+      ]);
+      final clip = copyOf(session, (1, Moment.zero), (1, at(1, 2)));
+
+      final next = pasted(session, clip, 0, Moment.zero);
+
+      expect(bar(next.score, 0), [
+        'F4/quarter',
+        '3:2[G4/quarter, rest/quarter, rest/quarter]',
+        'rest/quarter',
+      ]);
+    });
+
     test('pastes an empty bar as a measure rest', () {
       final session = sessionWith([
         [rest(1, NoteValue.whole)],

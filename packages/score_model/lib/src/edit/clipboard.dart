@@ -249,7 +249,29 @@ _Result _paste(
   );
   ScorePoint place(Moment offset) =>
       _later(padded, at.at, Moment.zero.until(offset));
-  var pasted = _eraseRange(padded, range, ids);
+  TupletId? holding(_ClipLane lane, Moment offset) {
+    final point = place(offset);
+    final voice = padded
+        .column(point.measure)
+        .staff(staves[lane.staff])
+        .voice(lane.voice);
+    return voice == null
+        ? null
+        : _tupletAt(voice.items, point.offset)?.tuplet.id;
+  }
+
+  // The lane writer puts an item that starts in a tuplet into it, so the
+  // erase must not dissolve that tuplet first.
+  var pasted = _eraseRange(
+    padded,
+    range,
+    ids,
+    keep: {
+      for (final lane in clip._lanes)
+        if (lane.staff < staves.length)
+          for (final (:offset, item: _) in lane.items) ?holding(lane, offset),
+    },
+  );
   for (final lane in clip._lanes) {
     if (lane.staff >= staves.length) {
       continue;

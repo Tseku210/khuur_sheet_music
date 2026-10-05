@@ -59,7 +59,14 @@ Score _eraseItems(Score score, Seq<ElementRef> items, _Ids ids) {
 /// [RangeSelection.bottom], from [RangeSelection.from] up to
 /// [RangeSelection.to]: the events that start in it, the tuplets wholly
 /// inside it, its directions, and the spanners that start and end in it.
-Score _eraseRange(Score score, RangeSelection range, _Ids ids) {
+/// A tuplet in [keep] that the range cuts stays a tuplet when it is left
+/// with only rests, for a paste that writes into it.
+Score _eraseRange(
+  Score score,
+  RangeSelection range,
+  _Ids ids, {
+  Set<TupletId> keep = const {},
+}) {
   final (:lanes, :staves, :inRange) = _covers(score, range);
   final to = range.to;
   final cleared = _clear(
@@ -71,6 +78,7 @@ Score _eraseRange(Score score, RangeSelection range, _Ids ids) {
             (item is! Tuplet ||
                 !_precedes(score, to, ScorePoint(measure, onset + duration))),
     ids,
+    keep: keep,
   );
   var measures = cleared.measures;
   for (final (bar, staff) in lanes) {
@@ -109,14 +117,15 @@ typedef _Pick = bool Function(Content item, Moment onset, Length duration);
 
 /// [score] with what [pickIn] picks in each bar cleared from every voice
 /// of the (bar index, staff) [lanes]. A voice one left with only plain
-/// rests becomes one [MeasureRest]; the other voices merge their gaps and
-/// go when only gaps are left.
+/// rests becomes one [MeasureRest], unless it holds a tuplet in [keep]; the
+/// other voices merge their gaps and go when only gaps are left.
 Score _clear(
   Score score,
   Set<(int, StaffId)> lanes,
   _Pick Function(MeasureId measure) pickIn,
-  _Ids ids,
-) {
+  _Ids ids, {
+  Set<TupletId> keep = const {},
+}) {
   var measures = score.measures;
   for (final (bar, staff) in lanes) {
     final column = measures[bar];
@@ -132,6 +141,7 @@ Score _clear(
         pickIn(column.id),
         ids,
         gaps: gaps,
+        keep: keep,
       );
       if (_same(items, voice.items)) {
         continue;
@@ -142,7 +152,8 @@ Score _clear(
           items: Seq(
             gaps
                 ? _mergeGaps(items)
-                : _onlyRests(items)
+                : _onlyRests(items) &&
+                      !items.any((i) => i is Tuplet && keep.contains(i.id))
                 ? [
                     MeasureRest(
                       id: _eventsIn(items.first as Content).first.id,
@@ -166,7 +177,8 @@ Score _clear(
 /// [items], one frame sounding from [onset] at [scale], with what [pick]
 /// takes cleared. Taken content leaves a gap when [gaps] is set and rests
 /// on [grid] otherwise; a chord's rest keeps its id and a fermata. A tuplet
-/// in a gapped frame that is left with only rests becomes a gap.
+/// in a gapped frame that is left with only rests becomes a gap, unless it
+/// is in [keep].
 List<VoiceItem> _cleared(
   Iterable<VoiceItem> items,
   Moment onset,
@@ -175,6 +187,7 @@ List<VoiceItem> _cleared(
   _Pick pick,
   _Ids ids, {
   required bool gaps,
+  required Set<TupletId> keep,
 }) {
   final cleared = <VoiceItem>[];
   var at = onset;
@@ -197,7 +210,7 @@ List<VoiceItem> _cleared(
           RestEvent() || MeasureRest() => [item],
           Tuplet() => _rests(grid, written, item.span, ids),
         });
-      case Tuplet(:final ratio, :final unit, :final members):
+      case Tuplet(:final id, :final ratio, :final unit, :final members):
         final inner = _cleared(
           members,
           at,
@@ -206,11 +219,12 @@ List<VoiceItem> _cleared(
           pick,
           ids,
           gaps: false,
+          keep: keep,
         );
         cleared.add(
           _same(inner, members)
               ? item
-              : gaps && _onlyRests(inner)
+              : gaps && _onlyRests(inner) && !keep.contains(id)
               ? Gap(item.span)
               : _refill(item, inner.cast()),
         );
