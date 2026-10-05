@@ -144,6 +144,24 @@ void main() {
 
       expect(tiesOf(next, 20), {'D4': true, 'F4': false});
     });
+
+    test('refuses a count under one', () {
+      final session = blank();
+
+      for (final edit in [
+        InsertMeasures(before: idOf(session, 1), count: 0),
+        const InsertMeasures(count: -1),
+      ]) {
+        expect(
+          refusal(session.run(edit)),
+          isA<InvalidValue>().having(
+            (e) => e.message,
+            'message',
+            'a bar count is 1 or more',
+          ),
+        );
+      }
+    });
   });
 
   group('DeleteMeasures', () {

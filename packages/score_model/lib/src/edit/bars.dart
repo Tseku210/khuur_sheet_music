@@ -9,6 +9,9 @@ _Result _insertMeasuresBefore(
   int count,
   _Ids ids,
 ) {
+  if (count < 1) {
+    throw const _Refuse(InvalidValue('a bar count is 1 or more'));
+  }
   final index = before == null
       ? score.measures.length
       : _barIndex(score, before);

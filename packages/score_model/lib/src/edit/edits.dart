@@ -507,9 +507,9 @@ final class SetTempoMarks extends Edit {
 /// [MeasureRest] per staff. A bar inserted inside a volta joins it. Spanners
 /// that cross the insertion point stretch over the new bars. A tie into the
 /// bar at the insertion point is cleared, since it would lead into rests.
+/// Refused with [InvalidValue] for a [count] under 1.
 final class InsertMeasures extends Edit {
-  const InsertMeasures({this.before, this.count = 1})
-    : assert(count > 0, 'count > 0');
+  const InsertMeasures({this.before, this.count = 1});
 
   final MeasureId? before;
   final int count;
