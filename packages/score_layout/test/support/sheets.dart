@@ -15,6 +15,12 @@ List<(StaffId, double, int)> describeStaves(SystemLayout system) => [
   for (final staff in system.staves) (staff.staff, staff.top, staff.lines),
 ];
 
+void assembleAll(SheetLayout layout) {
+  for (var i = 0; i < layout.systemCount; i++) {
+    layout.systemAt(i);
+  }
+}
+
 void expectSameSystem(SystemLayout actual, SystemLayout fresh) {
   expect(actual.width, fresh.width);
   expect(actual.height, fresh.height);

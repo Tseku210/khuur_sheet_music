@@ -35,12 +35,6 @@ Score ensemble(int bars) {
   return score;
 }
 
-void assembleAll(SheetLayout layout) {
-  for (var i = 0; i < layout.systemCount; i++) {
-    layout.systemAt(i);
-  }
-}
-
 double inkRightOf(SheetLayout layout, int index) => layout
     .systemAt(index)
     .drawables
