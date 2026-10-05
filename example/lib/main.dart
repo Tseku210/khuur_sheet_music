@@ -94,14 +94,21 @@ class _ScorePageState extends State<ScorePage>
     super.dispose();
   }
 
-  void _onTap(SheetHit hit) {
-    if (hit.target case ElementOwner(:final ref)) {
+  /// A tap on a note selects it. A tap anywhere else enters a note where the
+  /// finger is. That holds on a rest too, which is the room its bar has left
+  /// and no thing to select.
+  void _onTap(Offset at) {
+    final voice = _session.cursor.voice;
+    if (_sheet.hitTest(at, voice: voice)?.target case ElementOwner(:final ref)
+        when _session.score.lookup(ref.event)?.event is ChordEvent) {
       setState(
         () => _session = _session.select(ItemSelection(Seq([_whole(ref)]))),
       );
       return;
     }
-    _enter(hit);
+    if (_sheet.entryAt(at, voice: voice) case final hit?) {
+      _enter(hit);
+    }
   }
 
   /// What a note entered at [hit] sounds. Null where the staff has no sound
@@ -314,6 +321,7 @@ class _ScorePageState extends State<ScorePage>
                   fit: StackFit.expand,
                   children: [
                     GestureDetector(
+                      onTapUp: (details) => _onTap(details.localPosition),
                       onLongPressStart: (details) =>
                           _onHold(details.localPosition, sheet),
                       onLongPressMoveUpdate: (details) =>
@@ -333,7 +341,6 @@ class _ScorePageState extends State<ScorePage>
                         // finer grid a whole note tapped in the middle of a
                         // bar is cut at the beats and the barline and tied.
                         tapGrid: _value.base,
-                        onTap: _onTap,
                       ),
                     ),
                     if (_held case final finger?)
