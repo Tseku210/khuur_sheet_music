@@ -35,11 +35,12 @@ SheetView(score: scoreFromJson(jsonDecode(saved)))
 
 ### Call site 1: an editor
 
-The app owns the `EditSession`. A tap on a note selects it. A tap anywhere else enters a note there.
+The app owns the `EditSession`. A tap on a note selects it. A tap anywhere else enters a note, on a rest too.
 
 ```dart
 void _onTap(SheetHit hit) {
-  if (hit.target case ElementOwner(:final ref)) {
+  if (hit.target case ElementOwner(:final ref)
+      when _session.score.lookup(ref.event)?.event is ChordEvent) {
     setState(() => _session = _session.select(ItemSelection(Seq([ref]))));
     return;
   }
@@ -1446,6 +1447,22 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
   - 36 defects were planted in the new code, from a script of this session that is not in the tree. 21 are in the engine, 4 in the painter and the view, and 11 in the example's glass. 36 failed a test. One passed at first. A painter that left the head out passed, since a ledger line crosses the head's box and the root's test asked only that each mark is touched. The test now asks that the colour fills each mark from edge to edge.
   - The root has 201 tests now, the example 85, the model 792 and the layout package 570. The benchmark reads 39.678 of 50 ms for the first layout of 500 bars, 0.439 of 1 ms for an update and 164.666 of 200 ms for 2000 bars.
   - Not verified. The app was installed on the owner's phone from this unit. No finger held the sheet there in this session. The pictures come from `flutter test`, whose renderer is not a phone's.
+- **A tap on a rest enters a note.** The owner showed a recording of another editor, which opens on a blank staff, and said that the example takes no note where a rest is and that the rest cannot be deleted.
+  - The example's handler selected whatever the hit named as its target, and a rest is a target as a note is. On the empty sheet every bar holds a bar rest in its middle, where a finger lands first. The tap selected the rest and entered nothing. The row then offered Delete, and `Erase` leaves a rest of voice one as it is. Both complaints are that one handler. Call site 1 and the README had the same handler, and now select a note only.
+  - The example takes the tap in the `GestureDetector` that takes the hold, and no longer passes `onTap`. A tap on a note selects it. Any other tap enters a note at the hit of `entryAt`, which is where a held finger shows it.
+
+    | Where a note tapped on a rest goes | Why it was taken or dropped |
+    | --- | --- |
+    | Where the finger is, by `entryAt`. | Taken. A tap on a bar rest and a tap beside it enter the same note, and a hold at the same place shows that note first. |
+    | At the start of the rest, which is the hit's `at`. | Dropped for the example. A bar rest is drawn in the middle of its bar and starts at the bar's start, so the note would stand half a bar from the finger. It is what a handler of `onTap` alone gets, and the README says so. |
+    | The rest stays selectable by a tap. | Dropped. A finger on a rest most often wants a note there. A rest is still selected by widening over it, and stays selected when its note is deleted. |
+
+  - `SheetView.onTap` gives a hit and no place, so a handler of it cannot ask `entryAt`. The view's own doc and the hit's are unchanged. Whether `onTap` should give the place too is the owner's call, since it changes a public callback.
+  - Delete is off on a selection that holds only rests of voice one. It is on for a rest of another voice, which `Erase` turns into a gap, and for a range, whose lines and directions `Erase` clears.
+  - A rest is not removed in this model. A bar is always full, and a rest of voice one is the part of it with no note. The recording shows another way. That editor opens on a staff with no bars, draws no rest that was not entered, draws a barline when a bar is full and marks a bar that is short. It has a Remove beside its Clear. This model's `Erase` is the Clear. An edit that takes a rest away and moves the later notes of its bar up would be the Remove, as far as this model can have one. It is a new edit of the model, and whether to add it is the owner's call.
+  - The example's tests tap the bar rest of the empty sheet and the rest a deleted note left. Each enters a note where the finger is and selects it. Before the fix both failed, with the bar unchanged. Three more ask for Delete's state on a rest of voice one, on a rest of voice two and on a pasted range of rests with a hairpin over it.
+  - The root has 201 tests now, the example 90, the model 792 and the layout package 570. The engine did not change, so the benchmark was not run again.
+  - Not verified. No finger tapped a rest on a device in this session. The pictures come from `flutter test`.
 
 
 ## Open questions and risks

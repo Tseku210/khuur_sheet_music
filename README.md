@@ -57,11 +57,12 @@ A note longer than the rest of its bar is cut at the barline and tied, and a not
 
 ## Edit by tap
 
-The app owns the `EditSession`. In this handler a tap on a note selects it, and a tap anywhere else enters a note there.
+The app owns the `EditSession`. In this handler a tap on a note selects it, and a tap anywhere else enters a note. A tap on a rest enters a note too. A rest of voice one is the room its bar has left, and `Erase` leaves it as it is, so an editor that selects a rest on a tap offers nothing to do with it and takes no note where a finger most often lands in an empty bar.
 
 ```dart
 void _onTap(SheetHit hit) {
-  if (hit.target case ElementOwner(:final ref)) {
+  if (hit.target case ElementOwner(:final ref)
+      when _session.score.lookup(ref.event)?.event is ChordEvent) {
     setState(() => _session = _session.select(ItemSelection(Seq([ref]))));
     return;
   }
@@ -93,7 +94,7 @@ SheetView(
 )
 ```
 
-The hit names the staff, the voice, the time and the staff step under the tap, so the app looks nothing up.
+The hit names the staff, the voice, the time and the staff step under the tap, so the app works out none of them. On a note or a rest the time is the start of that note or rest. So this handler enters a note tapped on a rest at the start of the rest, and a note tapped on a bar rest at the start of the bar, though the bar rest is drawn in the middle of it. An app that wants the note where the finger is takes the tap in a `GestureDetector` of its own around the view and asks `SheetController.entryAt`, as the next section does for a held finger. The example app does that.
 
 `tapGrid` is the grid a tap snaps to, a sixteenth unless given. With the base of the value being entered, a note starts on a beat of its own value. A tap within a staff space of where a note or a rest of its voice starts takes that start, whatever the grid. A whole note that starts in the middle of a bar, on a finer grid or at such a start, is cut at the beats and the barline, and the model ties the pieces.
 
