@@ -242,6 +242,28 @@ final class LineDraw extends Drawable {
     ink: ink,
   );
 
+  /// A sloped line is hit near its ink, not anywhere in its box. A
+  /// glissando's box covers the staff between its two notes, and a tap
+  /// there is not a tap on the line.
+  @override
+  double distanceTo(SpPoint point) {
+    final dx = to.x - from.x;
+    final dy = to.y - from.y;
+    if (dx == 0 || dy == 0) {
+      return bounds.distanceTo(point);
+    }
+    final length = math.sqrt(dx * dx + dy * dy);
+    final px = point.x - from.x;
+    final py = point.y - from.y;
+    final along = (px * dx + py * dy) / length;
+    final beside = math.max(
+      0,
+      (px * dy - py * dx).abs() / length - thickness / 2,
+    );
+    final past = math.max(0, math.max(-along, along - length));
+    return math.sqrt(past * past + beside * beside);
+  }
+
   @override
   bool operator ==(Object other) =>
       other is LineDraw &&
