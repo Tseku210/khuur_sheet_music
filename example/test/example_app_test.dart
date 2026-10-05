@@ -415,6 +415,7 @@ void main() {
       'Slur',
       'Beam',
       'Unbeam',
+      'Auto beam',
       'Crescendo',
       'Decrescendo',
       'Copy',
@@ -802,6 +803,185 @@ void main() {
     await tester.pump();
 
     expect(modes(), [BeamMode.none, BeamMode.none]);
+  });
+
+  testWidgets('Beam joins the selected notes and no other, in one step', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    final score = scoreOf(tester);
+    final run = [
+      for (final eighth in [0, 1, 2, 3])
+        score.eventAt(eighthOf(score, 0, eighth, bar: 3))!.ref.id,
+    ];
+    expect(beamsOf(score, 0, bar: 3), [run]);
+    await tapNoteAt(tester, eighthOf(score, 0, 1, bar: 3));
+    await press(tester, 'Widen right');
+
+    await press(tester, 'Beam');
+
+    expect(beamsOf(scoreOf(tester), 0, bar: 3), [
+      [run[1], run[2]],
+    ]);
+
+    await tester.tap(find.byTooltip('Undo'));
+    await tester.pump();
+
+    expect(beamsOf(scoreOf(tester), 0, bar: 3), [run]);
+  });
+
+  testWidgets('Beam is off unless every selected chord carries a beam and '
+      'all stand in one bar', (tester) async {
+    await pumpApp(tester);
+    final score = scoreOf(tester);
+    await tapNoteAt(tester, eighthOf(score, 0, 5));
+    await press(tester, 'Widen right');
+    expect(selectedOf(tester), [(0, 'eighth B4'), (0, 'quarter C5')]);
+    expect(isOn(tester, 'Beam'), isFalse, reason: 'a quarter has no beam');
+
+    final lastEighth = eighthOf(score, 0, 7, bar: 4);
+    await tester.tap(find.text('1/8'));
+    await tester.pump();
+    await bringIntoView(tester, lastEighth);
+    await tapClearOf(tester, lastEighth);
+    await press(tester, 'Widen right');
+
+    expect(selectedOf(tester).map((picked) => picked.$1), [4, 5]);
+    expect(
+      chordAt(scoreOf(tester), eighthOf(score, 0, 0, bar: 5)).value,
+      NoteValue.eighth,
+    );
+    expect(isOn(tester, 'Beam'), isFalse, reason: 'no beam crosses a bar line');
+  });
+
+  testWidgets('Unbeam is off on a note with no beam to lose, and Auto beam '
+      'hands unbeamed notes back to the meter', (tester) async {
+    await pumpApp(tester);
+    final score = scoreOf(tester);
+    final (c5, b4) = (eighthOf(score, 0, 4), eighthOf(score, 0, 5));
+    final pair = [score.eventAt(c5)!.ref.id, score.eventAt(b4)!.ref.id];
+    await tapFirstNote(tester);
+    expect(isOn(tester, 'Unbeam'), isFalse, reason: 'a quarter has no beam');
+    expect(isOn(tester, 'Auto beam'), isFalse);
+
+    await tapNoteAt(tester, c5);
+    await press(tester, 'Widen right');
+    expect(isOn(tester, 'Auto beam'), isFalse, reason: 'the meter beams them');
+    await press(tester, 'Unbeam');
+    expect(beamsOf(scoreOf(tester), 0), isEmpty);
+
+    await press(tester, 'Auto beam');
+
+    expect(beamsOf(scoreOf(tester), 0), [pair]);
+    expect(
+      [chordAt(scoreOf(tester), c5).beam, chordAt(scoreOf(tester), b4).beam],
+      [BeamMode.auto, BeamMode.auto],
+    );
+  });
+
+  testWidgets('a second press of Slur or of a hairpin takes the line away', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    List<String> kinds() => [
+      for (final line in linesOf(scoreOf(tester))) line.$1,
+    ];
+    await tapFirstNote(tester);
+    await press(tester, 'Widen right');
+    await press(tester, 'Slur');
+    await press(tester, 'Crescendo');
+    expect(kinds(), ['slur', 'crescendo']);
+
+    await press(tester, 'Slur');
+
+    expect(kinds(), ['crescendo']);
+
+    await press(tester, 'Crescendo');
+
+    expect(kinds(), isEmpty);
+  });
+
+  testWidgets('only a line over the very same notes is taken away', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    final score = scoreOf(tester);
+    final (treble, bass) = (score.staves[0].id, score.staves[1].id);
+    final (one, two, three) = (
+      beatOf(score, 0, 0).at,
+      beatOf(score, 0, 1).at,
+      beatOf(score, 0, 2).at,
+    );
+    await tapFirstNote(tester);
+    await press(tester, 'Widen right');
+    await press(tester, 'Slur');
+    await press(tester, 'Widen right');
+    await press(tester, 'Slur');
+    await press(tester, 'Narrow left');
+    await press(tester, 'Slur');
+    await tapNoteAt(tester, beatOf(score, 1, 0));
+    await press(tester, 'Widen right');
+
+    await press(tester, 'Slur');
+
+    expect(linesOf(scoreOf(tester)), [
+      ('slur', treble, one, two),
+      ('slur', treble, one, three),
+      ('slur', treble, two, three),
+      ('slur', bass, one, three),
+    ]);
+  });
+
+  testWidgets('Slur and Copy are off where a rest leaves them nothing to do', (
+    tester,
+  ) async {
+    await pumpApp(tester);
+    await tapNoteAt(tester, beatOf(scoreOf(tester), 0, 1));
+    expect(isOn(tester, 'Copy'), isTrue);
+    await press(tester, 'Delete');
+
+    expect(selectedOf(tester), [(0, 'quarter rest')]);
+    expect(isOn(tester, 'Copy'), isFalse, reason: 'a rest alone');
+
+    await tapFirstNote(tester);
+    await press(tester, 'Widen right');
+
+    expect(selectedOf(tester), [(0, 'quarter E4'), (0, 'quarter rest')]);
+    expect(isOn(tester, 'Copy'), isTrue);
+    expect(isOn(tester, 'Slur'), isFalse, reason: 'a slur ends on a note');
+  });
+
+  testWidgets('a tap on the head of a note with one head selects the note, '
+      'as a tap on its stem does', (tester) async {
+    await pumpApp(tester);
+    final first = beatOf(scoreOf(tester), 0, 0);
+    final note = scoreOf(tester).eventAt(first)!.ref;
+
+    await tapHeadAt(tester, first, 0);
+
+    expect(
+      sheetOf(tester).selection,
+      isA<ItemSelection>().having((picked) => [...picked.items], 'items', [
+        note,
+      ]),
+    );
+
+    await press(tester, 'Delete');
+
+    expect(selectedOf(tester), [(0, 'quarter rest')]);
+    expect(actionButton('Delete'), findsOneWidget);
+  });
+
+  testWidgets('a selection widened from one head of a chord holds whole '
+      'chords', (tester) async {
+    await pumpApp(tester);
+    final first = beatOf(scoreOf(tester), 1, 0);
+    await tapHeadAt(tester, first, 1);
+    await press(tester, 'Widen right');
+
+    await press(tester, 'Pitch up');
+
+    expect(writtenIn(scoreOf(tester), 1), ['half D3 F3 A3', 'half D3 F3 A3']);
   });
 
   testWidgets('Auto bars decides whether a note that ends the score gets a '

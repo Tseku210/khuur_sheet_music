@@ -71,6 +71,30 @@ final class Picked {
     return later.skip(1).firstOrNull ?? _lane(bar + 1, timed).firstOrNull;
   }
 
+  /// The chord after [timed] in its voice and its bar, past any rest.
+  TimedEvent? chordAfter(TimedEvent timed) =>
+      _lane(_score.indexOf(timed.ref.measure), timed)
+          .skipWhile((e) => e.ref != timed.ref)
+          .skip(1)
+          .where((e) => e.event is ChordEvent)
+          .firstOrNull;
+
+  /// The line like [kind] that the score already has from the first picked
+  /// event to the last.
+  Spanner? lineOf(SpannerKind kind) {
+    final (first, last) = (events.first, events.last);
+    return _score.spanners
+        .where(
+          (line) =>
+              _alike(line.kind, kind) &&
+              line.staff == first.ref.staff &&
+              (!kind.joinsNotes || line.voice == first.voice) &&
+              line.first == _startOf(first) &&
+              line.last == _startOf(last),
+        )
+        .firstOrNull;
+  }
+
   /// The voice of [like] in the bar at index [bar], or nothing where the
   /// score has no such bar or the bar no such voice.
   List<TimedEvent> _lane(int bar, TimedEvent like) => [
@@ -152,25 +176,56 @@ List<SelectionAction> selectionActions(
   final several = events.length > 1;
   final chords = [
     for (final timed in events)
-      if (timed.event is ChordEvent) timed.ref,
+      if (timed.event case final ChordEvent chord)
+        (ref: timed.ref, chord: chord),
   ];
+  final flagged = [
+    for (final (:ref, :chord) in chords)
+      if (chord.value.base.beams > 0) ref,
+  ];
+  final unlikeMeter = [
+    for (final (:ref, :chord) in chords)
+      if (chord.beam != BeamMode.auto) ref,
+  ];
+  final oneBar = events.every((e) => e.ref.measure == first.ref.measure);
+  // The meter beams the next chord on to a group that ends before it, so
+  // Beam starts a group of its own there.
+  final beamedOn = switch (picked.chordAfter(last)) {
+    TimedEvent(
+      :final ref,
+      event: ChordEvent(beam: BeamMode.auto || BeamMode.join, :final value),
+    )
+        when value.base.beams > 0 =>
+      ref,
+    _ => null,
+  };
   final tie = _tie(picked);
 
-  Press widenTo(TimedEvent neighbour) =>
-      Reselect(ItemSelection(Seq([...picked.items, neighbour.ref])));
+  // A head picked alone gives way to its chord, so that every button acts
+  // on whole events once there are several.
+  Press widenTo(TimedEvent neighbour) => Reselect(
+    ItemSelection(
+      Seq({for (final item in picked.items) item.event, neighbour.ref}),
+    ),
+  );
   Press without(TimedEvent dropped) => Reselect(
     ItemSelection(Seq(picked.items.where((item) => item.event != dropped.ref))),
   );
   Press transpose(int steps) =>
       RunEdit(Transpose(picked.selection, Transposition.diatonic(steps)));
-  Press hairpin({required bool crescendo}) => RunEdit(
-    AddSpanner(
-      kind: Hairpin(crescendo: crescendo),
-      staff: staff,
-      first: from,
-      last: to,
-    ),
-  );
+  // A second press takes the line away, as a second line over the same
+  // notes would only hide under the first.
+  Press line(SpannerKind kind, {VoiceSlot? voice}) =>
+      RunEdit(switch (picked.lineOf(kind)) {
+        Spanner(:final id) => RemoveSpanner(id),
+        null => AddSpanner(
+          kind: kind,
+          staff: staff,
+          voice: voice,
+          first: from,
+          last: to,
+        ),
+      });
 
   // Delete and the four buttons that widen and narrow come first, since
   // a phone shows five buttons before the row scrolls.
@@ -224,26 +279,19 @@ List<SelectionAction> selectionActions(
     (
       label: 'Slur',
       icon: Icons.gesture,
-      press: several
-          ? RunEdit(
-              AddSpanner(
-                kind: const Slur(),
-                staff: staff,
-                voice: first.voice,
-                first: from,
-                last: to,
-              ),
-            )
+      press: several && first.event is ChordEvent && last.event is ChordEvent
+          ? line(const Slur(), voice: first.voice)
           : null,
     ),
     (
       label: 'Beam',
       icon: Icons.call_merge,
-      press: chords.length > 1
+      press: flagged.length > 1 && flagged.length == chords.length && oneBar
           ? RunEdit(
               Batch([
-                for (final (index, chord) in chords.indexed)
+                for (final (index, chord) in flagged.indexed)
                   SetBeam(chord, index == 0 ? BeamMode.begin : BeamMode.join),
+                if (beamedOn != null) SetBeam(beamedOn, BeamMode.begin),
               ], label: 'Beam'),
             )
           : null,
@@ -251,25 +299,40 @@ List<SelectionAction> selectionActions(
     (
       label: 'Unbeam',
       icon: Icons.call_split,
-      press: chords.isEmpty
+      press: flagged.isEmpty
           ? null
           : RunEdit(
               Batch([
-                for (final chord in chords) SetBeam(chord, BeamMode.none),
+                for (final chord in flagged) SetBeam(chord, BeamMode.none),
               ], label: 'Unbeam'),
+            ),
+    ),
+    (
+      label: 'Auto beam',
+      icon: Icons.auto_mode,
+      press: unlikeMeter.isEmpty
+          ? null
+          : RunEdit(
+              Batch([
+                for (final chord in unlikeMeter) SetBeam(chord, BeamMode.auto),
+              ], label: 'Auto beam'),
             ),
     ),
     (
       label: 'Crescendo',
       icon: Icons.chevron_left,
-      press: hairpin(crescendo: true),
+      press: line(const Hairpin(crescendo: true)),
     ),
     (
       label: 'Decrescendo',
       icon: Icons.chevron_right,
-      press: hairpin(crescendo: false),
+      press: line(const Hairpin(crescendo: false)),
     ),
-    (label: 'Copy', icon: Icons.copy, press: const TakeCopy()),
+    (
+      label: 'Copy',
+      icon: Icons.copy,
+      press: chords.isEmpty ? null : const TakeCopy(),
+    ),
     (
       label: 'Paste',
       icon: Icons.paste,
@@ -293,6 +356,14 @@ List<SelectionAction> selectionActions(
 
 ScorePoint _startOf(TimedEvent timed) =>
     ScorePoint(timed.ref.measure, timed.onset);
+
+/// Whether two lines are of one kind. The kinds are not values, so a kind
+/// read back from a file is not the constant it was written from.
+bool _alike(SpannerKind a, SpannerKind b) => switch ((a, b)) {
+  (Slur(dashed: final x), Slur(dashed: final y)) => x == y,
+  (Hairpin(crescendo: final x), Hairpin(crescendo: final y)) => x == y,
+  _ => false,
+};
 
 /// Ties each picked head onward where the next event of its voice has the
 /// head's tone, because the model draws a tie to nothing as a loose end.

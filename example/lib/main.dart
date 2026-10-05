@@ -71,7 +71,9 @@ class _ScorePageState extends State<ScorePage>
 
   void _onTap(SheetHit hit) {
     if (hit.target case ElementOwner(:final ref)) {
-      setState(() => _session = _session.select(ItemSelection(Seq([ref]))));
+      setState(
+        () => _session = _session.select(ItemSelection(Seq([_whole(ref)]))),
+      );
       return;
     }
     final tone = _session.score.toneForStaffStep(
@@ -99,6 +101,14 @@ class _ScorePageState extends State<ScorePage>
       _say('The score ends here.', offerBar: true);
     }
   }
+
+  /// The only head of a chord stands for the chord, so that a tap selects
+  /// the same thing wherever on a note it lands.
+  ElementRef _whole(ElementRef ref) =>
+      switch (_session.score.lookup(ref.event)?.event) {
+        ChordEvent(:final notes) when notes.length > 1 => ref,
+        _ => ref.event,
+      };
 
   Overfill get _overfill => _autoBars ? Overfill.splitAndTie : Overfill.refuse;
 
