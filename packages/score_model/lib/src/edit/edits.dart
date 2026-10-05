@@ -36,7 +36,8 @@ sealed class Edit {
 /// Overwrite policy: the span `[at, at + length)` of the voice is cleared
 /// and the note put there. A note or rest cut at the start keeps its head
 /// (re-spelled with `Meter.spell`); whatever remains after the end becomes
-/// rests. Nothing moves in time and no other voice or staff is touched.
+/// rests, or a gap in voices two to four outside a tuplet. Nothing moves in
+/// time and no other voice or staff is touched.
 ///
 /// Overfill policy (access pattern 9) is [overfill]. With the default,
 /// [Overfill.splitAndTie], a note longer than the room left in the bar is
@@ -793,8 +794,9 @@ final class OutsideMeasure extends EditRefusal {
   final ScorePoint at;
 }
 
-/// A write under [Overfill.refuse] would run past the end of [measure].
-/// [excess] is how much sounding time did not fit.
+/// Music would run past the end of [measure]: a write under
+/// [Overfill.refuse], or a bar too full for the new meter under
+/// [MeterContent.keepBars]. [excess] is how much sounding time did not fit.
 final class WouldCrossBarline extends EditRefusal {
   const WouldCrossBarline(this.measure, this.excess);
 
