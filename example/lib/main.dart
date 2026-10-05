@@ -74,11 +74,11 @@ class _ScorePageState extends State<ScorePage>
   bool _autoBeams = true;
   ScoreClip? _clip;
 
-  /// A finger held down on the sheet, with where it is in the view's own
-  /// pixels and what a note let go there would be. The hit is null off
-  /// every system.
-  ({Offset at, SheetHit? hit})? _held;
-  final SheetController _sheet = SheetController();
+  /// Where a finger is held down on the sheet, in the view's own pixels.
+  /// Null with no finger held, and while the held finger is off the sheet.
+  Offset? _held;
+  late final SheetController _sheet = SheetController()
+    ..addListener(_onSheetMoved);
   final ScrollController _rowScroll = ScrollController();
   late final ScorePlayer _player = ScorePlayer(
     soundFont: const AssetSoundFont('assets/soundfonts/piano.sf2'),
@@ -104,13 +104,16 @@ class _ScorePageState extends State<ScorePage>
     _enter(hit);
   }
 
+  /// What a note entered at [hit] sounds. Null where the staff has no sound
+  /// at that height. Null too in a bar the score no longer has, as the sheet
+  /// on screen is a frame behind an edit.
+  Tone? _toneAt(SheetHit hit) => _session.score.contains(hit.at.measure)
+      ? _session.score.toneForStaffStep(hit.staff, hit.at, hit.staffStep)
+      : null;
+
   /// Enters a note of the picked value where [hit] is.
   void _enter(SheetHit hit) {
-    final tone = _session.score.toneForStaffStep(
-      hit.staff,
-      hit.at,
-      hit.staffStep,
-    );
+    final tone = _toneAt(hit);
     if (tone == null) {
       return;
     }
@@ -132,16 +135,52 @@ class _ScorePageState extends State<ScorePage>
     }
   }
 
-  void _onHold(Offset at) => setState(
-    () =>
-        _held = (at: at, hit: _sheet.entryAt(at, voice: _session.cursor.voice)),
-  );
+  /// A finger is held at [at] over a sheet of [sheet] pixels. A finger that
+  /// slides off the sheet is as good as lifted, until it slides back.
+  void _onHold(Offset at, Size sheet) =>
+      setState(() => _held = sheet.contains(at) ? at : null);
 
-  /// Enters the note that the held finger showed. A finger held on a note
+  void _onHoldOver() {
+    if (_held != null) {
+      setState(() => _held = null);
+    }
+  }
+
+  /// A sheet that scrolled, zoomed or changed has another place under a
+  /// finger that is held still.
+  void _onSheetMoved() {
+    if (_held != null) {
+      setState(() {});
+    }
+  }
+
+  /// Where a note of the held finger would go on the sheet as it is now.
+  /// Null off every system.
+  SheetHit? get _heldEntry => switch (_held) {
+    final at? => _sheet.entryAt(at, voice: _session.cursor.voice),
+    null => null,
+  };
+
+  /// The note that [hit] would enter, to show before it is entered. Null
+  /// where it would enter none.
+  NotePreview? _ghostAt(SheetHit hit) => switch (_toneAt(hit)) {
+    null => null,
+    final tone => NotePreview.at(
+      hit,
+      base: _value.base,
+      head: switch (tone) {
+        Pitch() => NoteHead.normal,
+        Drum() =>
+          _session.score.partOf(hit.staff).instrument.soundOf(tone)!.head,
+      },
+    ),
+  };
+
+  /// Enters the note that the held finger shows. A finger held on a note
   /// enters one there, where a tap selects the note.
   void _onLetGo() {
-    final hit = _held?.hit;
-    setState(() => _held = null);
+    final hit = _heldEntry;
+    _onHoldOver();
     if (hit != null) {
       _enter(hit);
     }
@@ -265,27 +304,27 @@ class _ScorePageState extends State<ScorePage>
         children: [
           Expanded(
             child: LayoutBuilder(
-              builder: (context, constraints) => Stack(
-                fit: StackFit.expand,
-                children: [
-                  // A long press that has started ends without a call when
-                  // the system takes its pointer away.
-                  Listener(
-                    onPointerCancel: (_) => setState(() => _held = null),
-                    child: GestureDetector(
+              builder: (context, constraints) {
+                final sheet = constraints.biggest;
+                final ghost = switch (_heldEntry) {
+                  final hit? => _ghostAt(hit),
+                  null => null,
+                };
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    GestureDetector(
                       onLongPressStart: (details) =>
-                          _onHold(details.localPosition),
+                          _onHold(details.localPosition, sheet),
                       onLongPressMoveUpdate: (details) =>
-                          _onHold(details.localPosition),
+                          _onHold(details.localPosition, sheet),
                       onLongPressEnd: (_) => _onLetGo(),
+                      onLongPressCancel: _onHoldOver,
                       child: SheetView(
                         key: ValueKey(_sheetsOpened),
                         score: _session.score,
                         cursor: _session.cursor,
-                        preview: switch (_held?.hit) {
-                          final hit? => NotePreview.at(hit, base: _value.base),
-                          null => null,
-                        },
+                        preview: ghost,
                         selection: _session.selection,
                         playback: _player.position,
                         controller: _sheet,
@@ -297,11 +336,19 @@ class _ScorePageState extends State<ScorePage>
                         onTap: _onTap,
                       ),
                     ),
-                  ),
-                  if (_held case (:final at, hit: _))
-                    _loupe(at, constraints.biggest),
-                ],
-              ),
+                    if (_held case final finger?)
+                      _loupe(
+                        finger,
+                        switch (ghost) {
+                              final ghost? => _sheet.rectOfPreview(ghost),
+                              null => null,
+                            }?.center ??
+                            finger,
+                        sheet,
+                      ),
+                  ],
+                );
+              },
             ),
           ),
           _underSheet(),
@@ -347,9 +394,10 @@ class _ScorePageState extends State<ScorePage>
     );
   }
 
-  /// A glass that shows the sheet under a finger at [finger] at twice its
-  /// size, with the note that letting go would enter.
-  Widget _loupe(Offset finger, Size sheet) {
+  /// A glass by a finger at [finger] that shows the sheet around [lookAt]
+  /// at twice its size. It looks at the note that letting go would enter,
+  /// which a long value puts at a beat away from the finger.
+  Widget _loupe(Offset finger, Offset lookAt, Size sheet) {
     final centre = _loupeCentre(finger, sheet);
     return Positioned.fromRect(
       rect: Rect.fromCenter(
@@ -362,7 +410,7 @@ class _ScorePageState extends State<ScorePage>
         // Without it the shadow is drawn over the glass too.
         clipBehavior: Clip.antiAlias,
         magnificationScale: 2,
-        focalPointOffset: finger - centre,
+        focalPointOffset: lookAt - centre,
         decoration: MagnifierDecoration(
           shape: RoundedRectangleBorder(
             borderRadius: const BorderRadius.all(Radius.circular(16)),

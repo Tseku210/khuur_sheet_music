@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:example/demo_score.dart';
@@ -20,13 +21,14 @@ const Size phone = Size(390, 844);
 final Key pageKey = UniqueKey();
 
 /// Shows the page over [eightBars], so that what a test edits and plays
-/// does not hang on the tune the app ships with. With [demo] the page opens
-/// as the app does, with the tune of its own.
+/// does not hang on the tune the app ships with, or over [score]. With
+/// [demo] the page opens as the app does, with the tune of its own.
 Future<void> pumpApp(
   WidgetTester tester, {
   Size size = desktop,
   MidiOutput? output,
   bool demo = false,
+  Score? score,
 }) async {
   tester.view
     ..physicalSize = size
@@ -35,7 +37,10 @@ Future<void> pumpApp(
   await tester.pumpWidget(
     RepaintBoundary(
       key: pageKey,
-      child: ExampleApp(output: output, score: demo ? null : eightBars()),
+      child: ExampleApp(
+        output: output,
+        score: demo ? null : score ?? eightBars(),
+      ),
     ),
   );
   await tester.pump();
@@ -194,6 +199,82 @@ Future<TestGesture> holdAt(WidgetTester tester, Offset local) async {
   await tester.pump();
   return gesture;
 }
+
+/// The page as it is drawn now, as a PNG, and how many pixels of [ink] a
+/// box of the screen holds.
+Future<({Uint8List png, int Function(Rect box) inked})> pictureOf(
+  WidgetTester tester,
+  Color ink,
+) async {
+  final boundary = tester.renderObject<RenderRepaintBoundary>(
+    find.byKey(pageKey),
+  );
+  final (:rgba, :png, :width) = (await tester.runAsync(() async {
+    final image = await boundary.toImage();
+    final rgba = await image.toByteData();
+    final png = await image.toByteData(format: ui.ImageByteFormat.png);
+    final width = image.width;
+    image.dispose();
+    return (
+      rgba: rgba!.buffer.asUint8List(),
+      png: png!.buffer.asUint8List(),
+      width: width,
+    );
+  }))!;
+  int inked(Rect box) {
+    var count = 0;
+    for (var y = box.top.ceil(); y < box.bottom.floor(); y++) {
+      for (var x = box.left.ceil(); x < box.right.floor(); x++) {
+        final at = (y * width + x) * 4;
+        final off =
+            (rgba[at] - (ink.r * 255).round()).abs() +
+            (rgba[at + 1] - (ink.g * 255).round()).abs() +
+            (rgba[at + 2] - (ink.b * 255).round()).abs();
+        if (off < 24) {
+          count++;
+        }
+      }
+    }
+    return count;
+  }
+
+  return (png: png, inked: inked);
+}
+
+/// The colour the page draws a preview note in.
+Color previewInk(WidgetTester tester) =>
+    Theme.of(tester.element(find.byType(SheetView))).colorScheme.primary;
+
+/// Two bars of 4/4 for a kit of two drums on five lines. The hi-hat has a
+/// cross for a head in the space over the staff, and the snare a plain head
+/// in the third space.
+Score twoDrums() => Score.blank(
+  parts: [
+    PartTemplate(
+      name: '',
+      instrument: Instrument(
+        key: 'kit',
+        program: 0,
+        bank: 128,
+        clef: Clef.percussion,
+        drums: [
+          DrumSound(
+            name: 'Hi-hat',
+            position: Clef.percussion.naturalAt(9),
+            midiKey: 42,
+            head: NoteHead.cross,
+          ),
+          DrumSound(
+            name: 'Snare',
+            position: Clef.percussion.naturalAt(5),
+            midiKey: 38,
+          ),
+        ],
+      ),
+    ),
+  ],
+  measureCount: 2,
+);
 
 /// Taps the note or the rest that holds [at], and gives its event.
 Future<EventRef> tapNoteAt(WidgetTester tester, VoicePoint at) async {
@@ -1381,8 +1462,9 @@ void main() {
   });
 
   testWidgets('the glass stays on the sheet and clear of the finger, over it '
-      'where the sheet has room and beside it where it has none, and looks '
-      'at the spot under the finger', (tester) async {
+      'where the sheet has room and beside it where it has none', (
+    tester,
+  ) async {
     await pumpApp(tester, size: phone, demo: true);
     final area = tester.getRect(find.byType(SheetView));
     final low = area.height - 40;
@@ -1397,11 +1479,6 @@ void main() {
       final gesture = await holdAt(tester, spot);
       final finger = onScreen(tester, spot);
       final glass = tester.getRect(find.byType(RawMagnifier));
-      final looksAt =
-          glass.center +
-          tester
-              .widget<RawMagnifier>(find.byType(RawMagnifier))
-              .focalPointOffset;
 
       expect(area.expandToInclude(glass), area, reason: name);
       expect(glass.inflate(27).contains(finger), isFalse, reason: name);
@@ -1414,63 +1491,329 @@ void main() {
         isTrue,
         reason: '$name: $glass is not $side $finger',
       );
-      expect((looksAt - finger).distance, closeTo(0, 1e-9), reason: name);
 
       await gesture.cancel();
       await tester.pump();
     }
   });
 
-  testWidgets('the glass shows the note under the held finger at twice its '
-      'size', (tester) async {
+  testWidgets('the glass shows the note that letting go would enter at twice '
+      'its size, beside the finger and over it', (tester) async {
+    await tester.runAsync(loadPageFonts);
+    await pumpApp(tester, size: phone, demo: true);
+
+    for (final (name, sheet, bar, side) in const [
+      ('example_app_hold_over', null, 1, 'over'),
+      ('example_app_hold', 'Empty sheet', 0, 'beside'),
+    ]) {
+      if (sheet != null) {
+        await openSheet(tester, sheet);
+      }
+      final score = scoreOf(tester);
+      final spot = controllerOf(tester)
+          .caretOf(beatOf(score, 0, 1, bar: bar))!
+          .center;
+      final gesture = await holdAt(tester, spot);
+      final finger = onScreen(tester, spot);
+      final glass = tester.getRect(find.byType(RawMagnifier));
+      final note = controllerOf(tester)
+          .rectOfPreview(sheetOf(tester).preview!)!
+          .shift(finger - spot);
+      expect(
+        glass.bottom < finger.dy ? 'over' : 'beside',
+        side,
+        reason: '$glass by $finger',
+      );
+      expect(glass.overlaps(note.inflate(4)), isFalse, reason: name);
+
+      final (:png, :inked) = await pictureOf(tester, previewInk(tester));
+      writeSnapshot(name, png);
+      final onSheet = inked(note.inflate(4));
+      final inGlass = inked(glass);
+      expect(onSheet, greaterThan(40), reason: '$name: the note is drawn');
+      expect(
+        inGlass / onSheet,
+        closeTo(4, 1),
+        reason: '$name: $inGlass of $onSheet',
+      );
+
+      await gesture.cancel();
+      await tester.pump();
+    }
+  });
+
+  testWidgets('the glass holds a whole note, which stands at the start of its '
+      'bar, wherever in the bar the finger is', (tester) async {
     await tester.runAsync(loadPageFonts);
     await pumpApp(tester, size: phone, demo: true);
     await openSheet(tester, 'Empty sheet');
+    await tester.tap(find.text('1'));
+    await tester.pump();
     final score = scoreOf(tester);
-    final spot = controllerOf(tester).caretOf(beatOf(score, 0, 2))!.center;
-    await holdAt(tester, spot);
-    final finger = onScreen(tester, spot);
-    final glass = tester.getRect(find.byType(RawMagnifier));
-    final preview = Theme.of(tester.element(find.byType(SheetView)))
-        .colorScheme
-        .primary;
+    final sheet = controllerOf(tester);
 
-    final boundary = tester.renderObject<RenderRepaintBoundary>(
-      find.byKey(pageKey),
-    );
-    final (:rgba, :png) = (await tester.runAsync(() async {
-      final image = await boundary.toImage();
-      final rgba = await image.toByteData();
-      final png = await image.toByteData(format: ui.ImageByteFormat.png);
-      image.dispose();
-      return (rgba: rgba!.buffer.asUint8List(), png: png!.buffer.asUint8List());
-    }))!;
-    writeSnapshot('example_app_hold', png);
-
-    // Pixels of the preview's colour in [box].
-    int inked(Rect box) {
-      var count = 0;
-      for (var y = box.top.ceil(); y < box.bottom.floor(); y++) {
-        for (var x = box.left.ceil(); x < box.right.floor(); x++) {
-          final at = (y * phone.width.round() + x) * 4;
-          final off =
-              (rgba[at] - (preview.r * 255).round()).abs() +
-              (rgba[at + 1] - (preview.g * 255).round()).abs() +
-              (rgba[at + 2] - (preview.b * 255).round()).abs();
-          if (off < 24) {
-            count++;
-          }
-        }
+    Future<int> inGlassAt(int beat, {String? snapshot}) async {
+      final spot = sheet.caretOf(beatOf(score, 0, beat, bar: 1))!.center;
+      final gesture = await holdAt(tester, spot);
+      expect(
+        sheetOf(tester).preview,
+        NotePreview(
+          staff: score.staves[0].id,
+          at: beatOf(score, 0, 0, bar: 1).at,
+          staffStep: 4,
+          base: DurationBase.whole,
+        ),
+      );
+      final (:png, :inked) = await pictureOf(tester, previewInk(tester));
+      if (snapshot != null) {
+        writeSnapshot(snapshot, png);
       }
+      final count = inked(tester.getRect(find.byType(RawMagnifier)));
+      await gesture.cancel();
+      await tester.pump();
       return count;
     }
 
-    final onSheet = inked(
-      Rect.fromCenter(center: finger, width: 40, height: 40),
+    final atTheNote = await inGlassAt(0);
+    final away = await inGlassAt(3, snapshot: 'example_app_hold_whole');
+    expect(atTheNote, greaterThan(80), reason: 'the note is in the glass');
+    expect(away, closeTo(atTheNote, atTheNote * 0.05));
+  });
+
+  testWidgets('the note of a held finger is the one the sheet has under it '
+      'now: a sheet that scrolls or zooms under a still finger moves the note '
+      'shown, and that note is the one entered', (tester) async {
+    await pumpApp(tester, size: phone);
+    final score = scoreOf(tester);
+    final sheet = controllerOf(tester);
+    final second = beatOf(score, 0, 0, bar: 1);
+    final fourth = beatOf(score, 0, 0, bar: 3);
+    final spot = sheet.caretOf(second)!.center;
+    final down = sheet.caretOf(fourth)!.center.dy - spot.dy;
+    final before = [
+      for (var bar = 0; bar < 8; bar++) writtenIn(score, 0, bar: bar),
+    ];
+    NotePreview? shown() => sheetOf(tester).preview;
+    NotePreview? asked() => switch (sheet.entryAt(spot)) {
+      final hit? => NotePreview.at(hit),
+      null => null,
+    };
+
+    final gesture = await holdAt(tester, spot);
+    expect(shown()!.at, second.at);
+
+    tester
+        .state<ScrollableState>(
+          find.descendant(
+            of: find.byType(SheetView),
+            matching: find.byType(Scrollable),
+          ),
+        )
+        .position
+        .jumpTo(down);
+    await tester.pump();
+    expect(shown()!.at, fourth.at);
+
+    await tester.tap(find.byTooltip('Zoom in'));
+    await tester.pump();
+    await tester.pump();
+    final zoomed = shown()!;
+    expect(zoomed.at, isNot(fourth.at));
+    expect(zoomed, asked());
+
+    await gesture.up();
+    await tester.pump();
+    final after = scoreOf(tester);
+    final bar = after.indexOf(zoomed.at.measure);
+    expect(
+      eventHolding(
+        after,
+        VoicePoint(staff: zoomed.staff, voice: VoiceSlot.one, at: zoomed.at),
+      ).written,
+      'quarter '
+      '${after.toneForStaffStep(zoomed.staff, zoomed.at, zoomed.staffStep)}',
     );
-    final inGlass = inked(glass);
-    expect(onSheet, greaterThan(40), reason: 'the note is under the finger');
-    expect(inGlass / onSheet, closeTo(4, 1), reason: '$inGlass of $onSheet');
+    expect([
+      for (var other = 0; other < 8; other++)
+        if (other != bar) writtenIn(after, 0, bar: other),
+    ], [...before]..removeAt(bar));
+  });
+
+  testWidgets('a value picked under a held finger shows the note of that '
+      'value on a beat of its own, and that note is the one entered', (
+    tester,
+  ) async {
+    await pumpApp(tester, size: phone, demo: true);
+    await openSheet(tester, 'Empty sheet');
+    final score = scoreOf(tester);
+    final staff = score.staves[0].id;
+    final late = beatOf(score, 0, 3, bar: 1);
+
+    final gesture = await holdAt(
+      tester,
+      controllerOf(tester).caretOf(late)!.center,
+    );
+    expect(
+      sheetOf(tester).preview,
+      NotePreview(staff: staff, at: late.at, staffStep: 4),
+    );
+
+    await tester.tap(find.text('1'));
+    await tester.pump();
+    await tester.pump();
+    expect(
+      sheetOf(tester).preview,
+      NotePreview(
+        staff: staff,
+        at: beatOf(score, 0, 0, bar: 1).at,
+        staffStep: 4,
+        base: DurationBase.whole,
+      ),
+    );
+
+    await gesture.up();
+    await tester.pump();
+    expect(
+      [
+        for (var bar = 0; bar < 4; bar++)
+          writtenIn(scoreOf(tester), 0, bar: bar),
+      ],
+      [
+        ['bar rest'],
+        ['whole B4'],
+        ['bar rest'],
+        ['bar rest'],
+      ],
+    );
+    expect(tiesIn(scoreOf(tester), 0, bar: 1), [false]);
+  });
+
+  testWidgets('a finger held in a bar that an undo takes away enters nothing '
+      'there, before the sheet is drawn again', (tester) async {
+    await pumpApp(tester, size: phone, demo: true);
+    await openSheet(tester, 'Empty sheet');
+    await tester.tap(find.text('1'));
+    await tester.pump();
+    final blank = scoreOf(tester);
+    // A whole note in the last bar gives the score a bar to go on in.
+    await tapStaffAt(tester, beatOf(blank, 0, 0, bar: 3));
+    await tester.pump();
+    final grown = scoreOf(tester);
+    expect(grown.measures, hasLength(5));
+    final added = VoicePoint(
+      staff: grown.staves[0].id,
+      voice: VoiceSlot.one,
+      at: ScorePoint(grown.measures[4].id, Moment.zero),
+    );
+    await bringIntoView(tester, added);
+
+    final gesture = await holdAt(
+      tester,
+      controllerOf(tester).caretOf(added)!.center,
+    );
+    expect(sheetOf(tester).preview!.at, added.at);
+    await tester.tap(find.byTooltip('Undo'));
+    await gesture.up();
+    await tester.pump();
+
+    expect(find.byType(RawMagnifier), findsNothing);
+    expect([
+      for (var bar = 0; bar < scoreOf(tester).measures.length; bar++)
+        writtenIn(scoreOf(tester), 0, bar: bar),
+    ], List.filled(4, ['bar rest']));
+  });
+
+  testWidgets('a finger held while a new sheet is opened enters nothing on '
+      'it, as the menu that opens takes the finger away', (tester) async {
+    await pumpApp(tester, size: phone, demo: true);
+    final demo = scoreOf(tester);
+    final gesture = await holdAt(
+      tester,
+      controllerOf(tester).caretOf(beatOf(demo, 1, 0, bar: 1))!.center,
+    );
+    expect(sheetOf(tester).preview!.staff, demo.staves[1].id);
+
+    await tester.tap(find.byTooltip('New sheet'));
+    await tester.pump();
+    expect(find.byType(RawMagnifier), findsNothing);
+    expect(sheetOf(tester).preview, isNull);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.tap(find.text('Empty sheet'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    final empty = scoreOf(tester);
+    expect(empty, isNot(same(demo)));
+
+    await gesture.up();
+    await tester.pump();
+    expect(scoreOf(tester), same(empty));
+  });
+
+  testWidgets('a held finger that slides off the sheet shows no glass and no '
+      'note, shows both again when it slides back, and enters nothing when '
+      'it lifts off the sheet', (tester) async {
+    await pumpApp(tester, size: phone, demo: true);
+    await openSheet(tester, 'Empty sheet');
+    final score = scoreOf(tester);
+    final spot = controllerOf(tester).caretOf(beatOf(score, 0, 1))!.center;
+    final area = tester.getSize(find.byType(SheetView));
+
+    final gesture = await holdAt(tester, spot);
+    expect(find.byType(RawMagnifier), findsOneWidget);
+    expect(sheetOf(tester).preview, isNotNull);
+
+    for (final off in [
+      Offset(spot.dx, area.height + 30),
+      Offset(spot.dx, -20),
+      Offset(-1, spot.dy),
+    ]) {
+      await gesture.moveTo(onScreen(tester, off));
+      await tester.pump();
+      expect(find.byType(RawMagnifier), findsNothing, reason: '$off');
+      expect(sheetOf(tester).preview, isNull, reason: '$off');
+
+      await gesture.moveTo(onScreen(tester, spot));
+      await tester.pump();
+      expect(find.byType(RawMagnifier), findsOneWidget, reason: '$off');
+      expect(sheetOf(tester).preview, isNotNull, reason: '$off');
+    }
+
+    await gesture.moveTo(onScreen(tester, Offset(spot.dx, area.height + 30)));
+    await gesture.up();
+    await tester.pump();
+    expect(scoreOf(tester), same(score));
+  });
+
+  testWidgets('on a drum staff a held finger shows the head of the drum at '
+      'its place and enters that drum, and shows and enters nothing where '
+      'the kit has no drum', (tester) async {
+    await pumpApp(tester, size: phone, score: twoDrums());
+    final score = scoreOf(tester);
+    final second = beatOf(score, 0, 1);
+    final staff = controllerOf(tester).caretOf(second)!;
+
+    // The middle line has no drum.
+    final none = await holdAt(tester, staff.center);
+    expect(find.byType(RawMagnifier), findsOneWidget);
+    expect(sheetOf(tester).preview, isNull);
+    await none.up();
+    await tester.pump();
+    expect(scoreOf(tester), same(score));
+
+    // Half a space over the staff.
+    final hat = await holdAt(tester, staff.topCenter - const Offset(0, 4));
+    expect(
+      sheetOf(tester).preview,
+      NotePreview(
+        staff: score.staves[0].id,
+        at: second.at,
+        staffStep: 9,
+        head: NoteHead.cross,
+      ),
+    );
+    await hat.up();
+    await tester.pump();
+    expect(eventHolding(scoreOf(tester), second).written, 'quarter Hi-hat');
   });
 
   testWidgets('Auto bars decides whether a note longer than the rest of its '
