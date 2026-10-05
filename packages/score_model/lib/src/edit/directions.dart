@@ -25,16 +25,29 @@ _Result _addSpanner(
     last: last,
   );
   if (!_fits(score, spanner)) {
+    final name = _spannerName(kind);
     throw _Refuse(
       InvalidValue(
         kind.joinsNotes
-            ? 'a ${kind.runtimeType} must end after it starts'
-            : 'a ${kind.runtimeType} cannot end before it starts',
+            ? '$name must end after it starts'
+            : '$name cannot end before it starts',
       ),
     );
   }
   return _Result(score.copyWith(spanners: score.spanners.append(spanner)));
 }
+
+/// [kind] as a refusal names it. A class name read at run time is mangled
+/// in an obfuscated build.
+String _spannerName(SpannerKind kind) => switch (kind) {
+  Slur() => 'a slur',
+  Hairpin() => 'a hairpin',
+  OctaveLine() => 'an octave line',
+  TrillLine() => 'a trill line',
+  TempoLine() => 'a tempo line',
+  PedalLine() => 'a pedal line',
+  Glissando() => 'a glissando',
+};
 
 _Result _removeSpanner(Score score, SpannerId spanner) {
   final index = score.spanners.indexWhere((s) => s.id == spanner);

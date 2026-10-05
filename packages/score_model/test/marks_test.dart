@@ -263,6 +263,43 @@ void main() {
       }
     });
 
+    test('names the kind whose ends it refuses', () {
+      final score = blankScore();
+      final half = pointAt(score, 0, at(1, 2));
+      String refused(SpannerKind kind, ScorePoint last) => (refusal(
+        addSpanner(score, kind, half, last),
+      ) as InvalidValue).message;
+
+      expect(
+        [
+          for (final kind in const [Slur(), Glissando()]) refused(kind, half),
+        ],
+        [
+          'a slur must end after it starts',
+          'a glissando must end after it starts',
+        ],
+      );
+      expect(
+        [
+          for (final kind in const [
+            Hairpin(crescendo: true),
+            OctaveLine(OctaveShift.up8),
+            TrillLine(),
+            TempoLine(text: 'rit.', factor: 0.5),
+            PedalLine(),
+          ])
+            refused(kind, pointAt(score, 0, Moment.zero)),
+        ],
+        [
+          'a hairpin cannot end before it starts',
+          'an octave line cannot end before it starts',
+          'a trill line cannot end before it starts',
+          'a tempo line cannot end before it starts',
+          'a pedal line cannot end before it starts',
+        ],
+      );
+    });
+
     test('refuses a slur or glissando inside one note', () {
       final score = fill(blankScore(), 0, [
         chordOf(100, 'C5', value: NoteValue.half),
