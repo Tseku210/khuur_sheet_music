@@ -12,6 +12,38 @@ List<String> spell(
   for (final value in meter.spell(offset, length, rest: rest)) '$value',
 ];
 
+/// The values of a spelling from [offset] that hide a beat of [meter], each
+/// as `value at start`. A value that crosses a beat starts and ends on
+/// beats in a compound or additive meter. In a simple meter a plain one
+/// starts on a multiple of its length, a dotted note on a multiple of twice
+/// its base, and a dotted rest crosses none.
+List<String> hidingBeats(
+  Meter meter,
+  Moment offset,
+  List<NoteValue> values, {
+  required bool rest,
+}) {
+  final beats = [...meter.beatOffsets, Moment.zero + meter.length];
+  final strict = meter.isCompound || meter.groups.length > 1;
+  final hiding = <String>[];
+  var start = offset;
+  for (final value in values) {
+    final end = start + value.length;
+    final grid = value.dots == 0
+        ? value.length
+        : value.base.length * Fraction(2);
+    final shown = strict
+        ? beats.contains(start) && beats.contains(end)
+        : !(rest && value.dots > 0) &&
+              (Moment.zero.until(start) / grid).denominator == 1;
+    if (beats.any((beat) => start < beat && beat < end) && !shown) {
+      hiding.add('$value at ${start.wholeNotes}');
+    }
+    start = end;
+  }
+  return hiding;
+}
+
 const sevenEight = Meter([3, 2, 2], 8);
 const twelveEight = Meter([12], 8);
 
@@ -125,12 +157,24 @@ void main() {
             final offset = at(start, step);
             final length = len(end - start, step);
             final values = meter.spell(offset, length, rest: rest);
+            final where =
+                '$meter from $start/$step for ${end - start}/$step'
+                '${rest ? ' of rest' : ''}';
             expect(
               Length.sum(values.map((v) => v.length)),
               length,
-              reason: '$meter from $start/$step for ${end - start}/$step',
+              reason: where,
             );
-            expect(values.every((v) => v.dots <= 1), isTrue);
+            expect(
+              values.map((v) => v.dots),
+              everyElement(lessThan(2)),
+              reason: where,
+            );
+            expect(
+              hidingBeats(meter, offset, values, rest: rest),
+              isEmpty,
+              reason: where,
+            );
           }
         }
       }
