@@ -6,6 +6,7 @@
 /// the gate holds on every platform.
 library;
 
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -224,37 +225,61 @@ Future<InkErrors?> measureGlyph(
   return worst;
 }
 
+/// Device pixels a rasteriser may put a glyph's ink from the table's box at
+/// a size the view draws at: its centre vertically, and its width or its
+/// height.
+typedef RasterBounds = ({double centreY, double size});
+
+/// The bounds where Apple's rasteriser draws, measured on a Mac and on an
+/// iPhone.
+///
+/// Ink lands on whole pixels vertically, which is the pixel of the centre.
+/// The size may be off by a pixel at each edge. The Mac thickens ink and
+/// the phone thins it, and a thin or pointed end reads short on top of
+/// that, so a glyph that is drawn right is up to 1.55 pixels small on a
+/// phone.
+const RasterBounds appleBounds = (centreY: 1, size: 2);
+
+/// The bounds where FreeType draws, which is Linux and Android, measured on
+/// Linux alone.
+///
+/// The notes, the clefs, the rests and the accidentals read as on a Mac.
+/// The letters of the dynamics, the digits and the octave parentheses read
+/// up to 1.17 pixels off their centre, and the parentheses up to 2.5
+/// pixels short at the smallest size. Each bound is Apple's with half a
+/// pixel more at each edge.
+const RasterBounds freeTypeBounds = (centreY: 1.5, size: 3);
+
+/// The bounds of the rasteriser this test runs on. Nothing has measured
+/// Windows, which is held to Apple's until something does.
+RasterBounds get rasterBounds =>
+    Platform.isLinux || Platform.isAndroid ? freeTypeBounds : appleBounds;
+
 /// Why [errors] fails the gate at a size the view draws at. Empty when it
 /// passes.
 ///
 /// Placement and size are judged apart. A rasteriser thickens ink by a
 /// fraction of a pixel on every side, which moves edges and leaves the
 /// centre. So the centre says where the glyph is and the size says what the
-/// rasteriser did to it.
+/// rasteriser did to it. Both are held to [rasterBounds].
 ///
-/// Glyphs are placed to a fraction of a pixel horizontally, so that bound
-/// is the reader's own. A pointed end covers little of its last pixel and
-/// reads short, which moves the centre of a glyph pointed on one side by up
-/// to a third of a pixel at every size.
-///
-/// The size may be off by a pixel at each edge. One rasteriser thickens ink
-/// and another thins it, and a thin or pointed end reads short on top of
-/// that, so a glyph that is drawn right is up to 1.55 pixels small on a
-/// phone.
-List<String> failuresAtViewSize(InkErrors errors) => [
-  if (errors.centreY > 1)
-    'centre ${errors.centreY.toStringAsFixed(2)} px off vertically',
-  if (errors.centreX > 0.5)
-    'centre ${errors.centreX.toStringAsFixed(2)} px off horizontally',
-  if (errors.width > _sizeBound)
-    'width ${errors.width.toStringAsFixed(2)} px off',
-  if (errors.height > _sizeBound)
-    'height ${errors.height.toStringAsFixed(2)} px off',
-];
-
-/// Device pixels a glyph's width or height may be off at a size the view
-/// draws at.
-const _sizeBound = 2.0;
+/// Glyphs are placed to a fraction of a pixel horizontally on every
+/// platform, so that bound is the reader's own. A pointed end covers little
+/// of its last pixel and reads short, which moves the centre of a glyph
+/// pointed on one side by up to a third of a pixel at every size.
+List<String> failuresAtViewSize(InkErrors errors) {
+  final bounds = rasterBounds;
+  return [
+    if (errors.centreY > bounds.centreY)
+      'centre ${errors.centreY.toStringAsFixed(2)} px off vertically',
+    if (errors.centreX > 0.5)
+      'centre ${errors.centreX.toStringAsFixed(2)} px off horizontally',
+    if (errors.width > bounds.size)
+      'width ${errors.width.toStringAsFixed(2)} px off',
+    if (errors.height > bounds.size)
+      'height ${errors.height.toStringAsFixed(2)} px off',
+  ];
+}
 
 /// Why [errors] fails the gate at [tableSize], where every edge is within
 /// 0.05 staff spaces. Empty when it passes.
