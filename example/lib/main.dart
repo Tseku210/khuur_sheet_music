@@ -339,11 +339,10 @@ class _ScorePageState extends State<ScorePage>
                     if (_held case final finger?)
                       _loupe(
                         finger,
-                        switch (ghost) {
-                              final ghost? => _sheet.rectOfPreview(ghost),
-                              null => null,
-                            }?.center ??
-                            finger,
+                        _lookAt(finger, switch (ghost) {
+                          final ghost? => _sheet.rectOfPreview(ghost),
+                          null => null,
+                        }),
                         sheet,
                       ),
                   ],
@@ -365,6 +364,9 @@ class _ScorePageState extends State<ScorePage>
   );
 
   static const Size _loupeSize = Size(132, 88);
+
+  /// How many times its size the glass shows the sheet.
+  static const double _loupeScale = 2;
 
   /// How far the glass stands off the finger.
   static const double _loupeGap = 28;
@@ -394,9 +396,26 @@ class _ScorePageState extends State<ScorePage>
     );
   }
 
+  /// Where the glass of a finger at [finger] looks, with the note that
+  /// letting go would enter drawn in [note]. It looks at the middle of the
+  /// note, to hold the stem and the flag with the head. A long value puts
+  /// the note at a beat away from the finger. The head is at the height of
+  /// the finger, and the glass keeps that height in the middle half of what
+  /// it shows, so a note taller than the glass shows keeps its head in it.
+  /// With no note the glass looks at the finger.
+  Offset _lookAt(Offset finger, Rect? note) {
+    if (note == null) {
+      return finger;
+    }
+    final reach = _loupeSize.height / _loupeScale / 4;
+    return Offset(
+      note.center.dx,
+      note.center.dy.clamp(finger.dy - reach, finger.dy + reach),
+    );
+  }
+
   /// A glass by a finger at [finger] that shows the sheet around [lookAt]
-  /// at twice its size. It looks at the note that letting go would enter,
-  /// which a long value puts at a beat away from the finger.
+  /// at [_loupeScale] times its size.
   Widget _loupe(Offset finger, Offset lookAt, Size sheet) {
     final centre = _loupeCentre(finger, sheet);
     return Positioned.fromRect(
@@ -409,7 +428,7 @@ class _ScorePageState extends State<ScorePage>
         size: _loupeSize,
         // Without it the shadow is drawn over the glass too.
         clipBehavior: Clip.antiAlias,
-        magnificationScale: 2,
+        magnificationScale: _loupeScale,
         focalPointOffset: lookAt - centre,
         decoration: MagnifierDecoration(
           shape: RoundedRectangleBorder(
