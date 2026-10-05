@@ -468,6 +468,54 @@ void main() {
       expect(near!.target, const SpannerOwner(SpannerId(900)));
     });
 
+    test('a tap in a glissando\'s box away from its line has no target, and '
+        'one on its line has the glissando', () {
+      const owner = SpannerOwner(SpannerId(901));
+      final score =
+          scoreOf([
+            [
+              staffOf([chordOf(1, 'C4', value: whole)]),
+            ],
+            [
+              staffOf([chordOf(2, 'C6', value: whole)]),
+            ],
+          ]).copyWith(
+            spanners: Seq([
+              Spanner(
+                id: const SpannerId(901),
+                kind: const Glissando(),
+                staff: staffId(0),
+                first: ScorePoint(barId(0), Moment.zero),
+                last: ScorePoint(barId(1), Moment.zero),
+              ),
+            ]),
+          );
+      final layout = sheetOf(score, width: 60);
+      final line = layout
+          .systemAt(0)
+          .drawables
+          .whereType<LineDraw>()
+          .singleWhere((line) => line.owner == owner);
+      final box = line.bounds;
+      expect(box.height, greaterThan(4));
+      expect(line.from.y, greaterThan(line.to.y));
+
+      final beside = SpPoint(
+        box.left + box.width / 4,
+        box.top + box.height / 4,
+      );
+      final off = layout.hitTest(sheetPoint(layout, 0, beside), reach: 0.5);
+      expect(off!.target, isNull);
+      expect(off.staff, staffId(0));
+
+      final middle = SpPoint(
+        (line.from.x + line.to.x) / 2,
+        (line.from.y + line.to.y) / 2,
+      );
+      final on = layout.hitTest(sheetPoint(layout, 0, middle), reach: 0.5);
+      expect(on!.target, owner);
+    });
+
     test('a tap within reach of a stem gives its EventRef, and one out of '
         'reach nothing', () {
       final layout = barSheet([
