@@ -4,6 +4,7 @@ library;
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_midi_pro/flutter_midi_pro.dart';
 import 'package:khuur_sheet_music/src/sound_font.dart';
@@ -45,8 +46,69 @@ abstract interface class MidiOutput {
   void dispose();
 }
 
+/// The reverb [FlutterMidiOutput] asks the synthesizer for.
+///
+/// Every number is 0 to 1, and none is refused. The output sends a number
+/// outside that range as the nearest end of it.
+///
+/// iOS and macOS read [roomSize] and [level] otherwise than Android does,
+/// so neither has a default.
+@immutable
+final class MidiReverb {
+  const MidiReverb({
+    required this.roomSize,
+    required this.level,
+    this.damping = 0,
+    this.width = 0.5,
+  });
+
+  /// The size of the room. Android takes the number. iOS and macOS have six
+  /// rooms and pick one by it: the small room under 0.15, the medium room
+  /// under 0.3, the large room under 0.45, the medium hall under 0.6, the
+  /// large hall under 0.8, and the cathedral from there.
+  final double roomSize;
+
+  /// How much reverb there is. On iOS and macOS it is the reverb's share of
+  /// the whole sound, so 1 leaves none of the dry sound. On Android it is
+  /// the output level of the reverb.
+  final double level;
+
+  /// How much the reverb is damped. Only Android reads it.
+  final double damping;
+
+  /// How far the reverb spreads between left and right. Only Android reads
+  /// it.
+  final double width;
+
+  @override
+  bool operator ==(Object other) =>
+      other is MidiReverb &&
+      other.roomSize == roomSize &&
+      other.level == level &&
+      other.damping == damping &&
+      other.width == width;
+
+  @override
+  int get hashCode => Object.hash(roomSize, level, damping, width);
+
+  @override
+  String toString() =>
+      'MidiReverb(roomSize: $roomSize, level: $level, damping: $damping, '
+      'width: $width)';
+}
+
 /// Plays through `flutter_midi_pro` (Android, iOS and macOS).
 final class FlutterMidiOutput implements MidiOutput {
+  FlutterMidiOutput({this.reverb});
+
+  /// The reverb this output asks for when it loads. Null asks for none.
+  ///
+  /// The reverb belongs to the plugin's one synthesizer and not to an
+  /// output. So the output that loaded last decides it for every output of
+  /// the process, and one with no reverb turns off what an earlier one
+  /// turned on.
+  final MidiReverb? reverb;
+
   /// The plugin's `init` while it runs, which every output waits for. The
   /// plugin is one synthesizer for the whole process. Its `isInitialized`
   /// is true from the start of `init`, and `init` ends by emptying the
@@ -68,6 +130,17 @@ final class FlutterMidiOutput implements MidiOutput {
     if (_init != null || !_midi.isInitialized) {
       await (_init ??= _midi.init().whenComplete(() => _init = null));
     }
+    await switch (reverb) {
+      null => _midi.setReverb(enabled: false),
+      MidiReverb(:final roomSize, :final level, :final damping, :final width) =>
+        _midi.setReverb(
+          enabled: true,
+          roomSize: roomSize.clamp(0.0, 1.0),
+          damping: damping.clamp(0.0, 1.0),
+          width: width.clamp(0.0, 1.0),
+          level: level.clamp(0.0, 1.0),
+        ),
+    };
     final id = await switch (soundFont) {
       AssetSoundFont(:final path) => _midi.loadSoundfontAsset(assetPath: path),
       FileSoundFont(:final path) => _midi.loadSoundfontFile(filePath: path),

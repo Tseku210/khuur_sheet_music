@@ -15,6 +15,9 @@ class FakeMidiPlatform extends FlutterMidiProPlatform
     with MockPlatformInterfaceMixin {
   final calls = <String>[];
   final loaded = <List<int>>[];
+
+  /// What each `setReverb` asked for, in order.
+  final reverbs = <String>[];
   String? selectError;
 
   @override
@@ -58,12 +61,25 @@ class FakeMidiPlatform extends FlutterMidiProPlatform
   Future<void> unloadSoundfont(int sfId) async => calls.add('unload sf$sfId');
 
   @override
+  Future<void> setReverb(
+    bool enabled,
+    double roomSize,
+    double damping,
+    double width,
+    double level,
+  ) async => reverbs.add(
+    enabled
+        ? 'room $roomSize damping $damping width $width level $level'
+        : 'off',
+  );
+
+  @override
   Future<void> dispose() async {}
 }
 
 /// A platform whose `init` waits for [endInit] and fails with [initError].
-/// Its [calls] also tell when `init` begins and ends and when a SoundFont
-/// is loaded.
+/// Its [calls] also tell when `init` begins and ends, when the reverb is
+/// asked for and when a SoundFont is loaded.
 class GatedMidiPlatform extends FakeMidiPlatform {
   PlatformException? initError;
 
@@ -82,6 +98,19 @@ class GatedMidiPlatform extends FakeMidiPlatform {
       throw error;
     }
     calls.add('init ends');
+  }
+
+  @override
+  Future<void> setReverb(
+    bool enabled,
+    double roomSize,
+    double damping,
+    double width,
+    double level,
+  ) {
+    final asked = super.setReverb(enabled, roomSize, damping, width, level);
+    calls.add('reverb ${reverbs.last}');
+    return asked;
   }
 
   @override
@@ -330,7 +359,14 @@ void main() {
         await Future.wait(loading);
       });
 
-      expect(gated.calls, ['init begins', 'init ends', 'load', 'load']);
+      expect(gated.calls, [
+        'init begins',
+        'init ends',
+        'reverb off',
+        'reverb off',
+        'load',
+        'load',
+      ]);
       first.dispose();
       second.dispose();
     },
@@ -358,8 +394,128 @@ void main() {
       await again;
     });
 
-    expect(gated.calls, ['init begins', 'init begins', 'init ends', 'load']);
+    expect(gated.calls, [
+      'init begins',
+      'init begins',
+      'init ends',
+      'reverb off',
+      'load',
+    ]);
     first.dispose();
     second.dispose();
+  });
+
+  testWidgets(
+    'asks for its reverb after the init ends and before its SoundFont loads',
+    (tester) async {
+      final gated = GatedMidiPlatform();
+      FlutterMidiProPlatform.instance = gated;
+      final output = FlutterMidiOutput(
+        reverb: const MidiReverb(
+          roomSize: 0.5,
+          level: 0.3,
+          damping: 0.2,
+          width: 0.9,
+        ),
+      );
+
+      await tester.runAsync(() async {
+        final loading = output.load(soundFont);
+        gated.endInit();
+        await loading;
+      });
+
+      expect(gated.calls, [
+        'init begins',
+        'init ends',
+        'reverb room 0.5 damping 0.2 width 0.9 level 0.3',
+        'load',
+      ]);
+      output.dispose();
+    },
+  );
+
+  testWidgets('an output with no reverb asks for none', (tester) async {
+    final output = FlutterMidiOutput();
+    await tester.runAsync(() => output.load(soundFont));
+
+    expect(midi.reverbs, ['off']);
+    output.dispose();
+  });
+
+  testWidgets(
+    'an output with no reverb turns off what an output before it turned on, '
+    'since the process has one synthesizer',
+    (tester) async {
+      final first = FlutterMidiOutput(
+        reverb: const MidiReverb(roomSize: 0.5, level: 0.3),
+      );
+      final second = FlutterMidiOutput();
+      await tester.runAsync(() async {
+        await first.load(soundFont);
+        first.dispose();
+        await second.load(soundFont);
+      });
+
+      expect(midi.reverbs, ['room 0.5 damping 0.0 width 0.5 level 0.3', 'off']);
+      second.dispose();
+    },
+  );
+
+  testWidgets('holds every number of a reverb to 0 to 1', (tester) async {
+    final over = FlutterMidiOutput(
+      reverb: const MidiReverb(
+        roomSize: 1.5,
+        level: 2,
+        damping: 7,
+        width: double.infinity,
+      ),
+    );
+    final under = FlutterMidiOutput(
+      reverb: const MidiReverb(
+        roomSize: -0.1,
+        level: -2,
+        damping: -7,
+        width: double.negativeInfinity,
+      ),
+    );
+    await tester.runAsync(() async {
+      await over.load(soundFont);
+      await under.load(soundFont);
+    });
+
+    expect(midi.reverbs, [
+      'room 1.0 damping 1.0 width 1.0 level 1.0',
+      'room 0.0 damping 0.0 width 0.0 level 0.0',
+    ]);
+    over.dispose();
+    under.dispose();
+  });
+
+  test('two reverbs are equal when their numbers are', () {
+    const reverb = MidiReverb(
+      roomSize: 0.5,
+      level: 0.3,
+      damping: 0.2,
+      width: 0.9,
+    );
+    // Built at run time, so that it is another object than the constant.
+    final same = MidiReverb(
+      roomSize: reverb.roomSize,
+      level: reverb.level,
+      damping: reverb.damping,
+      width: reverb.width,
+    );
+
+    expect(same, reverb);
+    expect(same.hashCode, reverb.hashCode);
+    for (final other in const [
+      MidiReverb(roomSize: 0.6, level: 0.3, damping: 0.2, width: 0.9),
+      MidiReverb(roomSize: 0.5, level: 0.4, damping: 0.2, width: 0.9),
+      MidiReverb(roomSize: 0.5, level: 0.3, damping: 0.3, width: 0.9),
+      MidiReverb(roomSize: 0.5, level: 0.3, damping: 0.2, width: 0.8),
+    ]) {
+      expect(other, isNot(reverb));
+    }
   });
 }
