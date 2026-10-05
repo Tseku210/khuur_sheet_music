@@ -172,6 +172,13 @@ class SheetController extends ChangeNotifier {
   SheetHit? hitTest(Offset local, {VoiceSlot voice = VoiceSlot.one}) =>
       _view?._hitTest(local, voice);
 
+  /// Where a note entered at [local] in [voice] would go, whatever is drawn
+  /// there, on the view's tap grid. The hit has no target. An app asks this
+  /// for a finger held on the sheet, and shows the answer as the view's
+  /// preview.
+  SheetHit? entryAt(Offset local, {VoiceSlot voice = VoiceSlot.one}) =>
+      _view?._entryAt(local, voice);
+
   /// Where [ref] is drawn, or null when it is not drawn (a hidden staff).
   Rect? rectOf(ElementRef ref) =>
       _rectsOf((layout) => [layout.boundsOf(ref)]).firstOrNull;
@@ -412,6 +419,15 @@ class _SheetViewState extends State<SheetView> {
       voice: voice,
       grid: widget.tapGrid,
       reach: kTouchSlop / shown.spacePx,
+    ),
+    null => null,
+  };
+
+  SheetHit? _entryAt(Offset local, VoiceSlot voice) => switch (_shown) {
+    final shown? => shown.layout.entryAt(
+      _viewportOf(shown).toSheet(local),
+      voice: voice,
+      grid: widget.tapGrid,
     ),
     null => null,
   };

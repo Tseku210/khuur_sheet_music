@@ -3343,6 +3343,88 @@ void main() {
   );
 
   testWidgets(
+    'the controller tells where a note entered at a point would go, which is '
+    'what the layout gives for the same point of the sheet on the grid of '
+    'the view, at two zooms and after a scroll',
+    (tester) async {
+      final score = tune();
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        host(
+          SheetView(
+            score: score,
+            controller: controller,
+            tapGrid: DurationBase.eighth,
+            followCursor: false,
+          ),
+          size: const Size(800, 400),
+        ),
+      );
+
+      SheetHit entryAt(Offset at) {
+        final spacePx = staffSpace * controller.zoom;
+        final expected = shown(tester).entryAt(
+          SpPoint(
+            (at.dx - padding.left) / spacePx,
+            (at.dy - padding.top + scrollOf(tester).pixels) / spacePx,
+          ),
+          voice: VoiceSlot.two,
+          grid: DurationBase.eighth,
+        );
+        final entry = controller.entryAt(at, voice: VoiceSlot.two)!;
+        expect(fieldsOf(entry), fieldsOf(expected!), reason: 'at $at');
+        return entry;
+      }
+
+      final head = headOf(score, 0, 0);
+      final onHead = middleOf(tester, head);
+      expect(controller.hitTest(onHead)!.target, ElementOwner(head));
+      expect(entryAt(onHead).target, isNull);
+
+      final between = Offset(
+        ui.lerpDouble(
+          controller.rectOf(head)!.left,
+          controller.rectOf(headOf(score, 0, 1))!.left,
+          0.7,
+        )!,
+        onHead.dy + 30,
+      );
+      expect(
+        entryAt(between).at,
+        isNot(
+          shown(tester)
+              .entryAt(
+                SpPoint(
+                  (between.dx - padding.left) / staffSpace,
+                  (between.dy - padding.top) / staffSpace,
+                ),
+                voice: VoiceSlot.two,
+              )!
+              .at,
+        ),
+        reason: "the entry snaps to the view's grid, not the layout's own",
+      );
+      expect(
+        controller.entryAt(const Offset(200, 20)),
+        isNull,
+        reason: 'the title is on no system',
+      );
+
+      controller.zoom = 2;
+      await tester.pump();
+      entryAt(middleOf(tester, head, spacePx: 16) + const Offset(40, 30));
+
+      controller.zoom = 1;
+      await tester.pump();
+      await tester.drag(find.byType(SheetView), const Offset(0, -150));
+      await tester.pump();
+      expect(scrollOf(tester).pixels, greaterThan(100));
+      entryAt(const Offset(300, 200));
+    },
+  );
+
+  testWidgets(
     'a tap is a tap on the sheet of the view tapped, when another view '
     'took the controller after it',
     (tester) async {
@@ -3422,6 +3504,7 @@ void main() {
       expect(controller.rectsOf(selection), isEmpty);
       expect(controller.systemCount, 0);
       expect(controller.hitTest(const Offset(100, 100)), isNull);
+      expect(controller.entryAt(const Offset(100, 100)), isNull);
 
       var told = 0;
       controller.addListener(() => told++);
