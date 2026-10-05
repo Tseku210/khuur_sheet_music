@@ -1071,7 +1071,7 @@ XmlElement _el(
   XmlName.qualified(name),
   [
     for (final MapEntry(:key, :value) in attributes.entries)
-      if (value != null) XmlAttribute(XmlName.qualified(key), value),
+      if (value != null) XmlAttribute(XmlName.qualified(key), _writable(value)),
   ],
   children,
 );
@@ -1080,4 +1080,15 @@ XmlElement _text(
   String name,
   String text, [
   Map<String, String?> attributes = const {},
-]) => _el(name, [XmlText(text)], attributes);
+]) => _el(name, [XmlText(_writable(text))], attributes);
+
+/// [text] without what XML 1.0 has no place for, even as a character
+/// reference: a control character other than tab, line feed and carriage
+/// return, half a surrogate pair, U+FFFE and U+FFFF. A reader refuses a
+/// document that holds one.
+String _writable(String text) => text.replaceAll(_unwritable, '');
+
+final _unwritable = RegExp(
+  r'[^\t\n\r\u0020-\uD7FF\uE000-\uFFFD\u{10000}-\u{10FFFF}]',
+  unicode: true,
+);

@@ -232,6 +232,27 @@ List<String> each(XmlElement parent, String name) => [
   for (final found in parent.findAllElements(name)) compact(found),
 ];
 
+/// The code points in [xml], raw or as character references, that are not
+/// an XML 1.0 `Char`.
+List<String> unwritable(String xml) {
+  bool fits(int point) =>
+      point == 0x9 ||
+      point == 0xA ||
+      point == 0xD ||
+      (point >= 0x20 && point <= 0xD7FF) ||
+      (point >= 0xE000 && point <= 0xFFFD) ||
+      (point >= 0x10000 && point <= 0x10FFFF);
+  String name(int point) => 'U+${point.toRadixString(16).toUpperCase()}';
+  return [
+    for (final point in xml.runes)
+      if (!fits(point)) name(point),
+    for (final match in RegExp('&#(x?)([0-9a-fA-F]+);').allMatches(xml))
+      if (int.parse(match[2]!, radix: match[1]!.isEmpty ? 10 : 16)
+          case final point when !fits(point))
+        '&${name(point)}',
+  ];
+}
+
 void main() {
   group('scoreToMusicXml', () {
     test('writes every mapped field as the golden file shows', () {
@@ -322,6 +343,69 @@ void main() {
       expect(root.findAllElements('rights'), isEmpty);
       expect(root.findAllElements('credit'), isEmpty);
       expect(root.findAllElements('part-abbreviation'), isEmpty);
+    });
+
+    test('drops the characters XML 1.0 has no place for', () {
+      const text = 'a\u0000\u0001b\u000B\u000C\u001F🎵\uD834c\uFFFE\uFFFFd';
+      var score = scoreWith([
+        chord(
+          1,
+          f4,
+          NoteValue.whole,
+        ).copyWith(lyrics: Seq(const [Lyric(verse: 1, text: text)])),
+      ]);
+      final part = score.parts.single;
+      score = score.copyWith(
+        meta: const ScoreMeta(title: text),
+        parts: Seq([
+          Part(
+            id: part.id,
+            name: text,
+            instrument: part.instrument,
+            staves: part.staves,
+          ),
+        ]),
+      );
+      score = changeBar(
+        score,
+        0,
+        (column) => column.copyWith(
+          rehearsal: () => text,
+          staves: Seq([
+            column.staves.single.copyWith(
+              directions: Seq(const [
+                TextMark(Moment.zero, text),
+                ChordSymbol(
+                  Moment.zero,
+                  root: PitchName(Step.c),
+                  quality: text,
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      );
+      final xml = scoreToMusicXml(score);
+      final back = scoreFromMusicXml(xml);
+      final column = back.measures.single;
+      final [words as TextMark, symbol as ChordSymbol] = column
+          .staves
+          .single
+          .directions
+          .toList();
+
+      expect(unwritable(xml), isEmpty);
+      expect(
+        [
+          back.meta.title,
+          back.parts.single.name,
+          column.rehearsal,
+          words.text,
+          symbol.quality,
+          (firstEvent(back, 0) as ChordEvent).lyrics.single.text,
+        ],
+        List.filled(6, 'ab🎵cd'),
+      );
     });
 
     test('numbers bars from a pickup at 0', () {
