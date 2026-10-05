@@ -96,7 +96,7 @@ class _ScorePageState extends State<ScorePage>
     // The cursor stays at a note that ends the score when no bar is added
     // for it to move into.
     if (entered && _session.cursor == at) {
-      _say('The last bar is full.', offerBar: true);
+      _say('The score ends here.', offerBar: true);
     }
   }
 
@@ -212,6 +212,22 @@ class _ScorePageState extends State<ScorePage>
     ),
   );
 
+  /// The size of a button of the action row, an icon over its name on one
+  /// line, which grows with the text size of the device. A phone 390 wide
+  /// shows five and part of a sixth, and the cut button says that the row
+  /// goes on.
+  Size _buttonSize(BuildContext context) {
+    final text = MediaQuery.textScalerOf(context).scale(1);
+    return Size(72 * text, 32 + 16 * text);
+  }
+
+  ButtonStyle _actionStyle(BuildContext context) => TextButton.styleFrom(
+    foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+    textStyle: Theme.of(context).textTheme.labelSmall,
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    shape: const RoundedRectangleBorder(),
+  );
+
   /// The hint and the action row take turns in one slot as high as the row,
   /// so the sheet keeps its size when the selection comes and goes.
   Widget _underSheet() {
@@ -220,19 +236,21 @@ class _ScorePageState extends State<ScorePage>
       clip: _clip,
       overfill: _overfill,
     );
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: kMinInteractiveDimension),
+    final button = _buttonSize(context);
+    return SizedBox(
+      height: button.height,
       child: actions.isEmpty
           ? const Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(horizontal: 12),
-                child: Text(
-                  'Tap a staff to enter a note. Tap a note to select it.',
-                  textAlign: TextAlign.center,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Tap a staff to enter a note. Tap a note to select it.',
+                  ),
                 ),
               ),
             )
-          // The thumb is all that says the row goes on past the edge.
           : Scrollbar(
               controller: _rowScroll,
               thumbVisibility: true,
@@ -241,11 +259,24 @@ class _ScorePageState extends State<ScorePage>
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    for (final (:tooltip, :icon, :press) in actions)
-                      IconButton(
-                        tooltip: tooltip,
-                        icon: Icon(icon),
-                        onPressed: press == null ? null : () => _press(press),
+                    for (final (:label, :icon, :press) in actions)
+                      SizedBox.fromSize(
+                        size: button,
+                        child: TextButton(
+                          style: _actionStyle(context),
+                          onPressed: press == null ? null : () => _press(press),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(icon),
+                              Text(
+                                label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                   ],
                 ),

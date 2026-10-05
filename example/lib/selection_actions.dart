@@ -129,8 +129,9 @@ final class TakeCopy extends Press {
   const TakeCopy();
 }
 
-/// One button of the action row. A null [press] turns the button off.
-typedef SelectionAction = ({String tooltip, IconData icon, Press? press});
+/// One button of the action row, which shows [label] under [icon]. A null
+/// [press] turns the button off.
+typedef SelectionAction = ({String label, IconData icon, Press? press});
 
 /// The action row for [picked], or no button when nothing is picked.
 /// [clip] is what Copy kept, and a paste crosses a bar line as [overfill]
@@ -171,73 +172,57 @@ List<SelectionAction> selectionActions(
     ),
   );
 
+  // Delete and the four buttons that widen and narrow come first, since
+  // a phone shows five buttons before the row scrolls.
   return [
     (
-      tooltip: 'Widen left',
-      icon: Icons.keyboard_double_arrow_left,
-      press: before == null ? null : widenTo(before),
-    ),
-    (
-      tooltip: 'Widen right',
-      icon: Icons.keyboard_double_arrow_right,
-      press: after == null ? null : widenTo(after),
-    ),
-    (
-      tooltip: 'Narrow left',
-      icon: Icons.arrow_right,
-      press: several ? without(first) : null,
-    ),
-    (
-      tooltip: 'Narrow right',
-      icon: Icons.arrow_left,
-      press: several ? without(last) : null,
-    ),
-    (tooltip: 'Copy', icon: Icons.copy, press: const TakeCopy()),
-    (
-      tooltip: 'Paste',
-      icon: Icons.paste,
-      press: clip == null
-          ? null
-          : RunEdit(
-              Paste(
-                clip,
-                at: VoicePoint(staff: staff, voice: first.voice, at: from),
-                overfill: overfill,
-              ),
-            ),
-    ),
-    (
-      tooltip: 'Delete',
+      label: 'Delete',
       icon: Icons.delete_outline,
       press: RunEdit(Erase(picked.selection)),
     ),
     (
-      tooltip: 'Pitch down',
+      label: 'Widen left',
+      icon: Icons.keyboard_double_arrow_left,
+      press: before == null ? null : widenTo(before),
+    ),
+    (
+      label: 'Widen right',
+      icon: Icons.keyboard_double_arrow_right,
+      press: after == null ? null : widenTo(after),
+    ),
+    (
+      label: 'Narrow left',
+      icon: Icons.arrow_right,
+      press: several ? without(first) : null,
+    ),
+    (
+      label: 'Narrow right',
+      icon: Icons.arrow_left,
+      press: several ? without(last) : null,
+    ),
+    (
+      label: 'Pitch down',
       icon: Icons.arrow_downward,
       press: chords.isEmpty ? null : transpose(-1),
     ),
     (
-      tooltip: 'Pitch up',
+      label: 'Pitch up',
       icon: Icons.arrow_upward,
       press: chords.isEmpty ? null : transpose(1),
     ),
     (
-      tooltip: 'Octave down',
+      label: 'Octave down',
       icon: Icons.keyboard_double_arrow_down,
       press: chords.isEmpty ? null : transpose(-7),
     ),
     (
-      tooltip: 'Octave up',
+      label: 'Octave up',
       icon: Icons.keyboard_double_arrow_up,
       press: chords.isEmpty ? null : transpose(7),
     ),
+    (label: 'Tie', icon: Icons.link, press: tie == null ? null : RunEdit(tie)),
     (
-      tooltip: 'Tie',
-      icon: Icons.link,
-      press: tie == null ? null : RunEdit(tie),
-    ),
-    (
-      tooltip: 'Slur',
+      label: 'Slur',
       icon: Icons.gesture,
       press: several
           ? RunEdit(
@@ -252,17 +237,7 @@ List<SelectionAction> selectionActions(
           : null,
     ),
     (
-      tooltip: 'Crescendo',
-      icon: Icons.chevron_left,
-      press: hairpin(crescendo: true),
-    ),
-    (
-      tooltip: 'Decrescendo',
-      icon: Icons.chevron_right,
-      press: hairpin(crescendo: false),
-    ),
-    (
-      tooltip: 'Beam',
+      label: 'Beam',
       icon: Icons.call_merge,
       press: chords.length > 1
           ? RunEdit(
@@ -274,7 +249,7 @@ List<SelectionAction> selectionActions(
           : null,
     ),
     (
-      tooltip: 'Unbeam',
+      label: 'Unbeam',
       icon: Icons.call_split,
       press: chords.isEmpty
           ? null
@@ -285,7 +260,31 @@ List<SelectionAction> selectionActions(
             ),
     ),
     (
-      tooltip: 'Clear selection',
+      label: 'Crescendo',
+      icon: Icons.chevron_left,
+      press: hairpin(crescendo: true),
+    ),
+    (
+      label: 'Decrescendo',
+      icon: Icons.chevron_right,
+      press: hairpin(crescendo: false),
+    ),
+    (label: 'Copy', icon: Icons.copy, press: const TakeCopy()),
+    (
+      label: 'Paste',
+      icon: Icons.paste,
+      press: clip == null
+          ? null
+          : RunEdit(
+              Paste(
+                clip,
+                at: VoicePoint(staff: staff, voice: first.voice, at: from),
+                overfill: overfill,
+              ),
+            ),
+    ),
+    (
+      label: 'Deselect',
       icon: Icons.deselect,
       press: const Reselect(Selection.none()),
     ),

@@ -212,21 +212,20 @@ Future<void> tapHeadAt(WidgetTester tester, VoicePoint at, int index) async {
   await tester.pump();
 }
 
-Finder actionButton(String tooltip) => find.ancestor(
-  of: find.byTooltip(tooltip),
-  matching: find.byType(IconButton),
-);
+/// The button of the action row that shows [label] under its icon.
+Finder actionButton(String label) =>
+    find.ancestor(of: find.text(label), matching: find.byType(TextButton));
 
-/// Whether the button of the action row with [tooltip] can be pressed.
-bool isOn(WidgetTester tester, String tooltip) =>
-    tester.widget<IconButton>(actionButton(tooltip)).onPressed != null;
+/// Whether the button of the action row named [label] can be pressed.
+bool isOn(WidgetTester tester, String label) =>
+    tester.widget<TextButton>(actionButton(label)).onPressed != null;
 
-/// Presses the button of the action row with [tooltip], scrolled into reach
+/// Presses the button of the action row named [label], scrolled into reach
 /// first.
-Future<void> press(WidgetTester tester, String tooltip) async {
-  await tester.ensureVisible(find.byTooltip(tooltip));
+Future<void> press(WidgetTester tester, String label) async {
+  await tester.ensureVisible(actionButton(label));
   await tester.pump();
-  await tester.tap(find.byTooltip(tooltip));
+  await tester.tap(actionButton(label));
   await tester.pump();
 }
 
@@ -294,7 +293,7 @@ void main() {
       await tapFirstNote(tester);
 
       expect(tester.takeException(), isNull);
-      expect(find.byTooltip('Widen left'), findsOneWidget);
+      expect(actionButton('Widen left'), findsOneWidget);
       expect(
         tester
             .widget<Scrollbar>(
@@ -305,10 +304,10 @@ void main() {
             )
             .thumbVisibility,
         isTrue,
-        reason: 'nothing else says that the row goes on past the edge',
+        reason: 'the thumb says how much of the row is past the edge',
       );
 
-      await press(tester, 'Clear selection');
+      await press(tester, 'Deselect');
 
       expect(tester.takeException(), isNull);
       expect(sheetOf(tester).selection.isEmpty, isTrue);
@@ -365,7 +364,7 @@ void main() {
     final hint = find.textContaining('Tap a staff to enter a note.');
     final sheet = tester.getRect(find.byType(SheetView));
     expect(hint, findsOneWidget);
-    expect(find.byTooltip('Delete'), findsNothing);
+    expect(actionButton('Delete'), findsNothing);
 
     await tapFirstNote(tester);
 
@@ -379,11 +378,86 @@ void main() {
       reason: 'the sheet keeps its size, so no note moves under the row',
     );
 
-    await press(tester, 'Clear selection');
+    await press(tester, 'Deselect');
 
     expect(sheetOf(tester).selection.isEmpty, isTrue);
-    expect(find.byTooltip('Delete'), findsNothing);
+    expect(actionButton('Delete'), findsNothing);
     expect(hint, findsOneWidget);
+  });
+
+  testWidgets('on a phone the row opens with Delete and the four buttons that '
+      'widen and narrow, each with its name', (tester) async {
+    await pumpApp(tester, size: phone);
+
+    await tapFirstNote(tester);
+
+    final opening = [
+      for (final label in const [
+        'Delete',
+        'Widen left',
+        'Widen right',
+        'Narrow left',
+        'Narrow right',
+      ])
+        tester.getRect(actionButton(label)),
+    ];
+    expect(opening.first.left, greaterThanOrEqualTo(0));
+    expect(opening.last.right, lessThanOrEqualTo(phone.width));
+    for (final (index, rect) in opening.indexed.skip(1)) {
+      expect(rect.left, opening[index - 1].right);
+    }
+    for (final label in const [
+      'Pitch down',
+      'Pitch up',
+      'Octave down',
+      'Octave up',
+      'Tie',
+      'Slur',
+      'Beam',
+      'Unbeam',
+      'Crescendo',
+      'Decrescendo',
+      'Copy',
+      'Paste',
+      'Deselect',
+    ]) {
+      expect(actionButton(label), findsOneWidget, reason: label);
+    }
+    final cut = tester.getRect(actionButton('Pitch down'));
+    expect(
+      phone.width,
+      allOf(greaterThan(cut.left), lessThan(cut.right)),
+      reason: 'a button cut by the edge says that the row goes on',
+    );
+  });
+
+  testWidgets('the hint and the action row keep to their slot at twice the '
+      'text size, and the sheet keeps its size', (tester) async {
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await pumpApp(tester, size: phone);
+    final sheet = tester.getRect(find.byType(SheetView));
+    final slot = Rect.fromLTRB(
+      0,
+      sheet.bottom,
+      phone.width,
+      tester.getRect(find.byType(Divider)).top,
+    );
+    Rect within(Rect outer, Rect inner) => outer.expandToInclude(inner);
+
+    final hint = tester.getRect(
+      find.textContaining('Tap a staff to enter a note.'),
+    );
+    expect(within(slot, hint), slot, reason: 'the hint at $hint');
+
+    await tapFirstNote(tester);
+
+    expect(tester.takeException(), isNull);
+    final button = tester.getRect(actionButton('Delete'));
+    final name = tester.getRect(find.text('Delete'));
+    expect(within(slot, button), slot, reason: 'the button at $button');
+    expect(within(button, name), button, reason: 'the name at $name');
+    expect(tester.getRect(find.byType(SheetView)), sheet);
   });
 
   testWidgets('Delete clears every selected event', (tester) async {
@@ -739,7 +813,7 @@ void main() {
     await tapStaffAt(tester, lastBeat);
 
     expect(scoreOf(tester).measures.length, 9);
-    expect(find.text('The last bar is full.'), findsNothing);
+    expect(find.text('The score ends here.'), findsNothing);
 
     await tester.tap(find.byTooltip('Undo'));
     await tester.pump();
@@ -754,10 +828,10 @@ void main() {
     ));
   });
 
-  testWidgets('with Auto bars off, the page says when the last bar is full '
+  testWidgets('with Auto bars off, the page says when a note ends the score '
       'and offers a bar', (tester) async {
     await pumpApp(tester);
-    final full = find.text('The last bar is full.');
+    final full = find.text('The score ends here.');
     await flip(tester, 'Auto bars');
 
     await tapStaffAt(tester, beatOf(scoreOf(tester), 1, 3));
