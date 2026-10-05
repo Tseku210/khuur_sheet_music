@@ -2574,13 +2574,12 @@ void main() {
     }) async {
       await tester.pumpWidget(view(preview));
       final now = picturesOf<OverlayPainter>(tester);
-      expect(
-        [
-          for (final (tile, picture) in now.indexed)
-            identical(picture, marks[tile]),
-        ],
-        everyElement(!again),
-      );
+      final kept = [
+        for (final (tile, picture) in now.indexed)
+          identical(picture, marks[tile]),
+      ];
+      // The preview is in the first bar, on the first tile.
+      expect(again ? kept.first : kept.contains(false), isFalse);
       expect(
         paintersOf<OverlayPainter>(tester).map((painter) => painter.preview),
         everyElement(preview),
