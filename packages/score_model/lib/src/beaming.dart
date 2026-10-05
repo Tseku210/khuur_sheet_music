@@ -11,8 +11,8 @@ import 'views.dart';
 /// Eighths and shorter beam together until one of these breaks the run: a
 /// note of a quarter or longer, [BeamMode.none] or [BeamMode.begin], a
 /// change of enclosing tuplet, one of the meter's beam breaks, or a rest
-/// that falls between two beats. [BeamMode.join] overrides all but the
-/// first two. A group holding sixteenths or shorter then splits per beat,
+/// or a gap that falls between two beats. [BeamMode.join] overrides all but
+/// the first two. A group holding sixteenths or shorter then splits per beat,
 /// again except at a join.
 List<BeamGroup> beamGroups(List<TimedEvent> events, Meter meter) {
   final breaks = meter.beamBreaks;
@@ -20,7 +20,11 @@ List<BeamGroup> beamGroups(List<TimedEvent> events, Meter meter) {
   final runs = <List<_Beamed>>[];
   var run = <_Beamed>[];
   var restBefore = false;
+  var reached = Moment.zero;
   for (final timed in events) {
+    // [events] holds no gap, so a gap shows as time no event covers.
+    restBefore = restBefore || timed.onset != reached;
+    reached = timed.onset + timed.duration;
     final event = timed.event;
     if (event is! ChordEvent) {
       restBefore = true;
