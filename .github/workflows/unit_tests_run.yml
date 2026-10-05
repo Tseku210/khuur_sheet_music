@@ -40,12 +40,3 @@ jobs:
       - name: Example tests
         run: flutter test
         working-directory: example
-
-      - name: Upload test artifacts
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          retention-days: 14
-          name: test-failures
-          path: test/failures/**
-          if-no-files-found: ignore
