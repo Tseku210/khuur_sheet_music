@@ -27,7 +27,8 @@ _Fragment _compileBar(MeasureColumn column) {
 /// graces play first, on the beat. Acciaccaturas take a 32nd each and any
 /// appoggiatura takes half the chord, and together they take at most half.
 /// Its notes then play the figure of its ornament, or of a trill when
-/// [trill] and it has none, or of its tremolo.
+/// [trill] and it has none, or of its tremolo. A note whose ornament
+/// reaches past MIDI keys 0 to 127 plays without it.
 List<_Attack> _attacks(
   TimedEvent timed,
   ChordEvent chord,
@@ -64,9 +65,12 @@ List<_Attack> _attacks(
     duration - steal,
   );
   for (final note in chord.notes) {
+    final pieces = _canPlay(note, figure, key)
+        ? figure
+        : _figure(null, chord, duration - steal);
     var at = onset + steal;
-    for (final (i, (steps, length)) in figure.indexed) {
-      final last = i == figure.length - 1;
+    for (final (i, (steps, length)) in pieces.indexed) {
+      final last = i == pieces.length - 1;
       attacks.add(
         _Attack(
           onset: at,
@@ -145,6 +149,15 @@ Pitch _neighbour(Pitch pitch, int steps, KeySignature key) {
   final step = Step.values[diatonic % 7];
   return Pitch(step, (diatonic - step.index) ~/ 7, key.alterFor(step));
 }
+
+/// Whether every neighbour [figure] asks of [note] in [key] is a MIDI key.
+bool _canPlay(Note note, List<(int, Length)> figure, KeySignature key) =>
+    note is! PitchedNote ||
+    figure.every(
+      (piece) =>
+          piece.$1 == 0 ||
+          pitchProblem(_neighbour(note.pitch, piece.$1, key)) == null,
+    );
 
 /// The share of its time a note sounds, by the marks on the last note of
 /// its chain. A staccato under a tenuto is a portato.

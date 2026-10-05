@@ -1353,6 +1353,47 @@ void main() {
       expect(ms(script.notesBetween(0.1, 0.2).single.duration), 0.506);
     });
 
+    test('a note plays without an ornament that reaches past MIDI keys 0 '
+        'to 127, and the notes under it keep theirs', () {
+      final score = at80([
+        [
+          ornamented(quarters(1, 'G9'), Ornament.trill),
+          ornamented(quarters(2, 'C-1'), Ornament.mordent),
+          ornamented(quarters(3, 'G9'), Ornament.turn),
+          ornamented(quarters(4, 'C5 G9'), Ornament.invertedMordent),
+        ],
+      ]);
+
+      expect(notes(compiled(score)), [
+        (0.0, 0.675, 127, 0, 1),
+        (0.75, 0.675, 0, 0, 2),
+        (1.5, 0.675, 127, 0, 3),
+        (2.25, 0.084, 72, 0, 4),
+        (2.25, 0.675, 127, 0, 4),
+        (2.344, 0.084, 74, 0, 4),
+        (2.438, 0.506, 72, 0, 4),
+      ]);
+    });
+
+    test('an ornament plays a neighbour on MIDI key 0 or 127', () {
+      final score = at80([
+        [
+          ornamented(quarters(1, 'F9'), Ornament.invertedMordent),
+          ornamented(quarters(2, 'D-1'), Ornament.mordent),
+          rest(3, NoteValue.half),
+        ],
+      ]);
+
+      expect(attacks(compiled(score)), [
+        (0.0, 125, 1),
+        (0.094, 127, 1),
+        (0.188, 125, 1),
+        (0.75, 2, 2),
+        (0.844, 0, 2),
+        (0.938, 2, 2),
+      ]);
+    });
+
     test('a trill line trills the chords under it without an ornament', () {
       final compiler = PlaybackCompiler();
       var score = at80([
