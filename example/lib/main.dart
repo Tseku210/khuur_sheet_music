@@ -206,6 +206,7 @@ class _ScorePageState extends State<ScorePage>
               selection: _session.selection,
               playback: _player.position,
               controller: _sheet,
+              palette: _palette(context),
               onTap: _onTap,
             ),
           ),
@@ -221,6 +222,22 @@ class _ScorePageState extends State<ScorePage>
       ),
     ),
   );
+
+  /// The theme's palette with a selection of the page's own, a round box
+  /// with a border. The copy keeps the sheet in step with light and dark
+  /// mode.
+  SheetPalette _palette(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+    return SheetPalette.of(context).copyWith(
+      selection: SheetHighlight(
+        fill: primary.withValues(alpha: 0.14),
+        border: primary.withValues(alpha: 0.7),
+        borderWidth: 0.1,
+        radius: 0.4,
+        padding: 0.25,
+      ),
+    );
+  }
 
   /// The size of a button of the action row, an icon over its name on one
   /// line, which grows with the text size of the device. A phone 390 wide

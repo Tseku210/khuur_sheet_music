@@ -314,6 +314,22 @@ void main() {
     });
   }
 
+  testWidgets("the sheet keeps the theme's colours in dark mode, under a "
+      'selection style of its own', (tester) async {
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+    await pumpApp(tester);
+    final scheme = Theme.of(tester.element(find.byType(SheetView))).colorScheme;
+    expect(scheme.brightness, Brightness.dark);
+
+    final palette = sheetOf(tester).palette;
+
+    expect(palette?.ink, scheme.onSurface);
+    expect(palette?.cursor.color, scheme.primary);
+    expect(palette?.selection.border, isNotNull);
+    expect(palette?.selection.radius, greaterThan(0));
+  });
+
   testWidgets('a tap on a staff enters a quarter note where it lands', (
     tester,
   ) async {
