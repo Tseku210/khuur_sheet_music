@@ -216,7 +216,7 @@ cd example
 flutter run -d macos
 ```
 
-The example is one page, `example/lib/main.dart`. It shows the tune of `demo_score.dart`, enters a note on a tap, selects a note on a tap on it, zooms through the controller, and plays through `ScorePlayer` with a tempo slider.
+The example is one page, `example/lib/main.dart`. It shows the tune of `demo_score.dart`, enters a note on a tap, selects a note on a tap on it, zooms through the controller, and plays through `ScorePlayer` with a tempo slider. Two switches under the sheet turn off the bars and the beams that entry adds by itself. A row of actions works on the selected notes, and `example/lib/selection_actions.dart` builds it as one table.
 
 ## Work on the package
 
