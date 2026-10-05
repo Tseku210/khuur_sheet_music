@@ -27,15 +27,15 @@ Future<void> loadFontFile(String path, String family) async {
 Future<void> loadBravura(GlyphPainter painter) =>
     loadFontFile(bravuraFile, painter.family);
 
-/// Loads a text font of the host under [textFamily] when it has one, so
-/// that names and titles are letters in the pictures. Without one the
-/// engine draws every letter as a box, which the tests accept.
-Future<void> loadTextFont() async {
-  const path = '/System/Library/Fonts/Supplemental/Arial.ttf';
-  if (File(path).existsSync()) {
-    await loadFontFile(path, textFamily);
-  }
-}
+/// Loads the Flutter SDK's Roboto under [textFamily], so that names and
+/// titles are letters in the pictures and as wide on every host. Without a
+/// font the engine draws every letter as a box, and a score whose breaks
+/// follow the width of its text breaks elsewhere.
+Future<void> loadTextFont() => loadFontFile(
+  '${Platform.environment['FLUTTER_ROOT']}/bin/cache/artifacts/material_fonts/'
+  'Roboto-Regular.ttf',
+  textFamily,
+);
 
 /// The standard style with every text in [textFamily]. A layout in it, with
 /// a `ParagraphMeasurer`, has text boxes that hold the letters
