@@ -18,7 +18,7 @@ extension type const PartId(int value) implements Object;
 extension type const StaffId(int value) implements Object;
 
 /// Stable across insertions and deletions of other measures. Layout caches
-/// and playback fragments key on it; the measure *number* is derived.
+/// key on it; the measure *number* is derived.
 extension type const MeasureId(int value) implements Object;
 
 extension type const EventId(int value) implements Object;
