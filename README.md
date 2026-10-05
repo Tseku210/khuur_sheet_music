@@ -131,6 +131,8 @@ Slider(
 
 The player publishes its position. The sheet highlights the events that sound and moves a playhead. The play button reads the player's status, so the app keeps no play state of its own.
 
+A `PedalLine` plays as the sustain pedal. The notes of its part, on every staff, ring until the line ends. Add one with `AddSpanner(kind: const PedalLine(), staff: ..., first: ..., last: ...)`.
+
 `tempoScale` is the speed against the written tempo, and a new value applies at once. `stop` silences the output and takes the playhead away. The future of `play` fails when the SoundFont does not load. Call `dispose` when the widget's state is disposed.
 
 Playback runs on Android, iOS and macOS, through `flutter_midi_pro`.

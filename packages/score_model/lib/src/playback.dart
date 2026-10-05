@@ -5,9 +5,10 @@
 /// one-note edit recompiles one fragment. The part that runs on every
 /// compile unrolls the repeats into a play order, folds tempo and each
 /// part's dynamics over the bars, and places each played bar's fragment in
-/// seconds, merging tie chains across the bars as they are played.
-/// Dynamics are folded on every compile because a hairpin is stored beside
-/// the columns it spans, not in them.
+/// seconds, merging tie chains across the bars as they are played, and
+/// holds what a part's pedal catches until the pedal lifts. Dynamics and
+/// pedals are folded on every compile because a hairpin or a pedal line is
+/// stored beside the columns it spans, not in them.
 library;
 
 import 'dart:math';
@@ -26,6 +27,7 @@ import 'voice_walk.dart';
 part 'playback_attacks.dart';
 part 'playback_dynamics.dart';
 part 'playback_order.dart';
+part 'playback_pedal.dart';
 part 'playback_tempo.dart';
 
 /// Long-lived. Keep one per composer screen so its fragment cache survives
@@ -175,10 +177,11 @@ final class PlaybackCompiler {
         }
       }
     }
+    final pedals = _pedals(score, starts, windows, timeline);
     return PlaybackScript._(
       timeline,
       stableSorted(
-        [for (final note in sounding) note.played],
+        [for (final note in sounding) note.played(pedals[note.source.staff])],
         (a, b) => a.start.compareTo(b.start),
       ),
       totalSeconds: seconds,
@@ -360,6 +363,9 @@ final class PlaybackNote {
 
   /// Seconds from the script start.
   final double start;
+
+  /// How long it sounds, in seconds. It sounds until its key is let go, or
+  /// until the pedal that holds it lifts.
   final double duration;
 
   /// MIDI key 0–127.
@@ -481,15 +487,20 @@ final class _Sounding {
   final int channel;
   final EventRef source;
 
-  PlaybackNote get played => PlaybackNote(
-    start: start,
-    duration: end - start - release,
-    key: key,
-    cents: cents,
-    velocity: velocity,
-    channel: channel,
-    source: source,
-  );
+  /// The note as it sounds. A [pedal] that is down when the key is let go
+  /// holds it until the pedal lifts.
+  PlaybackNote played(_Pedal? pedal) {
+    final lift = pedal?.liftAfter(end - release);
+    return PlaybackNote(
+      start: start,
+      duration: lift == null ? end - start - release : lift - start,
+      key: key,
+      cents: cents,
+      velocity: velocity,
+      channel: channel,
+      source: source,
+    );
+  }
 }
 
 /// The first index in `[0, length)` where [reached] holds, given that it

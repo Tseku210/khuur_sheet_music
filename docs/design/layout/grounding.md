@@ -1,7 +1,7 @@
 # Layout engine grounding for the simple_sheet_music rewrite
 
 Citations give `file:line` plus the symbol name, as of commit `37ac3a5`. Model paths are relative to `packages/score_model/`. In that commit:
-- `lib/src/playback.dart` keeps the compiler and the public types. Its stages are in `playback_order.dart`, `playback_tempo.dart`, `playback_dynamics.dart` and `playback_attacks.dart`.
+- `lib/src/playback.dart` keeps the compiler and the public types. Its stages are in `playback_order.dart`, `playback_tempo.dart`, `playback_dynamics.dart`, `playback_attacks.dart` and `playback_pedal.dart`.
 - The edits are applied in `edit/apply.dart`, `notes.dart`, `rhythm.dart`, `erase.dart`, `directions.dart`, `context.dart`, `transpose.dart` and `parts.dart`.
 
 This grounding merges three traces: the old engine, the model's read surface, and the glyph assets with their consumers. Where the traces disagreed, the code decided. The SMuFL codepoints the model needs are in [glyphs.md](glyphs.md).

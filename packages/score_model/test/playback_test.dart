@@ -148,6 +148,20 @@ Score withLine(
   ]),
 );
 
+/// How long each note sounds, in script order, rounded to milliseconds.
+List<double> lengths(PlaybackScript script) => [
+  for (final note in script.notesBetween(0, double.infinity)) ms(note.duration),
+];
+
+/// [score] with a pedal line on one staff, the first by default. The line
+/// covers the voice-one event its [last] point falls in.
+Score pedalled(
+  Score score,
+  ScorePoint first,
+  ScorePoint last, {
+  int staff = 0,
+}) => withLine(score, const PedalLine(), first, last, staff: staff);
+
 /// [beats] with bar one at 60 quarters a minute, where a quarter lasts a
 /// second.
 Score at60(int bars, {List<PartTemplate> parts = const [morinKhuur]}) =>
@@ -1415,6 +1429,209 @@ void main() {
       ]);
       expect(ms(script.notesBetween(0.3, 0.4).single.duration), 1.05);
       expect(ms(script.notesBetween(4.4, 4.6).single.duration), 0.684);
+    });
+  });
+
+  group('pedal', () {
+    test('a pedal line holds what is let go under it until it lifts, and a '
+        'reused compiler hears it', () {
+      final compiler = PlaybackCompiler();
+      var score = at60(2);
+      expect(lengths(compiler.compile(score)), List.filled(8, 0.9));
+      score = pedalled(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(1, 2)),
+      );
+
+      // The line covers the third quarter, so the pedal lifts at second 3.
+      expect(lengths(compiler.compile(score)), [
+        ...[3, 2, 1, 0.9],
+        ...[0.9, 0.9, 0.9, 0.9],
+      ]);
+    });
+
+    test('a note let go after the lift, or as the pedal goes down, sounds '
+        'its own length', () {
+      var score = at60(1, parts: const [piano]);
+      score = fill(score, 0, [wholes(1, 'C5')]);
+      score = fill(score, 0, [
+        withMarks(quarters(2, 'D3'), {Articulation.tenuto}),
+        quarters(3, 'E3'),
+        quarters(4, 'F3'),
+        quarters(5, 'G3'),
+      ], staff: 1);
+      score = pedalled(
+        score,
+        pointAt(score, 0, at(1, 4)),
+        pointAt(score, 0, at(1, 2)),
+        staff: 1,
+      );
+
+      // The pedal is down from second 1 to second 3. The tenuto D3 is let
+      // go at second 1 and the whole note at 3.6.
+      expect(notes(compiled(score)), [
+        (0.0, 3.6, 72, 0, 1),
+        (0.0, 1.0, 50, 0, 2),
+        (1.0, 2.0, 52, 0, 3),
+        (2.0, 1.0, 53, 0, 4),
+        (3.0, 0.9, 55, 0, 5),
+      ]);
+    });
+
+    test('a pedal on one staff holds every staff of its part and no other '
+        'part', () {
+      var score = at60(1, parts: const [piano, clarinet]);
+      score = fill(score, 0, [
+        for (var beat = 1; beat <= 4; beat++) quarters(20 + beat, 'E4'),
+      ], staff: 2);
+      // The bass staff holds a bar rest, which the line covers whole.
+      score = pedalled(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, Moment.zero),
+        staff: 1,
+      );
+
+      expect(
+        [
+          for (final note in compiled(score).notesBetween(0, 10))
+            (note.channel, ms(note.duration)),
+        ],
+        [
+          ...[(0, 4.0), (1, 0.9)],
+          ...[(0, 3.0), (1, 0.9)],
+          ...[(0, 2.0), (1, 0.9)],
+          ...[(0, 1.0), (1, 0.9)],
+        ],
+      );
+    });
+
+    test('the pedal changes where one line ends and the next starts, in a '
+        'bar and at a barline', () {
+      // At 100 quarters a minute, where a quarter lasts 0.6 seconds.
+      var score = beats(2);
+      score = fill(score, 0, [
+        quarters(1, 'C4'),
+        quarters(2, 'D4'),
+        quarters(3, 'E4'),
+        withMarks(quarters(4, 'F4'), {Articulation.tenuto}),
+      ]);
+      score = fill(score, 1, [
+        withMarks(quarters(5, 'G4'), {Articulation.tenuto}),
+        quarters(6, 'A4'),
+        quarters(7, 'B4'),
+        quarters(8, 'C5'),
+      ]);
+      for (final (bar, first, last) in [
+        (0, at(1, 2), at(3, 4)),
+        (1, Moment.zero, Moment.zero),
+        (1, at(1, 4), at(1, 2)),
+      ]) {
+        score = pedalled(
+          score,
+          pointAt(score, bar, first),
+          pointAt(score, bar, last),
+        );
+      }
+
+      // Each tenuto note is let go as the pedal changes, at the barline and
+      // a quarter after it, and the line that starts there does not carry
+      // it on.
+      expect(lengths(compiled(score)), [
+        ...[0.54, 0.54, 1.2, 0.6],
+        ...[0.6, 1.2, 0.6, 0.54],
+      ]);
+    });
+
+    test('lines that overlap keep the pedal down to the later of their '
+        'ends', () {
+      final score = at60(1, parts: const [piano]);
+      Score lines((Moment, Moment) treble, Moment bass) => pedalled(
+        pedalled(
+          score,
+          pointAt(score, 0, treble.$1),
+          pointAt(score, 0, treble.$2),
+        ),
+        // The bass staff holds a bar rest, which a line covers to its end.
+        pointAt(score, 0, bass),
+        pointAt(score, 0, bass),
+        staff: 1,
+      );
+
+      expect(lengths(compiled(lines((Moment.zero, at(1, 4)), at(1, 4)))), [
+        ...[4, 3, 2, 1],
+      ]);
+      expect(lengths(compiled(lines((at(1, 4), at(1, 4)), Moment.zero))), [
+        ...[4, 3, 2, 1],
+      ]);
+    });
+
+    test('the pedal goes down on every pass and lifts where the music '
+        'jumps', () {
+      var score = changeBar(at60(2), 0, repeatEnd());
+      score = pedalled(
+        score,
+        pointAt(score, 0, at(1, 2)),
+        pointAt(score, 1, Moment.zero),
+      );
+
+      expect(played(score), ['1', '1#2', '2']);
+      expect(lengths(compiled(score)), [
+        // The repeat lifts the pedal at second 4.
+        ...[0.9, 0.9, 2, 1],
+        // The second time it stays down into bar 2, to second 9.
+        ...[0.9, 0.9, 3, 2],
+        ...[1, 0.9, 0.9, 0.9],
+      ]);
+    });
+
+    test('a range or a jump that lands under a pedal line starts with the '
+        'pedal down', () {
+      var score = at60(2);
+      score = pedalled(
+        score,
+        pointAt(score, 0, at(1, 2)),
+        pointAt(score, 1, at(3, 4)),
+      );
+      final repeated = changeBar(
+        changeBar(score, 1, repeatStart()),
+        1,
+        repeatEnd(),
+      );
+
+      expect(
+        lengths(
+          compiled(score, PlaybackOptions(from: pointAt(score, 1, at(1, 2)))),
+        ),
+        [2, 1],
+      );
+      expect(played(repeated), ['1', '2', '2#2']);
+      expect(lengths(compiled(repeated)), [
+        ...[0.9, 0.9, 6, 5],
+        ...[4, 3, 2, 1],
+        ...[4, 3, 2, 1],
+      ]);
+    });
+
+    test('a tie chain is held when its last note is let go under the '
+        'pedal', () {
+      var score = at60(2);
+      score = fill(score, 0, [halves(1, 'C4'), halves(2, 'D4', tie: true)]);
+      score = fill(score, 1, [halves(3, 'D4'), halves(4, 'E4')]);
+      score = pedalled(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(1, 2)),
+      );
+
+      // The pedal lifts at second 4, under the tied D4, which is let go at
+      // 5.8.
+      expect(notes(compiled(score)), [
+        (0.0, 4.0, 60, 0, 1),
+        (2.0, 3.8, 62, 0, 2),
+        (6.0, 1.8, 64, 0, 4),
+      ]);
     });
   });
 
