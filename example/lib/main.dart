@@ -245,6 +245,10 @@ class _ScorePageState extends State<ScorePage>
               playback: _player.position,
               controller: _sheet,
               palette: _palette(context),
+              // A note starts on a beat of its own value. On a finer grid
+              // a whole note tapped in the middle of a bar is cut at the
+              // beats and the barline and tied.
+              tapGrid: _value.base,
               onTap: _onTap,
             ),
           ),

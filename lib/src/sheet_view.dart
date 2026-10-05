@@ -91,6 +91,11 @@ class SheetView extends StatefulWidget {
   /// The grid a tap snaps to when it is not on a note. Inside a tuplet the
   /// grid counts in the tuplet's written time. Its type keeps it from being
   /// finer than a 128th, the finest start the model accepts.
+  ///
+  /// An app that enters one note value at a time passes that value's base,
+  /// so that a note starts on a beat of its own value. On a finer grid a
+  /// long note starts anywhere in its bar, and the model cuts it at the
+  /// beats and the barline and ties the pieces.
   final DurationBase tapGrid;
 
   /// Open with the cursor's system in view, and scroll it into view when

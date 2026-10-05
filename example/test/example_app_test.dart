@@ -1225,33 +1225,84 @@ void main() {
     expect(scoreOf(tester).measures.length, 9);
   });
 
+  testWidgets('a tap starts a note on a beat of the value it enters, so a '
+      'whole note tapped beside another is not cut and tied', (tester) async {
+    await pumpApp(tester, size: phone, demo: true);
+    await openSheet(tester, 'Empty sheet');
+    final score = scoreOf(tester);
+    final sheet = controllerOf(tester);
+    // Half a space over the staff at an eighth of a bar, which is G5 and
+    // out of reach of what the bar holds.
+    Future<void> tapOver(int eighth, {required int bar}) async {
+      final caret = sheet.caretOf(eighthOf(score, 0, eighth, bar: bar))!;
+      final spot = caret.topCenter - const Offset(0, 4);
+      expect(sheet.hitTest(spot)!.target, isNull);
+      await tester.tapAt(onScreen(tester, spot));
+      await tester.pump();
+    }
+
+    List<List<String>> written() => [
+      for (var bar = 0; bar < 4; bar++) writtenIn(scoreOf(tester), 0, bar: bar),
+    ];
+
+    await tester.tap(find.text('1'));
+    await tester.pump();
+    await tapStaffAt(tester, beatOf(score, 0, 0, bar: 1));
+    await tapOver(5, bar: 1);
+
+    expect(written(), [
+      ['bar rest'],
+      ['whole G5'],
+      ['bar rest'],
+      ['bar rest'],
+    ]);
+
+    await tester.tap(find.text('1/2'));
+    await tester.pump();
+    await tapOver(7, bar: 2);
+
+    expect(written(), [
+      ['bar rest'],
+      ['whole G5'],
+      ['half rest', 'half G5'],
+      ['bar rest'],
+    ]);
+    expect([
+      for (var bar = 0; bar < 4; bar++) ...tiesIn(scoreOf(tester), 0, bar: bar),
+    ], everyElement(isFalse));
+  });
+
   testWidgets('Auto bars decides whether a note longer than the rest of its '
       'bar is cut or refused', (tester) async {
     await pumpApp(tester);
-    final beat4 = beatOf(scoreOf(tester), 1, 3);
-    final nextBar = beatOf(scoreOf(tester), 1, 0, bar: 1);
+    // The fourth quarter of a bar of quarters. A half note starts on a beat
+    // of its own there only because a note does.
+    final beat4 = beatOf(scoreOf(tester), 1, 3, bar: 2);
+    final nextBar = beatOf(scoreOf(tester), 1, 0, bar: 3);
     await tester.tap(find.text('1/2'));
     await tester.pump();
     await flip(tester, 'Auto bars');
     final before = scoreOf(tester);
 
-    await tapStaffAt(tester, beat4);
+    await tapClearOf(tester, beat4);
 
     expect(scoreOf(tester), same(before));
     expect(find.text('This note does not fit in the bar.'), findsOneWidget);
 
     await flip(tester, 'Auto bars');
-    await tapStaffAt(tester, beat4);
+    await tapClearOf(tester, beat4);
 
+    final cut = chordAt(scoreOf(tester), beat4);
+    final tone = cut.notes.single.tone;
     expect(eventHolding(scoreOf(tester), beat4), (
       startQuarter: Fraction(3, 1),
-      written: 'quarter D3',
+      written: 'quarter $tone',
     ));
     expect(eventHolding(scoreOf(tester), nextBar), (
       startQuarter: Fraction.zero,
-      written: 'quarter D3',
+      written: 'quarter $tone',
     ));
-    expect(chordAt(scoreOf(tester), beat4).notes.single.tie, isTrue);
+    expect(cut.notes.single.tie, isTrue);
   });
 
   testWidgets('Auto beams decides whether entered eighths beam', (

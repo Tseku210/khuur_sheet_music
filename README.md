@@ -88,11 +88,14 @@ SheetView(
   cursor: _session.cursor,
   selection: _session.selection,
   controller: _sheet,
+  tapGrid: _value.base,
   onTap: _onTap,
 )
 ```
 
 The hit names the staff, the voice, the time and the staff step under the tap, so the app looks nothing up.
+
+`tapGrid` is the grid a tap off a note snaps to, a sixteenth unless given. With the base of the value being entered, a note starts on a beat of its own value. On a finer grid a whole note tapped in the middle of a bar starts there, and the model cuts it at the beats and the barline and ties the pieces.
 
 The view draws the cursor as a caret. It opens with the cursor's system in view and scrolls that system into view when the cursor moves. To move the cursor from a button, call `_session.moveCursor(CursorMove.nextEvent)`.
 
