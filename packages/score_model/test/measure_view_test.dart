@@ -1149,6 +1149,13 @@ void main() {
       ) => c.withStaff(change(c.staves.first));
       final variants = <String, Score>{
         'note': fill(base, 1, [chordOf(100, 'F4', value: NoteValue.whole)]),
+        'fermata on the rest': fill(base, 1, [
+          MeasureRest(
+            id: const EventId(100),
+            span: Meter.fourFour.length,
+            articulations: const {Articulation.fermata},
+          ),
+        ]),
         'meter change': changeBar(base, 1, (c) => retimed(c, Meter.threeFour)),
         'key change': changeBar(
           base,
