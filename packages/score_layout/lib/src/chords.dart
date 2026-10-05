@@ -169,8 +169,13 @@ StemSide stemSideFor(
   for (final note in chord.notes) {
     steps += clef.staffStepOf(staff.writtenPitches[note.id]!);
   }
-  return steps < 4 * chord.notes.length ? StemSide.up : StemSide.down;
+  return _sideOfSteps(steps, chord.notes.length);
 }
+
+/// The stem side of [heads] heads whose steps add up to [steps]. Up when
+/// they centre below the middle line.
+StemSide _sideOfSteps(int steps, int heads) =>
+    steps < 4 * heads ? StemSide.up : StemSide.down;
 
 /// Plans [chord]. The plan has head glyphs from its value and
 /// `StaffView.headOf`, steps, a column for each head so that those of a
@@ -278,6 +283,44 @@ List<BarItem> placeChord(
 }) => [
   for (final drawable in plan._ink.drawables) BarItem(slice, staff, drawable),
 ];
+
+/// A note of [base] and [head] at [step] as it stands alone in its bar,
+/// against its own slice line. The head comes first, then its ledger
+/// lines, its stem and its flag. The stem is on the side its step gives a
+/// note with no other voice on its staff. The note is in no score, so
+/// nothing owns what it draws.
+List<Drawable> loneNote({
+  required DurationBase base,
+  required NoteHead head,
+  required int step,
+  required int lines,
+  required EngravingStyle style,
+}) {
+  final stem = _sideOfSteps(step, 1);
+  return _ChordInk.of(
+    heads: [
+      HeadPlan(
+        // Keys the ink's own table of head boxes, which nothing reads here.
+        id: const NoteId(0),
+        glyph: noteheadGlyph(base, head),
+        step: step,
+        column: 0,
+        ink: InkRole.notehead,
+      ),
+    ],
+    lines: lines,
+    stem: stem,
+    dots: 0,
+    flag: _flagOf(base, stem),
+    tremolo: 0,
+    stemming: _stemmingOf(base),
+    slashed: false,
+    scale: 1,
+    owner: null,
+    headOwner: (_) => null,
+    style: style,
+  ).drawables;
+}
 
 /// The grace chords of [plan], left of the principal at the style's grace
 /// scale, each with its stem up and its flag, and a slash through the stem
@@ -758,8 +801,8 @@ final class _ChordInk {
     required _Stemming stemming,
     required bool slashed,
     required double scale,
-    required Owner owner,
-    required Owner Function(HeadPlan head) headOwner,
+    required Owner? owner,
+    required Owner? Function(HeadPlan head) headOwner,
     required EngravingStyle style,
   }) {
     final font = style.font;
@@ -1090,7 +1133,7 @@ GlyphDraw _dot(
   int index,
   double y,
   double scale,
-  Owner owner,
+  Owner? owner,
 ) {
   final x =
       from +

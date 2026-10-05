@@ -5,7 +5,7 @@ import 'package:score_model/score_model.dart';
 import 'assembly.dart';
 import 'bar_layout.dart';
 import 'breaking.dart';
-import 'chords.dart' show noteheadGlyph;
+import 'chords.dart' show loneNote;
 import 'drawable.dart';
 import 'geometry.dart';
 import 'hit.dart';
@@ -394,22 +394,28 @@ final class SheetLayout {
     return Box(x, staff.top, x, staff.top + staffHeight);
   }
 
-  /// The head of [preview] in sheet space, or null when it is drawn nowhere
-  /// (a hidden staff, or a bar the score lacks).
+  /// The box of what is drawn for [preview], in sheet space: its head, its
+  /// ledger lines, its stem and its flag. Null when it is drawn nowhere (a
+  /// hidden staff, or a bar the score lacks).
   Box? boundsOfPreview(NotePreview preview) {
     final index = systemOf(preview.at.measure);
     return index == null
         ? null
-        : previewIn(index, preview).firstOrNull?.bounds.shift(0, tops[index]);
+        : previewIn(index, preview)
+              .map((drawable) => drawable.bounds)
+              .fold<Box?>(null, (a, b) => a?.union(b) ?? b)
+              ?.shift(0, tops[index]);
   }
 
-  /// The head of [preview], then the ledger lines it needs, in the space of
-  /// system [index]. Nothing when its bar is on another system or its staff
-  /// is hidden.
+  /// The note of [preview] in the space of system [index]. The head comes
+  /// first, then the ledger lines it needs, its stem and its flag. Nothing
+  /// when its bar is on another system or its staff is hidden.
   ///
-  /// The head stands at the x of [caretIn], where the head of a note that
-  /// is alone at that time stands. It has no stem, flag, dot or accidental,
-  /// and nothing in the system moves for it.
+  /// The note is drawn as one that stands alone in its bar. Its head is at
+  /// the x of [caretIn], and its stem is on the side its step gives it. It
+  /// has no dot and no accidental, and nothing in the system moves for it.
+  /// A note entered there may get a beam, or a stem from its voice, that the
+  /// preview does not show.
   List<Drawable> previewIn(int index, NotePreview preview) {
     final system = systemAt(index);
     final staff = system.staffOf(preview.staff);
@@ -417,24 +423,16 @@ final class SheetLayout {
     if (staff == null || bar == null) {
       return const [];
     }
-    final font = style.font;
-    final step = preview.staffStep;
-    final glyph = noteheadGlyph(preview.base, preview.head);
-    final origin = SpPoint(bar.time.xAt(preview.at.offset), staff.yOf(step));
-    final head = font[glyph].box.shift(origin.x, origin.y);
-    final extension = font.defaults.legerLineExtension;
-    LineDraw ledger(int line) => LineDraw(
-      SpPoint(head.left - extension, staff.yOf(line)),
-      SpPoint(head.right + extension, staff.yOf(line)),
-      thickness: font.defaults.legerLineThickness,
-      ink: InkRole.ledgerLine,
-    );
+    final x = bar.time.xAt(preview.at.offset);
     return [
-      GlyphDraw(glyph, origin, bounds: head, ink: InkRole.notehead),
-      if (staff.lines > 1) ...[
-        for (var line = -2; line >= step; line -= 2) ledger(line),
-        for (var line = 10; line <= step; line += 2) ledger(line),
-      ],
+      for (final drawable in loneNote(
+        base: preview.base,
+        head: preview.head,
+        step: preview.staffStep,
+        lines: staff.lines,
+        style: style,
+      ))
+        drawable.shift(x, staff.top),
     ];
   }
 

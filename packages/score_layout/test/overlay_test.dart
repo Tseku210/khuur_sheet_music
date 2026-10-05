@@ -59,10 +59,16 @@ void expectBox(Box? actual, Box expected) {
   expect(actual.bottom, closeTo(expected.bottom, 1e-9));
 }
 
-/// The noteheads and the ledger lines [layout] draws on system [index].
-List<Drawable> headsAndLedgers(SheetLayout layout, int index) => [
+/// The heads, the ledger lines, the stems and the flags [layout] draws on
+/// system [index].
+List<Drawable> notesOf(SheetLayout layout, int index) => [
   for (final drawable in layout.systemAt(index).drawables)
-    if (drawable.ink case InkRole.notehead || InkRole.ledgerLine) drawable,
+    if (drawable.ink
+        case InkRole.notehead ||
+            InkRole.ledgerLine ||
+            InkRole.stem ||
+            InkRole.flag)
+      drawable,
 ];
 
 /// Matches a drawable of [drawable]'s kind and ink at its place, whoever
@@ -91,7 +97,7 @@ Matcher inkOf(Drawable drawable) {
     _ => throw ArgumentError.value(
       drawable,
       'drawable',
-      'Not a head or a line',
+      'Not a glyph or a line',
     ),
   };
 }
@@ -113,46 +119,60 @@ NotePreview previewAt(
 
 void main() {
   group('a note preview', () {
-    // On a treble staff the bottom line, step 0, is E4.
-    for (final (pitch, step, value, ledgers) in const [
-      ('G3', -5, NoteValue.quarter, 2),
-      ('C4', -2, NoteValue.half, 1),
-      ('D4', -1, NoteValue.quarter, 0),
-      ('B4', 4, NoteValue.whole, 0),
-      ('G5', 9, NoteValue.quarter, 0),
-      ('A5', 10, NoteValue.half, 1),
-      ('D6', 13, NoteValue.whole, 2),
+    // On a treble staff the bottom line, step 0, is E4. A stem never ends
+    // short of the middle line, so the stems of G3 and D6 are longer.
+    for (final (pitch, step, value, ledgers, stem, flag) in const [
+      ('G3', -5, NoteValue.quarter, 2, 'up', false),
+      ('C4', -2, NoteValue.half, 1, 'up', false),
+      ('D4', -1, NoteValue.eighth, 0, 'up', true),
+      ('A4', 3, NoteValue.sixteenth, 0, 'up', true),
+      ('B4', 4, NoteValue.whole, 0, null, false),
+      ('B4', 4, NoteValue.quarter, 0, 'down', false),
+      ('G5', 9, NoteValue.eighth, 0, 'down', true),
+      ('A5', 10, NoteValue.half, 1, 'down', false),
+      ('D6', 13, NoteValue.quarter, 2, 'down', false),
+      ('D6', 13, NoteValue.whole, 2, null, false),
     ]) {
-      test(
-        'draws the head and the $ledgers ledger lines of a ${value.base.name} '
-        'note that stands alone at $pitch',
-        () {
-          final layout = sheetOf(
-            scoreOf([
-              [
-                staffOf([chordOf(1, pitch, value: value)]),
-              ],
-            ]),
-          );
-          final drawn = headsAndLedgers(layout, 0);
-          expect(drawn.whereType<LineDraw>(), hasLength(ledgers));
+      test('draws the ${value.base.name} note that stands alone at $pitch: '
+          'its head, its $ledgers ledger lines, '
+          '${stem == null ? 'no stem' : 'its stem $stem'} and '
+          '${flag ? 'its flag' : 'no flag'}', () {
+        final layout = sheetOf(
+          scoreOf([
+            [
+              staffOf([chordOf(1, pitch, value: value)]),
+            ],
+          ]),
+        );
+        final drawn = notesOf(layout, 0);
+        Iterable<Drawable> of(InkRole ink) => drawn.where((d) => d.ink == ink);
+        final head = of(InkRole.notehead).single;
+        expect(of(InkRole.ledgerLine), hasLength(ledgers));
+        expect(of(InkRole.flag), hasLength(flag ? 1 : 0));
+        expect(
+          [
+            for (final line in of(InkRole.stem))
+              line.bounds.top < head.bounds.top ? 'up' : 'down',
+          ],
+          [?stem],
+        );
 
-          expect(
-            layout.previewIn(
-              0,
-              previewAt(0, Moment.zero, step, base: value.base),
-            ),
-            unorderedMatches(drawn.map(inkOf)),
-          );
-        },
-      );
+        expect(
+          layout.previewIn(
+            0,
+            previewAt(0, Moment.zero, step, base: value.base),
+          ),
+          unorderedMatches(drawn.map(inkOf)),
+        );
+      });
     }
 
-    test('between two notes stands at the caret, on its step', () {
+    test('between two notes has its head at the caret, on its step, and '
+        'draws the head first', () {
       final layout = sheetOf(beatsScore(1));
       final staff = layout.systemAt(0).staves.single;
 
-      final head = layout.previewIn(0, previewAt(0, at(3, 8), 6)).single;
+      final head = layout.previewIn(0, previewAt(0, at(3, 8), 6)).first;
 
       expect(
         (head as GlyphDraw).origin,
@@ -197,20 +217,25 @@ void main() {
             head: NoteHead.diamond,
           ),
         ),
-        headsAndLedgers(layout, 0).map(inkOf),
+        unorderedMatches(notesOf(layout, 0).map(inkOf)),
       );
     });
 
-    test('tells where its head is in sheet space, which is where a note of '
-        'its value at its place has its head, and nowhere on a hidden staff '
-        'or in a bar the score lacks', () {
+    test('tells where it is drawn in sheet space, which is the box of a '
+        'note of its value at its place with its stem and its ledger lines, '
+        'and nowhere on a hidden staff or in a bar the score lacks', () {
       final score = threeSystems();
       final layout = sheetOf(score);
       // Beat 2 of bar 3 on the bass staff, where B4 is three lines over it.
       final preview = previewAt(3, at(1, 4), 16, staff: 1);
-      final head = NoteRef(eventRef(622, bar: 3), const NoteId(6220));
+      final note = eventRef(622, bar: 3);
+      final head = NoteRef(note, const NoteId(6220));
+      expect(
+        layout.boundsOf(note)!.height,
+        greaterThan(layout.boundsOf(head)!.height + 3),
+      );
 
-      expectBox(layout.boundsOfPreview(preview), layout.boundsOf(head)!);
+      expectBox(layout.boundsOfPreview(preview), layout.boundsOf(note)!);
       expect(sheetOf(hidePart(score, 1)).boundsOfPreview(preview), isNull);
       expect(layout.boundsOfPreview(previewAt(9, Moment.zero, 4)), isNull);
     });
@@ -222,8 +247,8 @@ void main() {
       final preview = previewAt(3, Moment.zero, 4, staff: 1);
 
       expect(
-        [for (var i = 0; i < 3; i++) layout.previewIn(i, preview).length],
-        [0, 1, 0],
+        [for (var i = 0; i < 3; i++) layout.previewIn(i, preview).isNotEmpty],
+        [false, true, false],
       );
       expect(sheetOf(hidePart(score, 1)).previewIn(1, preview), isEmpty);
       expect(layout.previewIn(1, previewAt(9, Moment.zero, 4)), isEmpty);
@@ -238,9 +263,12 @@ void main() {
         ]),
       );
 
-      expect(layout.previewIn(0, previewAt(0, Moment.zero, 12)), [
-        isA<GlyphDraw>(),
-      ]);
+      expect(
+        layout
+            .previewIn(0, previewAt(0, Moment.zero, 12))
+            .where((drawable) => drawable.ink == InkRole.ledgerLine),
+        isEmpty,
+      );
     });
 
     test('of a hit is a note at the hit, and equals one of the same '

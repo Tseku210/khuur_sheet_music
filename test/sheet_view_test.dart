@@ -3563,8 +3563,8 @@ void main() {
   );
 
   testWidgets(
-    'the controller says where the head of a preview note is drawn, which is '
-    'where a note of its value at its place has its head, at a zoom and '
+    'the controller says where a preview note is drawn, which is where a '
+    'note of its value at its place is drawn with its stem, at a zoom and '
     'after a scroll, and nowhere in a bar the score lacks or with no view',
     (tester) async {
       final score = tune();
@@ -3576,14 +3576,17 @@ void main() {
         at: ScorePoint(bar, Moment(Fraction(1, 2))),
         staffStep: 4,
       );
-      void expectOnNote(int bar) => expect(
-        controller.rectOfPreview(onNote(score.measures[bar].id)),
-        within(
-          distance: 1e-6,
-          from: controller.rectOf(headOf(score, bar, 2))!,
-        ),
-        reason: 'bar $bar',
-      );
+      void expectOnNote(int bar) {
+        final head = headOf(score, bar, 2);
+        final note = controller.rectOf(head.event)!;
+        expect(note.height, greaterThan(3 * controller.rectOf(head)!.height));
+        expect(
+          controller.rectOfPreview(onNote(score.measures[bar].id)),
+          within(distance: 1e-6, from: note),
+          reason: 'bar $bar',
+        );
+      }
+
       expect(controller.rectOfPreview(onNote(score.measures[0].id)), isNull);
 
       await tester.pumpWidget(

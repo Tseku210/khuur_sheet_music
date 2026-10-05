@@ -61,10 +61,11 @@ class SheetView extends StatefulWidget {
   final VoicePoint? cursor;
 
   /// A note that is not in the score, drawn where an entry would put it.
-  /// The view draws its head and the ledger lines it needs in the palette's
-  /// preview colour, and lays nothing out for it, so nothing moves under a
-  /// finger. An app that shows where a held finger would put a note sets it
-  /// from [SheetController.entryAt] and clears it when the finger lifts.
+  /// The view draws it as a note that stands alone, with its stem, its flag
+  /// and the ledger lines it needs, in the palette's preview colour. It
+  /// lays nothing out for it, so nothing moves under a finger. An app that
+  /// shows where a held finger would put a note sets it from
+  /// [SheetController.entryAt] and clears it when the finger lifts.
   /// The place under a still finger changes when the sheet scrolls, zooms
   /// or is laid out again, so the app asks again when the controller
   /// notifies.
@@ -194,9 +195,9 @@ class SheetController extends ChangeNotifier {
   SheetHit? entryAt(Offset local, {VoiceSlot voice = VoiceSlot.one}) =>
       _view?._entryAt(local, voice);
 
-  /// Where the head of [preview] is drawn, or null when it is not drawn (a
-  /// hidden staff, or a bar the score lacks). A glass that shows where a
-  /// note will go looks here.
+  /// Where the note of [preview] is drawn, with its stem, its flag and its
+  /// ledger lines, or null when it is not drawn (a hidden staff, or a bar
+  /// the score lacks). A glass that shows where a note will go looks here.
   Rect? rectOfPreview(NotePreview preview) =>
       _rectsOf((layout) => [layout.boundsOfPreview(preview)]).firstOrNull;
 

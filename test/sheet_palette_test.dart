@@ -419,11 +419,12 @@ void main() {
   });
 
   test('a preview note is painted in the preview colour, or in the '
-      "cursor's without one, on its head and its ledger lines alone", () async {
+      "cursor's without one, on its head, its stem and its ledger lines "
+      'alone', () async {
     final score = tune(bars: 4);
     final layout = layoutOf(score);
     // Under the staff, where a head needs the ledger lines of steps -2 and
-    // -4.
+    // -4. A quarter note has a stem and no flag.
     final preview = NotePreview(
       staff: score.staves.first.id,
       at: ScorePoint(score.measures.first.id, Moment(Fraction(3, 8))),
@@ -433,7 +434,7 @@ void main() {
       for (final drawable in layout.previewIn(0, preview))
         scale.rectOf(drawable.bounds),
     ];
-    expect(marks, hasLength(3));
+    expect(marks, hasLength(4));
     const caret = SheetLine(color: green);
 
     for (final (palette, color) in [
@@ -442,11 +443,22 @@ void main() {
       (quiet.copyWith(cursor: caret, preview: red), red),
     ]) {
       final pixels = await marksOf(layout, palette, preview: preview);
-      expect(
-        [for (final mark in marks) pixels.holds(mark, color)],
-        everyElement(isTrue),
-        reason: '$color',
-      );
+      final inked = pixels.painted.where((at) => pixels.at(at) == color);
+      // A ledger line crosses the head's box, so each mark is asked to be
+      // filled from edge to edge and not just touched.
+      for (final mark in marks) {
+        expect(
+          inked
+              .where(mark.inflate(1).contains)
+              .fold<Rect?>(
+                null,
+                (box, at) =>
+                    box?.expandToInclude(at & Size.zero) ?? at & Size.zero,
+              ),
+          rectMoreOrLessEquals(mark, epsilon: 2),
+          reason: '$color in $mark',
+        );
+      }
       expect(
         pixels.painted.where(
           (at) => !marks.any((mark) => mark.inflate(1).contains(at)),

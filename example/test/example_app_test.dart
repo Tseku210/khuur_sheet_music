@@ -200,17 +200,22 @@ Future<TestGesture> holdAt(WidgetTester tester, Offset local) async {
   return gesture;
 }
 
-/// The page as it is drawn now, as a PNG, and how many pixels of [ink] a
-/// box of the screen holds.
-Future<({Uint8List png, int Function(Rect box) inked})> pictureOf(
-  WidgetTester tester,
-  Color ink,
-) async {
+/// The page as it is drawn now, as a PNG of [sharpness] pixels to each one
+/// of the screen, how many of its pixels of [ink] a box of the screen holds,
+/// and the box of the screen those pixels fill, which is null with none.
+Future<
+  ({
+    Uint8List png,
+    int Function(Rect box) inked,
+    Rect? Function(Rect box) inkIn,
+  })
+>
+pictureOf(WidgetTester tester, Color ink, {double sharpness = 1}) async {
   final boundary = tester.renderObject<RenderRepaintBoundary>(
     find.byKey(pageKey),
   );
   final (:rgba, :png, :width) = (await tester.runAsync(() async {
-    final image = await boundary.toImage();
+    final image = await boundary.toImage(pixelRatio: sharpness);
     final rgba = await image.toByteData();
     final png = await image.toByteData(format: ui.ImageByteFormat.png);
     final width = image.width;
@@ -221,24 +226,35 @@ Future<({Uint8List png, int Function(Rect box) inked})> pictureOf(
       width: width,
     );
   }))!;
-  int inked(Rect box) {
-    var count = 0;
-    for (var y = box.top.ceil(); y < box.bottom.floor(); y++) {
-      for (var x = box.left.ceil(); x < box.right.floor(); x++) {
+  Iterable<Offset> pixelsIn(Rect box) sync* {
+    final Rect(:left, :top, :right, :bottom) = Rect.fromLTRB(
+      box.left * sharpness,
+      box.top * sharpness,
+      box.right * sharpness,
+      box.bottom * sharpness,
+    );
+    for (var y = top.ceil(); y < bottom.floor(); y++) {
+      for (var x = left.ceil(); x < right.floor(); x++) {
         final at = (y * width + x) * 4;
         final off =
             (rgba[at] - (ink.r * 255).round()).abs() +
             (rgba[at + 1] - (ink.g * 255).round()).abs() +
             (rgba[at + 2] - (ink.b * 255).round()).abs();
         if (off < 24) {
-          count++;
+          yield Offset(x / sharpness, y / sharpness);
         }
       }
     }
-    return count;
   }
 
-  return (png: png, inked: inked);
+  return (
+    png: png,
+    inked: (box) => pixelsIn(box).length,
+    inkIn: (box) =>
+        pixelsIn(box)
+            .map((pixel) => pixel & Size.square(1 / sharpness))
+            .fold<Rect?>(null, (a, b) => a?.expandToInclude(b) ?? b),
+  );
 }
 
 /// The colour the page draws a preview note in.
@@ -1497,8 +1513,9 @@ void main() {
     }
   });
 
-  testWidgets('the glass shows the note that letting go would enter at twice '
-      'its size, beside the finger and over it', (tester) async {
+  testWidgets('the glass shows the whole of the note that letting go would '
+      'enter, its stem with its head, at twice its size, beside the finger '
+      'and over it', (tester) async {
     await tester.runAsync(loadPageFonts);
     await pumpApp(tester, size: phone, demo: true);
 
@@ -1526,19 +1543,105 @@ void main() {
       );
       expect(glass.overlaps(note.inflate(4)), isFalse, reason: name);
 
-      final (:png, :inked) = await pictureOf(tester, previewInk(tester));
+      final (:png, inked: _, :inkIn) = await pictureOf(
+        tester,
+        previewInk(tester),
+        sharpness: 3,
+      );
       writeSnapshot(name, png);
-      final onSheet = inked(note.inflate(4));
-      final inGlass = inked(glass);
-      expect(onSheet, greaterThan(40), reason: '$name: the note is drawn');
+      final lookAt =
+          glass.center +
+          tester
+              .widget<RawMagnifier>(find.byType(RawMagnifier))
+              .focalPointOffset;
+      Offset inGlassOf(Offset onSheet) => glass.center + (onSheet - lookAt) * 2;
+      final shown = Rect.fromPoints(
+        inGlassOf(note.topLeft),
+        inGlassOf(note.bottomRight),
+      );
+      expect(note.height, greaterThan(note.width * 3), reason: name);
+      expect(glass.expandToInclude(shown), glass, reason: '$name: $shown');
       expect(
-        inGlass / onSheet,
-        closeTo(4, 1),
-        reason: '$name: $inGlass of $onSheet',
+        inkIn(note.inflate(2)),
+        rectMoreOrLessEquals(note, epsilon: 1),
+        reason: '$name: the note on the sheet',
+      );
+      expect(
+        inkIn(shown.inflate(4)),
+        rectMoreOrLessEquals(shown, epsilon: 1.5),
+        reason: '$name: the note in the glass',
       );
 
       await gesture.cancel();
       await tester.pump();
+    }
+  });
+
+  testWidgets('the glass looks at the middle of a note it can show whole, and '
+      'at a taller note it keeps the head, which is under the finger, in the '
+      'middle half of what it shows', (tester) async {
+    await pumpApp(tester, size: phone, demo: true);
+    await openSheet(tester, 'Empty sheet');
+    final score = scoreOf(tester);
+    final at = beatOf(score, 0, 1);
+
+    // What the glass of a finger on the top line or the bottom line shows,
+    // with the note it draws there and the finger.
+    Future<({Rect window, Rect note, Offset finger})> shownAt({
+      required bool top,
+    }) async {
+      final caret = controllerOf(tester).caretOf(at)!;
+      final spot = top ? caret.topCenter : caret.bottomCenter;
+      final gesture = await holdAt(tester, spot);
+      final finger = onScreen(tester, spot);
+      expect(sheetOf(tester).preview!.staffStep, top ? 8 : 0);
+      final note = controllerOf(tester)
+          .rectOfPreview(sheetOf(tester).preview!)!
+          .shift(finger - spot);
+      final glass = find.byType(RawMagnifier);
+      final RawMagnifier(:focalPointOffset, :magnificationScale, :size) = tester
+          .widget(glass);
+      final window = Rect.fromCenter(
+        center: tester.getRect(glass).center + focalPointOffset,
+        width: size.width / magnificationScale,
+        height: size.height / magnificationScale,
+      );
+      await gesture.cancel();
+      await tester.pump();
+      return (window: window, note: note, finger: finger);
+    }
+
+    for (final top in [true, false]) {
+      final (:window, :note, :finger) = await shownAt(top: top);
+      // The stem of a note on the top line goes down, and of one on the
+      // bottom line up.
+      expect((note.center.dy - finger.dy).sign, top ? 1 : -1);
+      expect(window.expandToInclude(note), window, reason: '$note');
+      expect(window.center.dx, closeTo(note.center.dx, 1e-6));
+    }
+
+    for (var times = 0; times < 3; times++) {
+      await tester.tap(find.byTooltip('Zoom in'));
+      await tester.pump();
+    }
+    await tester.pump();
+    final space = sheetOf(tester).staffSpace * controllerOf(tester).zoom;
+
+    for (final top in [true, false]) {
+      final (:window, :note, :finger) = await shownAt(top: top);
+      expect(note.height, greaterThan(window.height));
+      final head = Rect.fromCenter(
+        center: Offset(window.center.dx, finger.dy),
+        width: 1,
+        height: space,
+      );
+      expect(window.expandToInclude(head), window, reason: '$head');
+      expect(
+        window.center.dy - finger.dy,
+        closeTo((top ? 1 : -1) * window.height / 4, 1e-6),
+        reason: 'as near the middle of the note as the head allows',
+      );
+      expect(window.center.dx, closeTo(note.center.dx, 1e-6));
     }
   });
 
@@ -1564,7 +1667,10 @@ void main() {
           base: DurationBase.whole,
         ),
       );
-      final (:png, :inked) = await pictureOf(tester, previewInk(tester));
+      final (:png, :inked, inkIn: _) = await pictureOf(
+        tester,
+        previewInk(tester),
+      );
       if (snapshot != null) {
         writeSnapshot(snapshot, png);
       }

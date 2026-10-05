@@ -83,8 +83,8 @@ final class NotePreview {
   /// In the convention of [SheetHit.staffStep].
   final int staffStep;
 
-  /// Which head is drawn. A breve, a whole note and a half note have heads
-  /// of their own, and every shorter value has the black one.
+  /// The value of the note. It gives the head, the stem of a value that
+  /// has one, and the flag of an eighth and of every shorter value.
   final DurationBase base;
 
   /// The kind of the head. A drum's note has its kit sound's.
