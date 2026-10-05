@@ -118,6 +118,7 @@ final broken = <Broken>[
   bad(r'$.measures[0].meter', '4/3', 'the unit is a power of two up to 128'),
   bad(r'$.measures[0].meter', '4/256', 'the unit is a power of two up to 128'),
   bad(r'$.measures[0].meter', '65/1', 'a bar lasts at most 64 whole notes'),
+  bad(r'$.measures[0].meter', '8193/128', 'a bar lasts at most 64 whole notes'),
   bad(r'$.measures[0].length', '129/2', 'a bar lasts at most 64 whole notes'),
   bad(r'$.measures[0].key', 8, 'a key has 7 flats to 7 sharps'),
   bad(r'$.measures[0].key', -8, 'a key has 7 flats to 7 sharps'),
@@ -464,6 +465,22 @@ void main() {
       expect(chord.tremolo, 4);
       expect((note.id, note.fingering), (const NoteId(11), 0));
       expect(loaded.spanners[0].id, const SpannerId(10));
+    });
+
+    test('reads every meter it writes, however many beats in a group', () {
+      for (final meter in [
+        Meter.simple(1000, 128),
+        Meter.simple(2048, 32),
+        const Meter([999, 1], 128),
+        const Meter([1000, 24], 16),
+        Meter.simple(8192, 128),
+      ]) {
+        final score = blankScore(bars: 1, meter: meter);
+        final loaded = reloaded(score).measures.single.meter;
+
+        expect(loaded.groups, meter.groups);
+        expect(loaded.unit, meter.unit);
+      }
     });
 
     test('round-trips every score the edits make', () {

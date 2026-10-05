@@ -213,7 +213,7 @@ final class _Decoder {
   Meter _meter(_In column) {
     final text = column['meter'];
     final match =
-        RegExp(r'^([1-9]\d{0,2}(?:\+[1-9]\d{0,2})*)/(\d{1,3})$')
+        RegExp(r'^([1-9]\d{0,8}(?:\+[1-9]\d{0,8})*)/(\d{1,3})$')
             .firstMatch(text.string) ??
         text.fail('expected a meter such as "3+2+2/8"');
     final meter = Meter(
