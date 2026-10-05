@@ -205,6 +205,146 @@ void main() {
     });
   });
 
+  group('beam mode', () {
+    List<List<EventId>> beamsIn(Score score, int bar) => [
+      for (final group
+          in score
+              .measureView(score.measures[bar].id)
+              .staves
+              .first
+              .voices
+              .first
+              .beams)
+        group.events,
+    ];
+
+    test('two eighths entered with no beam stand apart', () {
+      Score pair(BeamMode beam) {
+        var session = blank();
+        for (var i = 0; i < 2; i++) {
+          session = applied(
+            session.run(
+              EnterNote(
+                at: session.cursor,
+                tone: f4,
+                value: NoteValue.eighth,
+                beam: beam,
+              ),
+            ),
+          );
+        }
+        return session.score;
+      }
+
+      expect(beamsIn(pair(BeamMode.auto), 0), hasLength(1));
+      expect(beamsIn(pair(BeamMode.none), 0), isEmpty);
+    });
+
+    test('a note cut at the barline keeps its mode on each piece', () {
+      // An eighth on either side of the barline, so that each piece of the
+      // cut note has a neighbour the meter would beam it with.
+      var session = enterAt(blank(), 0, at(3, 4), value: NoteValue.eighth);
+      session = enterAt(session, 1, at(1, 8), value: NoteValue.eighth);
+      Score cut(BeamMode beam) => applied(
+        session.run(
+          EnterNote(
+            at: point(session.score, 0, at(7, 8)),
+            tone: f4,
+            value: NoteValue.quarter,
+            beam: beam,
+          ),
+        ),
+      ).score;
+
+      final beamed = cut(BeamMode.auto);
+      final apart = cut(BeamMode.none);
+
+      expect(bar(apart, 0).last, 'F4/eighth~');
+      expect(bar(apart, 1).first, 'F4/eighth');
+      expect([
+        beamsIn(beamed, 0),
+        beamsIn(beamed, 1),
+      ], everyElement(hasLength(1)));
+      expect([beamsIn(apart, 0), beamsIn(apart, 1)], everyElement(isEmpty));
+    });
+  });
+
+  group('without a bar appended', () {
+    EditOutcome enterLast(
+      EditSession session,
+      VoicePoint at,
+      NoteValue value,
+    ) => session.run(
+      EnterNote(at: at, tone: f4, value: value, appendBar: false),
+    );
+
+    test('a note that ends the score adds no bar and leaves the cursor at '
+        'its start', () {
+      final start = blank(bars: 1);
+      final last = point(start.score, 0, at(3, 4));
+
+      final session = applied(enterLast(start, last, NoteValue.quarter));
+
+      expect(session.score.measures.length, 1);
+      expect(bar(session.score, 0), [
+        'rest/half',
+        'rest/quarter',
+        'F4/quarter',
+      ]);
+      expect(session.cursor, last);
+      expect(
+        session.selection.singleEvent!.id,
+        (voiceOf(session.score, 0).items.last as Event).id,
+      );
+    });
+
+    test('a note that ends an inner bar moves the cursor into the next', () {
+      final start = blank();
+
+      final session = applied(
+        enterLast(start, point(start.score, 0, at(3, 4)), NoteValue.quarter),
+      );
+
+      expect(session.score.measures.length, 2);
+      expect(session.cursor, point(session.score, 1, Moment.zero));
+    });
+
+    test('a note split past the end gets the bars it needs and no more', () {
+      final start = blank(bars: 1);
+      final half = point(start.score, 0, at(1, 2));
+
+      final inside = applied(
+        enterLast(start, point(start.score, 0, at(3, 4)), NoteValue.whole),
+      );
+      final exact = applied(enterLast(start, half, NoteValue.whole.dotted));
+
+      expect(inside.score.measures.length, 2);
+      expect(bar(inside.score, 1), ['F4/half.', 'rest/quarter']);
+      expect(inside.cursor, point(inside.score, 1, at(3, 4)));
+      expect(exact.score.measures.length, 2);
+      expect(bar(exact.score, 0), ['rest/half', 'F4/half~']);
+      expect(bar(exact.score, 1), ['F4/whole']);
+      expect(exact.cursor, half);
+    });
+
+    test('a rest that ends the score adds no bar either', () {
+      final start = EditSession.start(
+        scoreWith([chord(1, f4, NoteValue.whole)]),
+      );
+      final last = point(start.score, 0, at(3, 4));
+
+      final session = applied(
+        start.run(
+          EnterRest(at: last, value: NoteValue.quarter, appendBar: false),
+        ),
+      );
+
+      expect(session.score.measures.length, 1);
+      expect(bar(session.score, 0), ['F4/half.', 'rest/quarter']);
+      expect(session.cursor, last);
+    });
+  });
+
   group('ties into the entry point', () {
     EditSession tiedAcross() =>
         enterAt(blank(), 0, at(3, 4), value: NoteValue.half);

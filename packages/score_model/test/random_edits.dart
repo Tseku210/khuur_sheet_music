@@ -181,10 +181,10 @@ SetLyric _lyric(EventRef event, Random random) {
 }
 
 /// One random edit of the kinds a composer makes: note entry (the common
-/// case), tuplets, chords, graces, event and note marks, lyrics, voltas,
-/// keys, clefs, spanners, directions, tempo marks, barlines, repeats,
-/// navigation and rehearsal marks, inserted and deleted bars, bar lengths,
-/// meters, erased, pasted and transposed ranges, breaks, signature
+/// case), tuplets, chords, graces, event and note marks, beams, lyrics,
+/// voltas, keys, clefs, spanners, directions, tempo marks, barlines,
+/// repeats, navigation and rehearsal marks, inserted and deleted bars, bar
+/// lengths, meters, erased, pasted and transposed ranges, breaks, signature
 /// displays, and adding, removing, hiding and showing parts.
 Score randomEdit(Score score, Random random) {
   final bar = random.nextInt(score.measures.length);
@@ -209,6 +209,10 @@ Score randomEdit(Score score, Random random) {
             NoteValue.quarter.dotted,
             NoteValue.half,
           ]),
+          beam: random.nextInt(3) == 0
+              ? pick(random, BeamMode.values)
+              : BeamMode.auto,
+          appendBar: random.nextInt(4) > 0,
         ),
       );
     case 3:
@@ -420,7 +424,7 @@ Score randomEdit(Score score, Random random) {
       final event = chords.isEmpty
           ? pick(random, _eventsOf(score)).$1
           : pick(random, chords).$1;
-      return edited(score, switch (random.nextInt(5)) {
+      return edited(score, switch (random.nextInt(6)) {
         0 => AddGrace(
           event: event,
           tone: _toneFor(score, event.staff, random),
@@ -434,6 +438,7 @@ Score randomEdit(Score score, Random random) {
         ),
         2 => SetOrnament(event, pick(random, [null, ...Ornament.values])),
         3 => SetBowing(event, pick(random, [null, ...Bowing.values])),
+        4 => SetBeam(event, pick(random, BeamMode.values)),
         _ => _lyric(event, random),
       });
     case 26 || 27 || 28 || 29:

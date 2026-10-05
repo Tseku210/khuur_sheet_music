@@ -160,26 +160,32 @@ _LaneWrite _overwrite(
 
 /// Enters [event] at [at] as new music. A tie into [at] keeps only the
 /// tones [event] starts with, [event] is selected, and the cursor moves
-/// past it, into a new bar when it ends the score.
+/// past it. When [event] ends the score, the cursor moves into a new bar
+/// with [appendBar], and stays at [at] without it.
 _Result _enter(
   Score score,
   VoicePoint at,
   Event event,
   _Ids ids,
-  Overfill overfill,
-) {
+  Overfill overfill, {
+  required bool appendBar,
+}) {
   final write = _overwrite(score, at, [event], ids, overfill);
   var entered = _untieInto(write.score, at, _tones(event));
   var end = write.end;
   final bar = entered.column(end.at.measure);
   if (end.at.offset == _barEnd(bar)) {
-    final added = _barAfter(bar, ids);
-    entered = entered.copyWith(measures: entered.measures.append(added));
-    end = VoicePoint(
-      staff: end.staff,
-      voice: end.voice,
-      at: ScorePoint(added.id, Moment.zero),
-    );
+    if (appendBar) {
+      final added = _barAfter(bar, ids);
+      entered = entered.copyWith(measures: entered.measures.append(added));
+      end = VoicePoint(
+        staff: end.staff,
+        voice: end.voice,
+        at: ScorePoint(added.id, Moment.zero),
+      );
+    } else {
+      end = at;
+    }
   }
   return _Result(entered, cursor: end, selection: Selection.event(write.first));
 }
@@ -452,9 +458,10 @@ List<Event> _split(Event event, List<NoteValue> values, _Ids ids) => [
 ];
 
 /// One piece of [event], of [value]. The [first] piece keeps [event]'s ids
-/// and marks, and the others get fresh ids. Every note keeps its string.
-/// A chord's notes are tied on when [tied], and otherwise keep their own
-/// ties. Every piece of a hidden rest stays hidden.
+/// and marks, and the others get fresh ids. Every note keeps its string,
+/// and every piece of a chord its beam mode. A chord's notes are tied on
+/// when [tied], and otherwise keep their own ties. Every piece of a hidden
+/// rest stays hidden.
 Event _piece(
   Event event,
   NoteValue value,
@@ -466,9 +473,10 @@ Event _piece(
     value: value,
     notes: Seq([for (final n in notes) n.copyWith(tie: tied || n.tie)]),
   ),
-  ChordEvent(:final notes) => ChordEvent(
+  ChordEvent(:final notes, :final beam) => ChordEvent(
     id: ids.event(),
     value: value,
+    beam: beam,
     notes: Seq([
       for (final n in notes)
         switch (n) {

@@ -37,24 +37,36 @@ final class _Result {
 
 _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
   return switch (edit) {
-    EnterNote(:final at, :final tone, :final value, :final overfill) => _enter(
-      score,
-      at,
-      ChordEvent(
-        id: ids.event(),
-        value: _checked(value),
-        notes: Seq([_noteOn(score, at.staff, ids.note(), tone)]),
+    EnterNote(
+      :final at,
+      :final tone,
+      :final value,
+      :final overfill,
+      :final beam,
+      :final appendBar,
+    ) =>
+      _enter(
+        score,
+        at,
+        ChordEvent(
+          id: ids.event(),
+          value: _checked(value),
+          beam: beam,
+          notes: Seq([_noteOn(score, at.staff, ids.note(), tone)]),
+        ),
+        ids,
+        overfill,
+        appendBar: appendBar,
       ),
-      ids,
-      overfill,
-    ),
-    EnterRest(:final at, :final value, :final overfill) => _enter(
-      score,
-      at,
-      RestEvent(id: ids.event(), value: _checked(value)),
-      ids,
-      overfill,
-    ),
+    EnterRest(:final at, :final value, :final overfill, :final appendBar) =>
+      _enter(
+        score,
+        at,
+        RestEvent(id: ids.event(), value: _checked(value)),
+        ids,
+        overfill,
+        appendBar: appendBar,
+      ),
     AddToChord(:final event, :final tone) => _addToChord(
       score,
       event,
@@ -93,6 +105,7 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
       ornament,
     ),
     SetBowing(:final event, :final bowing) => _setBowing(score, event, bowing),
+    SetBeam(:final event, :final mode) => _setBeam(score, event, mode),
     SetFingering(:final note, :final finger) => _setFingering(
       score,
       note,

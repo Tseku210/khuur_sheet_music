@@ -59,14 +59,19 @@ sealed class Edit {
 /// whole note in written time, so no note can start there.
 ///
 /// Afterwards the cursor sits at the end of the note (offset 0 of the next
-/// bar if it ended on a barline, with an empty bar appended if it ended the
-/// score) and the new event is selected.
+/// bar if it ended on a barline) and the new event is selected. A note that
+/// ends the score has no next bar. With [appendBar], the default, an empty
+/// bar is appended for the cursor. Without it the score keeps its bars and
+/// the cursor stays at [at]. The bars the overfill policy needs are appended
+/// either way.
 final class EnterNote extends Edit {
   const EnterNote({
     required this.at,
     required this.tone,
     required this.value,
     this.overfill = Overfill.splitAndTie,
+    this.beam = BeamMode.auto,
+    this.appendBar = true,
   });
 
   final VoicePoint at;
@@ -76,6 +81,13 @@ final class EnterNote extends Edit {
   final Tone tone;
   final NoteValue value;
   final Overfill overfill;
+
+  /// How the chord beams. Every piece of a note split at a barline carries
+  /// it. [SetBeam] changes it later.
+  final BeamMode beam;
+
+  /// Whether a note that ends the score gets an empty bar after it.
+  final bool appendBar;
 
   @override
   String get label => 'Enter note';
@@ -88,11 +100,13 @@ final class EnterRest extends Edit {
     required this.at,
     required this.value,
     this.overfill = Overfill.splitAndTie,
+    this.appendBar = true,
   });
 
   final VoicePoint at;
   final NoteValue value;
   final Overfill overfill;
+  final bool appendBar;
 
   @override
   String get label => 'Enter rest';
@@ -267,6 +281,18 @@ final class SetBowing extends Edit {
 
   @override
   String get label => 'Bowing';
+}
+
+/// Sets how a chord beams. [BeamMode.auto] hands it back to the meter.
+/// Idempotent.
+final class SetBeam extends Edit {
+  const SetBeam(this.event, this.mode);
+
+  final EventRef event;
+  final BeamMode mode;
+
+  @override
+  String get label => 'Beam';
 }
 
 /// Refused with [InvalidValue] on a drum note, as are [SetString] and

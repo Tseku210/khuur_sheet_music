@@ -143,6 +143,20 @@ _Result _setBowing(Score score, EventRef event, Bowing? bowing) {
   );
 }
 
+_Result _setBeam(Score score, EventRef event, BeamMode mode) {
+  final timed = _target(score, event);
+  return _changeEvent(
+    score,
+    timed,
+    _chordOnly(
+      timed.event,
+      clears: mode == BeamMode.auto,
+      change: (chord) =>
+          chord.beam == mode ? chord : chord.copyWith(beam: mode),
+    ),
+  );
+}
+
 _Result _setLyric(Score score, EventRef event, int verse, Lyric? lyric) {
   if (verse < 1 || (lyric != null && lyric.verse != verse)) {
     throw const _Refuse(

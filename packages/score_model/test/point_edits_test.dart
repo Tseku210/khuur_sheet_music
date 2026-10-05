@@ -456,6 +456,93 @@ void main() {
     });
   });
 
+  group('SetBeam', () {
+    final session = sessionWith([
+      [
+        for (var id = 20; id < 26; id++)
+          chordOf(id, 'F4', value: NoteValue.eighth),
+        rest(26, NoteValue.quarter),
+      ],
+    ]);
+
+    /// The beam groups of the first bar, as event ids.
+    List<List<int>> beamsOf(EditSession session) => [
+      for (final group
+          in session.score
+              .measureView(session.score.measures.first.id)
+              .staves
+              .first
+              .voices
+              .first
+              .beams)
+        [for (final event in group.events) event.value],
+    ];
+
+    EditSession beamed(EditSession session, int id, BeamMode mode) =>
+        applied(session.run(SetBeam(eventRef(session, id), mode)));
+
+    test('each mode shows in the beam groups of the bar', () {
+      expect(beamsOf(session), [
+        [20, 21, 22, 23],
+        [24, 25],
+      ]);
+      expect(beamsOf(beamed(session, 21, BeamMode.none)), [
+        [22, 23],
+        [24, 25],
+      ]);
+      expect(beamsOf(beamed(session, 22, BeamMode.begin)), [
+        [20, 21],
+        [22, 23],
+        [24, 25],
+      ]);
+      expect(beamsOf(beamed(session, 24, BeamMode.join)), [
+        [20, 21, 22, 23, 24, 25],
+      ]);
+    });
+
+    test('auto hands the chord back to the meter', () {
+      final joined = beamed(session, 24, BeamMode.join);
+
+      final auto = beamed(joined, 24, BeamMode.auto);
+
+      expect(beamsOf(auto), beamsOf(session));
+      expect(beamsOf(auto), isNot(beamsOf(joined)));
+    });
+
+    test('a second set changes nothing and takes no undo step', () {
+      final apart = beamed(session, 21, BeamMode.none);
+
+      final again = beamed(apart, 21, BeamMode.none);
+
+      expect(identical(again.score, apart.score), isTrue);
+      expect(again.undo().canUndo, isFalse);
+      expect(
+        changesNothing(session, SetBeam(eventRef(session, 21), BeamMode.auto)),
+        isTrue,
+      );
+    });
+
+    test('undo restores the beams, under the label Beam', () {
+      final apart = beamed(session, 21, BeamMode.none);
+
+      expect(apart.undoLabel, 'Beam');
+      expect(beamsOf(apart.undo()), beamsOf(session));
+    });
+
+    test('a rest takes no mode but auto', () {
+      final rested = eventRef(session, 26);
+
+      for (final mode in [BeamMode.begin, BeamMode.join, BeamMode.none]) {
+        expect(
+          refusal(session.run(SetBeam(rested, mode))),
+          isA<InvalidValue>(),
+          reason: mode.name,
+        );
+      }
+      expect(changesNothing(session, SetBeam(rested, BeamMode.auto)), isTrue);
+    });
+  });
+
   group('Note marks', () {
     final session = sessionWith([
       [chordOf(20, 'D4 F4', value: NoteValue.whole)],
@@ -606,6 +693,7 @@ void main() {
       SetArticulation(gone, Articulation.accent, present: true),
       SetOrnament(gone, Ornament.trill),
       SetBowing(gone, Bowing.up),
+      SetBeam(gone, BeamMode.none),
       SetLyric(gone, 1, lyric(1, 'нар')),
     ]) {
       expect(
