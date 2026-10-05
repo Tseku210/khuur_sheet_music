@@ -6,6 +6,8 @@ The repo has no SMuFL name-to-codepoint table, since `glyphnames.json` is absent
 
 ## The SVG fonts
 
+The repository does not keep the two SVG fonts. They were assets of the old engine, `assets/Bravura.svg` and `assets/Petaluma.svg`. The rewrite deleted them with that engine, and with them `assets/petaluma_metadata.json` and the `GlyphPaths` and `Constants.staffSpace` that this section cites. Both SVG files are in the repository's history, unchanged since commit `1620e25` added them. `Bravura.svg` is the SVG build of Bravura, from the Bravura release at https://github.com/steinbergmedia/bravura. Bravura's metadata is now `packages/score_layout/tool/bravura_metadata.json`, and the package draws from `fonts/Bravura.otf`.
+
 **Bravura.svg**
 - FontForge, 2021-01-29. `units-per-em="1000"`, ascent 800, descent −200, `unicode-range` U+0020–1D1E8.
 - 3693 `<glyph>` elements with unique names:
@@ -29,7 +31,7 @@ The repo has no SMuFL name-to-codepoint table, since `glyphnames.json` is absent
 
 ## Coverage
 
-**Result:**
+**Result**, for the two SVG fonts described above:
 - Bravura.svg plus its metadata has all 222 glyphs below, each with a `d` path.
 - Petaluma.svg lacks only `legerLine` (U+E022). Its metadata has that entry, but the SVG has no glyph.
 
