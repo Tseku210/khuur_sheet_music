@@ -864,6 +864,13 @@ void main() {
     await press(tester, 'Widen right');
     expect(selectedOf(tester), [(0, 'eighth B4'), (0, 'quarter C5')]);
     expect(isOn(tester, 'Beam'), isFalse, reason: 'a quarter has no beam');
+    await press(tester, 'Widen left');
+    expect(selectedOf(tester), [
+      (0, 'eighth C5'),
+      (0, 'eighth B4'),
+      (0, 'quarter C5'),
+    ]);
+    expect(isOn(tester, 'Beam'), isFalse, reason: 'a quarter among eighths');
 
     final lastEighth = eighthOf(score, 0, 7, bar: 4);
     await tester.tap(find.text('1/8'));
@@ -968,6 +975,9 @@ void main() {
 
     expect(selectedOf(tester), [(0, 'quarter rest')]);
     expect(isOn(tester, 'Copy'), isFalse, reason: 'a rest alone');
+    await press(tester, 'Widen right');
+    expect(selectedOf(tester), [(0, 'quarter rest'), (0, 'eighth C5')]);
+    expect(isOn(tester, 'Slur'), isFalse, reason: 'a slur starts on a note');
 
     await tapFirstNote(tester);
     await press(tester, 'Widen right');
