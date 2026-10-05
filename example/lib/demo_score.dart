@@ -64,11 +64,20 @@ Score buildDemoScore() {
   ).score;
 }
 
+/// Four empty bars of 4/4 for one piano on one staff, with no title, to
+/// write on.
+Score buildEmptyScore() => Score.blank(
+  parts: const [PartTemplate(name: '', instrument: _instrument)],
+  measureCount: 4,
+);
+
+const _instrument = Instrument(key: 'piano', program: 0);
+
 // A name would be printed before the first system, as for a part of an
 // ensemble, and leave a phone's first system no room for bar 1.
 const _piano = PartTemplate(
   name: '',
-  instrument: Instrument(key: 'piano', program: 0),
+  instrument: _instrument,
   staves: 2,
   clefs: [Clef.treble, Clef.bass],
 );

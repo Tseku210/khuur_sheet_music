@@ -258,6 +258,28 @@ Future<void> loadPageFonts() async {
   }
 }
 
+/// Picks [name] from the menu of sheets. The pumps are of a fixed length,
+/// since a page that plays never settles.
+Future<void> openSheet(WidgetTester tester, String name) async {
+  await tester.tap(find.byTooltip('New sheet'));
+  await tester.pump();
+  await tester.pump(const Duration(seconds: 1));
+  await tester.tap(find.text(name));
+  await tester.pump();
+  await tester.pump(const Duration(seconds: 1));
+}
+
+/// How far down the sheet is scrolled.
+double scrolledBy(WidgetTester tester) => tester
+    .state<ScrollableState>(
+      find.descendant(
+        of: find.byType(SheetView),
+        matching: find.byType(Scrollable),
+      ),
+    )
+    .position
+    .pixels;
+
 Iterable<int> keysOf(FakeMidiOutput output) =>
     output.ons.map((note) => note.key);
 
@@ -290,6 +312,81 @@ void main() {
     expect(scoreOf(tester).meta.title, demo.meta.title);
     expect(writtenIn(scoreOf(tester), 0), writtenIn(demo, 0));
     expect(writtenIn(scoreOf(tester), 0), isNot(writtenIn(eightBars(), 0)));
+  });
+
+  testWidgets('New sheet opens an empty sheet to write on, and the tune '
+      'comes back from the same menu', (tester) async {
+    await pumpApp(tester, demo: true);
+
+    await openSheet(tester, 'Empty sheet');
+
+    final empty = scoreOf(tester);
+    expect(empty.meta.title, isEmpty);
+    expect(empty.staves.length, 1);
+    expect([
+      for (final column in empty.measures) column.meter,
+    ], List.filled(4, Meter.fourFour));
+    expect([
+      for (var bar = 0; bar < 4; bar++) writtenIn(empty, 0, bar: bar),
+    ], List.filled(4, ['bar rest']));
+
+    await tapStaffAt(tester, beatOf(empty, 0, 0));
+
+    expect(writtenIn(scoreOf(tester), 0).first, 'quarter B4');
+
+    await openSheet(tester, 'Für Elise');
+
+    final demo = buildDemoScore();
+    expect(scoreOf(tester).meta.title, demo.meta.title);
+    expect(
+      [
+        for (var bar = 0; bar < demo.measures.length; bar++)
+          for (var staff = 0; staff < 2; staff++)
+            writtenIn(scoreOf(tester), staff, bar: bar),
+      ],
+      [
+        for (var bar = 0; bar < demo.measures.length; bar++)
+          for (var staff = 0; staff < 2; staff++)
+            writtenIn(demo, staff, bar: bar),
+      ],
+    );
+  });
+
+  testWidgets('a new sheet stops the player', (tester) async {
+    final output = fakeOutput();
+    await pumpApp(tester, output: output);
+    await tester.tap(find.byTooltip('Play'));
+    await tester.pump();
+
+    await openSheet(tester, 'Empty sheet');
+
+    expect(output.log.last, endsWith('all off'));
+    expect(output.held, isEmpty);
+    expect(find.byTooltip('Play'), findsOneWidget);
+    expect(sheetOf(tester).playback!.value, isNull);
+    final sent = keysOf(output).length;
+
+    await tester.pump(const Duration(seconds: 5));
+
+    expect(keysOf(output), hasLength(sent));
+  });
+
+  testWidgets('a new sheet has nothing to undo and shows its top', (
+    tester,
+  ) async {
+    await pumpApp(tester, size: phone, demo: true);
+    final undo = find.widgetWithIcon(IconButton, Icons.undo);
+    final score = scoreOf(tester);
+    await tapStaffAt(tester, eighthOf(score, 1, 0, bar: 1));
+    await bringIntoView(tester, eighthOf(score, 0, 0, bar: 8));
+    expect(tester.widget<IconButton>(undo).onPressed, isNotNull);
+    expect(scrolledBy(tester), greaterThan(0));
+
+    await openSheet(tester, 'Für Elise');
+
+    expect(tester.widget<IconButton>(undo).onPressed, isNull);
+    expect(scrolledBy(tester), 0);
+    expect(writtenIn(scoreOf(tester), 1, bar: 1), ['bar rest']);
   });
 
   testWidgets("on a phone the demo tune's pickup shares its system with the "

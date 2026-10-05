@@ -30,6 +30,12 @@ class ExampleApp extends StatelessWidget {
   );
 }
 
+/// The scores the page can start over with, by the names its menu shows.
+const List<(String, Score Function())> _sheets = [
+  ('Für Elise', buildDemoScore),
+  ('Empty sheet', buildEmptyScore),
+];
+
 /// Why an edit did not apply, as a sentence for the person at the page.
 String refusalSentence(EditRefusal reason) => switch (reason) {
   StaleReference() => 'That is no longer in the score.',
@@ -57,6 +63,11 @@ class _ScorePageState extends State<ScorePage>
     widget.score ?? buildDemoScore(),
   );
   NoteValue _value = NoteValue.quarter;
+
+  /// How many sheets the page has started. Each gets a view of its own, so
+  /// a new sheet shows its top.
+  int _sheetsOpened = 0;
+
   bool _autoBars = true;
   bool _autoBeams = true;
   ScoreClip? _clip;
@@ -141,6 +152,16 @@ class _ScorePageState extends State<ScorePage>
 
   void _addBar() => _run(const InsertMeasures());
 
+  /// Starts over with the score [build] makes. The player stops, as it
+  /// plays the sheet that goes, and the undo history goes with that sheet.
+  void _open(Score Function() build) {
+    _player.stop();
+    setState(() {
+      _session = EditSession.start(build());
+      _sheetsOpened++;
+    });
+  }
+
   void _press(Press press) {
     switch (press) {
       case RunEdit(:final edit):
@@ -183,6 +204,15 @@ class _ScorePageState extends State<ScorePage>
     appBar: AppBar(
       title: const Text('simple_sheet_music'),
       actions: [
+        PopupMenuButton(
+          tooltip: 'New sheet',
+          icon: const Icon(Icons.note_add_outlined),
+          onSelected: _open,
+          itemBuilder: (context) => [
+            for (final (name, build) in _sheets)
+              PopupMenuItem(value: build, child: Text(name)),
+          ],
+        ),
         IconButton(
           tooltip: 'Undo',
           icon: const Icon(Icons.undo),
@@ -208,6 +238,7 @@ class _ScorePageState extends State<ScorePage>
         children: [
           Expanded(
             child: SheetView(
+              key: ValueKey(_sheetsOpened),
               score: _session.score,
               cursor: _session.cursor,
               selection: _session.selection,
