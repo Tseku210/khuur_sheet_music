@@ -10,12 +10,12 @@ import 'smufl_metadata.dart';
 /// total. The generator guarantees it for [bravura], and
 /// [SmuflFont.fromMetadata] checks it at the boundary.
 ///
-/// Two fonts are equal when they name the same family and hold the same
-/// metrics tables by identity. The const [bravura] is canonical, so it
-/// equals itself everywhere. A font from [SmuflFont.fromMetadata] equals
-/// only itself, so an app parses its metadata once and keeps the font.
-/// Parsing it again makes an unequal font, an unequal style and a full
-/// layout.
+/// Two fonts are equal when they name the same family, hold the same glyph
+/// table by identity and have equal [defaults]. The const [bravura] is
+/// canonical, so it equals itself everywhere. A font from
+/// [SmuflFont.fromMetadata] equals only itself, so an app parses its
+/// metadata once and keeps the font. Parsing it again makes an unequal
+/// font, an unequal style and a full layout.
 final class SmuflFont {
   const SmuflFont({
     required this.family,
@@ -60,14 +60,21 @@ final class SmuflFont {
 
   GlyphMetrics operator [](Glyph glyph) => glyphs[glyph]!;
 
+  /// This font with other engraving defaults, which is how an app changes
+  /// the thickness of stems, staff lines, barlines and the other lines.
+  SmuflFont copyWith({EngravingDefaults? defaults}) => SmuflFont(
+    family: family,
+    glyphs: glyphs,
+    defaults: defaults ?? this.defaults,
+  );
+
   @override
   bool operator ==(Object other) =>
       other is SmuflFont &&
       other.family == family &&
       identical(other.glyphs, glyphs) &&
-      identical(other.defaults, defaults);
+      other.defaults == defaults;
 
   @override
-  int get hashCode =>
-      Object.hash(family, identityHashCode(glyphs), identityHashCode(defaults));
+  int get hashCode => Object.hash(family, identityHashCode(glyphs), defaults);
 }

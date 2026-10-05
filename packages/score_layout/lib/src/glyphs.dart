@@ -331,6 +331,9 @@ final class GlyphMetrics {
 ///
 /// The generator and `SmuflFont.fromMetadata` fail when the metadata's
 /// numeric defaults and these fields differ in either direction.
+///
+/// Two are equal when every default is, so an app may make its own in
+/// `build` without a new layout each time.
 final class EngravingDefaults {
   const EngravingDefaults({
     required this.arrowShaftThickness,
@@ -428,6 +431,121 @@ final class EngravingDefaults {
   final double tieEndpointThickness;
   final double tieMidpointThickness;
   final double tupletBracketThickness;
+
+  /// These defaults with the given ones replaced, for an app that wants
+  /// other lines than the font's. A font takes them in `SmuflFont.copyWith`.
+  EngravingDefaults copyWith({
+    double? arrowShaftThickness,
+    double? barlineSeparation,
+    double? beamSpacing,
+    double? beamThickness,
+    double? bracketThickness,
+    double? dashedBarlineDashLength,
+    double? dashedBarlineGapLength,
+    double? dashedBarlineThickness,
+    double? hBarThickness,
+    double? hairpinThickness,
+    double? legerLineExtension,
+    double? legerLineThickness,
+    double? lyricLineThickness,
+    double? octaveLineThickness,
+    double? pedalLineThickness,
+    double? repeatBarlineDotSeparation,
+    double? repeatEndingLineThickness,
+    double? slurEndpointThickness,
+    double? slurMidpointThickness,
+    double? staffLineThickness,
+    double? stemThickness,
+    double? subBracketThickness,
+    double? textEnclosureThickness,
+    double? thickBarlineThickness,
+    double? thinBarlineThickness,
+    double? tieEndpointThickness,
+    double? tieMidpointThickness,
+    double? tupletBracketThickness,
+  }) => EngravingDefaults(
+    arrowShaftThickness: arrowShaftThickness ?? this.arrowShaftThickness,
+    barlineSeparation: barlineSeparation ?? this.barlineSeparation,
+    beamSpacing: beamSpacing ?? this.beamSpacing,
+    beamThickness: beamThickness ?? this.beamThickness,
+    bracketThickness: bracketThickness ?? this.bracketThickness,
+    dashedBarlineDashLength:
+        dashedBarlineDashLength ?? this.dashedBarlineDashLength,
+    dashedBarlineGapLength:
+        dashedBarlineGapLength ?? this.dashedBarlineGapLength,
+    dashedBarlineThickness:
+        dashedBarlineThickness ?? this.dashedBarlineThickness,
+    hBarThickness: hBarThickness ?? this.hBarThickness,
+    hairpinThickness: hairpinThickness ?? this.hairpinThickness,
+    legerLineExtension: legerLineExtension ?? this.legerLineExtension,
+    legerLineThickness: legerLineThickness ?? this.legerLineThickness,
+    lyricLineThickness: lyricLineThickness ?? this.lyricLineThickness,
+    octaveLineThickness: octaveLineThickness ?? this.octaveLineThickness,
+    pedalLineThickness: pedalLineThickness ?? this.pedalLineThickness,
+    repeatBarlineDotSeparation:
+        repeatBarlineDotSeparation ?? this.repeatBarlineDotSeparation,
+    repeatEndingLineThickness:
+        repeatEndingLineThickness ?? this.repeatEndingLineThickness,
+    slurEndpointThickness: slurEndpointThickness ?? this.slurEndpointThickness,
+    slurMidpointThickness: slurMidpointThickness ?? this.slurMidpointThickness,
+    staffLineThickness: staffLineThickness ?? this.staffLineThickness,
+    stemThickness: stemThickness ?? this.stemThickness,
+    subBracketThickness: subBracketThickness ?? this.subBracketThickness,
+    textEnclosureThickness:
+        textEnclosureThickness ?? this.textEnclosureThickness,
+    thickBarlineThickness: thickBarlineThickness ?? this.thickBarlineThickness,
+    thinBarlineThickness: thinBarlineThickness ?? this.thinBarlineThickness,
+    tieEndpointThickness: tieEndpointThickness ?? this.tieEndpointThickness,
+    tieMidpointThickness: tieMidpointThickness ?? this.tieMidpointThickness,
+    tupletBracketThickness:
+        tupletBracketThickness ?? this.tupletBracketThickness,
+  );
+
+  List<double> get _values => [
+    arrowShaftThickness,
+    barlineSeparation,
+    beamSpacing,
+    beamThickness,
+    bracketThickness,
+    dashedBarlineDashLength,
+    dashedBarlineGapLength,
+    dashedBarlineThickness,
+    hBarThickness,
+    hairpinThickness,
+    legerLineExtension,
+    legerLineThickness,
+    lyricLineThickness,
+    octaveLineThickness,
+    pedalLineThickness,
+    repeatBarlineDotSeparation,
+    repeatEndingLineThickness,
+    slurEndpointThickness,
+    slurMidpointThickness,
+    staffLineThickness,
+    stemThickness,
+    subBracketThickness,
+    textEnclosureThickness,
+    thickBarlineThickness,
+    thinBarlineThickness,
+    tieEndpointThickness,
+    tieMidpointThickness,
+    tupletBracketThickness,
+  ];
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(other, this)) {
+      return true;
+    }
+    if (other is! EngravingDefaults) {
+      return false;
+    }
+    final theirs = other._values;
+    return _values.indexed.every((value) => theirs[value.$1] == value.$2);
+  }
+
+  @override
+  int get hashCode => Object.hashAll(_values);
 }
 
 /// The SMuFL names of the fields of [EngravingDefaults], in their order.

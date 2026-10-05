@@ -5,6 +5,7 @@ import 'package:score_layout/score_layout.dart';
 import 'package:test/test.dart';
 
 import '../tool/generate_bravura.dart' as generator;
+import 'support/engraving_defaults.dart';
 
 Map<String, Object?> bravuraMetadata() =>
     jsonDecode(File(generator.metadataPath).readAsStringSync())
@@ -176,7 +177,49 @@ void main() {
         glyphs: first.glyphs,
         defaults: second.defaults,
       ),
-      isNot(first),
+      first,
+      reason: 'defaults are compared by value',
     );
+  });
+
+  test('a copy of the engraving defaults has the named default changed and '
+      'every other as it was', () {
+    final bravura = part(bravuraMetadata(), 'engravingDefaults');
+    double original(String name) => (bravura[name]! as num).toDouble();
+    final defaults = SmuflFont.bravura.defaults;
+
+    expect(withDefault.keys, engravingDefaultNames);
+    for (final MapEntry(key: name, value: change) in withDefault.entries) {
+      final copy = change(defaults, 9.25);
+      final expected = EngravingDefaults.read(
+        (other) => other == name ? 9.25 : original(other),
+      );
+      expect(copy, expected, reason: name);
+      expect(copy.hashCode, expected.hashCode, reason: name);
+      expect(copy, isNot(defaults), reason: '$name is compared');
+    }
+    expect(defaults.copyWith(), defaults);
+  });
+
+  test('a font with other engraving defaults is another font over the same '
+      'glyphs, and equal defaults make equal fonts', () {
+    const font = SmuflFont.bravura;
+    SmuflFont stemmed(double thickness) => font.copyWith(
+      defaults: font.defaults.copyWith(stemThickness: thickness),
+    );
+
+    final thick = stemmed(0.2);
+    expect(thick.defaults.stemThickness, 0.2);
+    expect(thick.defaults.beamThickness, font.defaults.beamThickness);
+    expect(thick.family, font.family);
+    expect(identical(thick.glyphs, font.glyphs), isTrue);
+
+    expect(stemmed(0.2), thick);
+    expect(stemmed(0.2).hashCode, thick.hashCode);
+    expect(thick, isNot(font));
+    expect(stemmed(0.3), isNot(thick));
+    expect(font.copyWith(), font);
+    expect(EngravingStyle(font: stemmed(0.2)), EngravingStyle(font: thick));
+    expect(EngravingStyle(font: thick), isNot(EngravingStyle.standard));
   });
 }
