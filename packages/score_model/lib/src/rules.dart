@@ -96,3 +96,10 @@ String? instrumentProblem(Instrument instrument) {
           pitchProblem(pitch),
       ].nonNulls.firstOrNull;
 }
+
+String? templateProblem(PartTemplate template) {
+  final PartTemplate(:instrument, :staves, :clefs) = template;
+  return staves < 1 || (clefs != null && clefs.length != staves)
+      ? 'a part needs a staff and a clef each'
+      : instrumentProblem(instrument);
+}

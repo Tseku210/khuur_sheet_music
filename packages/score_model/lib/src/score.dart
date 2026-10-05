@@ -83,8 +83,9 @@ final class Score {
   /// A score with [parts], [measureCount] empty bars of [meter] in [key], and
   /// a tempo mark at the start. Ids are allocated 1, 2, 3… in document order,
   /// so two blank scores built with the same arguments are identical in
-  /// content and ids. Throws [ArgumentError] for a value a saved score may
-  /// not hold.
+  /// content and ids. Throws [ArgumentError] for no part or no bar, a template
+  /// with no staff or a clef list of another length, or a value a saved score
+  /// may not hold.
   factory Score.blank({
     required List<PartTemplate> parts,
     String title = '',
@@ -93,14 +94,14 @@ final class Score {
     KeySignature key = KeySignature.cMajor,
     Tempo tempo = Tempo.unmarked,
   }) {
-    final problem =
-        meterProblem(meter) ??
-        keyProblem(key.fifths) ??
-        tempoMarkProblem(tempo) ??
-        parts
-            .map((part) => instrumentProblem(part.instrument))
-            .nonNulls
-            .firstOrNull;
+    final problem = [
+      if (parts.isEmpty) 'a score has at least one part',
+      if (measureCount < 1) 'a score has at least one measure',
+      ?meterProblem(meter),
+      ?keyProblem(key.fifths),
+      ?tempoMarkProblem(tempo),
+      for (final part in parts) ?templateProblem(part),
+    ].firstOrNull;
     if (problem != null) {
       throw ArgumentError(problem);
     }

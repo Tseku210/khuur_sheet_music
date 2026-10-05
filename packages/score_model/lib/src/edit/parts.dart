@@ -7,11 +7,8 @@ Score _addPart(Score score, PartTemplate template, int? index, _Ids ids) {
   if (at < 0 || at > score.parts.length) {
     throw _Refuse(InvalidValue('no part place $at'));
   }
+  _check(templateProblem(template));
   final PartTemplate(:instrument, :staves, :clefs) = template;
-  if (staves < 1 || (clefs != null && clefs.length != staves)) {
-    throw const _Refuse(InvalidValue('a part needs a staff and a clef each'));
-  }
-  _check(instrumentProblem(instrument));
   final part = Part(
     id: ids.part(),
     name: template.name,

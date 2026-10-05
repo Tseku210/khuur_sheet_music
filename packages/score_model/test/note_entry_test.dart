@@ -22,6 +22,69 @@ void main() {
       expect(score.measures.first.tempos.single.offset, Moment.zero);
       expect(score.measures[1].tempos, isEmpty);
     });
+
+    for (final (what, build, message) in <(String, Score Function(), String)>[
+      (
+        'no bars',
+        () => Score.blank(parts: const [morinKhuur], measureCount: 0),
+        'a score has at least one measure',
+      ),
+      (
+        'fewer than no bars',
+        () => Score.blank(parts: const [morinKhuur], measureCount: -1),
+        'a score has at least one measure',
+      ),
+      (
+        'no parts',
+        () => Score.blank(parts: const []),
+        'a score has at least one part',
+      ),
+      (
+        'a part of no staves',
+        () => Score.blank(
+          parts: const [
+            PartTemplate(name: 'None', instrument: fiddle, staves: 0),
+          ],
+        ),
+        'a part needs a staff and a clef each',
+      ),
+      (
+        'more clefs than staves',
+        () => Score.blank(
+          parts: const [
+            PartTemplate(
+              name: 'Fiddle',
+              instrument: fiddle,
+              clefs: [Clef.treble, Clef.bass],
+            ),
+          ],
+        ),
+        'a part needs a staff and a clef each',
+      ),
+      (
+        'fewer clefs than staves',
+        () => Score.blank(
+          parts: const [
+            PartTemplate(
+              name: 'Organ',
+              instrument: fiddle,
+              staves: 3,
+              clefs: [Clef.treble, Clef.bass],
+            ),
+          ],
+        ),
+        'a part needs a staff and a clef each',
+      ),
+    ]) {
+      test('refuses $what', () {
+        expect(
+          build,
+          throwsA(
+            isA<ArgumentError>().having((e) => e.message, 'message', message),
+          ),
+        );
+      });
+    }
   });
 
   group('EditSession.start', () {
