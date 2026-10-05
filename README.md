@@ -228,7 +228,7 @@ SheetPalette.of(context).copyWith(
 )
 ```
 
-`copyWith(inks:)` replaces the whole map. The palette compares two maps by what they hold, so a map built in `build` repaints nothing while its colours stay the same.
+`copyWith(inks:)` replaces the whole map. The palette compares two maps by what they hold, so a map built in `build` repaints nothing while its colours stay the same. A new colour for one kind of mark repaints the systems that show that kind and no other.
 
 | Part | Type | What it sets |
 | --- | --- | --- |
@@ -260,7 +260,7 @@ Where a note has several of them, the ink of the selection covers a tint, and th
 
 ### The engraving style
 
-`EngravingStyle` holds what changes the layout. Every part has a default, so `EngravingStyle(staffGap: 6)` changes one.
+`EngravingStyle` holds what changes the layout. Every part has a default, so `EngravingStyle(staffGap: 6)` changes one, and `copyWith` changes some parts of a style an app already has.
 
 | Part | What it sets |
 | --- | --- |
@@ -291,7 +291,7 @@ SheetView(
 )
 ```
 
-The defaults are compared by value, so a style built in `build` lays nothing out again while its numbers stay the same. The engine draws nothing with `arrowShaftThickness`, `bracketThickness`, `dashedBarlineDashLength`, `dashedBarlineGapLength`, `hBarThickness` and `subBracketThickness`, so a change to one of those changes nothing.
+The defaults are compared by value, so a style built in `build` lays nothing out again while its numbers stay the same. A thickness of zero draws no line. A default under zero, or one that is no finite number, is refused by an assert. The engine draws nothing with `arrowShaftThickness`, `bracketThickness`, `dashedBarlineDashLength`, `dashedBarlineGapLength`, `hBarThickness` and `subBracketThickness`, so a change to one of those changes nothing.
 
 ### Sizes and single notes
 

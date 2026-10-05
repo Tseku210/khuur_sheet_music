@@ -503,7 +503,7 @@ The app sees five things:
 
 Theming is split by effect:
 - `SheetPalette` maps each `InkRole` to a colour and holds the styles of the overlay and the paper (see the styles of the overlay in the list after unit 13). It only repaints.
-- `EngravingStyle` holds layout policy. It compares by value, and a different style relays out. Its font compares by `SmuflFont ==`, which is the family and the identity of the metrics tables. The bundled Bravura is a const, so it equals itself everywhere. A font from `SmuflFont.fromMetadata` equals only itself, so an app parses once and keeps the font.
+- `EngravingStyle` holds layout policy. It compares by value, and a different style relays out. Its font compares by `SmuflFont ==`, which is the family, the identity of the glyph table and the values of the engraving defaults. The bundled Bravura is a const, so it equals itself everywhere. A font from `SmuflFont.fromMetadata` has a glyph table of its own, so it equals itself and its copies with equal defaults, and an app parses once and keeps the font.
 
 The interface is deep. Behind `SheetView(score:)` sit identity diffing, three cache levels, line breaking, justification, cross-system spanners, lazy assembly, scroll anchoring and picture reuse. The controller exists because some app needs (overlays, other gestures, export) cannot be callbacks. Its methods add the pixel and scroll conversion that only the view knows, so none of them is a pass-through.
 
@@ -1350,7 +1350,7 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
     | A named colour for each role, as `ink` and `staffLines` are. | Dropped. That is 40 parameters on the constructor and on `copyWith`, and one more with every role. |
 
   - Two palettes are compared by what their maps hold, so a palette built in `build` with a new map of the same colours repaints nothing. `copyWith(inks:)` replaces the whole map. A merge could not take a colour away.
-  - A system and the header repaint when some role gets another colour, which the painters ask of `colorOf` for every role. So a colour in `inks` that is the colour its role had already repaints nothing.
+  - A system and the header repaint when a role they show gets another colour, which the painters ask of `colorOf`. So a colour in `inks` that is the colour its role had already repaints nothing, and a new colour for the lyrics repaints the systems that have lyrics.
   - Every part of one thing has that thing's role. These are the choices that were not plain.
     - The line that joins the staves at the start of a system is `barline`. It was `bracket` at first, with the brace. It is as thick as a thin barline, and an app that greys its barlines would have left it black. The brace's role is named `brace`, which is all it holds now.
     - Repeat dots are `barline`. The slash through a grace note's stem is `flag`. A tremolo's strokes, an arpeggio and a trill line are `ornament`. A fermata and a harmonic are `articulation`.
@@ -1372,13 +1372,29 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
     | A copy of the font holds other defaults. | Taken. The engine does not change, and the font already is the one object that holds the family and the metrics. |
     | A set of line thicknesses on `EngravingStyle` overrides the font's. | Dropped. Every read of `style.font.defaults` in the engine would have to go through the style, and a thickness would have two homes. |
 
-  - `EngravingStyle` has no `copyWith`, so a style with another font is built anew. That is as it was for every other part of the style.
+  - `EngravingStyle` has a `copyWith`, which the review below added, so an app changes the font of a style it already has.
   - The engine reads 22 of the 28 defaults. It reads none of `arrowShaftThickness`, `bracketThickness`, `dashedBarlineDashLength`, `dashedBarlineGapLength`, `hBarThickness` and `subBracketThickness`, so a change to one of those changes nothing. The bar of a rest of several bars is as thick as a glyph of the font, and no default sets it.
   - `packages/score_layout/test/engraving_defaults_test.dart` holds the table of which default sets which kind of mark. Each of the 22 changes the marks of its kind, each of the 6 changes nothing, and every line and every curve the test scores draw is as thick as a default of its own kind says, at full size or at the size of a grace note. 7 defects were planted in the engine, and each failed a test.
   - The painter asked for the bundled font file only for a font equal to `SmuflFont.bravura`. A copy with other defaults is not equal, so every glyph of it would have come from a fallback font in an app. The painter now takes the bundled file for a font of the bundled family over the bundled glyph table. No test had drawn a glyph with a copy. One does now, with the file loaded under the bundled name alone, and it drew a box 13 pixels too wide before the change.
   - `test/line_thickness_test.dart` paints through the root library's exports. A stem is 0.4 staff spaces of ink across when the app says so, and the box of a rehearsal mark is as thick as its default, which the painter reads and not the layout. The view lays the sheet out again and paints with the new font when the defaults change, and keeps its layout for a style of equal defaults built anew. 6 defects were planted, 5 in the shell and 1 in the font's equality, and each failed a test.
   - The root has 191 tests now, the example 58, the model 784 and the layout package 546. The benchmark reads 40.093 of 50 ms for the first layout of 500 bars, 0.462 of 1 ms for an update and 167.697 of 200 ms for 2000 bars.
   - Not verified. Nothing ran on a device or in a GUI. The pictures come from `flutter test`.
+- **The review of the colours and the thicknesses.** An independent review read the two units in two passes. The first range left out the two commits that gave every drawable its role, so a second pass read those. The first pass found eight things and the second two, each with a probe that showed it.
+  - These changed.
+    - No default was checked. One under zero broke the assert that no box is inverted, which names no default. One that is no number threw from deep in the layout, or gave bounds that are no number. `EngravingDefaults` now refuses a default under zero, or one that is no finite number, with an assert of its own for each of the 28. Zero is taken.
+    - A `lyricLineThickness` above 0.8 broke the assert that assembly draws inside the band its plan reserved, since an extender thicker than its syllable hung out under its row. A row of lyrics now has at least half the extender's line above its baseline and half under it. Every test sheet is laid out with each default at zero, at three and at eight staff spaces.
+    - A thickness of zero still drew a hairline for a line, a dashed curve, the outline of a slur and the box of a rehearsal mark, since the engine draws a stroke of no width one pixel wide. So a stem of no thickness was drawn and a beam of no thickness was not. The painter now draws no stroke of no width.
+    - A new colour for one kind of mark repainted the header and every system. A painter now repaints when a kind of mark it shows gets another colour. So a new colour for the title repaints the header alone, a new colour for the time signature repaints the systems that print one, and a new `staffLines` no longer repaints the header.
+    - `EngravingStyle` got a `copyWith`. The defaults test had dropped each sheet's own style to change the font, so its table could lose the one role that no default rules and still pass. It lays each sheet out in its own style now.
+    - Five planted defects had passed every test, and each fails one now. They are a repaint that looks at three roles, the box of a rehearsal mark in black, a dashed curve in black, an image painted without `inks`, and the bundled font file taken for every font of the family `Bravura`. A dashed slur joined the role scores for the third.
+    - Three texts were stale. The font's doc and this document said a font compares its defaults by identity, and the painter's comment on its cache counted one colour.
+  - The second pass found no wrong role at any site. Its dump of 68,746 drawables is the same before and after the two commits in every field but the role. It found two gaps in the tests.
+    - No test had a note under its instrument's range. A chord test now has a note under the range, one over it and the two notes at its ends.
+    - A role that is wrong for one form of a mark passed. A role test now draws a diminuendo, a tenuto, a dashed and a dotted barline, and the bar number and the short part name of a later system.
+  - Left as it is. The two planted defects in the palette's hash still pass, as said above.
+  - 30 defects were planted after the fixes. 14 are in the painters and the image, 7 in the engine and its tests, 3 in the test of a range and 6 are the second pass's roles. 29 failed a test. The floor above a row's baseline got through, and a test of an extender eight staff spaces thick pins it now.
+  - The root has 195 tests now, the example 58, the model 784 and the layout package 551. The benchmark reads 38.659 of 50 ms for the first layout of 500 bars, 0.444 of 1 ms for an update and 160.561 of 200 ms for 2000 bars.
+  - Not verified. Nothing ran on a device or in a GUI.
 
 
 ## Open questions and risks

@@ -234,10 +234,12 @@ final class GlyphPainter {
   final SmuflFont font;
 
   /// At most [_capacity] paragraphs, the oldest dropped first and freed.
-  /// One zoom level and one palette need 222 at most, so a zoom or a tint
-  /// colour that is no longer used falls out by itself. A picture keeps
-  /// what was painted in it, so a paragraph may go while its picture is
-  /// open.
+  /// One zoom level and one colour need 222 at most, one for each glyph.
+  /// A palette with a colour for each kind of mark needs one more for each
+  /// glyph that two kinds draw, as the sharp of a key signature and of a
+  /// note. So a zoom or a tint colour that is no longer used falls out by
+  /// itself. A picture keeps what was painted in it, so a paragraph may go
+  /// while its picture is open.
   final Map<(int, double, Color), ui.Paragraph> _paragraphs = {};
 
   /// The sheet's text, kept as the glyphs are. A text that sounds is

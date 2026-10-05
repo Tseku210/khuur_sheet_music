@@ -13,9 +13,10 @@ import 'smufl_metadata.dart';
 /// Two fonts are equal when they name the same family, hold the same glyph
 /// table by identity and have equal [defaults]. The const [bravura] is
 /// canonical, so it equals itself everywhere. A font from
-/// [SmuflFont.fromMetadata] equals only itself, so an app parses its
-/// metadata once and keeps the font. Parsing it again makes an unequal
-/// font, an unequal style and a full layout.
+/// [SmuflFont.fromMetadata] has a glyph table of its own, so it equals
+/// itself and its copies with equal defaults. An app parses its metadata
+/// once and keeps the font. Parsing it again makes an unequal font, an
+/// unequal style and a full layout.
 final class SmuflFont {
   const SmuflFont({
     required this.family,
