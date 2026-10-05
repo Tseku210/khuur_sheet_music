@@ -47,6 +47,13 @@ abstract interface class MidiOutput {
 
 /// Plays through `flutter_midi_pro` (Android, iOS and macOS).
 final class FlutterMidiOutput implements MidiOutput {
+  /// The plugin's `init` while it runs, which every output waits for. The
+  /// plugin is one synthesizer for the whole process. Its `isInitialized`
+  /// is true from the start of `init`, and `init` ends by emptying the
+  /// directory it keeps loaded SoundFonts in, so an output that loaded
+  /// before the end would lose its SoundFont.
+  static Future<void>? _init;
+
   final MidiPro _midi = MidiPro();
   int? _soundFontId;
 
@@ -58,8 +65,8 @@ final class FlutterMidiOutput implements MidiOutput {
 
   @override
   Future<void> load(SoundFont soundFont) async {
-    if (!_midi.isInitialized) {
-      await _midi.init();
+    if (_init != null || !_midi.isInitialized) {
+      await (_init ??= _midi.init().whenComplete(() => _init = null));
     }
     final id = await switch (soundFont) {
       AssetSoundFont(:final path) => _midi.loadSoundfontAsset(assetPath: path),

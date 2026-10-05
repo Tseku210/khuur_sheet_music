@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:flutter_midi_pro/flutter_midi_pro.dart';
 import 'package:flutter_midi_pro/flutter_midi_pro_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khuur_sheet_music/src/midi_output.dart';
@@ -54,6 +56,39 @@ class FakeMidiPlatform extends FlutterMidiProPlatform
 
   @override
   Future<void> unloadSoundfont(int sfId) async => calls.add('unload sf$sfId');
+
+  @override
+  Future<void> dispose() async {}
+}
+
+/// A platform whose `init` waits for [endInit] and fails with [initError].
+/// Its [calls] also tell when `init` begins and ends and when a SoundFont
+/// is loaded.
+class GatedMidiPlatform extends FakeMidiPlatform {
+  PlatformException? initError;
+
+  // Made by `init`. A future answers in the zone it was made in, and a
+  // test's body is not in the zone its `runAsync` waits in.
+  late Completer<void> _initGate;
+
+  void endInit() => _initGate.complete();
+
+  @override
+  Future<void> init(int sampleRate, int bufferSize, int polyphony) async {
+    calls.add('init begins');
+    _initGate = Completer<void>();
+    await _initGate.future;
+    if (initError case final error?) {
+      throw error;
+    }
+    calls.add('init ends');
+  }
+
+  @override
+  Future<int> loadSoundfont(String path, int bank, int program) {
+    calls.add('load');
+    return super.loadSoundfont(path, bank, program);
+  }
 }
 
 class FakePathProvider extends PathProviderPlatform
@@ -94,7 +129,12 @@ void main() {
     PathProviderPlatform.instance = FakePathProvider(tmp);
   });
 
-  tearDown(() {
+  tearDown(() async {
+    // The plugin is one synthesizer for the whole process, so a test shuts
+    // down the one it started.
+    if (MidiPro().isInitialized) {
+      await MidiPro().dispose();
+    }
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMessageHandler('flutter/assets', null);
     tmp.deleteSync(recursive: true);
@@ -270,5 +310,56 @@ void main() {
     });
 
     expect(midi.calls, ['unload sf7']);
+  });
+
+  testWidgets(
+    'two outputs that load at once share one init, and neither loads its '
+    'SoundFont before it ends',
+    (tester) async {
+      final gated = GatedMidiPlatform();
+      FlutterMidiProPlatform.instance = gated;
+      final first = FlutterMidiOutput();
+      final second = FlutterMidiOutput();
+
+      await tester.runAsync(() async {
+        final loading = [first.load(soundFont), second.load(soundFont)];
+        // An output that did not wait for the init would load its SoundFont
+        // in this time.
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        gated.endInit();
+        await Future.wait(loading);
+      });
+
+      expect(gated.calls, ['init begins', 'init ends', 'load', 'load']);
+      first.dispose();
+      second.dispose();
+    },
+  );
+
+  testWidgets('a load after an init that failed starts init again', (
+    tester,
+  ) async {
+    final gated = GatedMidiPlatform()
+      ..initError = PlatformException(code: 'INIT_FAILED');
+    FlutterMidiProPlatform.instance = gated;
+    final first = FlutterMidiOutput();
+    final second = FlutterMidiOutput();
+
+    await tester.runAsync(() async {
+      final loading = [first.load(soundFont), second.load(soundFont)];
+      gated.endInit();
+      await Future.wait([
+        for (final load in loading)
+          expectLater(load, throwsA(isA<PlatformException>())),
+      ]);
+      gated.initError = null;
+      final again = second.load(soundFont);
+      gated.endInit();
+      await again;
+    });
+
+    expect(gated.calls, ['init begins', 'init begins', 'init ends', 'load']);
+    first.dispose();
+    second.dispose();
   });
 }
