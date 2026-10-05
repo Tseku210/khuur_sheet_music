@@ -3,6 +3,7 @@ import 'package:score_model/score_model.dart';
 import 'package:test/test.dart';
 
 import '../../score_model/test/random_edits.dart';
+import '../../score_model/test/support.dart';
 import 'support/fake_measurer.dart';
 import 'support/role_scores.dart';
 import 'support/sheets.dart';
@@ -436,6 +437,9 @@ void main() {
         'A slur is slur.',
         count: 1,
       );
+      final dashes = ofSpanner(layout, dashedSlur).whereType<CurveDraw>();
+      expect(dashes.single.dashed, isTrue);
+      expectRole(dashes, InkRole.slur, 'A dashed slur is slur.', count: 1);
     });
 
     test('has one role in every part', () {
@@ -720,6 +724,74 @@ void main() {
         count: 1,
       );
     });
+  });
+
+  test('a mark keeps its role in its other forms and on a later system', () {
+    var score = blankScore(
+      parts: const [
+        PartTemplate(name: 'Fiddle', shortName: 'Fd.', instrument: fiddle),
+      ],
+      bars: 3,
+    );
+    score = fill(score, 0, [
+      chordOf(1, 'A4').copyWith(articulations: {Articulation.tenuto}),
+      for (var beat = 1; beat < 4; beat++) chordOf(1 + beat, 'A4'),
+    ]);
+    score = withSpanner(
+      score,
+      const Hairpin(crescendo: false),
+      pointAt(score, 0, at(0, 4)),
+      pointAt(score, 0, at(1, 4)),
+    );
+    for (final (bar, barline) in const [
+      Barline.dashed,
+      Barline.dotted,
+    ].indexed) {
+      score = changeBar(
+        score,
+        bar,
+        (column) => column.copyWith(barline: barline),
+      );
+    }
+    score = changeBar(
+      score,
+      2,
+      (column) => column.copyWith(breakBefore: () => LayoutBreak.system),
+    );
+    final layout = lay(score);
+    expect(layout.systemCount, 2);
+    final first = layout.systemAt(0).drawables;
+
+    expectRole(
+      layout.systemAt(0).drawablesOf(const SpannerOwner(SpannerId(900))),
+      InkRole.hairpin,
+      'A diminuendo is hairpin, as a crescendo is.',
+      count: 2,
+    );
+    expectRole(
+      glyphs(first, 'articTenuto'),
+      InkRole.articulation,
+      'A tenuto is articulation.',
+      count: 1,
+    );
+    expectRole(
+      first.whereType<LineDraw>().where((line) => line.dash != LineDash.solid),
+      InkRole.barline,
+      'A dashed barline and a dotted one are barline.',
+      count: 2,
+    );
+    expectRole(
+      texts(layout.systemAt(1).drawables, 'Fd.'),
+      InkRole.partName,
+      'The short name of a part on a later system is partName.',
+      count: 1,
+    );
+    expectRole(
+      [?layout.labelOf(1)],
+      InkRole.barNumber,
+      'The bar number of a later system is barNumber.',
+      count: 1,
+    );
   });
 
   test('a text has the role named like its TextRole, but for the text of a '

@@ -143,8 +143,10 @@ const glissando = 903;
 const pedal = 904;
 const trillLine = 905;
 const tempoLine = 906;
+const dashedSlur = 907;
 
-/// A tie, one spanner of each kind, and a volta over the third bar.
+/// A tie, one spanner of each kind, a dashed slur, and a volta over the
+/// third bar.
 Score lineScore() {
   var score = blankScore(bars: 4);
   for (var bar = 0; bar < 4; bar++) {
@@ -164,6 +166,7 @@ Score lineScore() {
     (const PedalLine(), 2, 0),
     (const TrillLine(), 2, 2),
     (TempoLine.ritardando, 3, 2),
+    (const Slur(dashed: true), 3, 0),
   ]) {
     score = withSpanner(
       score,

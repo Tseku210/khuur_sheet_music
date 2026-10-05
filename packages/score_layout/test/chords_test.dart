@@ -323,9 +323,11 @@ void main() {
         highest: Pitch(Step.c, 5),
       );
       final items = chordItems(
-        barOf([chordOf(1, 'C5 D5', value: whole)], instrument: alto),
+        barOf([chordOf(1, 'B3 C4 C5 D5', value: whole)], instrument: alto),
       );
 
+      expect(headAt(items, -3).ink, InkRole.outOfRange);
+      expect(headAt(items, -2).ink, InkRole.notehead);
       expect(headAt(items, 5).ink, InkRole.notehead);
       expect(headAt(items, 6).ink, InkRole.outOfRange);
     });
