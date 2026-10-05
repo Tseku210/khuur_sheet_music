@@ -1902,6 +1902,51 @@ void main() {
       );
     });
 
+    test("reads back a grace note's fingering and string", () {
+      PitchedNote grace(int id, String pitch, {int? finger, int? string}) =>
+          PitchedNote(
+            id: NoteId(id),
+            pitch: Pitch.parse(pitch),
+            fingering: finger,
+            string: string,
+          );
+      final score = scoreWith([
+        ChordEvent(
+          id: const EventId(1),
+          value: NoteValue.whole,
+          notes: Seq([grace(2, 'C5')]),
+          graces: Seq([
+            GraceChord(
+              id: const EventId(3),
+              kind: GraceKind.acciaccatura,
+              value: NoteValue.eighth,
+              notes: Seq([
+                grace(4, 'D5', finger: 3, string: 1),
+                grace(5, 'F5', finger: 0, string: 0),
+              ]),
+            ),
+            GraceChord(
+              id: const EventId(6),
+              kind: GraceKind.appoggiatura,
+              value: NoteValue.eighth,
+              notes: Seq([grace(7, 'E5', string: 1), grace(8, 'G5')]),
+            ),
+          ]),
+        ),
+      ]);
+
+      final back = scoreFromMusicXml(scoreToMusicXml(score));
+
+      expect(
+        [
+          for (final grace in chordsIn(back, 0).single.graces)
+            for (final note in grace.notes.cast<PitchedNote>())
+              ('${note.pitch}', note.fingering, note.string),
+        ],
+        [('D5', 3, 1), ('F5', 0, 0), ('E5', null, 1), ('G5', null, null)],
+      );
+    });
+
     test('reads a lone rest that fills the bar as a measure rest, and cue '
         'notes as silence', () {
       final score = imported(

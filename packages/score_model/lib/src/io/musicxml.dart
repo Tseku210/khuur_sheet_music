@@ -487,6 +487,13 @@ final class _Export {
       ]);
     }
 
+    List<XmlElement> fingered(Note? note) => [
+      if (note case PitchedNote(:final fingering?))
+        _text('fingering', '$fingering'),
+      if (note case PitchedNote(:final string?))
+        _text('string', '${part.instrument.strings.length - string}'),
+    ];
+
     /// Notations on the first note of [event] (or on a rest) and on each
     /// note of a chord.
     XmlElement? notations(Event event, {Note? note, required bool first}) {
@@ -510,10 +517,7 @@ final class _Export {
           _el(bowing == Bowing.up ? 'up-bow' : 'down-bow'),
         if (first && event.articulations.contains(Articulation.harmonic))
           _el('harmonic'),
-        if (note case PitchedNote(:final fingering?))
-          _text('fingering', '$fingering'),
-        if (note case PitchedNote(:final string?))
-          _text('string', '${part.instrument.strings.length - string}'),
+        ...fingered(note),
       ];
       final articulations = [
         if (first)
@@ -559,6 +563,8 @@ final class _Export {
               ?_accidental(staff.accidentals[note.id]),
               ?_notehead(staff.headOf(note)),
               ?_staff(staff, k),
+              if (fingered(note) case final technical when technical.isNotEmpty)
+                _el('notations', [_el('technical', technical)]),
             ]),
         for (final (i, note) in chord.notes.indexed)
           _el('note', [

@@ -740,6 +740,44 @@ void main() {
       ]);
     });
 
+    test("writes a grace note's fingering and string", () {
+      final xml = exported(
+        scoreWith([
+          ChordEvent(
+            id: const EventId(1),
+            value: NoteValue.whole,
+            notes: Seq([
+              PitchedNote(id: const NoteId(2), pitch: Pitch.parse('C5')),
+            ]),
+            graces: Seq([
+              GraceChord(
+                id: const EventId(3),
+                kind: GraceKind.acciaccatura,
+                value: NoteValue.eighth,
+                notes: Seq([
+                  PitchedNote(
+                    id: const NoteId(4),
+                    pitch: Pitch.parse('D5'),
+                    fingering: 3,
+                    string: 0,
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      );
+
+      expect(
+        compact(xml.findAllElements('note').first),
+        joined('''
+          <note><grace slash="yes"/><pitch><step>D</step><octave>5</octave></pitch>
+          <voice>1</voice><type>eighth</type>
+          <notations><technical><fingering>3</fingering><string>2</string></technical></notations></note>
+        '''),
+      );
+    });
+
     test('writes directions before the note they share a time with', () {
       final bar = measure(exported(showcase()), 'P1', 0);
 
