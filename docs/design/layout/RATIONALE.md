@@ -1473,6 +1473,15 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
   - The root has 202 tests now, the example 90, the model 792 and the layout package 570. The engine did not change, so the benchmark was not run again for this unit.
   - Not verified. No device ran the renamed app.
 
+- **A final review before the pull request.** Seven read-only reviewers each took one slice of the branch on 2026-10-05, with a private copy to run scratch tests in. The slices were the model's core, its edits, its reading and writing, the layout of one bar, the layout from systems up, the Flutter shell with the example, and what crosses all of them. Each finding that changed code was reproduced first, and has a test that failed before the fix. What the review changed in the model is in the model's record.
+  - **A beam's boxes are sized for the bar pressed to its rods.** A stretch keeps a beam's end heights and moves its stems, so the beam is steepest on the rods. `planBeam` took the slope at stretch 1 for its boxes, and its doc said the vertical range held at any stretch. It did not. On a sheet too narrow for its bar the corner past the end stem left the box by up to 0.002 staff spaces, which the band's check in `assembleSystem` refuses. A bass bar of eighths D3 E3 F3 G3 threw at sheet widths 22, 18 and 12, and a bar of sixteenths B4 C5 D5 E5 from 36 down. `planBeam` now takes the slices' x at the rods as well and sizes the boxes there. The picture did not change. The test that pinned the boxes to the picture at stretch 1 now pins them at the rods and asks that they hold at stretches 0, 0.5, 1 and 2, for a rising and a falling beam on each stem side. Clamping the drawn corners to the end heights was the other way. It was not taken, since it changes the picture to fit the box and leaves a secondary beam not parallel to the primary one.
+  - **A slur's room covers both of its end chords.** An end stands half a space clear of its chord's whole heads box, and that box reaches past the head's centre to a stem on the far side. The room was measured from centre to centre. In a bar of two voices the stems of voice one point up and its slurs go above, so a slur that rose to a note a fourth or more higher ended beside the tallest stem, past the room's limit. On the top staff of a system that left the band and threw. Elsewhere it reached up to 0.66 spaces into the neighbour's room, and the curve had no arc, because the limit left it none. The mirror held for voice two. The room is now measured over both boxes, so an end is never past the limit and a rising slur arcs as a falling one did. `spanners_test.dart` holds five cases in both voices.
+  - **A sloped line is hit near its ink.** `Drawable.distanceTo` measured every line from its box. A glissando's box is the staff between its two notes, so a tap there hit the glissando and an editor could not enter a note between them. A sloped `LineDraw` now measures from the segment widened by half its thickness. A level or upright line's box is its ink, and it measures as before, to the last bit. A hairpin's arms are sloped too, and a tap between them now measures to the nearer arm.
+  - **A bar's rest-only state comes from the model alone.** `layoutBar` asked `MeasureView.isRestOnly` and then looked for a fermata itself. The model now answers no for a bar rest under a fermata, and the layout's own check is gone.
+  - **The root's pictures are set in the SDK's Roboto.** `loadTextFont` read Arial from macOS and fell back to boxes elsewhere, and two picture tests broke their systems by the width of that text. A host without Arial, the CI's Linux among them, would have failed both. The helper now loads `Roboto-Regular.ttf` from the Flutter SDK's cache, which every host has.
+  - The reviewer of the layout from systems up counted breaches over 14,400 updated layouts in four styles, and over 6,000 on one staff with no bar number above it. Before these changes the counts were 123 beams and 2 slurs. After them both runs print none, and no updated layout differs from a fresh one.
+  - The seeded band check in `random_sheet_test.dart` did not see the beam or the slur, since a bar number or a tempo mark stood above each. A copy of it with bar numbers off passed on the engine before the fixes too, so it was not kept. The named tests hold the cases.
+  - Not changed, and open. A folded rest run narrower than about five spaces draws its bar inside out. `EngravingStyle` and `SpacingPolicy` take any number, and a ratio of 0 throws from the beam's snap. `_placeRun` in `spanners.dart` builds the same row and body four times. List equality is written by hand in seven files. `sheet_view.dart` holds the scroll driver beside the widget.
 
 ## Open questions and risks
 
@@ -1487,7 +1496,7 @@ Deviations accepted while implementing, by unit. The owner of each is the implem
 - The courtesy clef prints whatever `courtesySignatures` says (see the clef unit).
 - `MidiOutput` is exported (see unit 12).
 - A `Semantics` label per system tile is enough for the first release.
-- `design/score-model` stays unpushed until unit 13 lands.
+- `design/score-model` is pushed when the owner says so. Every unit has landed.
 - `ScoreMeta.copyright` stays unprinted on the scrolling sheet (see the header's entry in the reconciliation). An image from `toImage` therefore carries no rights line unless the app adds one.
 - The limits of the band are accepted for the first release (see the risks below). A system-level pass that separates two lines on one side of a staff, and that raises a slur over a tall note beside its end, is a follow-up.
 - The owner heard the `ScorePlayer` demo on macOS and found it correct.
@@ -1526,6 +1535,8 @@ Risks:
 - **Publishing.** `score_layout` and `score_model` would have to be published before `khuur_sheet_music` could go on pub.dev.
 
 ## Next implementation step
+
+Every unit below has landed. The list stays as the plan each unit was checked against.
 
 Prove glyph placement with gate 1 before writing any layout body.
 
