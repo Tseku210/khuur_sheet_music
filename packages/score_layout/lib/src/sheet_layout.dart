@@ -248,15 +248,11 @@ final class SheetLayout {
     DurationBase grid = DurationBase.sixteenth,
     double reach = 0,
   }) {
-    final index = _systemAtY(point.y);
-    if (index == null) {
+    final under = _systemUnder(point);
+    if (under == null) {
       return null;
     }
-    final system = systemAt(index);
-    if (system.staves.isEmpty) {
-      return null;
-    }
-    final local = point.shift(0, -tops[index]);
+    final (system, local) = under;
     final target = system.targetAt(local, reach: reach);
     if (target case ElementOwner(ref: ElementRef(:final event))) {
       final timed = score.lookup(event)!;
@@ -268,6 +264,46 @@ final class SheetLayout {
         target: target,
       );
     }
+    return _entryIn(system, local, voice, grid, target);
+  }
+
+  /// Where a note entered at [point] in [voice] would go, whatever is drawn
+  /// there. It is steps 1, 4 and 5 of [hitTest], so the hit has no target,
+  /// and it is null where [hitTest] is null.
+  ///
+  /// An editor asks this for a finger that is held on the sheet to place a
+  /// note. [hitTest] at a rest in the middle of its bar gives the rest's
+  /// onset, which is the start of the bar and far from the finger.
+  SheetHit? entryAt(
+    SpPoint point, {
+    VoiceSlot voice = VoiceSlot.one,
+    DurationBase grid = DurationBase.sixteenth,
+  }) => switch (_systemUnder(point)) {
+    (final system, final local) => _entryIn(system, local, voice, grid, null),
+    null => null,
+  };
+
+  /// The system a tap at [point] belongs to, with the point in that
+  /// system's space. Null where no system is and on a system without a
+  /// staff.
+  (SystemLayout, SpPoint)? _systemUnder(SpPoint point) {
+    final index = _systemAtY(point.y);
+    if (index == null) {
+      return null;
+    }
+    final system = systemAt(index);
+    return system.staves.isEmpty
+        ? null
+        : (system, point.shift(0, -tops[index]));
+  }
+
+  SheetHit _entryIn(
+    SystemLayout system,
+    SpPoint local,
+    VoiceSlot voice,
+    DurationBase grid,
+    Owner? target,
+  ) {
     final bar = system.barAt(local.x);
     final staff = system.staffNear(local.y);
     final times = voiceTimes(

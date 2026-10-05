@@ -690,6 +690,112 @@ void main() {
     });
   });
 
+  group('an entry at a point', () {
+    test('on a rest drawn in the middle of its bar is where the point is and '
+        'has no target, where a tap there is at the start of the bar', () {
+      final layout = barSheet([
+        const MeasureRest(id: EventId(1), span: Length.whole),
+      ]);
+      final system = layout.systemAt(0);
+      final bar = system.bars.single;
+      final rest = system.drawables.whereType<GlyphDraw>().singleWhere(
+        (draw) => draw.owner == ElementOwner(eventRef(1)),
+      );
+      final centre = centreOf(rest.bounds);
+      final point = sheetPoint(layout, 0, centre);
+      double off(Moment time) => (bar.time.xAt(time) - centre.x).abs();
+      final nearest = [
+        for (var quarter = 0; quarter < 4; quarter++) at(quarter, 4),
+      ].reduce((a, b) => off(a) <= off(b) ? a : b);
+      expect(nearest, isNot(Moment.zero));
+
+      final tap = layout.hitTest(point, grid: DurationBase.quarter)!;
+      expect(tap.target, ElementOwner(eventRef(1)));
+      expect(tap.at, ScorePoint(barId(0), Moment.zero));
+
+      final entry = layout.entryAt(point, grid: DurationBase.quarter)!;
+      expect(entry.target, isNull);
+      expect(entry.at, ScorePoint(barId(0), nearest));
+      expect(
+        (entry.staff, entry.voice, entry.staffStep),
+        (staffId(0), VoiceSlot.one, system.staves.single.stepAt(centre.y)),
+      );
+    });
+
+    test('on a note of another voice is in the voice asked about, at a time '
+        'of that voice', () {
+      final layout = barSheet(
+        [chordOf(1, 'C5', value: whole)],
+        two: [
+          chordOf(2, 'E4', value: half),
+          chordOf(3, 'E4', value: half),
+        ],
+      );
+      final head = headOf(layout.systemAt(0), ElementOwner(noteRef(3)));
+      final point = sheetPoint(layout, 0, centreOf(head.bounds));
+
+      final tap = layout.hitTest(point, grid: DurationBase.whole)!;
+      expect(
+        (tap.voice, tap.at),
+        (VoiceSlot.two, ScorePoint(barId(0), at(1, 2))),
+      );
+
+      final entry = layout.entryAt(point, grid: DurationBase.whole)!;
+      expect(
+        (entry.voice, entry.at, entry.target),
+        (VoiceSlot.one, ScorePoint(barId(0), Moment.zero), null),
+      );
+      final second = layout.entryAt(
+        point,
+        voice: VoiceSlot.two,
+        grid: DurationBase.whole,
+      )!;
+      expect(
+        (second.voice, second.at, second.target),
+        (VoiceSlot.two, ScorePoint(barId(0), at(1, 2)), null),
+      );
+    });
+
+    test('is the tap there wherever the tap has no note or rest under it, '
+        'and is null where the tap is null', () {
+      final layout = sheetOf(
+        beatsScore(4, clefs: const [Clef.treble, Clef.bass]),
+        width: 40,
+      );
+      expect(layout.systemCount, greaterThan(1));
+      final bottom = layout.tops.last + layout.heightOf(layout.systemCount - 1);
+      var free = 0;
+      var onMarks = 0;
+      var offSheet = 0;
+      for (var x = 0.25; x < 40; x += 0.75) {
+        for (var y = -12.0; y < bottom + 12; y += 0.5) {
+          final point = SpPoint(x, y);
+          final tap = layout.hitTest(point);
+          final entry = layout.entryAt(point);
+          if (tap == null) {
+            expect(entry, isNull, reason: '$x, $y');
+            offSheet++;
+            continue;
+          }
+          expect(entry!.target, isNull, reason: '$x, $y');
+          if (tap.target is ElementOwner) {
+            onMarks++;
+            continue;
+          }
+          expect(
+            (entry.staff, entry.voice, entry.at, entry.staffStep),
+            (tap.staff, tap.voice, tap.at, tap.staffStep),
+            reason: '$x, $y',
+          );
+          free++;
+        }
+      }
+      expect(free, greaterThan(1000));
+      expect(onMarks, greaterThan(10));
+      expect(offSheet, greaterThan(10));
+    });
+  });
+
   group('the system readers', () {
     test('barOf finds a system\'s bar by id and gives null for a bar of '
         'another system', () {
