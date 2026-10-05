@@ -9,6 +9,108 @@ TextSpec specOf(double size) =>
     TextSpec(size: size, bold: true, family: 'Serif');
 
 void main() {
+  test('a copy of a style has the given part replaced and every other as it '
+      'was', () {
+    final renamed = SmuflFont(
+      family: 'Other',
+      glyphs: SmuflFont.bravura.glyphs,
+      defaults: SmuflFont.bravura.defaults,
+    );
+    // No part of the standard style is in this one, so a part that a copy
+    // drops shows as a default.
+    final base = EngravingStyle(
+      font: renamed,
+      spacing: policyOf(1.5),
+      text: {TextRole.lyric: specOf(3)},
+      graceScale: 0.5,
+      staffGap: 5,
+      lyricGap: 1,
+      systemGap: 7,
+      multiMeasureRests: true,
+      meterEverySystem: true,
+      courtesySignatures: false,
+      justifyLastSystemFrom: 0.5,
+      barNumbers: false,
+      quarterTones: QuarterToneGlyphs.gouldArrows,
+      stringNumbers: StringNumbers.roman,
+      chordSymbols: ChordSymbolSpelling.written,
+    );
+    const standard = EngravingStyle.standard;
+    final parts = <String, (Object? Function(EngravingStyle), EngravingStyle)>{
+      'font': ((s) => s.font, base.copyWith(font: standard.font)),
+      'spacing': (
+        (s) => s.spacing,
+        base.copyWith(spacing: standard.spacing),
+      ),
+      'text': ((s) => s.text, base.copyWith(text: standard.text)),
+      'graceScale': (
+        (s) => s.graceScale,
+        base.copyWith(graceScale: standard.graceScale),
+      ),
+      'staffGap': (
+        (s) => s.staffGap,
+        base.copyWith(staffGap: standard.staffGap),
+      ),
+      'lyricGap': (
+        (s) => s.lyricGap,
+        base.copyWith(lyricGap: standard.lyricGap),
+      ),
+      'systemGap': (
+        (s) => s.systemGap,
+        base.copyWith(systemGap: standard.systemGap),
+      ),
+      'multiMeasureRests': (
+        (s) => s.multiMeasureRests,
+        base.copyWith(multiMeasureRests: standard.multiMeasureRests),
+      ),
+      'meterEverySystem': (
+        (s) => s.meterEverySystem,
+        base.copyWith(meterEverySystem: standard.meterEverySystem),
+      ),
+      'courtesySignatures': (
+        (s) => s.courtesySignatures,
+        base.copyWith(courtesySignatures: standard.courtesySignatures),
+      ),
+      'justifyLastSystemFrom': (
+        (s) => s.justifyLastSystemFrom,
+        base.copyWith(
+          justifyLastSystemFrom: standard.justifyLastSystemFrom,
+        ),
+      ),
+      'barNumbers': (
+        (s) => s.barNumbers,
+        base.copyWith(barNumbers: standard.barNumbers),
+      ),
+      'quarterTones': (
+        (s) => s.quarterTones,
+        base.copyWith(quarterTones: standard.quarterTones),
+      ),
+      'stringNumbers': (
+        (s) => s.stringNumbers,
+        base.copyWith(stringNumbers: standard.stringNumbers),
+      ),
+      'chordSymbols': (
+        (s) => s.chordSymbols,
+        base.copyWith(chordSymbols: standard.chordSymbols),
+      ),
+    };
+
+    expect(base.copyWith(), base);
+    for (final MapEntry(key: part, value: (read, copy)) in parts.entries) {
+      expect(read(copy), read(standard), reason: 'the $part of the copy');
+      expect(read(copy), isNot(read(base)), reason: 'the $part of the base');
+      for (final MapEntry(key: other, value: (readOther, _)) in parts.entries) {
+        if (other != part) {
+          expect(
+            readOther(copy),
+            readOther(base),
+            reason: 'the $other of a copy with another $part',
+          );
+        }
+      }
+    }
+  });
+
   test('a style with one field changed is another style, and one with every '
       'field equal is the same', () {
     final renamed = SmuflFont(

@@ -74,6 +74,42 @@ final class EngravingStyle {
 
   TextSpec specOf(TextRole role) => text[role] ?? role.standard;
 
+  /// This style with the given parts replaced. A map of [text] replaces
+  /// the whole map.
+  EngravingStyle copyWith({
+    SmuflFont? font,
+    SpacingPolicy? spacing,
+    Map<TextRole, TextSpec>? text,
+    double? graceScale,
+    double? staffGap,
+    double? lyricGap,
+    double? systemGap,
+    bool? multiMeasureRests,
+    bool? meterEverySystem,
+    bool? courtesySignatures,
+    double? justifyLastSystemFrom,
+    bool? barNumbers,
+    QuarterToneGlyphs? quarterTones,
+    StringNumbers? stringNumbers,
+    ChordSymbolSpelling? chordSymbols,
+  }) => EngravingStyle(
+    font: font ?? this.font,
+    spacing: spacing ?? this.spacing,
+    text: text ?? this.text,
+    graceScale: graceScale ?? this.graceScale,
+    staffGap: staffGap ?? this.staffGap,
+    lyricGap: lyricGap ?? this.lyricGap,
+    systemGap: systemGap ?? this.systemGap,
+    multiMeasureRests: multiMeasureRests ?? this.multiMeasureRests,
+    meterEverySystem: meterEverySystem ?? this.meterEverySystem,
+    courtesySignatures: courtesySignatures ?? this.courtesySignatures,
+    justifyLastSystemFrom: justifyLastSystemFrom ?? this.justifyLastSystemFrom,
+    barNumbers: barNumbers ?? this.barNumbers,
+    quarterTones: quarterTones ?? this.quarterTones,
+    stringNumbers: stringNumbers ?? this.stringNumbers,
+    chordSymbols: chordSymbols ?? this.chordSymbols,
+  );
+
   @override
   bool operator ==(Object other) =>
       other is EngravingStyle &&
