@@ -1,4 +1,5 @@
 import 'package:example/demo_score.dart';
+import 'package:example/selection_actions.dart';
 import 'package:flutter/material.dart';
 import 'package:simple_sheet_music/simple_sheet_music.dart';
 
@@ -25,6 +26,17 @@ class ExampleApp extends StatelessWidget {
   );
 }
 
+/// Why an edit did not apply, as a sentence for the person at the page.
+String refusalSentence(EditRefusal reason) => switch (reason) {
+  StaleReference() => 'That is no longer in the score.',
+  WouldSplitTuplet() => 'This would cut a tuplet in two.',
+  OutsideMeasure() => 'That point is outside its bar.',
+  WouldCrossBarline() => 'This note does not fit in the bar.',
+  WouldEmptyScore() => 'The score would have nothing left to show.',
+  InvalidValue(:final message) =>
+    '${message[0].toUpperCase()}${message.substring(1)}.',
+};
+
 class ScorePage extends StatefulWidget {
   const ScorePage({this.output, super.key});
 
@@ -38,7 +50,11 @@ class _ScorePageState extends State<ScorePage>
     with SingleTickerProviderStateMixin {
   EditSession _session = EditSession.start(buildDemoScore());
   NoteValue _value = NoteValue.quarter;
+  bool _autoBars = true;
+  bool _autoBeams = true;
+  ScoreClip? _clip;
   final SheetController _sheet = SheetController();
+  final ScrollController _rowScroll = ScrollController();
   late final ScorePlayer _player = ScorePlayer(
     soundFont: const AssetSoundFont('assets/soundfonts/piano.sf2'),
     vsync: this,
@@ -49,6 +65,7 @@ class _ScorePageState extends State<ScorePage>
   void dispose() {
     _player.dispose();
     _sheet.dispose();
+    _rowScroll.dispose();
     super.dispose();
   }
 
@@ -65,21 +82,56 @@ class _ScorePageState extends State<ScorePage>
     if (tone == null) {
       return;
     }
-    _run(
+    final at = VoicePoint(staff: hit.staff, voice: hit.voice, at: hit.at);
+    final entered = _run(
       EnterNote(
-        at: VoicePoint(staff: hit.staff, voice: hit.voice, at: hit.at),
+        at: at,
         tone: tone,
         value: _value,
+        overfill: _overfill,
+        beam: _autoBeams ? BeamMode.auto : BeamMode.none,
+        appendBar: _autoBars,
       ),
     );
+    // The cursor stays at a note that ends the score when no bar is added
+    // for it to move into.
+    if (entered && _session.cursor == at) {
+      _say('The last bar is full.', offerBar: true);
+    }
   }
 
-  void _run(Edit edit) {
+  Overfill get _overfill => _autoBars ? Overfill.splitAndTie : Overfill.refuse;
+
+  /// Whether [edit] applied. With Auto bars off, only Add bar may lengthen
+  /// the score. A paste appends the bars it needs whatever its overfill, so
+  /// the page turns such a paste down itself.
+  bool _run(Edit edit) {
     switch (_session.run(edit)) {
       case Applied(:final session):
+        final longer =
+            session.score.measures.length > _session.score.measures.length;
+        if (longer && !_autoBars && edit is! InsertMeasures) {
+          _say('The score is too short for this.', offerBar: true);
+          return false;
+        }
         setState(() => _session = session);
+        return true;
       case Refused(:final reason):
-        _say('${edit.label} refused: ${reason.runtimeType}');
+        _say(refusalSentence(reason));
+        return false;
+    }
+  }
+
+  void _addBar() => _run(const InsertMeasures());
+
+  void _press(Press press) {
+    switch (press) {
+      case RunEdit(:final edit):
+        _run(edit);
+      case Reselect(:final selection):
+        setState(() => _session = _session.select(selection));
+      case TakeCopy():
+        setState(() => _clip = _session.copy());
     }
   }
 
@@ -96,9 +148,18 @@ class _ScorePageState extends State<ScorePage>
   void _zoomBy(double factor) =>
       _sheet.zoom = (_sheet.zoom * factor).clamp(0.5, 3);
 
-  void _say(String message) => ScaffoldMessenger.of(context)
-    ..hideCurrentSnackBar()
-    ..showSnackBar(SnackBar(content: Text(message)));
+  void _say(String message, {bool offerBar = false}) =>
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(message),
+            persist: false,
+            action: offerBar
+                ? SnackBarAction(label: 'Add bar', onPressed: _addBar)
+                : null,
+          ),
+        );
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -128,19 +189,22 @@ class _ScorePageState extends State<ScorePage>
       top: false,
       child: Column(
         children: [
-          Expanded(child: _sheetUnderBadge()),
+          Expanded(
+            child: SheetView(
+              score: _session.score,
+              cursor: _session.cursor,
+              selection: _session.selection,
+              playback: _player.position,
+              controller: _sheet,
+              onTap: _onTap,
+            ),
+          ),
+          _underSheet(),
           const Divider(height: 1),
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
             child: Column(
-              children: [
-                const Text(
-                  'Tap a staff to enter a note. Tap a note to select it.',
-                ),
-                const SizedBox(height: 8),
-                _valuePicker(),
-                _transport(),
-              ],
+              children: [_entryOptions(), _valuePicker(), _transport()],
             ),
           ),
         ],
@@ -148,40 +212,87 @@ class _ScorePageState extends State<ScorePage>
     ),
   );
 
-  /// The controller notifies when a scroll, a zoom or a layout moves the
-  /// selected event, so the delete badge follows it.
-  Widget _sheetUnderBadge() => ListenableBuilder(
-    listenable: _sheet,
-    builder: (context, sheet) {
-      final rect = switch (_session.selection.singleEvent) {
-        final event? => _sheet.rectOf(event),
-        null => null,
-      };
-      return Stack(
-        children: [
-          sheet!,
-          if (rect != null)
-            Positioned(
-              left: rect.right,
-              top: rect.top - 32,
-              child: IconButton.filledTonal(
-                tooltip: 'Delete',
-                iconSize: 16,
-                visualDensity: VisualDensity.compact,
-                icon: const Icon(Icons.delete_outline),
-                onPressed: () => _run(Erase(_session.selection)),
+  /// The hint and the action row take turns in one slot as high as the row,
+  /// so the sheet keeps its size when the selection comes and goes.
+  Widget _underSheet() {
+    final actions = selectionActions(
+      Picked.of(_session.score, _session.selection),
+      clip: _clip,
+      overfill: _overfill,
+    );
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: kMinInteractiveDimension),
+      child: actions.isEmpty
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  'Tap a staff to enter a note. Tap a note to select it.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            )
+          // The thumb is all that says the row goes on past the edge.
+          : Scrollbar(
+              controller: _rowScroll,
+              thumbVisibility: true,
+              child: SingleChildScrollView(
+                controller: _rowScroll,
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    for (final (:tooltip, :icon, :press) in actions)
+                      IconButton(
+                        tooltip: tooltip,
+                        icon: Icon(icon),
+                        onPressed: press == null ? null : () => _press(press),
+                      ),
+                  ],
+                ),
               ),
             ),
-        ],
-      );
-    },
-    child: SheetView(
-      score: _session.score,
-      cursor: _session.cursor,
-      selection: _session.selection,
-      playback: _player.position,
-      controller: _sheet,
-      onTap: _onTap,
+    );
+  }
+
+  Widget _entryOptions() => Wrap(
+    alignment: WrapAlignment.center,
+    crossAxisAlignment: WrapCrossAlignment.center,
+    spacing: 8,
+    children: [
+      _toggle(
+        'Auto bars',
+        on: _autoBars,
+        onChanged: (on) => setState(() => _autoBars = on),
+      ),
+      _toggle(
+        'Auto beams',
+        on: _autoBeams,
+        onChanged: (on) => setState(() => _autoBeams = on),
+      ),
+      OutlinedButton(
+        // Narrower than the default, so that the three share one line on a
+        // phone.
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+        ),
+        onPressed: _addBar,
+        child: const Text('Add bar'),
+      ),
+    ],
+  );
+
+  Widget _toggle(
+    String label, {
+    required bool on,
+    required ValueChanged<bool> onChanged,
+  }) => InkWell(
+    onTap: () => onChanged(!on),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label),
+        Switch(value: on, onChanged: onChanged),
+      ],
     ),
   );
 
