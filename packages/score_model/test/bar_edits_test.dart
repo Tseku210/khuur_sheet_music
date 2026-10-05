@@ -347,6 +347,61 @@ void main() {
       expect(next.selection, isA<NoSelection>());
     });
 
+    test('moves a range start in the cut time to the next bar', () {
+      final session = sessionWith([
+        [for (var i = 0; i < 4; i++) chordOf(20 + i, 'F4')],
+        [for (var i = 0; i < 4; i++) chordOf(30 + i, 'A4')],
+      ]);
+      final staff = session.score.staves.first.id;
+      for (final from in [at(1, 2), at(3, 4)]) {
+        final selected = session.select(
+          RangeSelection(
+            from: pointAt(session.score, 0, from),
+            to: pointAt(session.score, 1, at(1, 2)),
+            top: staff,
+            bottom: staff,
+          ),
+        );
+
+        final next = applied(
+          selected.run(SetBarLength(idOf(session, 0), len(1, 2))),
+        );
+
+        final range = next.selection as RangeSelection;
+        expect(range.from, pointAt(next.score, 1, Moment.zero));
+        expect(range.to, pointAt(next.score, 1, at(1, 2)));
+        expect(bar(applied(next.run(Erase(range))).score, 1), [
+          'rest/quarter',
+          'rest/quarter',
+          'A4/quarter',
+          'A4/quarter',
+        ]);
+        expect(next.copy()!.length, len(1, 2));
+      }
+    });
+
+    test('drops a range that ends before its moved start', () {
+      final session = sessionWith([
+        [for (var i = 0; i < 4; i++) chordOf(20 + i, 'F4')],
+        [for (var i = 0; i < 4; i++) chordOf(30 + i, 'A4')],
+      ]);
+      final staff = session.score.staves.first.id;
+      final selected = session.select(
+        RangeSelection(
+          from: pointAt(session.score, 0, at(1, 2)),
+          to: pointAt(session.score, 0, at(1, 1)),
+          top: staff,
+          bottom: staff,
+        ),
+      );
+
+      final next = applied(
+        selected.run(SetBarLength(idOf(session, 0), len(1, 2))),
+      );
+
+      expect(next.selection, isA<NoSelection>());
+    });
+
     test('pads a lengthened bar and clears a tie that now meets rests', () {
       final voices = fill(
         sessionWith([

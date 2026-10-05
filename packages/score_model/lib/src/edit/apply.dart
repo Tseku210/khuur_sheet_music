@@ -374,9 +374,8 @@ _covers(Score score, RangeSelection range) {
   final RangeSelection(:from, :to, :top, :bottom) = range;
   final first = _barIndex(score, from.measure);
   final last = _barIndex(score, to.measure);
-  _inside(score.measures[first], from);
-  if (to.offset.isNegative || to.offset > _barEnd(score.measures[last])) {
-    throw _Refuse(OutsideMeasure(to));
+  if (_outsideBar(score, range) case final point?) {
+    throw _Refuse(OutsideMeasure(point));
   }
   final order = [for (final staff in score.staves) staff.id];
   final ends = [
@@ -395,6 +394,20 @@ _covers(Score score, RangeSelection range) {
     inRange: (point) =>
         !_precedes(score, point, from) && _precedes(score, point, to),
   );
+}
+
+/// The end of [range] that lies outside its bar, or null when neither does.
+/// The start lies before the end of its bar and the end may sit on it.
+ScorePoint? _outsideBar(Score score, RangeSelection range) {
+  final RangeSelection(:from, :to) = range;
+  if (from.offset.isNegative ||
+      from.offset >= _barEnd(score.column(from.measure))) {
+    return from;
+  }
+  if (to.offset.isNegative || to.offset > _barEnd(score.column(to.measure))) {
+    return to;
+  }
+  return null;
 }
 
 /// [after] without the ties, in [lanes] and the bars before them, that end

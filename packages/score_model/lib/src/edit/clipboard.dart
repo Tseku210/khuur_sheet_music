@@ -59,10 +59,7 @@ final class _ClipDirection {
 /// range is empty or runs outside its bars.
 ScoreClip? _copy(Score score, RangeSelection range) {
   final RangeSelection(:from, :to, :top, :bottom) = range;
-  bool within(ScorePoint point) =>
-      !point.offset.isNegative &&
-      point.offset <= _barEnd(score.column(point.measure));
-  if (!within(from) || !within(to) || !_precedes(score, from, to)) {
+  if (_outsideBar(score, range) != null || !_precedes(score, from, to)) {
     return null;
   }
   final order = [for (final staff in score.staves) staff.id];

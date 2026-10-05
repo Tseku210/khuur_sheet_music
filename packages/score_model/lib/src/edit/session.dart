@@ -415,8 +415,11 @@ MeasureId _survivor(MeasureId gone, Score before, Score score) {
 }
 
 /// Drops references that no longer resolve in [score] and moves the rest
-/// to the measure that now holds them. A range end that fit its bar in
-/// [before] and lies past it in [score] moves back to the bar's end.
+/// to the measure that now holds them. A range start that lay inside its
+/// bar in [before] and is no longer inside it in [score] moves to the start
+/// of the next bar. A range end that fit its bar in [before] and lies past
+/// it in [score] moves back to the bar's end. A range left with nothing
+/// between the two is dropped.
 Selection _revalidateSelection(
   Selection selection,
   Score before,
@@ -440,20 +443,24 @@ Selection _revalidateSelection(
       if (!alive) {
         return const Selection.none();
       }
-      ScorePoint inBar(ScorePoint point) {
-        final end = _barEnd(score.column(point.measure));
-        final fitted =
-            before.contains(point.measure) &&
-            point.offset <= _barEnd(before.column(point.measure));
-        return fitted && point.offset > end
-            ? ScorePoint(point.measure, end)
-            : point;
-      }
-      final (start, stop) = (inBar(from), inBar(to));
+      Moment end(Score score, ScorePoint point) =>
+          _barEnd(score.column(point.measure));
+      final start =
+          before.contains(from.measure) &&
+              from.offset < end(before, from) &&
+              from.offset >= end(score, from)
+          ? _normalize(score, ScorePoint(from.measure, end(score, from)))
+          : from;
+      final stop =
+          before.contains(to.measure) &&
+              to.offset <= end(before, to) &&
+              to.offset > end(score, to)
+          ? ScorePoint(to.measure, end(score, to))
+          : to;
       if (identical(start, from) && identical(stop, to)) {
         return selection;
       }
-      return _precedes(score, start, stop)
+      return start != null && _precedes(score, start, stop)
           ? RangeSelection(from: start, to: stop, top: top, bottom: bottom)
           : const Selection.none();
   }
