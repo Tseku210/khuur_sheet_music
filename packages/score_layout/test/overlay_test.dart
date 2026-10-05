@@ -102,11 +102,13 @@ NotePreview previewAt(
   int step, {
   int staff = 0,
   DurationBase base = DurationBase.quarter,
+  NoteHead head = NoteHead.normal,
 }) => NotePreview(
   staff: staffId(staff),
   at: ScorePoint(barId(bar), offset),
   staffStep: step,
   base: base,
+  head: head,
 );
 
 void main() {
@@ -162,6 +164,57 @@ void main() {
       expect(head.glyph, Glyph.noteheadBlack);
     });
 
+    test('of a head of another kind draws that head, as a note of that '
+        'kind is drawn', () {
+      final layout = sheetOf(
+        scoreOf([
+          [
+            staffOf([
+              ChordEvent(
+                id: const EventId(1),
+                value: NoteValue.half,
+                notes: Seq([
+                  PitchedNote(
+                    id: const NoteId(10),
+                    pitch: Pitch.parse('B4'),
+                    head: NoteHead.diamond,
+                  ),
+                ]),
+              ),
+            ]),
+          ],
+        ]),
+      );
+
+      expect(
+        layout.previewIn(
+          0,
+          previewAt(
+            0,
+            Moment.zero,
+            4,
+            base: DurationBase.half,
+            head: NoteHead.diamond,
+          ),
+        ),
+        headsAndLedgers(layout, 0).map(inkOf),
+      );
+    });
+
+    test('tells where its head is in sheet space, which is where a note of '
+        'its value at its place has its head, and nowhere on a hidden staff '
+        'or in a bar the score lacks', () {
+      final score = threeSystems();
+      final layout = sheetOf(score);
+      // Beat 2 of bar 3 on the bass staff, where B4 is three lines over it.
+      final preview = previewAt(3, at(1, 4), 16, staff: 1);
+      final head = NoteRef(eventRef(622, bar: 3), const NoteId(6220));
+
+      expectBox(layout.boundsOfPreview(preview), layout.boundsOf(head)!);
+      expect(sheetOf(hidePart(score, 1)).boundsOfPreview(preview), isNull);
+      expect(layout.boundsOfPreview(previewAt(9, Moment.zero, 4)), isNull);
+    });
+
     test('is drawn on the system of its bar alone, and not on a hidden '
         'staff or for a bar the score lacks', () {
       final score = threeSystems();
@@ -206,6 +259,10 @@ void main() {
         previewAt(2, at(1, 4), -3, staff: 1, base: DurationBase.half),
       );
       expect(
+        NotePreview.at(hit, head: NoteHead.cross),
+        previewAt(2, at(1, 4), -3, staff: 1, head: NoteHead.cross),
+      );
+      expect(
         preview.hashCode,
         previewAt(2, at(1, 4), -3, staff: 1, base: DurationBase.half).hashCode,
       );
@@ -215,6 +272,14 @@ void main() {
         previewAt(2, at(1, 2), -3, staff: 1, base: DurationBase.half),
         previewAt(2, at(1, 4), -2, staff: 1, base: DurationBase.half),
         previewAt(2, at(1, 4), -3, staff: 1),
+        previewAt(
+          2,
+          at(1, 4),
+          -3,
+          staff: 1,
+          base: DurationBase.half,
+          head: NoteHead.cross,
+        ),
       ]) {
         expect(preview, isNot(other));
       }

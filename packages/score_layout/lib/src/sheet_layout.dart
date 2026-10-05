@@ -394,7 +394,16 @@ final class SheetLayout {
     return Box(x, staff.top, x, staff.top + staffHeight);
   }
 
-  /// The head of [preview] and the ledger lines it needs, in the space of
+  /// The head of [preview] in sheet space, or null when it is drawn nowhere
+  /// (a hidden staff, or a bar the score lacks).
+  Box? boundsOfPreview(NotePreview preview) {
+    final index = systemOf(preview.at.measure);
+    return index == null
+        ? null
+        : previewIn(index, preview).firstOrNull?.bounds.shift(0, tops[index]);
+  }
+
+  /// The head of [preview], then the ledger lines it needs, in the space of
   /// system [index]. Nothing when its bar is on another system or its staff
   /// is hidden.
   ///
@@ -410,7 +419,7 @@ final class SheetLayout {
     }
     final font = style.font;
     final step = preview.staffStep;
-    final glyph = noteheadGlyph(preview.base, NoteHead.normal);
+    final glyph = noteheadGlyph(preview.base, preview.head);
     final origin = SpPoint(bar.time.xAt(preview.at.offset), staff.yOf(step));
     final head = font[glyph].box.shift(origin.x, origin.y);
     final extension = font.defaults.legerLineExtension;

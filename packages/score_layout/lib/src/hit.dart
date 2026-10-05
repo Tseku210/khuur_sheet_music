@@ -61,16 +61,21 @@ final class NotePreview {
     required this.at,
     required this.staffStep,
     this.base = DurationBase.quarter,
+    this.head = NoteHead.normal,
   });
 
-  /// A note of [base] entered where [hit] is.
-  NotePreview.at(SheetHit hit, {DurationBase base = DurationBase.quarter})
-    : this(
-        staff: hit.staff,
-        at: hit.at,
-        staffStep: hit.staffStep,
-        base: base,
-      );
+  /// A note of [base] and [head] entered where [hit] is.
+  NotePreview.at(
+    SheetHit hit, {
+    DurationBase base = DurationBase.quarter,
+    NoteHead head = NoteHead.normal,
+  }) : this(
+         staff: hit.staff,
+         at: hit.at,
+         staffStep: hit.staffStep,
+         base: base,
+         head: head,
+       );
 
   final StaffId staff;
   final ScorePoint at;
@@ -82,16 +87,20 @@ final class NotePreview {
   /// of their own, and every shorter value has the black one.
   final DurationBase base;
 
+  /// The kind of the head. A drum's note has its kit sound's.
+  final NoteHead head;
+
   @override
   bool operator ==(Object other) =>
       other is NotePreview &&
       other.staff == staff &&
       other.at == at &&
       other.staffStep == staffStep &&
-      other.base == base;
+      other.base == base &&
+      other.head == head;
 
   @override
-  int get hashCode => Object.hash(staff, at, staffStep, base);
+  int get hashCode => Object.hash(staff, at, staffStep, base, head);
 }
 
 /// One voice of one bar in time. `onsets` holds its events' onsets in time
