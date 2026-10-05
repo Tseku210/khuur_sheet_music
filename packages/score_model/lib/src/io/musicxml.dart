@@ -22,8 +22,9 @@
 /// A string instrument's open strings are its staves' tunings.
 ///
 /// Some of the model has no MusicXML home and is left out: an instrument's
-/// key, range and clef, a tempo line's factor, a
-/// [SignatureDisplay.noCourtesy], and an [AccidentalRequest.never].
+/// key, range and clef, a tempo line's factor, and a
+/// [SignatureDisplay.noCourtesy]. An [AccidentalRequest.never] is kept. The
+/// file declares that it writes every accidental, and the note has none.
 library;
 
 import 'package:xml/xml.dart';
