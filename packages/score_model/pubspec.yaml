@@ -8,7 +8,7 @@ environment:
 resolution: workspace
 
 dependencies:
-  xml: ^7.1.0
+  xml: ^7.0.0
 
 dev_dependencies:
   pedantic_mono: ^1.38.1
