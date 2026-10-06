@@ -1,23 +1,3 @@
-## 0.0.1
-* initial release.
-
-## 0.0.2
-* fix README.md.
-
-## 0.0.3
-* add Rests.
-
-## 0.0.4-dev.1
-* add key signatures.
-
-## 1.0.0-dev.1
-* add chord 
-* switching rendering methods
-
-## 1.0.0 - 2024/07/09
-* add chord 
-* switching rendering method
-
 ## Unreleased
 * **Breaking:** The package is renamed `khuur_sheet_music`. Name it so in `pubspec.yaml` and import `package:khuur_sheet_music/khuur_sheet_music.dart`. Its assets are under `packages/khuur_sheet_music/`.
 * **Breaking:** The library is rewritten on an immutable score model. `SheetView` shows a `Score` and replaces `SimpleSheetMusic`. `ScorePlayer` replaces `MidiPlayer` and the playback methods of `SimpleSheetMusicState`. The old engine and every type it exported are deleted. The README shows the new API, and this table names what replaces each old name.
