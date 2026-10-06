@@ -261,6 +261,16 @@ pictureOf(WidgetTester tester, Color ink, {double sharpness = 1}) async {
 Color previewInk(WidgetTester tester) =>
     Theme.of(tester.element(find.byType(SheetView))).colorScheme.primary;
 
+/// Where the glass shows [box] of the screen, at twice its size.
+Rect inGlass(WidgetTester tester, Rect box) {
+  final centre = tester.getRect(find.byType(RawMagnifier)).center;
+  final lookAt =
+      centre +
+      tester.widget<RawMagnifier>(find.byType(RawMagnifier)).focalPointOffset;
+  Offset shown(Offset onScreen) => centre + (onScreen - lookAt) * 2;
+  return Rect.fromPoints(shown(box.topLeft), shown(box.bottomRight));
+}
+
 /// Two bars of 4/4 for a kit of two drums on five lines. The hi-hat has a
 /// cross for a head in the space over the staff, and the snare a plain head
 /// in the third space.
@@ -1708,16 +1718,7 @@ void main() {
         sharpness: 3,
       );
       writeSnapshot(name, png);
-      final lookAt =
-          glass.center +
-          tester
-              .widget<RawMagnifier>(find.byType(RawMagnifier))
-              .focalPointOffset;
-      Offset inGlassOf(Offset onSheet) => glass.center + (onSheet - lookAt) * 2;
-      final shown = Rect.fromPoints(
-        inGlassOf(note.topLeft),
-        inGlassOf(note.bottomRight),
-      );
+      final shown = inGlass(tester, note);
       expect(note.height, greaterThan(note.width * 3), reason: name);
       expect(glass.expandToInclude(shown), glass, reason: '$name: $shown');
       expect(
@@ -1814,35 +1815,46 @@ void main() {
     final score = scoreOf(tester);
     final sheet = controllerOf(tester);
 
-    Future<int> inGlassAt(int beat, {String? snapshot}) async {
+    final preview = NotePreview(
+      staff: score.staves[0].id,
+      at: beatOf(score, 0, 0, bar: 1).at,
+      staffStep: 4,
+      base: DurationBase.whole,
+    );
+
+    for (final (beat, snapshot) in const [
+      (0, null),
+      (3, 'example_app_hold_whole'),
+    ]) {
       final spot = sheet.caretOf(beatOf(score, 0, beat, bar: 1))!.center;
       final gesture = await holdAt(tester, spot);
-      expect(
-        sheetOf(tester).preview,
-        NotePreview(
-          staff: score.staves[0].id,
-          at: beatOf(score, 0, 0, bar: 1).at,
-          staffStep: 4,
-          base: DurationBase.whole,
-        ),
+      expect(sheetOf(tester).preview, preview);
+      final glass = tester.getRect(find.byType(RawMagnifier));
+      final shown = inGlass(
+        tester,
+        sheet.rectOfPreview(preview)!.shift(onScreen(tester, spot) - spot),
       );
-      final (:png, :inked, inkIn: _) = await pictureOf(
+      final (:png, inked: _, :inkIn) = await pictureOf(
         tester,
         previewInk(tester),
+        sharpness: 3,
       );
       if (snapshot != null) {
         writeSnapshot(snapshot, png);
       }
-      final count = inked(tester.getRect(find.byType(RawMagnifier)));
+      expect(
+        glass.expandToInclude(shown.inflate(4)),
+        glass,
+        reason: 'beat $beat: $shown',
+      );
+      expect(
+        inkIn(shown.inflate(4)),
+        rectMoreOrLessEquals(shown, epsilon: 1.5),
+        reason: 'beat $beat: the note in the glass',
+      );
       await gesture.cancel();
       await tester.pump();
-      return count;
     }
-
-    final atTheNote = await inGlassAt(0);
-    final away = await inGlassAt(3, snapshot: 'example_app_hold_whole');
-    expect(atTheNote, greaterThan(80), reason: 'the note is in the glass');
-    expect(away, closeTo(atTheNote, atTheNote * 0.05));
   });
 
   testWidgets('the note of a held finger is the one the sheet has under it '
