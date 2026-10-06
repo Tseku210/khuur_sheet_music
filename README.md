@@ -436,8 +436,6 @@ dart compile exe benchmark/layout_benchmark.dart -o build/layout_benchmark
 build/layout_benchmark
 ```
 
-## Acknowledgments
-
-The package began as a fork of [simple_sheet_music](https://github.com/tomoyu719/simple_sheet_music) by [@tomoyu719](https://github.com/tomoyu719). The model, the layout engine, the view and the player have since been rewritten.
+## Used by
 
 [Khuur](https://github.com/Tseku210/khuur_app) is the first app that uses the library.

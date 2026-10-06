@@ -1,6 +1,6 @@
 # khuur_sheet_music
 
-Flutter package that renders sheet music on a `Canvas` and plays it back over MIDI. It is a fork of [tomoyu719/simple_sheet_music](https://github.com/tomoyu719/simple_sheet_music), maintained for the [Khuur](https://github.com/Tseku210/khuur_app) app.
+Flutter package that renders sheet music on a `Canvas` and plays it back over MIDI. [Khuur](https://github.com/Tseku210/khuur_app) is the first app that uses it.
 
 ## Commands
 
