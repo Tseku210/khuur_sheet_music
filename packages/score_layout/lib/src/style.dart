@@ -6,7 +6,7 @@ import 'text.dart';
 /// only repaint.
 ///
 /// Each convention the library's owner has not settled is a field here with
-/// the default the library ships. RATIONALE "Open questions" lists them.
+/// the default the library ships.
 final class EngravingStyle {
   const EngravingStyle({
     this.font = SmuflFont.bravura,

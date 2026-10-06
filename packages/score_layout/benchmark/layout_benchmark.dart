@@ -1,8 +1,8 @@
-// Gate 2 of docs/design/layout/RATIONALE.md, decision 10. It measures what a
-// first layout and an update after one entered note cost on two fixtures,
-// and judges them against the budgets for the development host. It also
-// reports what assembling every system, and the systems an update rekeyed,
-// costs on top, which the design does not budget.
+// Gate 2 of the layout design. It measures what a first layout and an update
+// after one entered note cost on two fixtures, and judges them against the
+// budgets for the development host. It also reports what assembling every
+// system, and the systems an update rekeyed, costs on top, which the design
+// does not budget.
 //
 // Run it compiled, from packages/score_layout. A JIT run measures the
 // compiler as much as the code. The compiler does not create `build`, which
@@ -54,9 +54,9 @@ typedef Fixture = ({
   Duration? updateBudget,
 });
 
-/// The budgets of decision 10. The second fixture has four times the bars
-/// and four times the first layout budget, and the design names no update
-/// budget for it. Bars are counted from 1.
+/// The budgets. The second fixture has four times the bars and four times the
+/// first layout budget, and the design names no update budget for it. Bars are
+/// counted from 1.
 const List<Fixture> fixtures = [
   (
     name: 'dense',

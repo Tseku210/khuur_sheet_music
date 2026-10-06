@@ -414,7 +414,7 @@ The example is one page, `example/lib/main.dart`. It shows the tune of `demo_sco
 
 ## Work on the package
 
-The repository is a pub workspace of three packages. `packages/score_model` is the score model, `packages/score_layout` is the layout engine, and the root package is the Flutter view and the player. Both packages under `packages/` are pure Dart. The designs are in [docs/design/score-model/RATIONALE.md](docs/design/score-model/RATIONALE.md) and [docs/design/layout/RATIONALE.md](docs/design/layout/RATIONALE.md).
+The repository is a pub workspace of three packages. `packages/score_model` is the score model, `packages/score_layout` is the layout engine, and the root package is the Flutter view and the player. Both packages under `packages/` are pure Dart.
 
 Run these checks from the repository root before you send a change. `flutter test` at the root runs neither the tests of the two packages nor the tests of the example.
 

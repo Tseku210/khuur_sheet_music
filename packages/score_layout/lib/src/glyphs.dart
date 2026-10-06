@@ -7,12 +7,12 @@ import 'geometry.dart';
 
 /// A SMuFL glyph the engine draws, named as SMuFL names it.
 ///
-/// The 222 values are the 220 glyphs `docs/design/layout/glyphs.md` says
-/// the score model can need, plus the two Gould arrow accidentals E272 and
-/// E273 that complete the quarter-tone family of `QuarterToneGlyphs`. Each
-/// is one private-use codepoint in the cmap of the unmodified Bravura OTF.
-/// None is a ligature or a stylistic alternate, so the painter draws every
-/// glyph as a one-character string and needs no font feature.
+/// The 222 values are the 220 glyphs the score model can need, plus the two
+/// Gould arrow accidentals E272 and E273 that complete the quarter-tone family
+/// of `QuarterToneGlyphs`. Each is one private-use codepoint in the cmap of the
+/// unmodified Bravura OTF. None is a ligature or a stylistic alternate, so the
+/// painter draws every glyph as a one-character string and needs no font
+/// feature.
 ///
 /// `tool/generate_bravura.dart` fails when a name here has no box or no
 /// advance in the metadata, so the enum and the table cannot drift apart.

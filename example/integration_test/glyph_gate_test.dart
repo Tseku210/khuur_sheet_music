@@ -1,5 +1,5 @@
-// Gate 1 of the layout design, on a device. See
-// docs/design/layout/RATIONALE.md, decision 10.
+// Gate 1 of the layout design, on a device. The root's
+// test/support/glyph_gate.dart says what it measures.
 //
 // Placement, in a debug build:
 //   flutter test integration_test/glyph_gate_test.dart -d <device>
