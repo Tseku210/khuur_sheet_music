@@ -872,6 +872,45 @@ void main() {
       },
     );
 
+    testPlayer(
+      'a status listener sees no position once playback leaves its run',
+      (tester, rig) async {
+        final seen = <(PlayerStatus, {bool position})>[];
+        rig.player.status.addListener(
+          () => seen.add((rig.status, position: rig.position != null)),
+        );
+        const playing = [
+          (PlayerStatus.loading, position: false),
+          (PlayerStatus.playing, position: false),
+        ];
+        Future<void> play() async {
+          await rig.player.play(tune());
+          await tester.pump(half);
+          expect(rig.position, isNotNull);
+        }
+
+        await play();
+        rig.player.stop();
+        await play();
+        rig.player.pause();
+        rig.player.stop();
+        await play();
+        await play();
+        await tester.pump(second * 4);
+
+        expect(seen, [
+          ...playing,
+          (PlayerStatus.idle, position: false),
+          ...playing,
+          (PlayerStatus.paused, position: true),
+          (PlayerStatus.idle, position: false),
+          ...playing,
+          ...playing,
+          (PlayerStatus.idle, position: false),
+        ]);
+      },
+    );
+
     testPlayer('pause publishes the position it holds', (tester, rig) async {
       await rig.player.play(tune());
       await tester.pump(second);
