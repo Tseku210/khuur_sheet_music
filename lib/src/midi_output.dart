@@ -11,38 +11,50 @@ import 'package:khuur_sheet_music/src/sound_font.dart';
 
 /// Where `ScorePlayer` sends a script's notes.
 ///
+/// An output holds several SoundFonts at once. Every program and note names
+/// the one it plays from, and each SoundFont has its own 16 channels, so
+/// channel 0 of one is not channel 0 of another.
+///
 /// The player waits for [load] and for every [program], and then sends
 /// notes without waiting, because a note that waited for an answer would be
 /// late.
 abstract interface class MidiOutput {
   /// Loads [soundFont]. The player waits for it before any [program] or
-  /// note, and calls it again only after it failed. [allNotesOff] and
-  /// [dispose] may come before it, or while it runs.
+  /// note from that SoundFont, and calls it again for the same SoundFont
+  /// only after it failed. It may load several SoundFonts at once.
+  /// [allNotesOff] and [dispose] may come before it, or while it runs.
   Future<void> load(SoundFont soundFont);
 
-  /// Selects [program] of [bank] for [channel], which is 0 to 15.
+  /// Selects [program] of [bank] from [soundFont] for [channel], which is 0
+  /// to 15.
   Future<void> program({
+    required SoundFont soundFont,
     required int channel,
     required int program,
     required int bank,
   });
 
-  /// Starts [key] on [channel], [cents] above its pitch.
+  /// Starts [key] on [channel] of [soundFont], [cents] above its pitch.
   void noteOn({
+    required SoundFont soundFont,
     required int channel,
     required int key,
     required int velocity,
     required int cents,
   });
 
-  /// Lets go of [key] on [channel]. The sound rings out as the instrument
-  /// releases it.
-  void noteOff({required int channel, required int key});
+  /// Lets go of [key] on [channel] of [soundFont]. The sound rings out as
+  /// the instrument releases it.
+  void noteOff({
+    required SoundFont soundFont,
+    required int channel,
+    required int key,
+  });
 
-  /// Cuts every sound on every channel at once.
+  /// Cuts every sound on every channel of every SoundFont at once.
   void allNotesOff();
 
-  /// Frees the SoundFont. The player calls nothing after it.
+  /// Frees every SoundFont. The player calls nothing after it.
   void dispose();
 }
 
@@ -118,12 +130,15 @@ final class FlutterMidiOutput implements MidiOutput {
   static Future<void>? _init;
 
   final MidiPro _midi = MidiPro();
-  int? _soundFontId;
 
-  /// The cents each channel was last bent by. A channel not here was never
-  /// bent by this output, and may still hold the bend of an earlier one,
-  /// because a synthesizer can outlive the SoundFont that was unloaded.
-  final Map<int, int> _bends = {};
+  /// The plugin's id of each SoundFont that is loaded.
+  final Map<SoundFont, int> _ids = {};
+
+  /// The cents each channel of each SoundFont, by the plugin's id, was last
+  /// bent by. A channel not here was never bent by this output, and may
+  /// still hold the bend of an earlier one, because a synthesizer can
+  /// outlive the SoundFont that was unloaded.
+  final Map<(int, int), int> _bends = {};
   bool _disposed = false;
 
   @override
@@ -149,27 +164,28 @@ final class FlutterMidiOutput implements MidiOutput {
     if (_disposed) {
       unawaited(_midi.unloadSoundfont(id));
     } else {
-      _soundFontId = id;
+      _ids[soundFont] = id;
     }
   }
 
   @override
   Future<void> program({
+    required SoundFont soundFont,
     required int channel,
     required int program,
     required int bank,
   }) async {
-    final soundFontId = _soundFontId!;
+    final id = _ids[soundFont]!;
     // A synthesizer may put a channel's bend back at rest when its program
     // changes. Sending it to rest first keeps [_bends] true either way, and
     // clears what an earlier output left on the channel.
-    _bend(soundFontId, channel, 0);
+    _bend(id, channel, 0);
     if (bank > _largestBank) {
       return;
     }
     try {
       await _midi.selectInstrument(
-        sfId: soundFontId,
+        sfId: id,
         channel: channel,
         bank: bank,
         program: program,
@@ -183,57 +199,55 @@ final class FlutterMidiOutput implements MidiOutput {
 
   @override
   void noteOn({
+    required SoundFont soundFont,
     required int channel,
     required int key,
     required int velocity,
     required int cents,
   }) {
-    final soundFontId = _soundFontId!;
+    final id = _ids[soundFont]!;
     // MIDI bends a whole channel, not one key. A quarter tone therefore
     // also bends what its channel still holds, until the next note that
     // is not one.
-    _bend(soundFontId, channel, cents);
+    _bend(id, channel, cents);
     unawaited(
-      _midi.playNote(
-        sfId: soundFontId,
-        channel: channel,
-        key: key,
-        velocity: velocity,
-      ),
+      _midi.playNote(sfId: id, channel: channel, key: key, velocity: velocity),
     );
   }
 
   @override
-  void noteOff({required int channel, required int key}) => unawaited(
-    _midi.stopNote(sfId: _soundFontId!, channel: channel, key: key),
+  void noteOff({
+    required SoundFont soundFont,
+    required int channel,
+    required int key,
+  }) => unawaited(
+    _midi.stopNote(sfId: _ids[soundFont]!, channel: channel, key: key),
   );
 
   @override
   void allNotesOff() {
-    final soundFontId = _soundFontId;
-    if (soundFontId != null) {
-      unawaited(_midi.stopAllNotes(sfId: soundFontId));
+    for (final id in _ids.values) {
+      unawaited(_midi.stopAllNotes(sfId: id));
     }
   }
 
   @override
   void dispose() {
     _disposed = true;
-    final soundFontId = _soundFontId;
-    _soundFontId = null;
-    if (soundFontId != null) {
-      unawaited(_midi.unloadSoundfont(soundFontId));
+    for (final id in _ids.values) {
+      unawaited(_midi.unloadSoundfont(id));
     }
+    _ids.clear();
   }
 
-  void _bend(int soundFontId, int channel, int cents) {
-    if (_bends[channel] == cents) {
+  void _bend(int id, int channel, int cents) {
+    if (_bends[(id, channel)] == cents) {
       return;
     }
-    _bends[channel] = cents;
+    _bends[(id, channel)] = cents;
     unawaited(
       _midi.pitchBend(
-        sfId: soundFontId,
+        sfId: id,
         channel: channel,
         value: _bendCentre + cents * _bendCentre ~/ _bendRangeCents,
       ),

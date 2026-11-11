@@ -7,11 +7,23 @@ import 'package:khuur_sheet_music/src/sound_font.dart';
 /// arrived at.
 typedef SentNote = ({
   double at,
+  SoundFont soundFont,
   int channel,
   int key,
   int velocity,
   int cents,
 });
+
+/// A program as [FakeMidiOutput] received it.
+typedef SentProgram = ({
+  SoundFont soundFont,
+  int channel,
+  int bank,
+  int program,
+});
+
+/// A key that is on, on a channel of a SoundFont.
+typedef HeldKey = ({SoundFont soundFont, int channel, int key});
 
 /// Records what a `ScorePlayer` sends, and when.
 final class FakeMidiOutput implements MidiOutput {
@@ -21,14 +33,17 @@ final class FakeMidiOutput implements MidiOutput {
 
   /// Every call in order, with the wall second it arrived at, as
   /// `1.500 on 0:60`. A note is written `channel:key` and a program
-  /// `channel = bank/program`.
+  /// `channel = bank/program`. [ons], [programs] and [held] say which
+  /// SoundFont each is from.
   final List<String> log = [];
 
   final List<SentNote> ons = [];
 
-  /// The notes that are on, as `channel:key`. A key struck twice without a
-  /// note off between is here twice.
-  final List<String> held = [];
+  final List<SentProgram> programs = [];
+
+  /// The keys that are on. A key struck twice without a note off between
+  /// is here twice.
+  final List<HeldKey> held = [];
 
   /// The SoundFont of every [load], in order.
   final List<SoundFont> loaded = [];
@@ -36,8 +51,8 @@ final class FakeMidiOutput implements MidiOutput {
   /// When set, [load] does not complete before it.
   Completer<void>? loadGate;
 
-  /// When set, [load] fails with it.
-  Object? loadError;
+  /// What [load] fails with for each SoundFont here.
+  final Map<SoundFont, Object> loadErrors = {};
 
   /// When set, no [program] completes before it.
   Completer<void>? programGate;
@@ -54,7 +69,7 @@ final class FakeMidiOutput implements MidiOutput {
     _record('load');
     loaded.add(soundFont);
     await loadGate?.future;
-    if (loadError case final error?) {
+    if (loadErrors[soundFont] case final error?) {
       // ignore: only_throw_errors
       throw error;
     }
@@ -62,11 +77,15 @@ final class FakeMidiOutput implements MidiOutput {
 
   @override
   Future<void> program({
+    required SoundFont soundFont,
     required int channel,
     required int program,
     required int bank,
   }) async {
     _record('program $channel = $bank/$program');
+    programs.add(
+      (soundFont: soundFont, channel: channel, bank: bank, program: program),
+    );
     await programGate?.future;
     if (programError case final error?) {
       // ignore: only_throw_errors
@@ -76,6 +95,7 @@ final class FakeMidiOutput implements MidiOutput {
 
   @override
   void noteOn({
+    required SoundFont soundFont,
     required int channel,
     required int key,
     required int velocity,
@@ -85,19 +105,24 @@ final class FakeMidiOutput implements MidiOutput {
     ons.add(
       (
         at: _seconds,
+        soundFont: soundFont,
         channel: channel,
         key: key,
         velocity: velocity,
         cents: cents,
       ),
     );
-    held.add('$channel:$key');
+    held.add((soundFont: soundFont, channel: channel, key: key));
   }
 
   @override
-  void noteOff({required int channel, required int key}) {
+  void noteOff({
+    required SoundFont soundFont,
+    required int channel,
+    required int key,
+  }) {
     _record('off $channel:$key');
-    held.remove('$channel:$key');
+    held.remove((soundFont: soundFont, channel: channel, key: key));
   }
 
   @override
