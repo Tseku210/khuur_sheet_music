@@ -120,6 +120,9 @@ double _rate(Tempo tempo) =>
 sealed class _Pace {
   const _Pace();
 
+  /// Whether the tempo holds from the point on.
+  bool get steady;
+
   /// Seconds that [length] after the point lasts.
   double secondsFor(Length length);
 
@@ -134,6 +137,9 @@ final class _Steady extends _Pace {
   final Tempo tempo;
 
   @override
+  bool get steady => true;
+
+  @override
   double secondsFor(Length length) => tempo.secondsFor(length);
 
   @override
@@ -146,6 +152,9 @@ final class _Moving extends _Pace {
 
   final double rate;
   final double slope;
+
+  @override
+  bool get steady => slope == 0;
 
   @override
   double secondsFor(Length length) {

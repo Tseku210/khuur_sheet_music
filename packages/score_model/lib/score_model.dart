@@ -3,7 +3,8 @@
 /// Read `Score` first. It owns parts, a global list of `MeasureColumn`s, and
 /// cross-bar `Spanner`s. Change it only through `EditSession.run`. Layout
 /// reads `Score.measureView` and `Score.changesSince`. Playback uses
-/// `PlaybackCompiler`. Persistence is `scoreToJson` and `scoreFromJson`.
+/// `PlaybackCompiler`, and `scoreToMidi` writes what it plays as a MIDI
+/// file. Persistence is `scoreToJson` and `scoreFromJson`.
 library;
 
 export 'src/edit/edits.dart';
@@ -21,6 +22,7 @@ export 'src/edit/session.dart'
         Selection;
 export 'src/events.dart';
 export 'src/io/json.dart';
+export 'src/io/midi.dart';
 export 'src/io/musicxml.dart';
 export 'src/io/musicxml_import.dart';
 export 'src/measure.dart';
