@@ -199,6 +199,20 @@ The package bundles no SoundFont, because Flutter ships every asset of a package
 
 Each part plays the program and the bank of its `Instrument`, so the SoundFont needs every program the score names.
 
+To play an instrument from a SoundFont of its own, pass `instrumentSoundFonts`, a map from `Instrument.key` to a SoundFont. A part whose instrument is not in the map plays from `soundFont`.
+
+```dart
+late final _player = ScorePlayer(
+  soundFont: const AssetSoundFont('assets/soundfonts/piano.sf2'),
+  instrumentSoundFonts: const {
+    'cello': AssetSoundFont('assets/soundfonts/cello.sf2'),
+  },
+  vsync: this,
+);
+```
+
+Here the piano part plays from `piano.sf2` and the cello part from `cello.sf2`. The player loads a SoundFont when the first `play` that needs it starts, and loads it only once, also when two instruments name it. A SoundFont that no unmuted part of the score needs is not loaded. If one SoundFont does not load, the future of `play` fails, and the next `play` tries that SoundFont again. The map is not part of the score, because a saved score keeps its instruments and not the files they play from.
+
 The example app ships a 57 MB piano, `example/assets/soundfonts/piano.sf2`. It is [Upright Piano KW](https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html#UprightKW) from FreePats, a Kawai upright sampled in stereo at two loudnesses and released under CC0. Its readme and license are next to it. FreePats also has a 9.5 MB version in mono at one loudness, for an app that has to stay small.
 
 ### Add reverb

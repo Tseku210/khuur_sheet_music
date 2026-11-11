@@ -16,6 +16,9 @@ class FakeMidiPlatform extends FlutterMidiProPlatform
   final calls = <String>[];
   final loaded = <List<int>>[];
 
+  /// The id the next `loadSoundfont` answers with.
+  int nextId = 7;
+
   /// What each `setReverb` asked for, in order.
   final reverbs = <String>[];
   String? selectError;
@@ -26,7 +29,7 @@ class FakeMidiPlatform extends FlutterMidiProPlatform
   @override
   Future<int> loadSoundfont(String path, int bank, int program) async {
     loaded.add(File(path).readAsBytesSync());
-    return 7;
+    return nextId++;
   }
 
   @override
@@ -172,10 +175,21 @@ void main() {
   testWidgets('loads a file SoundFont and plays through it', (tester) async {
     final output = FlutterMidiOutput();
     await tester.runAsync(() => output.load(soundFont));
-    await output.program(channel: 1, program: 71, bank: 2);
+    await output.program(
+      soundFont: soundFont,
+      channel: 1,
+      program: 71,
+      bank: 2,
+    );
     output
-      ..noteOn(channel: 1, key: 60, velocity: 80, cents: 0)
-      ..noteOff(channel: 1, key: 60)
+      ..noteOn(
+        soundFont: soundFont,
+        channel: 1,
+        key: 60,
+        velocity: 80,
+        cents: 0,
+      )
+      ..noteOff(soundFont: soundFont, channel: 1, key: 60)
       ..allNotesOff()
       ..dispose();
 
@@ -191,6 +205,55 @@ void main() {
       'unload sf7',
     ]);
   });
+
+  testWidgets(
+    'holds several SoundFonts, and plays, bends and silences each by its '
+    'own id',
+    (tester) async {
+      final reed = FileSoundFont(
+        (File('${tmp.path}/reed.sf2')..writeAsBytesSync([4, 5])).path,
+      );
+      final output = FlutterMidiOutput();
+      await tester.runAsync(
+        () => Future.wait([output.load(soundFont), output.load(reed)]),
+      );
+      await output.program(
+        soundFont: soundFont,
+        channel: 0,
+        program: 0,
+        bank: 0,
+      );
+      await output.program(soundFont: reed, channel: 0, program: 71, bank: 0);
+      midi.calls.clear();
+      output
+        ..noteOn(soundFont: reed, channel: 0, key: 67, velocity: 80, cents: 50)
+        ..noteOn(
+          soundFont: soundFont,
+          channel: 0,
+          key: 60,
+          velocity: 80,
+          cents: 0,
+        )
+        ..noteOff(soundFont: reed, channel: 0, key: 67)
+        ..allNotesOff()
+        ..dispose();
+
+      expect(midi.loaded, [
+        [1, 2, 3],
+        [4, 5],
+      ]);
+      expect(midi.calls, [
+        'bend sf8 0 = 10240',
+        'on sf8 0:67 v80',
+        'on sf7 0:60 v80',
+        'off sf8 0:67',
+        'all off sf7',
+        'all off sf8',
+        'unload sf7',
+        'unload sf8',
+      ]);
+    },
+  );
 
   testWidgets('loads an asset SoundFont by its app asset key', (tester) async {
     assets['assets/soundfonts/piano.sf2'] = [4, 5, 6];
@@ -211,12 +274,17 @@ void main() {
 
     for (final code in ['SOUND_FONT_LOAD_FAILED', 'SOUND_FONT_LOAD_FAILED2']) {
       midi.selectError = code;
-      await output.program(channel: 0, program: 40, bank: 0);
+      await output.program(
+        soundFont: soundFont,
+        channel: 0,
+        program: 40,
+        bank: 0,
+      );
     }
 
     midi.selectError = 'NOT_INITIALIZED';
     await expectLater(
-      output.program(channel: 0, program: 40, bank: 0),
+      output.program(soundFont: soundFont, channel: 0, program: 40, bank: 0),
       throwsA(isA<PlatformException>()),
     );
     output.dispose();
@@ -229,11 +297,32 @@ void main() {
       final output = FlutterMidiOutput();
       await tester.runAsync(() => output.load(soundFont));
 
-      await output.program(channel: 0, program: 40, bank: 255);
-      await output.program(channel: 1, program: 40, bank: 256);
-      await output.program(channel: 2, program: 40, bank: 15360);
+      await output.program(
+        soundFont: soundFont,
+        channel: 0,
+        program: 40,
+        bank: 255,
+      );
+      await output.program(
+        soundFont: soundFont,
+        channel: 1,
+        program: 40,
+        bank: 256,
+      );
+      await output.program(
+        soundFont: soundFont,
+        channel: 2,
+        program: 40,
+        bank: 15360,
+      );
       output
-        ..noteOn(channel: 1, key: 60, velocity: 80, cents: 0)
+        ..noteOn(
+          soundFont: soundFont,
+          channel: 1,
+          key: 60,
+          velocity: 80,
+          cents: 0,
+        )
         ..dispose();
 
       expect(midi.calls, [
@@ -253,15 +342,55 @@ void main() {
     (tester) async {
       final output = FlutterMidiOutput();
       await tester.runAsync(() => output.load(soundFont));
-      await output.program(channel: 0, program: 0, bank: 0);
-      await output.program(channel: 1, program: 0, bank: 0);
+      await output.program(
+        soundFont: soundFont,
+        channel: 0,
+        program: 0,
+        bank: 0,
+      );
+      await output.program(
+        soundFont: soundFont,
+        channel: 1,
+        program: 0,
+        bank: 0,
+      );
       midi.calls.clear();
       output
-        ..noteOn(channel: 0, key: 60, velocity: 80, cents: 0)
-        ..noteOn(channel: 0, key: 62, velocity: 80, cents: 50)
-        ..noteOn(channel: 0, key: 64, velocity: 80, cents: 50)
-        ..noteOn(channel: 1, key: 48, velocity: 80, cents: 0)
-        ..noteOn(channel: 0, key: 65, velocity: 80, cents: 0)
+        ..noteOn(
+          soundFont: soundFont,
+          channel: 0,
+          key: 60,
+          velocity: 80,
+          cents: 0,
+        )
+        ..noteOn(
+          soundFont: soundFont,
+          channel: 0,
+          key: 62,
+          velocity: 80,
+          cents: 50,
+        )
+        ..noteOn(
+          soundFont: soundFont,
+          channel: 0,
+          key: 64,
+          velocity: 80,
+          cents: 50,
+        )
+        ..noteOn(
+          soundFont: soundFont,
+          channel: 1,
+          key: 48,
+          velocity: 80,
+          cents: 0,
+        )
+        ..noteOn(
+          soundFont: soundFont,
+          channel: 0,
+          key: 65,
+          velocity: 80,
+          cents: 0,
+        )
         ..dispose();
 
       expect(midi.calls, [
@@ -283,9 +412,25 @@ void main() {
     (tester) async {
       final output = FlutterMidiOutput();
       await tester.runAsync(() => output.load(soundFont));
-      await output.program(channel: 3, program: 0, bank: 0);
-      output.noteOn(channel: 3, key: 60, velocity: 80, cents: 0);
-      await output.program(channel: 3, program: 5, bank: 0);
+      await output.program(
+        soundFont: soundFont,
+        channel: 3,
+        program: 0,
+        bank: 0,
+      );
+      output.noteOn(
+        soundFont: soundFont,
+        channel: 3,
+        key: 60,
+        velocity: 80,
+        cents: 0,
+      );
+      await output.program(
+        soundFont: soundFont,
+        channel: 3,
+        program: 5,
+        bank: 0,
+      );
       output.dispose();
 
       expect(midi.calls, [
@@ -304,11 +449,33 @@ void main() {
     (tester) async {
       final output = FlutterMidiOutput();
       await tester.runAsync(() => output.load(soundFont));
-      await output.program(channel: 0, program: 0, bank: 0);
-      output.noteOn(channel: 0, key: 60, velocity: 80, cents: 50);
-      await output.program(channel: 0, program: 0, bank: 0);
+      await output.program(
+        soundFont: soundFont,
+        channel: 0,
+        program: 0,
+        bank: 0,
+      );
+      output.noteOn(
+        soundFont: soundFont,
+        channel: 0,
+        key: 60,
+        velocity: 80,
+        cents: 50,
+      );
+      await output.program(
+        soundFont: soundFont,
+        channel: 0,
+        program: 0,
+        bank: 0,
+      );
       output
-        ..noteOn(channel: 0, key: 60, velocity: 80, cents: 50)
+        ..noteOn(
+          soundFont: soundFont,
+          channel: 0,
+          key: 60,
+          velocity: 80,
+          cents: 50,
+        )
         ..dispose();
 
       expect(midi.calls, [

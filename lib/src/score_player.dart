@@ -10,7 +10,7 @@ import 'package:score_model/score_model.dart';
 /// Plays a score over MIDI and reports where it is, for the sheet to show.
 ///
 /// It owns the `PlaybackCompiler` (whose fragment cache makes recompiling
-/// after an edit cheap), the SoundFont, the MIDI output through
+/// after an edit cheap), the SoundFonts, the MIDI output through
 /// `flutter_midi_pro` (Android, iOS and macOS), and one script clock that
 /// two readers share.
 ///
@@ -37,7 +37,7 @@ import 'package:score_model/score_model.dart';
 /// the new anchor. The wrap of a loop keeps the anchor and moves the clock
 /// back by the loop's length, so the loop's period is exact.
 final class ScorePlayer {
-  /// A player that loads [soundFont] on its first [play].
+  /// A player that loads each SoundFont on the first [play] that needs it.
   ///
   /// [vsync] drives the ticker that publishes [position]. A test passes a
   /// fake [output] and a [now] it controls. [now] is a wall time that never
@@ -45,6 +45,7 @@ final class ScorePlayer {
   ScorePlayer({
     required this.soundFont,
     required TickerProvider vsync,
+    this.instrumentSoundFonts = const {},
     MidiOutput? output,
     Duration Function()? now,
   }) : _output = output ?? FlutterMidiOutput(),
@@ -56,8 +57,14 @@ final class ScorePlayer {
     });
   }
 
-  /// The SoundFont every part plays through.
+  /// The SoundFont a part plays from when [instrumentSoundFonts] has none
+  /// for its instrument.
   final SoundFont soundFont;
+
+  /// The SoundFont each instrument plays from, by `Instrument.key`, in
+  /// place of [soundFont]. A score saves its instruments and not where
+  /// their sounds are, so the app gives the files here.
+  final Map<String, SoundFont> instrumentSoundFonts;
 
   final MidiOutput _output;
   final Duration Function() _now;
@@ -68,7 +75,9 @@ final class ScorePlayer {
   final ValueNotifier<PlaybackPosition?> _position = ValueNotifier(null);
 
   _Phase _phase = const _Idle();
-  Future<void>? _soundFontLoad;
+
+  /// One load of each SoundFont serves every [play], until it fails.
+  final Map<SoundFont, Future<void>> _loads = {};
   Timer? _timer;
   double _tempoScale = 1;
 
@@ -104,15 +113,17 @@ final class ScorePlayer {
   ///
   /// Starts at [startAt] (with repeats, from `secondsAt`), else at the
   /// beginning. [options] limits playback to a range or mutes parts; with
-  /// [loop] what [options] selects repeats until [stop]. Loads the
-  /// SoundFont on first use and sets each part's program, with [status] at
+  /// [loop] what [options] selects repeats until [stop]. Loads each
+  /// SoundFont a part that plays needs, if no earlier call loaded it, and
+  /// sets each part's program from it, with [status] at
   /// [PlayerStatus.loading] meanwhile.
   ///
   /// The future completes when playback has started, or when a later
-  /// [play], [stop] or [dispose] took its place. It fails when the
-  /// SoundFont cannot be loaded or a program cannot be set, and the player
-  /// is then idle. It fails before anything changes when [options] names a
-  /// point that is not in [score].
+  /// [play], [stop] or [dispose] took its place. It fails when a SoundFont
+  /// cannot be loaded or a program cannot be set, and the player is then
+  /// idle. The next call loads again each SoundFont that failed. It fails
+  /// before anything changes when [options] names a point that is not in
+  /// [score].
   Future<void> play(
     Score score, {
     ScorePoint? startAt,
@@ -120,16 +131,27 @@ final class ScorePlayer {
     bool loop = false,
   }) async {
     final script = _compiler.compile(score, options);
+    final ofPart = {
+      for (final Part(:id, :instrument) in score.parts)
+        id: instrumentSoundFonts[instrument.key] ?? soundFont,
+    };
+    final ofStaff = {
+      for (final Part(:id, :staves) in score.parts)
+        for (final staff in staves) staff.id: ofPart[id]!,
+    };
     _stopRun();
     final loading = _Loading();
     _enter(loading);
     _position.value = null;
     try {
-      await _loadSoundFont();
+      final files = {
+        for (final ChannelSetup(:part) in script.channels) ofPart[part]!,
+      };
+      await Future.wait([for (final file in files) _load(file)]);
       if (!identical(_phase, loading)) {
         return;
       }
-      await _setPrograms(script.channels);
+      await _setPrograms(script.channels, ofPart);
     } on Object {
       if (!identical(_phase, loading)) {
         return;
@@ -148,6 +170,7 @@ final class ScorePlayer {
     final run = _Run(
       script,
       notes,
+      ofStaff,
       loop: loop && script.totalSeconds > 0,
       clock: _ScriptClock(wall: _now(), seconds: from, scale: _tempoScale),
       unsent: notes.length - script.notesBetween(from, double.infinity).length,
@@ -191,7 +214,7 @@ final class ScorePlayer {
     _output.allNotesOff();
   }
 
-  /// Stops sound and frees the SoundFont. Notifies no listener. Not to be
+  /// Stops sound and frees every SoundFont. Notifies no listener. Not to be
   /// called from a listener of [status] or [position].
   void dispose() {
     _stopRun();
@@ -216,24 +239,29 @@ final class ScorePlayer {
     _status.value = phase.status;
   }
 
-  /// One load serves every [play], until a load fails.
-  Future<void> _loadSoundFont() async {
-    final load = _soundFontLoad ??= _output.load(soundFont);
+  Future<void> _load(SoundFont soundFont) async {
+    final load = _loads[soundFont] ??= _output.load(soundFont);
     try {
       await load;
     } on Object {
-      if (identical(_soundFontLoad, load)) {
-        _soundFontLoad = null;
-      }
+      _loads.removeWhere((_, each) => identical(each, load));
       rethrow;
     }
   }
 
   /// Asks for every program before the first answer comes, so the programs
   /// of an older [play] cannot land after those of a newer one.
-  Future<void> _setPrograms(List<ChannelSetup> channels) => Future.wait([
-    for (final ChannelSetup(:channel, :program, :bank) in channels)
-      _output.program(channel: channel, program: program, bank: bank),
+  Future<void> _setPrograms(
+    List<ChannelSetup> channels,
+    Map<PartId, SoundFont> ofPart,
+  ) => Future.wait([
+    for (final ChannelSetup(:part, :channel, :program, :bank) in channels)
+      _output.program(
+        soundFont: ofPart[part]!,
+        channel: channel,
+        program: program,
+        bank: bank,
+      ),
   ]);
 
   /// Sends what is due and sleeps until the next thing is. [due] is the
@@ -260,7 +288,11 @@ final class ScorePlayer {
       if (end > at) {
         return false;
       }
-      _output.noteOff(channel: voice.channel, key: voice.key);
+      _output.noteOff(
+        soundFont: voice.soundFont,
+        channel: voice.channel,
+        key: voice.key,
+      );
       return true;
     });
     for (; run.unsent < run.notes.length; run.unsent++) {
@@ -275,12 +307,22 @@ final class ScorePlayer {
       }
       // A channel holds a key once, so a key that is struck again is let go
       // first and then held to the later of the two ends.
-      final voice = (channel: note.channel, key: note.key);
+      final soundFont = run.soundFonts[note.source.staff]!;
+      final voice = (
+        soundFont: soundFont,
+        channel: note.channel,
+        key: note.key,
+      );
       final held = run.soundingUntil[voice];
       if (held != null) {
-        _output.noteOff(channel: note.channel, key: note.key);
+        _output.noteOff(
+          soundFont: soundFont,
+          channel: note.channel,
+          key: note.key,
+        );
       }
       _output.noteOn(
+        soundFont: soundFont,
         channel: note.channel,
         key: note.key,
         velocity: note.velocity,
@@ -304,8 +346,8 @@ final class ScorePlayer {
   }
 
   void _silence(_Run run) {
-    for (final (:channel, :key) in run.soundingUntil.keys) {
-      _output.noteOff(channel: channel, key: key);
+    for (final (:soundFont, :channel, :key) in run.soundingUntil.keys) {
+      _output.noteOff(soundFont: soundFont, channel: channel, key: key);
     }
     run.soundingUntil.clear();
   }
@@ -383,7 +425,7 @@ final class _Idle extends _Phase {
   PlayerStatus get status => PlayerStatus.idle;
 }
 
-/// One [ScorePlayer.play] call waiting for the SoundFont and the programs.
+/// One [ScorePlayer.play] call waiting for the SoundFonts and the programs.
 /// The call starts playback only if this is still the phase when they are
 /// ready, so any phase entered meanwhile withdraws it.
 final class _Loading extends _Phase {
@@ -413,7 +455,8 @@ final class _Paused extends _Phase {
 final class _Run {
   _Run(
     this.script,
-    this.notes, {
+    this.notes,
+    this.soundFonts, {
     required this.loop,
     required this.clock,
     required this.unsent,
@@ -424,6 +467,9 @@ final class _Run {
   /// Sorted by start.
   final List<PlaybackNote> notes;
 
+  /// The SoundFont the notes of each staff play from.
+  final Map<StaffId, SoundFont> soundFonts;
+
   final bool loop;
 
   /// Replaced at every change of speed. Its scale is 0 while paused.
@@ -433,7 +479,8 @@ final class _Run {
   int unsent;
 
   /// The script second at which each key that is on gets its note off.
-  final Map<({int channel, int key}), double> soundingUntil = {};
+  final Map<({SoundFont soundFont, int channel, int key}), double>
+  soundingUntil = {};
 }
 
 /// Script seconds as a function of wall time, from one anchor.
@@ -476,7 +523,7 @@ enum PlayerStatus {
   /// Nothing is playing. [ScorePlayer.play] starts playback.
   idle,
 
-  /// [ScorePlayer.play] was called. The SoundFont is loading or the
+  /// [ScorePlayer.play] was called. The SoundFonts are loading or the
   /// programs are being set.
   loading,
 
