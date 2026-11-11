@@ -36,6 +36,9 @@
   | The `debug` parameter, and the `GlyphMetadata`, `GlyphPaths` and `MeasureMetrics` exports | Deleted with nothing in their place |
 
 * **Breaking:** The package no longer bundles a SoundFont. The 261 MB `touhou.sf2` added that much to every app using the package, even with MIDI off. Pass `AssetSoundFont(...)` or `FileSoundFont(...)` to `ScorePlayer` instead. This replaces `enableMidi`, `soundFontType` and `customSoundFontPath`. `SoundFontType` is removed.
+* `ScorePlayer` takes `instrumentSoundFonts`, a map from `Instrument.key` to a `SoundFont`, so that each part can play from a SoundFont of its own. A part whose instrument is not in the map plays from `soundFont`, as before. The player loads each SoundFont once, when the first `play` that needs it starts.
+* **Breaking:** A `MidiOutput` holds several SoundFonts at once. `program`, `noteOn` and `noteOff` take the `soundFont` they play from, and each SoundFont has its own 16 channels. `allNotesOff` and `dispose` act on every SoundFont the output loaded. An app with its own `MidiOutput` adds the `soundFont` parameter to these three methods.
+* `AssetSoundFont` and `FileSoundFont` are equal when their paths are.
 * **Breaking:** The package no longer bundles Petaluma, or any font as SVG. It draws music with `fonts/Bravura.otf`.
 * Replace the unmaintained `flutter_midi` with `flutter_midi_pro` 4.x. `flutter_midi` used the removed v1 Android plugin API and no longer builds on current Flutter.
 * Require Dart 3.13 and Flutter 3.47 or later. The floors were Dart 3.6 and Flutter 3.27.

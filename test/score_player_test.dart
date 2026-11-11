@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khuur_sheet_music/khuur_sheet_music.dart'
-    show AssetSoundFont, PlaybackPosition, PlayerStatus, ScorePlayer;
+    show AssetSoundFont, PlaybackPosition, PlayerStatus, ScorePlayer, SoundFont;
 import 'package:score_model/score_model.dart';
 
 import '../packages/score_model/test/support.dart'
@@ -23,11 +23,15 @@ import 'mock/fake_wall_time.dart';
 
 /// A player over a fake output and the test's fake time.
 final class Rig {
-  Rig(WidgetTester tester, {TickerProvider? vsync})
-    : time = FakeWallTime(tester.binding) {
+  Rig(
+    WidgetTester tester, {
+    TickerProvider? vsync,
+    Map<String, SoundFont> instrumentSoundFonts = const {},
+  }) : time = FakeWallTime(tester.binding) {
     midi = FakeMidiOutput(time.now);
     player = ScorePlayer(
-      soundFont: const AssetSoundFont('piano.sf2'),
+      soundFont: pianoFile,
+      instrumentSoundFonts: instrumentSoundFonts,
       vsync: vsync ?? tester,
       output: midi,
       now: time.now,
@@ -58,15 +62,21 @@ final class Rig {
 /// test leaves a timer behind.
 void testPlayer(
   String description,
-  Future<void> Function(WidgetTester tester, Rig rig) body,
-) => testWidgets(description, (tester) async {
-  final rig = Rig(tester);
+  Future<void> Function(WidgetTester tester, Rig rig) body, {
+  Map<String, SoundFont> instrumentSoundFonts = const {},
+}) => testWidgets(description, (tester) async {
+  final rig = Rig(tester, instrumentSoundFonts: instrumentSoundFonts);
   try {
     await body(tester, rig);
   } finally {
     rig.player.dispose();
   }
 });
+
+/// The player's own SoundFont.
+const pianoFile = AssetSoundFont('piano.sf2');
+
+const reedFile = AssetSoundFont('reed.sf2');
 
 const second = Duration(seconds: 1);
 const half = Duration(milliseconds: 500);
@@ -302,6 +312,7 @@ void main() {
               in PlaybackCompiler().compile(score).notesBetween(0, 4))
             (
               at: note.start,
+              soundFont: pianoFile,
               channel: note.channel,
               key: note.key,
               velocity: note.velocity,
@@ -413,11 +424,11 @@ void main() {
       tester,
       rig,
     ) async {
-      rig.midi.loadError = StateError('no such file');
+      rig.midi.loadErrors[pianoFile] = StateError('no such file');
       await expectLater(rig.player.play(tune()), throwsStateError);
       expect(rig.status, PlayerStatus.idle);
 
-      rig.midi.loadError = null;
+      rig.midi.loadErrors.clear();
       await rig.player.play(tune());
       expect(rig.status, PlayerStatus.playing);
       expect(
@@ -426,7 +437,7 @@ void main() {
       );
       expect(
         rig.midi.loaded,
-        const [AssetSoundFont('piano.sf2'), AssetSoundFont('piano.sf2')],
+        const [pianoFile, pianoFile],
       );
     });
 
@@ -1111,5 +1122,97 @@ void main() {
 
       expect(rig.midi.log, ['0.000 load', '0.000 dispose']);
     });
+  });
+
+  group('SoundFonts', () {
+    testPlayer(
+      'plays each part from the SoundFont of its instrument, and a part '
+      'whose instrument has none from the player\'s',
+      (tester, rig) async {
+        await rig.player.play(duet());
+        expect(rig.midi.loaded, [pianoFile, reedFile]);
+        expect(rig.midi.programs, [
+          (soundFont: pianoFile, channel: 0, bank: 0, program: 0),
+          (soundFont: reedFile, channel: 1, bank: 0, program: 71),
+        ]);
+
+        await tester.pump(second * 1.5);
+        expect(rig.midi.held, [
+          (soundFont: reedFile, channel: 1, key: 67),
+          (soundFont: pianoFile, channel: 0, key: 62),
+        ]);
+        rig.player.pause();
+        expect(rig.midi.held, isEmpty);
+
+        rig.player.resume();
+        await tester.pump(second * 4);
+        expect(
+          {for (final note in rig.midi.ons) (note.soundFont, note.key)},
+          {
+            (pianoFile, 60),
+            (reedFile, 67),
+            (pianoFile, 62),
+            (pianoFile, 64),
+            (pianoFile, 65),
+          },
+        );
+        expect(rig.midi.held, isEmpty);
+      },
+      instrumentSoundFonts: const {'clarinet-b-flat': reedFile},
+    );
+
+    testPlayer(
+      'loads only the SoundFonts of the parts that play',
+      (tester, rig) async {
+        final score = duet();
+        await rig.player.play(
+          score,
+          options: PlaybackOptions(muted: {score.parts[1].id}),
+        );
+
+        expect(rig.midi.loaded, [pianoFile]);
+      },
+      instrumentSoundFonts: const {
+        'clarinet-b-flat': reedFile,
+        'violin': AssetSoundFont('strings.sf2'),
+      },
+    );
+
+    testPlayer(
+      'loads a SoundFont that two instruments share once, also over two '
+      'plays',
+      (tester, rig) async {
+        await rig.player.play(duet());
+        await rig.player.play(duet());
+
+        expect(rig.midi.loaded, [const AssetSoundFont('band.sf2')]);
+        expect(
+          {for (final program in rig.midi.programs) program.soundFont},
+          {const AssetSoundFont('band.sf2')},
+        );
+      },
+      instrumentSoundFonts: {
+        'piano': const AssetSoundFont('band.sf2'),
+        'clarinet-b-flat': AssetSoundFont(['band', 'sf2'].join('.')),
+      },
+    );
+
+    testPlayer(
+      'fails when one SoundFont does not load, and the next play loads only '
+      'that one again',
+      (tester, rig) async {
+        rig.midi.loadErrors[reedFile] = StateError('no such file');
+        await expectLater(rig.player.play(duet()), throwsStateError);
+        expect(rig.status, PlayerStatus.idle);
+        expect(rig.midi.programs, isEmpty);
+
+        rig.midi.loadErrors.clear();
+        await rig.player.play(duet());
+        expect(rig.status, PlayerStatus.playing);
+        expect(rig.midi.loaded, [pianoFile, reedFile, reedFile]);
+        expect(rig.midi.programs, hasLength(2));
+      },
+      instrumentSoundFonts: const {'clarinet-b-flat': reedFile},
+    );
   });
 }
