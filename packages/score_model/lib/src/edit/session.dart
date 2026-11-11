@@ -33,6 +33,7 @@ part 'lane_writer.dart';
 part 'notes.dart';
 part 'parts.dart';
 part 'rebar.dart';
+part 'ripple.dart';
 part 'rhythm.dart';
 part 'transpose.dart';
 

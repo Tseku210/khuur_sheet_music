@@ -181,7 +181,8 @@ SetLyric _lyric(EventRef event, Random random) {
 }
 
 /// One random edit of the kinds a composer makes: note entry (the common
-/// case), tuplets, chords, graces, event and note marks, beams, lyrics,
+/// case, overwriting or rippling), rippled value changes and deletes,
+/// tuplets, chords, graces, event and note marks, beams, lyrics,
 /// voltas, keys, clefs, spanners, directions, tempo marks, barlines,
 /// repeats, navigation and rehearsal marks, inserted and deleted bars, bar
 /// lengths, meters, erased, pasted and transposed ranges, breaks, signature
@@ -190,7 +191,7 @@ Score randomEdit(Score score, Random random) {
   final bar = random.nextInt(score.measures.length);
   final id = score.measures[bar].id;
   final beats = _beatsIn(score.measures[bar]);
-  switch (random.nextInt(35)) {
+  switch (random.nextInt(37)) {
     case 0 || 1 || 2:
       final staff = pick(random, score.staves).id;
       return edited(
@@ -213,6 +214,7 @@ Score randomEdit(Score score, Random random) {
               ? pick(random, BeamMode.values)
               : BeamMode.auto,
           appendBar: random.nextInt(4) > 0,
+          ripple: pick(random, Ripple.values),
         ),
       );
     case 3:
@@ -328,6 +330,7 @@ Score randomEdit(Score score, Random random) {
             top: pick(random, score.staves).id,
             bottom: pick(random, score.staves).id,
           ),
+          ripple: pick(random, Ripple.values),
         ),
       );
     case 14:
@@ -485,6 +488,27 @@ Score randomEdit(Score score, Random random) {
         ),
         _ => SetRehearsal(id, pick(random, [null, '', 'A', 'B2', 'Б'])),
       });
+    case 35:
+      final (event, _) = pick(random, _eventsOf(score));
+      return edited(
+        score,
+        SetValue(
+          event,
+          pick(random, [
+            NoteValue.eighth,
+            NoteValue.quarter,
+            NoteValue.quarter.dotted,
+            NoteValue.half,
+          ]),
+          ripple: Ripple.part,
+        ),
+      );
+    case 36:
+      final (event, _) = pick(random, _eventsOf(score));
+      return edited(
+        score,
+        Erase(ItemSelection(Seq([event])), ripple: Ripple.part),
+      );
     default:
       return edited(
         score,

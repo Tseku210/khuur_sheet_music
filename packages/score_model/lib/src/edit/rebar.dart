@@ -196,7 +196,11 @@ _Section _rebar(
         stream.staff,
         stream.slot,
         _cut(
-          (stream..untie(next, padded: stream.length < total)).items,
+          [
+            for (final (item, origin)
+                in (stream..untie(next, padded: stream.length < total)).items)
+              (item: item, span: item.span, origin: origin),
+          ],
           count,
           meter,
           ids,
@@ -235,47 +239,10 @@ _Section _rebar(
       }
     }
   }
-  List<StaffMeasure> staffBars(StaffId staff) {
-    final clefs = <(Length, Clef)>[];
-    final directions = [for (var k = 0; k < count; k++) <StaffDirection>[]];
-    for (final (i, column) in old.indexed) {
-      final measure = column.staff(staff);
-      final start = first.length * Fraction(i);
-      if (i == 0 || measure.clef != old[i - 1].staff(staff).clefAtEnd) {
-        clefs.add((start, measure.clef));
-      }
-      for (final change in measure.clefChanges) {
-        clefs.add((start + Moment.zero.until(change.offset), change.clef));
-      }
-      for (final direction in measure.directions) {
-        if (place(i, direction.offset) case (final k, final offset)) {
-          directions[k].add(_movedTo(direction, offset));
-        }
-      }
-    }
-    return [
-      for (var k = 0; k < count; k++)
-        StaffMeasure(
-          staff: staff,
-          clef: clefs.lastWhere((c) => c.$1 <= length * Fraction(k)).$2,
-          clefChanges: Seq([
-            for (final (time, clef) in clefs)
-              if (time > length * Fraction(k) &&
-                  time < length * Fraction(k + 1))
-                ClefChange(_barAt(time, length).$2, clef),
-          ]),
-          directions: Seq(directions[k]),
-          voices: Seq([
-            for (final (lane, slot, bars) in voices)
-              if (lane == staff &&
-                  (slot == VoiceSlot.one || !bars[k].every((i) => i is Gap)))
-                Voice(slot: slot, items: Seq(bars[k])),
-          ]),
-        ),
-    ];
-  }
-
-  final staves = [for (final staff in first.staves) staffBars(staff.staff)];
+  final staves = [
+    for (final staff in first.staves)
+      _staffBars(old, staff.staff, count, length, voices),
+  ];
   return _Section(old, [
     for (var k = 0; k < count; k++)
       MeasureColumn(
@@ -300,6 +267,61 @@ _Section _rebar(
       ),
   ], next);
 }
+
+/// [staff]'s [count] bars, [length] long, cut from the bars [old]: the
+/// voices of [voices] that are on [staff], and the clefs and directions of
+/// [old] at the section times [direction] and [clef] give them. A direction
+/// [direction] drops, or one past the last bar, is lost.
+List<StaffMeasure> _staffBars(
+  List<MeasureColumn> old,
+  StaffId staff,
+  int count,
+  Length length,
+  List<(StaffId, VoiceSlot, List<List<VoiceItem>>)> voices, {
+  Length? Function(Length time) direction = _unmoved,
+  Length Function(Length time) clef = _unmoved,
+}) {
+  final clefs = <(Length, Clef)>[];
+  final directions = [for (var k = 0; k < count; k++) <StaffDirection>[]];
+  for (final (i, column) in old.indexed) {
+    final measure = column.staff(staff);
+    final start = old.first.length * Fraction(i);
+    if (i == 0 || measure.clef != old[i - 1].staff(staff).clefAtEnd) {
+      clefs.add((i == 0 ? start : clef(start), measure.clef));
+    }
+    for (final change in measure.clefChanges) {
+      clefs.add((clef(start + Moment.zero.until(change.offset)), change.clef));
+    }
+    for (final mark in measure.directions) {
+      final time = direction(start + Moment.zero.until(mark.offset));
+      if (time != null && time < length * Fraction(count)) {
+        final (k, offset) = _barAt(time, length);
+        directions[k].add(_movedTo(mark, offset));
+      }
+    }
+  }
+  return [
+    for (var k = 0; k < count; k++)
+      StaffMeasure(
+        staff: staff,
+        clef: clefs.lastWhere((c) => c.$1 <= length * Fraction(k)).$2,
+        clefChanges: Seq([
+          for (final (time, clef) in clefs)
+            if (time > length * Fraction(k) && time < length * Fraction(k + 1))
+              ClefChange(_barAt(time, length).$2, clef),
+        ]),
+        directions: Seq(directions[k]),
+        voices: Seq([
+          for (final (lane, slot, bars) in voices)
+            if (lane == staff &&
+                (slot == VoiceSlot.one || !bars[k].every((i) => i is Gap)))
+              Voice(slot: slot, items: Seq(bars[k])),
+        ]),
+      ),
+  ];
+}
+
+Length _unmoved(Length time) => time;
 
 /// One voice of one staff through a section, barlines dissolved: each item
 /// with the bar it came from, and a gap for a bar without the voice.
@@ -356,20 +378,29 @@ bool _elastic(VoiceItem item) => switch (item) {
   ChordEvent() || Tuplet() => false,
 };
 
+/// One item of a voice laid end to end through a section: the item, the
+/// time it takes there, and the bar it came from. An event whose span
+/// differs from its own is respelled to it when cut.
+typedef _Placed = ({VoiceItem item, Length span, MeasureId origin});
+
 /// [items], laid end to end from the start of a section, cut into [count]
-/// bars of [meter]. A note that crosses a barline is split and tied, and a
-/// rest is split. A measure rest is blank time, as is the time after the
-/// items. Blank time is rests in voice one and gaps in the others ([gaps]),
-/// and a whole bar of it is a measure rest. Refused when a barline would
-/// cut a tuplet.
+/// bars of [meter], each [length] long (the meter's length by default). A
+/// note that crosses a barline is split and tied, and a rest is split. A
+/// measure rest is blank time, as is the time after the items. Blank time
+/// is rests in voice one and gaps in the others ([gaps]), and a whole bar
+/// of it is a measure rest. Refused when a barline would cut a tuplet.
+/// Each later piece of a split event is entered in [origins] under the
+/// event it came from.
 List<List<VoiceItem>> _cut(
-  List<(VoiceItem, MeasureId)> items,
+  List<_Placed> items,
   int count,
   Meter meter,
   _Ids ids, {
   required bool gaps,
+  Length? length,
+  Map<EventId, EventId>? origins,
 }) {
-  final length = meter.length;
+  final barLength = length ?? meter.length;
   final grid = BeatGrid.meter(meter);
   final bars = [for (var k = 0; k < count; k++) <VoiceItem>[]];
   void split(List<_Span> spans, Event event) {
@@ -383,6 +414,9 @@ List<List<VoiceItem>> _cut(
         ),
     ];
     final pieces = _split(event, [for (final v in values) ...v], ids);
+    for (final piece in pieces.skip(1)) {
+      origins?[piece.id] = event.id;
+    }
     var n = 0;
     for (final (k, span) in spans.indexed) {
       bars[span.bar].addAll(pieces.getRange(n, n + values[k].length));
@@ -393,11 +427,11 @@ List<List<VoiceItem>> _cut(
   void blank(Event? kept, List<_Span> spans) {
     for (final (n, span) in spans.indexed) {
       final keeps = n == 0 ? kept : null;
-      if (span.length == length) {
+      if (span.length == barLength) {
         bars[span.bar].add(
           MeasureRest(
             id: keeps?.id ?? ids.event(),
-            span: length,
+            span: barLength,
             articulations: keeps?.articulations ?? const {},
           ),
         );
@@ -416,13 +450,13 @@ List<List<VoiceItem>> _cut(
   }
 
   var time = Length.zero;
-  for (final (item, origin) in items) {
-    final spans = _spans(time, item.span, length);
-    time += item.span;
+  for (final (:item, :span, :origin) in items) {
+    final spans = _spans(time, span, barLength);
+    time += span;
     switch (item) {
       case MeasureRest():
         blank(item, spans);
-      case _ when spans.length == 1:
+      case _ when spans.length == 1 && span == item.span:
         bars[spans.single.bar].add(item);
       case Tuplet(:final id):
         throw _Refuse(WouldSplitTuplet(id, origin));
@@ -434,9 +468,9 @@ List<List<VoiceItem>> _cut(
         split(spans, item);
     }
   }
-  final left = length * Fraction(count) - time;
+  final left = barLength * Fraction(count) - time;
   if (left.isPositive) {
-    final spans = _spans(time, left, length);
+    final spans = _spans(time, left, barLength);
     if (gaps) {
       for (final span in spans) {
         bars[span.bar].add(Gap(span.length));

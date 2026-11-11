@@ -6,7 +6,9 @@
 ///
 /// Policies that shape the whole model are stated on the edits that carry
 /// them:
-/// - Note entry overwrites; it never pushes music forward. See [EnterNote].
+/// - Note entry overwrites unless it is asked to ripple. See [EnterNote].
+/// - A ripple moves the later music of one part, inside one section. See
+///   [Ripple].
 /// - Overfill splits at the barline and ties into the next bar. See
 ///   [EnterNote].
 /// - A meter change re-bars the music up to the next meter change, section
@@ -65,6 +67,23 @@ sealed class Edit {
 /// bar is appended for the cursor. Without it the score keeps its bars and
 /// the cursor stays at [at]. The bars the overfill policy needs are appended
 /// either way.
+///
+/// With [ripple] set to [Ripple.part] the note makes room for itself
+/// instead of writing over what follows. It first takes the time of the
+/// plain rests and gaps that start at [at], up to its own length, and pushes
+/// the music after them later by the time it still needs (see [Ripple]).
+/// Entered onto a rest at least as long as itself, it pushes nothing and
+/// the edit is the overwriting one. Entered inside a note, it splits that
+/// note: the head stays before the new note and the rest of it moves after.
+/// Inside a tuplet it only fills rests: the edit is refused with
+/// [WouldSplitTuplet] when the tuplet has music where the note would go.
+/// At the start of a tuplet that begins with music, the whole tuplet moves.
+/// [Overfill.refuse] still refuses a new note longer than the rest of its
+/// bar, but the music it pushes is cut and tied at barlines, and the
+/// section grows by whole bars to hold it, whatever [overfill] and
+/// [appendBar] say. The tie into [at], the cursor, the selection and
+/// [appendBar] for the bar after the score's end work as they do for
+/// overwriting entry.
 final class EnterNote extends Edit {
   const EnterNote({
     required this.at,
@@ -73,6 +92,7 @@ final class EnterNote extends Edit {
     this.overfill = Overfill.splitAndTie,
     this.beam = BeamMode.auto,
     this.appendBar = true,
+    this.ripple = Ripple.none,
   });
 
   final VoicePoint at;
@@ -90,24 +110,30 @@ final class EnterNote extends Edit {
   /// Whether a note that ends the score gets an empty bar after it.
   final bool appendBar;
 
+  /// Whether the music after the note moves to make room for it.
+  final Ripple ripple;
+
   @override
   String get label => 'Enter note';
 }
 
 /// [EnterNote] for a rest. In voices two to four, a rest can be turned into
-/// a gap with [Erase].
+/// a gap with [Erase]. A rest that ripples pushes later music as a note
+/// does.
 final class EnterRest extends Edit {
   const EnterRest({
     required this.at,
     required this.value,
     this.overfill = Overfill.splitAndTie,
     this.appendBar = true,
+    this.ripple = Ripple.none,
   });
 
   final VoicePoint at;
   final NoteValue value;
   final Overfill overfill;
   final bool appendBar;
+  final Ripple ripple;
 
   @override
   String get label => 'Enter rest';
@@ -120,6 +146,54 @@ enum Overfill {
 
   /// Refuse with `WouldCrossBarline`.
   refuse,
+}
+
+/// Whether an edit that adds or removes time moves the music after it.
+///
+/// Ripple policy, for [Ripple.part]. An editor that works like a line of
+/// text uses it: new music makes room for itself, and deleted music closes
+/// the gap it leaves.
+///
+/// - Scope: every voice of every staff of the part that holds the edit
+///   moves together, so the part's voices stay aligned. Other parts stay
+///   where they are.
+/// - Sections: music moves only inside the section that holds the edit.
+///   That is the run of bars [SetMeter] re-bars together, also ended by a
+///   change of meter. The section's trailing rests and gaps give way
+///   first, as in [SetMeter]. A push that still overfills the section adds
+///   whole bars before its closing barline, and the barline, its repeat
+///   sign and its end-of-bar navigation move to the new last bar. Music
+///   never crosses that barline, so a push into the last section adds bars
+///   at the end of the score. A pull leaves rests at the end of the section
+///   and removes no bars. A pickup or other irregular bar is a section that
+///   cannot grow, and a push that overfills it is refused with
+///   [WouldCrossBarline].
+/// - Moving: the music after the edit point moves by the time added or
+///   removed. In the other voices, an event that sounds across the point
+///   where time is added becomes longer by that time, an event that
+///   overlaps removed time becomes shorter by the overlap, and an event
+///   inside removed time goes. A note that ends up across a barline is
+///   split there and tied. Adding or removing time inside a tuplet is
+///   refused with [WouldSplitTuplet].
+/// - Ties: a tie stays while it ends on the head it ended on before, on the
+///   next piece of its own note, or on a new note of its tone, and while it
+///   ends on no head where it ended on none. Otherwise it is cleared.
+/// - Marks: articulations, fingerings and lyrics travel on their notes.
+///   The directions and clef changes of the part's staves, the ends of its
+///   spanners, a cursor on the part and a range selection over it keep
+///   their place in the music. A direction in removed time is dropped, as
+///   [DeleteMeasures] drops it. A clef change there moves to where the time
+///   was removed, so the clef that follows is kept. A spanner start there
+///   moves to the music after it and an end to the last onset before it.
+///   Tempo marks, breaks and signature displays belong to every part, so
+///   they stay with their bars.
+enum Ripple {
+  /// Nothing moves: new music writes over what follows, and music made
+  /// shorter or deleted leaves rests.
+  none,
+
+  /// The later music of the edited part moves.
+  part,
 }
 
 /// Adds [tone] to [event] (access pattern 2). A single note becomes a
@@ -169,11 +243,19 @@ final class SetTone extends Edit {
 /// the tuplet. A tie out of the event stays only while it ends on the head
 /// it ended on before, or on none. The cursor and selection stay.
 /// Idempotent.
+///
+/// With [ripple] set to [Ripple.part], the music after the event moves by
+/// the change instead (see [Ripple]). A longer event pushes it later and a
+/// shorter one pulls it back, so nothing after the event is written over
+/// or turned into rests. An event in a tuplet cannot change its length this
+/// way, and the edit is refused with [WouldSplitTuplet]. The cursor and a
+/// range selection on the part follow the music.
 final class SetValue extends Edit {
-  const SetValue(this.event, this.value);
+  const SetValue(this.event, this.value, {this.ripple = Ripple.none});
 
   final EventRef event;
   final NoteValue value;
+  final Ripple ripple;
 
   @override
   String get label => 'Change duration';
@@ -240,10 +322,19 @@ final class SetTie extends Edit {
 /// the tuplets wholly inside it, its directions, and the spanners that start
 /// and end in it. A tie into what is cleared is cleared too. Bars are never
 /// removed; see [DeleteMeasures].
+///
+/// With [ripple] set to [Ripple.part], what is deleted gives back its time
+/// (see [Ripple]). A picked event goes, a measure rest included, and the
+/// later music of its part moves back to close the gap. Picked heads of a
+/// chord that keeps another head are removed as they are without a ripple.
+/// A range takes its time out of every part that has a staff in it, all of
+/// that part's staves, section by section. An event in a tuplet, or a range
+/// end inside one, is refused with [WouldSplitTuplet].
 final class Erase extends Edit {
-  const Erase(this.selection);
+  const Erase(this.selection, {this.ripple = Ripple.none});
 
   final Selection selection;
+  final Ripple ripple;
 
   @override
   String get label => 'Delete';

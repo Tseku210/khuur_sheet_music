@@ -44,6 +44,7 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
       :final overfill,
       :final beam,
       :final appendBar,
+      ripple: Ripple.none,
     ) =>
       _enter(
         score,
@@ -58,7 +59,36 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
         overfill,
         appendBar: appendBar,
       ),
-    EnterRest(:final at, :final value, :final overfill, :final appendBar) =>
+    EnterNote(
+      :final at,
+      :final tone,
+      :final value,
+      :final overfill,
+      :final beam,
+      :final appendBar,
+      ripple: Ripple.part,
+    ) =>
+      _enterRippled(
+        score,
+        at,
+        ChordEvent(
+          id: ids.event(),
+          value: _checked(value),
+          beam: beam,
+          notes: Seq([_noteOn(score, at.staff, ids.note(), tone)]),
+        ),
+        ids,
+        overfill,
+        appendBar: appendBar,
+        session: session,
+      ),
+    EnterRest(
+      :final at,
+      :final value,
+      :final overfill,
+      :final appendBar,
+      ripple: Ripple.none,
+    ) =>
       _enter(
         score,
         at,
@@ -66,6 +96,22 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
         ids,
         overfill,
         appendBar: appendBar,
+      ),
+    EnterRest(
+      :final at,
+      :final value,
+      :final overfill,
+      :final appendBar,
+      ripple: Ripple.part,
+    ) =>
+      _enterRippled(
+        score,
+        at,
+        RestEvent(id: ids.event(), value: _checked(value)),
+        ids,
+        overfill,
+        appendBar: appendBar,
+        session: session,
       ),
     AddToChord(:final event, :final tone) => _addToChord(
       score,
@@ -77,9 +123,11 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
       _removeNote(score, _targetHead(score, note)),
     ),
     SetTone(:final note, :final tone) => _setNoteTone(score, note, tone),
-    SetValue(:final event, :final value) => _Result(
+    SetValue(:final event, :final value, ripple: Ripple.none) => _Result(
       _setValue(score, _target(score, event), _checked(value), ids),
     ),
+    SetValue(:final event, :final value, ripple: Ripple.part) =>
+      _setValueRippled(score, event, _checked(value), ids, session),
     EnterTuplet(:final at, :final ratio, :final unit) => _enterTuplet(
       score,
       at,
@@ -96,7 +144,15 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
       ids,
     ),
     SetTie(:final note, :final tied) => _setTie(score, note, tied),
-    Erase(:final selection) => _Result(_erase(score, selection, ids)),
+    Erase(:final selection, ripple: Ripple.none) => _Result(
+      _erase(score, selection, ids),
+    ),
+    Erase(:final selection, ripple: Ripple.part) => _eraseRippled(
+      score,
+      selection,
+      ids,
+      session,
+    ),
     SetArticulation(:final event, :final articulation, :final present) =>
       _setArticulation(score, event, articulation, present),
     SetOrnament(:final event, :final ornament) => _setOrnament(

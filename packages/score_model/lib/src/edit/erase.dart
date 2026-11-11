@@ -9,6 +9,27 @@ Score _erase(Score score, Selection selection, _Ids ids) => switch (selection) {
 /// Erases the picked events whole, and the picked heads of a chord that
 /// keeps another head. Picking every head of a chord picks the chord.
 Score _eraseItems(Score score, Seq<ElementRef> items, _Ids ids) {
+  final (:targets, :whole, :trimmed) = _picked(score, items);
+  final lanes = {
+    for (final timed in targets.values)
+      (score.indexOf(timed.ref.measure), timed.ref.staff),
+  };
+  final cleared = _clear(
+    trimmed,
+    lanes,
+    (_) =>
+        (item, _, _) => item is Event && whole.contains(item.id),
+    ids,
+  );
+  return _retie(score, cleared, lanes);
+}
+
+/// The events [items] picks, the ones it picks whole, and [score] without
+/// the heads it picks of a chord that keeps another head.
+({Map<EventId, TimedEvent> targets, Set<EventId> whole, Score trimmed}) _picked(
+  Score score,
+  Seq<ElementRef> items,
+) {
   final targets = <EventId, TimedEvent>{};
   final whole = <EventId>{};
   final heads = <EventId, Set<NoteId>>{};
@@ -41,18 +62,7 @@ Score _eraseItems(Score score, Seq<ElementRef> items, _Ids ids) {
       );
     }
   }
-  final lanes = {
-    for (final timed in targets.values)
-      (score.indexOf(timed.ref.measure), timed.ref.staff),
-  };
-  final cleared = _clear(
-    trimmed,
-    lanes,
-    (_) =>
-        (item, _, _) => item is Event && whole.contains(item.id),
-    ids,
-  );
-  return _retie(score, cleared, lanes);
+  return (targets: targets, whole: whole, trimmed: trimmed);
 }
 
 /// Erases every voice of the staves from [RangeSelection.top] to
