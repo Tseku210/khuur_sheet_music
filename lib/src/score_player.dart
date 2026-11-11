@@ -72,8 +72,11 @@ final class ScorePlayer {
   Timer? _timer;
   double _tempoScale = 1;
 
-  /// Where playback is, or null when stopped.
-  ValueListenable<PlaybackPosition?> get position => _position;
+  /// Where playback is, or null when stopped. Null as soon as the player
+  /// leaves its run, also for a [status] listener that runs before the
+  /// position's own listeners are told.
+  ValueListenable<PlaybackPosition?> get position => _runPosition;
+  late final _runPosition = _RunPosition(this);
 
   /// Whether the player is loading, playing or paused. Returns to
   /// [PlayerStatus.idle] when the score ends, so an app's play button needs
@@ -340,6 +343,25 @@ final class ScorePlayer {
       sounding: run.script.sourcesAt(seconds),
     );
   }
+}
+
+/// [ScorePlayer._position], read as null while the player has no run.
+final class _RunPosition implements ValueListenable<PlaybackPosition?> {
+  _RunPosition(this._player);
+
+  final ScorePlayer _player;
+
+  @override
+  PlaybackPosition? get value =>
+      _player._run == null ? null : _player._position.value;
+
+  @override
+  void addListener(VoidCallback listener) =>
+      _player._position.addListener(listener);
+
+  @override
+  void removeListener(VoidCallback listener) =>
+      _player._position.removeListener(listener);
 }
 
 Duration Function() _stopwatch() {
