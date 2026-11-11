@@ -214,9 +214,10 @@ void main() {
         (File('${tmp.path}/reed.sf2')..writeAsBytesSync([4, 5])).path,
       );
       final output = FlutterMidiOutput();
-      await tester.runAsync(
-        () => Future.wait([output.load(soundFont), output.load(reed)]),
-      );
+      await tester.runAsync(() async {
+        await output.load(soundFont);
+        await output.load(reed);
+      });
       await output.program(
         soundFont: soundFont,
         channel: 0,
