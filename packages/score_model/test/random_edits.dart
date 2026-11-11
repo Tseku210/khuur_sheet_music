@@ -187,11 +187,16 @@ SetLyric _lyric(EventRef event, Random random) {
 /// repeats, navigation and rehearsal marks, inserted and deleted bars, bar
 /// lengths, meters, erased, pasted and transposed ranges, breaks, signature
 /// displays, and adding, removing, hiding and showing parts.
+///
+/// A rippled value change or delete takes time out of every staff and
+/// voice of its part, and the music in that time with it. The two share
+/// one case, and value changes go to chords only, so that the walks keep
+/// the music and marks the layout tests count.
 Score randomEdit(Score score, Random random) {
   final bar = random.nextInt(score.measures.length);
   final id = score.measures[bar].id;
   final beats = _beatsIn(score.measures[bar]);
-  switch (random.nextInt(37)) {
+  switch (random.nextInt(36)) {
     case 0 || 1 || 2:
       final staff = pick(random, score.staves).id;
       return edited(
@@ -489,21 +494,22 @@ Score randomEdit(Score score, Random random) {
         _ => SetRehearsal(id, pick(random, [null, '', 'A', 'B2', 'Б'])),
       });
     case 35:
-      final (event, _) = pick(random, _eventsOf(score));
-      return edited(
-        score,
-        SetValue(
-          event,
-          pick(random, [
-            NoteValue.eighth,
-            NoteValue.quarter,
-            NoteValue.quarter.dotted,
-            NoteValue.half,
-          ]),
-          ripple: Ripple.part,
-        ),
-      );
-    case 36:
+      final chords = _chordsOf(score);
+      if (chords.isNotEmpty && random.nextBool()) {
+        return edited(
+          score,
+          SetValue(
+            pick(random, chords).$1,
+            pick(random, [
+              NoteValue.eighth,
+              NoteValue.quarter,
+              NoteValue.quarter.dotted,
+              NoteValue.half,
+            ]),
+            ripple: Ripple.part,
+          ),
+        );
+      }
       final (event, _) = pick(random, _eventsOf(score));
       return edited(
         score,
