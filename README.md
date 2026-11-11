@@ -53,7 +53,7 @@ if (session.run(edit) case Applied(session: final next)) {
 
 A note longer than the rest of its bar is cut at the barline and tied, and a note that ends the score gets an empty bar after it. `EnterNote(overfill: Overfill.refuse, appendBar: false, ...)` turns both off. The long note is then refused with `WouldCrossBarline`, and the app adds bars with `InsertMeasures`. Beams follow the meter. `EnterNote(beam: BeamMode.none, ...)` enters a note that takes no beam, and `SetBeam` sets how a note beams afterwards.
 
-`scoreToJson` and `scoreFromJson` save and load a score. `scoreToMusicXml` and `scoreFromMusicXml` write and read MusicXML.
+`scoreToJson` and `scoreFromJson` save and load a score. `scoreToMusicXml` and `scoreFromMusicXml` write and read MusicXML, and `scoreToMidi` writes a MIDI file of the score as it plays.
 
 ## Edit by tap
 

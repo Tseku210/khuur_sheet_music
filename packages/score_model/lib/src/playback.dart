@@ -339,6 +339,46 @@ final class PlaybackScript {
   }
 }
 
+/// The played bars of [script] as the clocks that time them, for a writer
+/// that places the script in notated time, as a MIDI file does.
+List<BarClock> barClocks(PlaybackScript script) => [
+  for (final bar in script._timeline) BarClock._(bar),
+];
+
+/// How one played bar passes time, measured from the first point of it
+/// that plays.
+final class BarClock {
+  BarClock._(this._bar);
+
+  final _Bar _bar;
+
+  PlayedBar get played => _bar.played;
+
+  /// How much of the bar plays: all of it, or the part a range keeps.
+  Length get length => _bar.from.until(_bar.to);
+
+  /// Where the tempo starts to hold or to move, first at zero and then in
+  /// order. Each lasts until the next, or until [length].
+  List<({Length at, bool steady})> get paces {
+    final steps = _bar.clock._steps;
+    final first =
+        _partition(steps.length, (i) => steps[i].from > _bar.from) - 1;
+    return [
+      for (final step in steps.skip(first))
+        if (step.from < _bar.to)
+          (
+            at: step.from <= _bar.from
+                ? Length.zero
+                : _bar.from.until(step.from),
+            steady: step.pace.steady,
+          ),
+    ];
+  }
+
+  /// Seconds of the script at [into] past the first point that plays.
+  double secondsAt(Length into) => _bar.secondsAt(_bar.from + into);
+}
+
 /// Where playback is at one moment of a script.
 final class PlaybackPoint {
   const PlaybackPoint({required this.bar, required this.offset});
