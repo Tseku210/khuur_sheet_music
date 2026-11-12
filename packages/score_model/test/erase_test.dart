@@ -322,6 +322,140 @@ void main() {
     });
   });
 
+  group('Erase spanners', () {
+    /// A bar of four quarters with a slur over the first two (900), a
+    /// hairpin over the last two (901) and a slur over the whole bar (902).
+    EditSession lined() {
+      var score = fill(blankScore(), 0, [
+        for (var i = 0; i < 4; i++) chordOf(100 + i, 'C5'),
+      ]);
+      score = withSlur(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(1, 4)),
+      );
+      score = withSpanner(
+        score,
+        const Hairpin(crescendo: true),
+        pointAt(score, 0, at(1, 2)),
+        pointAt(score, 0, at(3, 4)),
+      );
+      score = withSlur(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(3, 4)),
+      );
+      return EditSession.start(score);
+    }
+
+    List<int> spannersOf(EditSession session) => [
+      for (final s in session.score.spanners) s.id.value,
+    ];
+
+    test('removes a picked slur and leaves its notes', () {
+      final session = lined();
+      final selection = Selection.spanner(const SpannerId(900));
+
+      final next = applied(session.select(selection).run(Erase(selection)));
+
+      expect(spannersOf(next), [901, 902]);
+      expect(bar(next.score, 0), List.filled(4, 'C5/quarter'));
+      expect(next.selection, isA<NoSelection>());
+    });
+
+    test('undo brings the spanner back, selected', () {
+      final selection = Selection.spanner(const SpannerId(901));
+      final session = lined().select(selection);
+
+      final undone = applied(session.run(Erase(selection))).undo();
+
+      expect(spannersOf(undone), [900, 901, 902]);
+      expect(undone.selection, isA<ItemSelection>());
+      expect((undone.selection as ItemSelection).spanners, [
+        const SpannerId(901),
+      ]);
+    });
+
+    test('with notes picked too, clears the notes and removes the picked '
+        'spanner, and keeps a spanner it does not pick', () {
+      final session = lined();
+      final selection = ItemSelection(
+        Seq([eventRef(session, 102)]),
+        spanners: Seq(const [SpannerId(901)]),
+      );
+
+      final next = applied(session.run(Erase(selection)));
+
+      expect(spannersOf(next), [900, 902]);
+      expect(bar(next.score, 0), [
+        'C5/quarter',
+        'C5/quarter',
+        'rest/quarter',
+        'C5/quarter',
+      ]);
+    });
+
+    test('removes the picked spanner with a ripple too', () {
+      final session = lined();
+
+      final next = applied(
+        session.run(
+          Erase(
+            Selection.spanner(const SpannerId(902)),
+            ripple: Ripple.part,
+          ),
+        ),
+      );
+
+      expect(spannersOf(next), [900, 901]);
+      expect(bar(next.score, 0), List.filled(4, 'C5/quarter'));
+    });
+
+    test('refuses a spanner that is gone', () {
+      expect(
+        refusal(
+          lined().run(Erase(Selection.spanner(const SpannerId(999)))),
+        ),
+        isA<StaleReference>().having(
+          (r) => r.target,
+          'target',
+          const SpannerId(999),
+        ),
+      );
+    });
+
+    test('a selection drops a spanner that another edit removed', () {
+      final session = lined().select(
+        ItemSelection(
+          Seq([eventRef(lined(), 100)]),
+          spanners: Seq(const [SpannerId(900), SpannerId(901)]),
+        ),
+      );
+
+      final next = applied(session.run(const RemoveSpanner(SpannerId(900))));
+
+      final selection = next.selection as ItemSelection;
+      expect(selection.spanners, [const SpannerId(901)]);
+      expect(selection.singleEvent?.id, const EventId(100));
+    });
+
+    test('a selection of a spanner alone is not empty, and copies and '
+        'transposes nothing', () {
+      final session = lined().select(Selection.spanner(const SpannerId(900)));
+
+      expect(session.selection.isEmpty, isFalse);
+      expect(session.selection.singleEvent, isNull);
+      expect(session.copy(), isNull);
+      expect(
+        changesNothing(
+          session,
+          Transpose(session.selection, const Transposition.diatonic(1)),
+        ),
+        isTrue,
+      );
+    });
+  });
+
   group('Erase a range', () {
     test('clears the events that start in it, in every voice', () {
       var score = fill(blankScore(), 0, [

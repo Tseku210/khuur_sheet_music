@@ -6,6 +6,26 @@ Score _erase(Score score, Selection selection, _Ids ids) => switch (selection) {
   final RangeSelection range => _eraseRange(score, range, ids),
 };
 
+/// [score] without the spanners [selection] picks. Refused with
+/// [StaleReference] for one that is gone.
+Score _unspanned(Score score, Selection selection) {
+  if (selection case ItemSelection(:final spanners) when spanners.isNotEmpty) {
+    final picked = spanners.toSet();
+    for (final id in picked) {
+      if (!score.spanners.any((s) => s.id == id)) {
+        throw _Refuse(StaleReference(id));
+      }
+    }
+    return score.copyWith(
+      spanners: Seq([
+        for (final s in score.spanners)
+          if (!picked.contains(s.id)) s,
+      ]),
+    );
+  }
+  return score;
+}
+
 /// Erases the picked events whole, and the picked heads of a chord that
 /// keeps another head. Picking every head of a chord picks the chord.
 Score _eraseItems(Score score, Seq<ElementRef> items, _Ids ids) {
