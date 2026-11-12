@@ -358,6 +358,84 @@ void main() {
       expect(views(loaded), views(showcase()));
     });
 
+    test('reads every spanner kind back equal to the one it was saved', () {
+      final kinds = [for (final s in showcase().spanners) s.kind];
+      final loaded = [for (final s in reloaded(showcase()).spanners) s.kind];
+
+      expect(
+        {for (final kind in kinds) kind.runtimeType},
+        {
+          Slur,
+          Hairpin,
+          OctaveLine,
+          TrillLine,
+          TempoLine,
+          PedalLine,
+          Glissando,
+        },
+      );
+      expect(loaded, kinds);
+      expect(
+        [for (final k in loaded) k.hashCode],
+        [
+          for (final k in kinds) k.hashCode,
+        ],
+      );
+    });
+
+    test('equates spanner kinds by their fields, not by instance', () {
+      const constants = <SpannerKind>[
+        Slur(dashed: true),
+        Hairpin(crescendo: true),
+        OctaveLine(OctaveShift.down15),
+        TrillLine(),
+        TempoLine(text: 'poco rit.', factor: 0.9),
+        PedalLine(),
+        Glissando(),
+      ];
+      // New instances, so that equality and not const canonicalising is what
+      // makes them equal to the constants.
+      final built = <SpannerKind>[
+        // ignore: prefer_const_constructors
+        Slur(dashed: true),
+        // ignore: prefer_const_constructors
+        Hairpin(crescendo: true),
+        // ignore: prefer_const_constructors
+        OctaveLine(OctaveShift.down15),
+        // ignore: prefer_const_constructors
+        TrillLine(),
+        // ignore: prefer_const_constructors
+        TempoLine(text: 'poco rit.', factor: 0.9),
+        // ignore: prefer_const_constructors
+        PedalLine(),
+        // ignore: prefer_const_constructors
+        Glissando(),
+      ];
+
+      for (final (i, kind) in built.indexed) {
+        expect(identical(kind, constants[i]), isFalse);
+        expect(kind, constants[i]);
+        expect(kind.hashCode, constants[i].hashCode);
+      }
+    });
+
+    test('tells spanner kinds apart by any field or by type', () {
+      const pairs = <(SpannerKind, SpannerKind)>[
+        (Slur(dashed: true), Slur()),
+        (Hairpin(crescendo: true), Hairpin(crescendo: false)),
+        (OctaveLine(OctaveShift.up8), OctaveLine(OctaveShift.down8)),
+        (TempoLine.ritardando, TempoLine(text: 'rall.', factor: 0.75)),
+        (TempoLine.ritardando, TempoLine(text: 'rit.', factor: 0.5)),
+        (TrillLine(), PedalLine()),
+        (Slur(), Glissando()),
+      ];
+
+      for (final (a, b) in pairs) {
+        expect(a, isNot(b));
+        expect(b, isNot(a));
+      }
+    });
+
     test('fills meter, key and clef into bars that leave them out', () {
       final loaded = reloaded(showcase());
 

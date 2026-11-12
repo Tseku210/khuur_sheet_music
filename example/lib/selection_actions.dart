@@ -93,7 +93,7 @@ final class Picked {
     return _score.spanners
         .where(
           (line) =>
-              _alike(line.kind, kind) &&
+              line.kind == kind &&
               line.staff == first.ref.staff &&
               (!kind.joinsNotes || line.voice == first.voice) &&
               line.first == _startOf(first) &&
@@ -379,14 +379,6 @@ const SelectionAction _deselect = (
 
 ScorePoint _startOf(TimedEvent timed) =>
     ScorePoint(timed.ref.measure, timed.onset);
-
-/// Whether two lines are of one kind. The kinds are not values, so a kind
-/// read back from a file is not the constant it was written from.
-bool _alike(SpannerKind a, SpannerKind b) => switch ((a, b)) {
-  (Slur(dashed: final x), Slur(dashed: final y)) => x == y,
-  (Hairpin(crescendo: final x), Hairpin(crescendo: final y)) => x == y,
-  _ => false,
-};
 
 /// Ties each picked head onward where the next event of its voice has the
 /// head's tone, because the model draws a tie to nothing as a loose end.
