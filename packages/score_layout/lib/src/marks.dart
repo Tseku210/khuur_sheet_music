@@ -1144,22 +1144,21 @@ List<BarItem> systemMarkItems(
 ];
 
 /// Metronome glyphs for a beat value, which are the `metNote` of its base,
-/// then one `metAugmentationDot` per dot. Empty for a breve and for a value
-/// shorter than a sixteenth, which the font's table has no note for. A
-/// tempo mark with such a beat prints its words alone.
-List<Glyph> metronomeGlyphs(NoteValue beat) {
-  final note = switch (beat.base) {
+/// then one `metAugmentationDot` per dot.
+List<Glyph> metronomeGlyphs(NoteValue beat) => [
+  switch (beat.base) {
+    DurationBase.breve => Glyph.metNoteDoubleWhole,
     DurationBase.whole => Glyph.metNoteWhole,
     DurationBase.half => Glyph.metNoteHalfUp,
     DurationBase.quarter => Glyph.metNoteQuarterUp,
     DurationBase.eighth => Glyph.metNote8thUp,
     DurationBase.sixteenth => Glyph.metNote16thUp,
-    _ => null,
-  };
-  return note == null
-      ? const []
-      : [note, for (var i = 0; i < beat.dots; i++) Glyph.metAugmentationDot];
-}
+    DurationBase.thirtySecond => Glyph.metNote32ndUp,
+    DurationBase.sixtyFourth => Glyph.metNote64thUp,
+    DurationBase.oneTwentyEighth => Glyph.metNote128thUp,
+  },
+  for (var i = 0; i < beat.dots; i++) Glyph.metAugmentationDot,
+];
 
 /// A tuplet's number and bracket, decided in bar space. The system draws
 /// it, because a bracket spans slices that the stretch moves apart. Like a

@@ -234,7 +234,7 @@ final class GlyphPainter {
   final SmuflFont font;
 
   /// At most [_capacity] paragraphs, the oldest dropped first and freed.
-  /// One zoom level and one colour need 222 at most, one for each glyph.
+  /// One zoom level and one colour need 226 at most, one for each glyph.
   /// A palette with a colour for each kind of mark needs one more for each
   /// glyph that two kinds draw, as the sharp of a key signature and of a
   /// note. So a zoom or a tint colour that is no longer used falls out by
