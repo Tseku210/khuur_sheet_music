@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:khuur_sheet_music/khuur_sheet_music.dart';
 
 /// The selected events in time order, which is what every button of the
-/// action row works on. Each event names its staff in its `ref` and its
-/// voice in `voice`.
+/// action row but Delete works on. Each event names its staff in its `ref`
+/// and its voice in `voice`. Delete takes the selected slurs and hairpins
+/// too.
 final class Picked {
   Picked._(this._score, this.selection, this.events);
 
@@ -37,6 +38,12 @@ final class Picked {
   final Score _score;
   final Selection selection;
   final List<TimedEvent> events;
+
+  /// The selected slurs and hairpins.
+  Seq<SpannerId> get spanners => switch (selection) {
+    ItemSelection(:final spanners) => spanners,
+    _ => const Seq.empty(),
+  };
 
   /// What the selection names one by one, which is its own items, or every
   /// event of a range.
@@ -159,7 +166,8 @@ typedef SelectionAction = ({String label, IconData icon, Press? press});
 
 /// The action row for [picked], or no button when nothing is picked.
 /// [clip] is what Copy kept, and a paste crosses a bar line as [overfill]
-/// says.
+/// says. A slur or a hairpin picked alone has Delete and Deselect, as no
+/// other button works on a line.
 List<SelectionAction> selectionActions(
   Picked picked, {
   required ScoreClip? clip,
@@ -167,7 +175,9 @@ List<SelectionAction> selectionActions(
 }) {
   final events = picked.events;
   if (events.isEmpty) {
-    return const [];
+    return picked.spanners.isEmpty
+        ? const []
+        : [_delete(picked, clears: true), _deselect];
   }
   final (first, last) = (events.first, events.last);
   final (before, after) = (picked.before(first), picked.after(last));
@@ -205,6 +215,7 @@ List<SelectionAction> selectionActions(
   // from a range it clears the lines and the directions too.
   final clears =
       picked.selection is RangeSelection ||
+      picked.spanners.isNotEmpty ||
       events.any(
         (timed) => timed.event is ChordEvent || timed.voice != VoiceSlot.one,
       );
@@ -238,11 +249,7 @@ List<SelectionAction> selectionActions(
   // Delete and the four buttons that widen and narrow come first, since
   // a phone shows five buttons before the row scrolls.
   return [
-    (
-      label: 'Delete',
-      icon: Icons.delete_outline,
-      press: clears ? RunEdit(Erase(picked.selection)) : null,
-    ),
+    _delete(picked, clears: clears),
     (
       label: 'Widen left',
       icon: Icons.keyboard_double_arrow_left,
@@ -354,13 +361,21 @@ List<SelectionAction> selectionActions(
               ),
             ),
     ),
-    (
-      label: 'Deselect',
-      icon: Icons.deselect,
-      press: const Reselect(Selection.none()),
-    ),
+    _deselect,
   ];
 }
+
+SelectionAction _delete(Picked picked, {required bool clears}) => (
+  label: 'Delete',
+  icon: Icons.delete_outline,
+  press: clears ? RunEdit(Erase(picked.selection)) : null,
+);
+
+const SelectionAction _deselect = (
+  label: 'Deselect',
+  icon: Icons.deselect,
+  press: Reselect(Selection.none()),
+);
 
 ScorePoint _startOf(TimedEvent timed) =>
     ScorePoint(timed.ref.measure, timed.onset);
