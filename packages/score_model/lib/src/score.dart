@@ -711,6 +711,13 @@ sealed class SpannerKind {
   /// does. It then belongs to that voice and covers at least two events.
   /// Lines and hairpins mark a stretch of the staff and may cover one.
   bool get joinsNotes => false;
+
+  /// Kinds without fields are equal when they are the same kind.
+  @override
+  bool operator ==(Object other) => other.runtimeType == runtimeType;
+
+  @override
+  int get hashCode => runtimeType.hashCode;
 }
 
 final class Slur extends SpannerKind {
@@ -720,12 +727,25 @@ final class Slur extends SpannerKind {
 
   @override
   bool get joinsNotes => true;
+
+  @override
+  bool operator ==(Object other) => other is Slur && other.dashed == dashed;
+
+  @override
+  int get hashCode => dashed.hashCode;
 }
 
 final class Hairpin extends SpannerKind {
   const Hairpin({required this.crescendo});
 
   final bool crescendo;
+
+  @override
+  bool operator ==(Object other) =>
+      other is Hairpin && other.crescendo == crescendo;
+
+  @override
+  int get hashCode => crescendo.hashCode;
 }
 
 /// 8va, 8vb, 15ma, 15mb, 22ma, 22mb. Notes under it keep their sounding
@@ -735,6 +755,12 @@ final class OctaveLine extends SpannerKind {
   const OctaveLine(this.shift);
 
   final OctaveShift shift;
+
+  @override
+  bool operator ==(Object other) => other is OctaveLine && other.shift == shift;
+
+  @override
+  int get hashCode => shift.hashCode;
 }
 
 final class TrillLine extends SpannerKind {
@@ -757,6 +783,13 @@ final class TempoLine extends SpannerKind {
   /// The tempo the line reaches, as a share of the tempo at its start, when
   /// no tempo mark is written inside it. Below 1 slows down.
   final double factor;
+
+  @override
+  bool operator ==(Object other) =>
+      other is TempoLine && other.text == text && other.factor == factor;
+
+  @override
+  int get hashCode => Object.hash(text, factor);
 }
 
 final class PedalLine extends SpannerKind {
