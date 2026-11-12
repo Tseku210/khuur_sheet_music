@@ -29,6 +29,7 @@ import 'spacing.dart';
 import 'spanners.dart';
 import 'style.dart';
 import 'text.dart';
+import 'value_glyphs.dart';
 
 /// Clear space between an articulation, a fingering or a string number and
 /// what it stacks on.
@@ -680,19 +681,6 @@ List<BarItem> ornamentItems(
       : _hangOnChord(mark, skyline, chord, xs, style.font);
 }
 
-const List<Glyph> _fingerings = [
-  Glyph.fingering0,
-  Glyph.fingering1,
-  Glyph.fingering2,
-  Glyph.fingering3,
-  Glyph.fingering4,
-  Glyph.fingering5,
-  Glyph.fingering6,
-  Glyph.fingering7,
-  Glyph.fingering8,
-  Glyph.fingering9,
-];
-
 const List<Glyph> _circled = [
   Glyph.guitarString0,
   Glyph.guitarString1,
@@ -761,7 +749,7 @@ List<_Hung> _stringMarks(
       ink: InkRole.fingering,
       owner: ElementOwner(NoteRef(plan.timed.ref, note.id)),
     );
-    _digits(finger, _fingerings).forEach(row.glyph);
+    fingeringGlyphs(finger).forEach(row.glyph);
     marks.add((row: row, side: side, gap: _closeGap));
   }
   for (final note in notes) {
@@ -788,7 +776,7 @@ List<_Hung> _stringMarks(
         style.font,
         ink: InkRole.bowing,
         owner: ElementOwner(plan.timed.ref),
-      )..glyph(bowing == Bowing.up ? Glyph.stringsUpBow : Glyph.stringsDownBow),
+      )..glyph(bowingGlyph(bowing)),
       side: side,
       gap: _markGap,
     ));
@@ -815,25 +803,6 @@ List<BarItem> stringMarkItems(
   for (final mark in _stringMarks(chord.plan, voices, strings, style, text))
     ..._hangOnChord(mark, skyline, chord, xs, style.font),
 ];
-
-/// The glyph of a dynamic level. Each level is one glyph of the font, `fp`
-/// and `sfz` included.
-Glyph dynamicGlyph(Dynamic level) => switch (level) {
-  Dynamic.pppp => Glyph.dynamicPPPP,
-  Dynamic.ppp => Glyph.dynamicPPP,
-  Dynamic.pp => Glyph.dynamicPP,
-  Dynamic.p => Glyph.dynamicPiano,
-  Dynamic.mp => Glyph.dynamicMP,
-  Dynamic.mf => Glyph.dynamicMF,
-  Dynamic.f => Glyph.dynamicForte,
-  Dynamic.ff => Glyph.dynamicFF,
-  Dynamic.fff => Glyph.dynamicFFF,
-  Dynamic.ffff => Glyph.dynamicFFFF,
-  Dynamic.sf => Glyph.dynamicSforzando1,
-  Dynamic.sfz => Glyph.dynamicSforzato,
-  Dynamic.fp => Glyph.dynamicFortePiano,
-  Dynamic.rfz => Glyph.dynamicRinforzando2,
-};
 
 /// A chord symbol's root or bass as its staff prints it.
 PitchName _spelled(PitchName stored, StaffView staff, EngravingStyle style) {
@@ -1143,23 +1112,12 @@ List<BarItem> systemMarkItems(
     ..._place(mark, top, staff: 0, xs: xs, left: left),
 ];
 
-/// Metronome glyphs for a beat value, which are the `metNote` of its base,
-/// then one `metAugmentationDot` per dot. Empty for a breve and for a value
-/// shorter than a sixteenth, which the font's table has no note for. A
-/// tempo mark with such a beat prints its words alone.
-List<Glyph> metronomeGlyphs(NoteValue beat) {
-  final note = switch (beat.base) {
-    DurationBase.whole => Glyph.metNoteWhole,
-    DurationBase.half => Glyph.metNoteHalfUp,
-    DurationBase.quarter => Glyph.metNoteQuarterUp,
-    DurationBase.eighth => Glyph.metNote8thUp,
-    DurationBase.sixteenth => Glyph.metNote16thUp,
-    _ => null,
-  };
-  return note == null
-      ? const []
-      : [note, for (var i = 0; i < beat.dots; i++) Glyph.metAugmentationDot];
-}
+/// Metronome glyphs for a beat value, which are the note of its base, then
+/// one `metAugmentationDot` per dot.
+List<Glyph> metronomeGlyphs(NoteValue beat) => [
+  noteGlyph(beat.base),
+  for (var i = 0; i < beat.dots; i++) Glyph.metAugmentationDot,
+];
 
 /// A tuplet's number and bracket, decided in bar space. The system draws
 /// it, because a bracket spans slices that the stretch moves apart. Like a

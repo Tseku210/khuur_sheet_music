@@ -12,6 +12,7 @@ export 'package:score_layout/score_layout.dart'
         ElementOwner,
         EngravingDefaults,
         EngravingStyle,
+        Glyph,
         InkRole,
         NotePreview,
         Owner,
@@ -22,11 +23,18 @@ export 'package:score_layout/score_layout.dart'
         SpannerOwner,
         StringNumbers,
         TextRole,
-        TextSpec;
+        TextSpec,
+        accidentalGlyph,
+        bowingGlyph,
+        dynamicGlyph,
+        fingeringGlyphs,
+        noteGlyph,
+        restGlyph;
 export 'package:score_model/score_model.dart';
 
 export 'src/midi_output.dart' show FlutterMidiOutput, MidiOutput, MidiReverb;
 export 'src/score_player.dart';
 export 'src/sheet_palette.dart';
 export 'src/sheet_view.dart';
+export 'src/smufl_font_family.dart';
 export 'src/sound_font.dart';

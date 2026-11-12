@@ -1070,6 +1070,30 @@ void main() {
       );
     });
 
+    test('a tempo mark prints its note for a breve and for a value shorter '
+        'than a sixteenth', () {
+      final placed = place(
+        barWith(
+          [chordOf(1, 'A4', value: half), chordOf(2, 'A4', value: half)],
+          tempos: [
+            const TempoMark(
+              offset: Moment.zero,
+              tempo: Tempo(30, beat: NoteValue(DurationBase.breve)),
+            ),
+            TempoMark(
+              offset: at(2, 4),
+              tempo: const Tempo(240, beat: NoteValue.thirtySecond),
+            ),
+          ],
+        ),
+      );
+
+      expect(
+        [for (final draw in glyphsOf(placed).where(isMark)) draw.glyph],
+        [Glyph.metNoteDoubleWhole, Glyph.metNote32ndUp],
+      );
+    });
+
     test('a rehearsal mark stands in its box at the start of the bar, '
         'outside every other mark', () {
       final placed = place(

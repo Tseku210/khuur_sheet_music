@@ -7,6 +7,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
 import 'package:khuur_sheet_music/src/painting.dart';
+import 'package:khuur_sheet_music/src/smufl_font_family.dart';
 import 'package:score_layout/score_layout.dart';
 
 const ui.Color black = ui.Color(0xFF000000);
@@ -25,7 +26,7 @@ Future<void> loadFontFile(String path, String family) async {
 /// `flutter test` registers no pubspec font, so the file is loaded under the
 /// family the painter asks for.
 Future<void> loadBravura(GlyphPainter painter) =>
-    loadFontFile(bravuraFile, painter.family);
+    loadFontFile(bravuraFile, painter.font.flutterFamily);
 
 /// Loads the Flutter SDK's Roboto under [textFamily], so that names and
 /// titles are letters in the pictures and as wide on every host. Without a

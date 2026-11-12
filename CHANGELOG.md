@@ -35,6 +35,8 @@
   | Per-symbol `margin` | Nothing for one symbol. `EngravingStyle.spacing`, a `SpacingPolicy`, sets the spacing of the whole score |
   | The `debug` parameter, and the `GlyphMetadata`, `GlyphPaths` and `MeasureMetrics` exports | Deleted with nothing in their place |
 
+* The library exports `Glyph` and the functions that pick the glyph of a model value, `noteGlyph`, `restGlyph`, `accidentalGlyph`, `dynamicGlyph`, `bowingGlyph` and `fingeringGlyphs`, so an app's own widgets draw a value with the sheet's glyph. `SmuflFont.flutterFamily` is the family to draw them in.
+* A tempo mark prints its note for a breve and for a value shorter than a sixteenth, where it printed its words and number alone.
 * **Breaking:** The package no longer bundles a SoundFont. The 261 MB `touhou.sf2` added that much to every app using the package, even with MIDI off. Pass `AssetSoundFont(...)` or `FileSoundFont(...)` to `ScorePlayer` instead. This replaces `enableMidi`, `soundFontType` and `customSoundFontPath`. `SoundFontType` is removed.
 * `ScorePlayer` takes `instrumentSoundFonts`, a map from `Instrument.key` to a `SoundFont`, so that each part can play from a SoundFont of its own. A part whose instrument is not in the map plays from `soundFont`, as before. The player loads each SoundFont once, when the first `play` that needs it starts.
 * **Breaking:** A `MidiOutput` holds several SoundFonts at once. `program`, `noteOn` and `noteOff` take the `soundFont` they play from, and each SoundFont has its own 16 channels. `allNotesOff` and `dispose` act on every SoundFont the output loaded. An app with its own `MidiOutput` adds the `soundFont` parameter to these three methods.
