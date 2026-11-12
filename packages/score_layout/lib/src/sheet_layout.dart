@@ -437,9 +437,13 @@ final class SheetLayout {
   }
 
   /// Boxes to shade for [selection], in sheet space. An item asks the score
-  /// once for the system that draws it.
+  /// once for the system that draws it. A spanner gives a box on each
+  /// system it is drawn on.
   List<Box> selectionBoxes(Selection selection) => switch (selection) {
-    ItemSelection(:final items) => [for (final ref in items) ?boundsOf(ref)],
+    ItemSelection(:final items, :final spanners) => [
+      for (final ref in items) ?boundsOf(ref),
+      for (final id in spanners) ..._spannerBoxes(id),
+    ],
     _ => [
       for (var index = 0; index < systemCount; index++)
         for (final box in selectionIn(index, selection))
@@ -448,18 +452,21 @@ final class SheetLayout {
   };
 
   /// Boxes to shade on system [index] for [selection], in system space. An
-  /// item gives its bounds. A range gives one box from its start to its
-  /// exclusive end (which may be a bar's end) over the visible staves from
-  /// `top` to `bottom`, and no box when it holds nothing.
+  /// item gives its bounds, and so does a spanner for what it draws on the
+  /// system. A range gives one box from its start to its exclusive end
+  /// (which may be a bar's end) over the visible staves from `top` to
+  /// `bottom`, and no box when it holds nothing.
   List<Box> selectionIn(int index, Selection selection) {
     switch (selection) {
       case NoSelection():
         return const [];
-      case ItemSelection(:final items):
+      case ItemSelection(:final items, :final spanners):
         return [
           for (final ref in items)
             if (systemOfRef(ref) == index)
               ?systemAt(index).boundsOf(ElementOwner(ref)),
+          for (final id in spanners)
+            ?systemAt(index).boundsOf(SpannerOwner(id)),
         ];
       case RangeSelection(:final from, :final to, :final top, :final bottom):
         final first = systemOf(from.measure);
@@ -511,6 +518,26 @@ final class SheetLayout {
         return [
           Box(left, staves.first.top, right, staves.last.top + staffHeight),
         ];
+    }
+  }
+
+  /// The boxes of what spanner [id] draws in sheet space, one on each system
+  /// from the one of its first bar to the one of its last. None when the
+  /// score lacks it.
+  Iterable<Box> _spannerBoxes(SpannerId id) sync* {
+    final spanner = score.spanners.where((s) => s.id == id).firstOrNull;
+    if (spanner == null) {
+      return;
+    }
+    final first = systemOf(spanner.first.measure);
+    final last = systemOf(spanner.last.measure);
+    if (first == null || last == null) {
+      return;
+    }
+    for (var index = first; index <= last; index++) {
+      if (systemAt(index).boundsOf(SpannerOwner(id)) case final box?) {
+        yield box.shift(0, tops[index]);
+      }
     }
   }
 

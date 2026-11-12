@@ -462,6 +462,37 @@ void main() {
       );
     });
 
+    test('a selected slur across two systems gives a box on each, and a '
+        'gone one gives none', () {
+      final lined = after(score, [
+        AddSpanner(
+          kind: const Slur(),
+          staff: staffId(0),
+          first: ScorePoint(barId(1), at(1, 4)),
+          last: ScorePoint(barId(2), at(1, 2)),
+        ),
+      ]);
+      final layout = sheetOf(lined);
+      final id = lined.spanners.single.id;
+      Box? drawn(int index) =>
+          layout.systemAt(index).boundsOf(SpannerOwner(id));
+      final selection = Selection.spanner(id);
+
+      expect(drawn(0), isNotNull);
+      expect(drawn(1), isNotNull);
+      expect(layout.selectionIn(0, selection), [drawn(0)]);
+      expect(layout.selectionIn(1, selection), [drawn(1)]);
+      expect(layout.selectionIn(2, selection), isEmpty);
+      expect(layout.selectionBoxes(selection), [
+        drawn(0)!.shift(0, layout.tops[0]),
+        drawn(1)!.shift(0, layout.tops[1]),
+      ]);
+      expect(
+        layout.selectionBoxes(Selection.spanner(const SpannerId(99999))),
+        isEmpty,
+      );
+    });
+
     test('a range whose to is offset 0 of the first bar of the next system '
         'gives no box on that system', () {
       final range = rangeOf(
