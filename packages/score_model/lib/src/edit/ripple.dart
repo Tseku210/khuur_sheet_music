@@ -574,7 +574,7 @@ _Rippled _ripple(
       when _reaches(score, top, bottom, part)) {
     final start = onset(from);
     final stop = close(to);
-    movedSelection = start != null && _precedes(rebuilt, start, stop)
+    movedSelection = start != null && rebuilt.compare(start, stop) < 0
         ? RangeSelection(from: start, to: stop, top: top, bottom: bottom)
         : const Selection.none();
   }

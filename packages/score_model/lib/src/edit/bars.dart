@@ -447,9 +447,9 @@ Seq<Spanner> _moveSpanners(
 /// Whether [spanner] can stand in [score]: in order, and past its first
 /// event when it joins notes.
 bool _fits(Score score, Spanner spanner) => spanner.kind.joinsNotes
-    ? _precedes(score, spanner.first, spanner.last) &&
+    ? score.compare(spanner.first, spanner.last) < 0 &&
           !score.isCollapsed(spanner)
-    : !_precedes(score, spanner.last, spanner.first);
+    : score.compare(spanner.last, spanner.first) >= 0;
 
 /// [score] without the spanners an edit has left unable to stand, such as a
 /// slur whose notes a longer note has replaced.
@@ -461,12 +461,6 @@ Score _withFittingSpanners(Score score) {
   return kept.length == score.spanners.length
       ? score
       : score.copyWith(spanners: Seq(kept));
-}
-
-bool _precedes(Score score, ScorePoint a, ScorePoint b) {
-  final i = score.indexOf(a.measure);
-  final j = score.indexOf(b.measure);
-  return i < j || i == j && a.offset < b.offset;
 }
 
 /// Where the last event of [spanner]'s voice in [column] starts, taking
