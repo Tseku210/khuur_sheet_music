@@ -213,10 +213,10 @@ ui.Paragraph textParagraph(
 /// step. `flutter test` registers no pubspec font, so a test loads the file
 /// with a `FontLoader` under the font's `flutterFamily` first. A glyph is
 /// one `dart:ui` paragraph, built once per codepoint, pixel size and colour,
-/// and placed by its baseline. The SMuFL origin is on the baseline, so no magic offset
-/// is needed. Font size is 4 staff spaces, since a SMuFL em is 4 staff
-/// spaces. The paragraph sets no line height, no font feature and no text
-/// scale. Zoom is the size control.
+/// and placed by its baseline. The SMuFL origin is on the baseline, so no
+/// magic offset is needed. Font size is 4 staff spaces, since a SMuFL em is
+/// 4 staff spaces. The paragraph sets no line height, no font feature and
+/// no text scale. Zoom is the size control.
 ///
 /// The engine draws a line of text with its baseline on the nearest whole
 /// pixel of the paragraph, and reports the baseline unrounded. So the
