@@ -813,6 +813,152 @@ void main() {
       });
     });
 
+    group('compare', () {
+      test('orders points in one bar by offset', () {
+        final score = blankScore();
+        final bar = score.measures.first.id;
+        final early = ScorePoint(bar, at(1, 4));
+        final late = ScorePoint(bar, at(1, 2));
+
+        expect(score.compare(early, late), isNegative);
+        expect(score.compare(late, early), isPositive);
+        expect(score.compare(early, ScorePoint(bar, at(1, 4))), 0);
+      });
+
+      test('orders an earlier bar first whatever the offsets', () {
+        final score = blankScore();
+        final [first, second] = barIds(score);
+
+        expect(
+          score.compare(
+            ScorePoint(first, at(3, 4)),
+            ScorePoint(second, Moment.zero),
+          ),
+          isNegative,
+        );
+        expect(
+          score.compare(
+            ScorePoint(second, Moment.zero),
+            ScorePoint(first, at(3, 4)),
+          ),
+          isPositive,
+        );
+      });
+
+      test('orders bars by their place in the score, not their ids', () {
+        final session = blank();
+        final score = applied(
+          session.run(InsertMeasures(before: idOf(session, 0))),
+        ).score;
+        final [inserted, old] = barIds(score).take(2).toList();
+        expect(inserted.value, greaterThan(old.value));
+
+        expect(
+          score.compare(
+            ScorePoint(inserted, Moment.zero),
+            ScorePoint(old, Moment.zero),
+          ),
+          isNegative,
+        );
+      });
+
+      test('throws for a bar not in the score', () {
+        final score = blankScore();
+        final known = ScorePoint(score.measures.first.id, Moment.zero);
+        const stranger = ScorePoint(MeasureId(999), Moment.zero);
+
+        expect(() => score.compare(known, stranger), throwsArgumentError);
+      });
+    });
+
+    group('laneBetween', () {
+      Score threeBars() {
+        var score = blankScore(bars: 3);
+        score = fill(score, 0, [
+          chord(10, f4, NoteValue.half),
+          chord(11, g4, NoteValue.half),
+        ]);
+        score = fill(score, 1, [
+          chord(12, f4, NoteValue.quarter),
+          chord(13, g4, NoteValue.quarter),
+          chord(14, f4, NoteValue.half),
+        ]);
+        score = fill(score, 2, [chord(15, g4, NoteValue.whole)]);
+        return fill(score, 1, [
+          Gap(len(1, 2)),
+          chord(20, g4, NoteValue.half),
+        ], slot: VoiceSlot.two);
+      }
+
+      List<int> between(
+        Score score,
+        (int, Moment) from,
+        (int, Moment) to, {
+        VoiceSlot voice = VoiceSlot.one,
+      }) {
+        ScorePoint point((int, Moment) p) =>
+            ScorePoint(score.measures[p.$1].id, p.$2);
+        return [
+          for (final timed in score.laneBetween(
+            score.staves.first.id,
+            voice,
+            point(from),
+            point(to),
+          ))
+            timed.event.id.value,
+        ];
+      }
+
+      test('takes the events starting at or after from and before to', () {
+        final score = threeBars();
+
+        expect(between(score, (1, at(1, 4)), (1, at(3, 4))), [13, 14]);
+        expect(between(score, (1, at(1, 4)), (1, at(1, 2))), [13]);
+      });
+
+      test('skips an event that starts before from and sounds into it', () {
+        final score = threeBars();
+
+        expect(between(score, (0, at(1, 4)), (1, at(1, 4))), [11, 12]);
+      });
+
+      test('runs across bars in score order', () {
+        final score = threeBars();
+
+        expect(
+          between(score, (0, at(1, 2)), (2, Moment.zero)),
+          [11, 12, 13, 14],
+        );
+      });
+
+      test('reaches the last event when to sits at the end of its bar', () {
+        final score = threeBars();
+
+        expect(between(score, (1, at(1, 2)), (2, at(1, 1))), [14, 15]);
+      });
+
+      test('reads only the voice it names, skipping bars without it', () {
+        final score = threeBars();
+
+        expect(
+          between(
+            score,
+            (0, Moment.zero),
+            (2, at(1, 1)),
+            voice: VoiceSlot.two,
+          ),
+          [20],
+        );
+      });
+
+      test('is empty when to does not come after from', () {
+        final score = threeBars();
+
+        expect(between(score, (1, at(1, 2)), (1, at(1, 2))), isEmpty);
+        expect(between(score, (2, Moment.zero), (0, Moment.zero)), isEmpty);
+      });
+    });
+
     test('lookup falls back to the event id when the hint is wrong', () {
       final score = halves();
       const stale = EventRef(

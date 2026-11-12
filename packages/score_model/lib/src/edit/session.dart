@@ -469,7 +469,7 @@ Selection _revalidateSelection(
       if (identical(start, from) && identical(stop, to)) {
         return selection;
       }
-      return start != null && _precedes(score, start, stop)
+      return start != null && score.compare(start, stop) < 0
           ? RangeSelection(from: start, to: stop, top: top, bottom: bottom)
           : const Selection.none();
   }
