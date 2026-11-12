@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:khuur_sheet_music/src/score_player.dart';
 import 'package:khuur_sheet_music/src/sheet_palette.dart';
+import 'package:khuur_sheet_music/src/smufl_font_family.dart';
 import 'package:score_layout/score_layout.dart';
 import 'package:score_model/score_model.dart';
 
@@ -210,9 +211,9 @@ ui.Paragraph textParagraph(
 /// The font is the unmodified Bravura OTF, declared as a package font, so
 /// in an app it is loaded before the first frame and drawing needs no async
 /// step. `flutter test` registers no pubspec font, so a test loads the file
-/// with a `FontLoader` under [family] first. A glyph is one `dart:ui`
-/// paragraph, built once per codepoint, pixel size and colour, and placed
-/// by its baseline. The SMuFL origin is on the baseline, so no magic offset
+/// with a `FontLoader` under the font's `flutterFamily` first. A glyph is
+/// one `dart:ui` paragraph, built once per codepoint, pixel size and colour,
+/// and placed by its baseline. The SMuFL origin is on the baseline, so no magic offset
 /// is needed. Font size is 4 staff spaces, since a SMuFL em is 4 staff
 /// spaces. The paragraph sets no line height, no font feature and no text
 /// scale. Zoom is the size control.
@@ -260,15 +261,6 @@ final class GlyphPainter {
     }
     return paragraph;
   }
-
-  /// The family to ask the engine for. The bundled Bravura is a package
-  /// font, which Flutter names with the package prefix. A copy of it with
-  /// other engraving defaults is the same font file.
-  String get family =>
-      font.family == SmuflFont.bravura.family &&
-          identical(font.glyphs, SmuflFont.bravura.glyphs)
-      ? 'packages/khuur_sheet_music/Bravura'
-      : font.family;
 
   /// Draws [glyph] with its SMuFL origin at [origin], a point in staff
   /// spaces.
@@ -353,6 +345,7 @@ final class GlyphPainter {
   }
 
   ui.Paragraph _build(int codepoint, double fontSize, Color color) {
+    final family = font.flutterFamily;
     final builder =
         ui.ParagraphBuilder(
             ui.ParagraphStyle(fontFamily: family, fontSize: fontSize),
