@@ -7,7 +7,7 @@ import 'geometry.dart';
 
 /// A SMuFL glyph the engine draws, named as SMuFL names it.
 ///
-/// The 222 values are the 220 glyphs the score model can need, plus the two
+/// The 226 values are the 224 glyphs the score model can need, plus the two
 /// Gould arrow accidentals E272 and E273 that complete the quarter-tone family
 /// of `QuarterToneGlyphs`. Each is one private-use codepoint in the cmap of the
 /// unmodified Bravura OTF. None is a ligature or a stylistic alternate, so the
@@ -264,11 +264,15 @@ enum Glyph {
   legerLine(0xE022),
 
   // Metronome marks
+  metNoteDoubleWhole(0xECA0),
   metNoteWhole(0xECA2),
   metNoteHalfUp(0xECA3),
   metNoteQuarterUp(0xECA5),
   metNote8thUp(0xECA7),
   metNote16thUp(0xECA9),
+  metNote32ndUp(0xECAB),
+  metNote64thUp(0xECAD),
+  metNote128thUp(0xECAF),
   metAugmentationDot(0xECB7),
 
   // Chord symbols
