@@ -134,17 +134,12 @@ final class _Placing {
   ScorePoint _point(int bar, Moment offset) =>
       ScorePoint(document.measures[bar], offset);
 
-  int _compare(ScorePoint a, ScorePoint b) {
-    final byBar = score.indexOf(a.measure) - score.indexOf(b.measure);
-    return byBar != 0 ? byBar : a.offset.compareTo(b.offset);
-  }
-
   _Placed? _onNotes(_Pair record, EventAnchor start, EventAnchor stop) {
     final staff = start.event.lane.staff;
     if (!record.kind.joinsNotes) {
       final first = _point(start.bar, start.event.onset);
       final last = _point(stop.bar, stop.event.onset);
-      return _compare(first, last) > 0
+      return score.compare(first, last) > 0
           ? null
           : _Placed(
               record,
@@ -174,7 +169,7 @@ final class _Placing {
       ),
       voice: voice,
     );
-    return _compare(first, placed.last) >= 0 ||
+    return score.compare(first, placed.last) >= 0 ||
             score.isCollapsed(placed.spanner(const SpannerId(0)))
         ? null
         : placed;
@@ -238,7 +233,7 @@ final class _Placing {
         ? events.last
         : events.lastWhere((event) => event.onset < stop.at);
     final written = _point(lastBar, event.onset);
-    final last = _compare(written, first) < 0 ? first : written;
+    final last = score.compare(written, first) < 0 ? first : written;
     return _Placed(
       record,
       staff: staff,

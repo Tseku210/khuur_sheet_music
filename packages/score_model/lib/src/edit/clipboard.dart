@@ -60,14 +60,14 @@ final class _ClipDirection {
 /// range is empty or runs outside its bars.
 ScoreClip? _copy(Score score, RangeSelection range) {
   final RangeSelection(:from, :to, :top, :bottom) = range;
-  if (_outsideBar(score, range) != null || !_precedes(score, from, to)) {
+  if (_outsideBar(score, range) != null || score.compare(from, to) >= 0) {
     return null;
   }
   final order = [for (final staff in score.staves) staff.id];
   final ends = [order.indexOf(top), order.indexOf(bottom)];
   final staves = order.sublist(ends.reduce(min), ends.reduce(max) + 1);
   bool inRange(ScorePoint point) =>
-      !_precedes(score, point, from) && _precedes(score, point, to);
+      score.compare(point, from) >= 0 && score.compare(point, to) < 0;
   Moment offsetOf(ScorePoint point) =>
       Moment.zero + _between(score, from, point);
 
@@ -92,7 +92,7 @@ ScoreClip? _copy(Score score, RangeSelection range) {
               item is MeasureRest ||
               !inRange(start) ||
               item is Tuplet &&
-                  _precedes(score, to, ScorePoint(column.id, onset))) {
+                  score.compare(to, ScorePoint(column.id, onset)) < 0) {
             continue;
           }
           final offset = offsetOf(start);
@@ -172,10 +172,10 @@ RangeSelection _covering(Score score, Seq<ElementRef> items) {
   ];
   final from = spans
       .map((s) => s.from)
-      .reduce((a, b) => _precedes(score, b, a) ? b : a);
+      .reduce((a, b) => score.compare(b, a) < 0 ? b : a);
   final to = spans
       .map((s) => s.to)
-      .reduce((a, b) => _precedes(score, a, b) ? b : a);
+      .reduce((a, b) => score.compare(a, b) < 0 ? b : a);
   final order = [for (final staff in score.staves) staff.id];
   final rows = [for (final item in items) order.indexOf(item.event.staff)];
   return RangeSelection(

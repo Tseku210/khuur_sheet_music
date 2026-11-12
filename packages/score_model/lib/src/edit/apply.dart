@@ -448,7 +448,7 @@ _covers(Score score, RangeSelection range) {
     },
     staves: staves,
     inRange: (point) =>
-        !_precedes(score, point, from) && _precedes(score, point, to),
+        score.compare(point, from) >= 0 && score.compare(point, to) < 0,
   );
 }
 

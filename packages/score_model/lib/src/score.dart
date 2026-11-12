@@ -294,6 +294,43 @@ final class Score {
     }
   }
 
+  /// Orders two points in time: negative when [a] comes before [b], zero
+  /// when they are the same point, positive when [a] comes after. Bars
+  /// order by their place in [measures], not by their ids, and points in
+  /// one bar order by offset. Throws if either bar is not in this score.
+  int compare(ScorePoint a, ScorePoint b) {
+    final byBar = indexOf(a.measure).compareTo(indexOf(b.measure));
+    return byBar != 0 ? byBar : a.offset.compareTo(b.offset);
+  }
+
+  /// The events of [voice] on [staff] that start at or after [from] and
+  /// before [to], in score order: the events a range selection from [from]
+  /// to [to] takes from that voice. Reads only the bars from [from] to
+  /// [to]. Empty when [to] does not come after [from]. Throws if [staff]
+  /// or either bar is not in this score.
+  Iterable<TimedEvent> laneBetween(
+    StaffId staff,
+    VoiceSlot voice,
+    ScorePoint from,
+    ScorePoint to,
+  ) sync* {
+    for (var bar = indexOf(from.measure); bar <= indexOf(to.measure); bar++) {
+      final column = measures[bar];
+      if (column.staff(staff).voice(voice) case final lane?) {
+        for (final timed in timedEvents(
+          lane,
+          measure: column.id,
+          staff: staff,
+        )) {
+          final start = ScorePoint(column.id, timed.onset);
+          if (compare(from, start) <= 0 && compare(start, to) < 0) {
+            yield timed;
+          }
+        }
+      }
+    }
+  }
+
   /// The event a slur, glissando or trill line on [staff] attaches to at
   /// [at]: the one sounding there in [voice], else in voice one.
   TimedEvent? anchorAt(StaffId staff, VoiceSlot voice, ScorePoint at) =>
@@ -325,7 +362,12 @@ final class Score {
     final index = indexOf(at.measure);
     final column = measures[index];
     final octaveLine = spannersTouching(at.measure)
-        .where((s) => s.staff == staff && _within(s.first, at, s.last))
+        .where(
+          (s) =>
+              s.staff == staff &&
+              compare(s.first, at) <= 0 &&
+              compare(at, s.last) <= 0,
+        )
         .map((s) => s.kind)
         .whereType<OctaveLine>()
         .firstOrNull;
@@ -349,14 +391,6 @@ final class Score {
       }
     }
     return Tempo.unmarked;
-  }
-
-  bool _within(ScorePoint first, ScorePoint at, ScorePoint last) =>
-      _compare(first, at) <= 0 && _compare(at, last) <= 0;
-
-  int _compare(ScorePoint a, ScorePoint b) {
-    final byBar = indexOf(a.measure).compareTo(indexOf(b.measure));
-    return byBar != 0 ? byBar : a.offset.compareTo(b.offset);
   }
 
   /// What a tap at [staffStep] enters at [at] on [staff]. On a pitched
