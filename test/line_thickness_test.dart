@@ -88,14 +88,14 @@ void main() {
       glyphs: copy.glyphs,
       defaults: copy.defaults,
     );
-    expect(GlyphPainter(declared).family, 'Declared');
+    expect(declared.flutterFamily, 'Declared');
 
     final parsed = SmuflFont(
       family: SmuflFont.bravura.family,
       glyphs: Map.of(copy.glyphs),
       defaults: copy.defaults,
     );
-    expect(GlyphPainter(parsed).family, SmuflFont.bravura.family);
+    expect(parsed.flutterFamily, SmuflFont.bravura.family);
   });
 
   test('a stem is as thick as the defaults of the font say', () async {

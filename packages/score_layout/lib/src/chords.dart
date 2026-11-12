@@ -20,6 +20,7 @@ import 'smufl_font.dart';
 import 'spacing.dart';
 import 'spanners.dart';
 import 'style.dart';
+import 'value_glyphs.dart';
 
 enum StemSide { up, down }
 
@@ -612,49 +613,6 @@ Glyph noteheadGlyph(DurationBase base, NoteHead head) {
     DurationBase.whole => glyphs.whole,
     DurationBase.half => glyphs.half,
     _ => glyphs.black,
-  };
-}
-
-const Map<DurationBase, Glyph> _restGlyphs = {
-  DurationBase.breve: Glyph.restDoubleWhole,
-  DurationBase.whole: Glyph.restWhole,
-  DurationBase.half: Glyph.restHalf,
-  DurationBase.quarter: Glyph.restQuarter,
-  DurationBase.eighth: Glyph.rest8th,
-  DurationBase.sixteenth: Glyph.rest16th,
-  DurationBase.thirtySecond: Glyph.rest32nd,
-  DurationBase.sixtyFourth: Glyph.rest64th,
-  DurationBase.oneTwentyEighth: Glyph.rest128th,
-};
-
-Glyph restGlyph(DurationBase base) => _restGlyphs[base]!;
-
-/// The accidental glyph for [alter] in the chosen quarter-tone family.
-Glyph accidentalGlyph(Alter alter, QuarterToneGlyphs family) {
-  final stein = family == QuarterToneGlyphs.steinZimmermann;
-  return switch (alter.quarterTones) {
-    -4 => Glyph.accidentalDoubleFlat,
-    -3 =>
-      stein
-          ? Glyph.accidentalThreeQuarterTonesFlatZimmermann
-          : Glyph.accidentalThreeQuarterTonesFlatArrowDown,
-    -2 => Glyph.accidentalFlat,
-    -1 =>
-      stein
-          ? Glyph.accidentalQuarterToneFlatStein
-          : Glyph.accidentalQuarterToneFlatNaturalArrowDown,
-    0 => Glyph.accidentalNatural,
-    1 =>
-      stein
-          ? Glyph.accidentalQuarterToneSharpStein
-          : Glyph.accidentalQuarterToneSharpNaturalArrowUp,
-    2 => Glyph.accidentalSharp,
-    3 =>
-      stein
-          ? Glyph.accidentalThreeQuarterTonesSharpStein
-          : Glyph.accidentalThreeQuarterTonesSharpArrowUp,
-    4 => Glyph.accidentalDoubleSharp,
-    _ => throw ArgumentError.value(alter, 'alter', 'outside two sharps'),
   };
 }
 

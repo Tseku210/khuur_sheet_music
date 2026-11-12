@@ -402,6 +402,31 @@ The defaults are compared by value, so a style built in `build` lays nothing out
 - `padding` is the room around the sheet.
 - `tints` maps a note or an event to a colour, for marks such as practice feedback, a colour per voice or a colour per pitch. A tint on an event colours the whole chord or rest. A tint on one note colours its head alone.
 
+## Draw the sheet's glyphs in your own widgets
+
+A palette or a toolbar can show a value with the glyph the sheet engraves it with. Each function below returns a `Glyph`, the sheet takes its glyph for that value from the same function, and `flutterFamily` names the font the sheet draws in.
+
+| Function | Glyph |
+|---|---|
+| `noteGlyph(DurationBase)` | The note as one glyph, stem up with its flags, as a tempo mark prints it. Each dot is a `Glyph.metAugmentationDot`. |
+| `restGlyph(DurationBase)` | The rest. Each dot is a `Glyph.augmentationDot`. |
+| `accidentalGlyph(Alter, QuarterToneGlyphs)` | The accidental. The family changes only the quarter-tone ones. |
+| `dynamicGlyph(Dynamic)` | The dynamic. |
+| `bowingGlyph(Bowing)` | The up-bow or down-bow mark. |
+| `fingeringGlyphs(int)` | The digits of a finger number, left to right. |
+
+```dart
+Text(
+  String.fromCharCode(restGlyph(DurationBase.quarter).codepoint),
+  style: TextStyle(
+    fontFamily: SmuflFont.bravura.flutterFamily,
+    fontSize: 24,
+  ),
+)
+```
+
+A glyph's origin is on the text's baseline, and one em is four staff spaces. `SmuflFont.bravura[glyph]` gives the glyph's box and advance in staff spaces.
+
 ## Names that Flutter also declares
 
 The library exports all of the score model, and two of the model's names are also names in Flutter. They are `Interval` and `Step`. A file that imports both libraries and uses either name does not compile. The analyzer reports `ambiguous_import`.

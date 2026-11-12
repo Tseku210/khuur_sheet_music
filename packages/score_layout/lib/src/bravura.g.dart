@@ -1143,6 +1143,13 @@ const bravuraGlyphs = <Glyph, GlyphMetrics>{
     box: Box(-0.32, -0.08, 1.648, 0.08),
     advance: 1.328,
   ),
+  Glyph.metNoteDoubleWhole: GlyphMetrics(
+    box: Box(0, -0.68, 2.62, 0.672),
+    advance: 2.62,
+    anchors: {
+      GlyphAnchor.noteheadOrigin: SpPoint(0.396, 0),
+    },
+  ),
   Glyph.metNoteWhole: GlyphMetrics(
     box: Box(0, -0.592, 1.836, 0.5),
     advance: 1.836,
@@ -1162,6 +1169,18 @@ const bravuraGlyphs = <Glyph, GlyphMetrics>{
   Glyph.metNote16thUp: GlyphMetrics(
     box: Box(0, -2.8, 2.084, 0.564),
     advance: 2.088,
+  ),
+  Glyph.metNote32ndUp: GlyphMetrics(
+    box: Box(0, -3.692, 2.152, 0.564),
+    advance: 2.152,
+  ),
+  Glyph.metNote64thUp: GlyphMetrics(
+    box: Box(0, -4.392, 2.148, 0.564),
+    advance: 2.148,
+  ),
+  Glyph.metNote128thUp: GlyphMetrics(
+    box: Box(0, -5.072, 2.148, 0.564),
+    advance: 2.148,
   ),
   Glyph.metAugmentationDot: GlyphMetrics(
     box: Box(0, -0.2, 0.4, 0.2),
