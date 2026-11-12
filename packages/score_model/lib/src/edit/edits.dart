@@ -318,10 +318,13 @@ final class SetTie extends Edit {
 /// only plain rests becomes one [MeasureRest]. In voices two to four an
 /// event becomes a gap, a tuplet left with only rests becomes a gap, and a
 /// voice left with only gaps disappears. Picked heads of a chord that keeps
-/// another head are removed. A range takes the events that start in it and
-/// the tuplets wholly inside it, its directions, and the spanners that start
-/// and end in it. A tie into what is cleared is cleared too. Bars are never
-/// removed; see [DeleteMeasures].
+/// another head are removed. A picked spanner is removed, and the notes
+/// under it stay. A selection of notes and spanners does both, and leaves
+/// any spanner it does not pick, even over the notes it clears. A range
+/// takes the events that start in it and the tuplets wholly inside it, its
+/// directions, and the spanners that start and end in it. A tie into what
+/// is cleared is cleared too. Bars are never removed; see [DeleteMeasures].
+/// Refused with [StaleReference] for a picked spanner that is gone.
 ///
 /// With [ripple] set to [Ripple.part], what is deleted gives back its time
 /// (see [Ripple]). A picked event goes, a measure rest included, and the
@@ -784,13 +787,12 @@ final class Paste extends Edit {
 /// head moves in that head's key. A picked event also moves its graces, and
 /// a range moves its graces and chord symbols. Diatonic and chromatic
 /// transpositions read the key in effect at each note. Drum notes, which
-/// have no pitch, and key signatures are left alone. A tie left leading
-/// onto a head it did not reach before is cleared. The cursor and selection
-/// stay. Refused with
-/// [InvalidValue] when a note would need more than a double sharp or flat
-/// or a chord would hold one pitch twice, with [StaleReference] for a gone
-/// event, head, bar or staff, and with [OutsideMeasure] for a range end
-/// outside its bar.
+/// have no pitch, picked spanners and key signatures are left alone. A tie
+/// left leading onto a head it did not reach before is cleared. The cursor
+/// and selection stay. Refused with [InvalidValue] when a note would need
+/// more than a double sharp or flat or a chord would hold one pitch twice,
+/// with [StaleReference] for a gone event, head, bar or staff, and with
+/// [OutsideMeasure] for a range end outside its bar.
 final class Transpose extends Edit {
   const Transpose(this.selection, this.by);
 

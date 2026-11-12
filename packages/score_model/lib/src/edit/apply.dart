@@ -145,10 +145,10 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
     ),
     SetTie(:final note, :final tied) => _setTie(score, note, tied),
     Erase(:final selection, ripple: Ripple.none) => _Result(
-      _erase(score, selection, ids),
+      _erase(_unspanned(score, selection), selection, ids),
     ),
     Erase(:final selection, ripple: Ripple.part) => _eraseRippled(
-      score,
+      _unspanned(score, selection),
       selection,
       ids,
       session,

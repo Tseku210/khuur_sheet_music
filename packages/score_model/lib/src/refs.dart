@@ -96,11 +96,13 @@ final class VoicePoint {
   int get hashCode => Object.hash(staff, voice, at);
 }
 
-/// A reference to something a composer can select. Every reference carries
-/// the measure that contained it when the reference was made, so resolving
-/// one is usually a map lookup plus a scan of one measure. The measure is a
-/// hint: identity is the event id alone, and `Score.lookup` falls back to a
-/// lazy index when a re-bar has moved the event.
+/// A reference to an event or a note head that a composer can select. A
+/// selected spanner sits in no bar, so `ItemSelection.spanners` names it
+/// by its [SpannerId] instead. Every reference carries the measure that
+/// contained it when the reference was made, so resolving one is usually a
+/// map lookup plus a scan of one measure. The measure is a hint: identity
+/// is the event id alone, and `Score.lookup` falls back to a lazy index
+/// when a re-bar has moved the event.
 sealed class ElementRef {
   const ElementRef();
 

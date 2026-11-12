@@ -325,13 +325,15 @@ final class EditSession {
   /// that start and end in it. It runs to the end of the last event it
   /// takes. A measure rest is silence and is not taken. An item selection
   /// copies the smallest range that covers the picked events on their
-  /// staves, widened to the whole tuplet of a picked member.
+  /// staves, widened to the whole tuplet of a picked member. Its picked
+  /// spanners add nothing, so a selection of spanners alone copies nothing.
   ///
   /// The clip is a standalone value: bars are dissolved into one timeline
   /// per voice, tied pieces stay tied, and a tie that leads out of the
   /// copied music onto a head is cleared. It can be pasted into any score.
   ScoreClip? copy() => switch (_revalidateSelection(selection, score, score)) {
     NoSelection() => null,
+    ItemSelection(:final items) when items.isEmpty => null,
     ItemSelection(:final items) => _copy(score, _covering(score, items)),
     final RangeSelection range => _copy(score, range),
   };
@@ -429,11 +431,17 @@ Selection _revalidateSelection(
   switch (selection) {
     case NoSelection():
       return selection;
-    case ItemSelection(:final items):
+    case ItemSelection(:final items, :final spanners):
       final kept = [
         for (final item in items) ?_resolve(item, score),
       ];
-      return kept.isEmpty ? const Selection.none() : ItemSelection(Seq(kept));
+      final lines = [
+        for (final id in spanners)
+          if (score.spanners.any((s) => s.id == id)) id,
+      ];
+      return kept.isEmpty && lines.isEmpty
+          ? const Selection.none()
+          : ItemSelection(Seq(kept), spanners: Seq(lines));
     case RangeSelection(:final from, :final to, :final top, :final bottom):
       final staves = score.staves.map((staff) => staff.id).toSet();
       final alive =
@@ -533,6 +541,10 @@ sealed class Selection {
 
   factory Selection.event(EventRef event) => ItemSelection(Seq([event]));
 
+  /// One slur, hairpin or other line, as a tap on it picks.
+  factory Selection.spanner(SpannerId spanner) =>
+      ItemSelection(const Seq.empty(), spanners: Seq([spanner]));
+
   /// The one selected event, when exactly one event (or one head of one
   /// chord) is selected.
   EventRef? get singleEvent;
@@ -550,11 +562,16 @@ final class NoSelection extends Selection {
   bool get isEmpty => true;
 }
 
-/// Individually picked events and note heads (tap, shift-tap).
+/// Individually picked events, note heads and spanners (tap, shift-tap).
 final class ItemSelection extends Selection {
-  const ItemSelection(this.items);
+  const ItemSelection(this.items, {this.spanners = const Seq.empty()});
 
+  /// The picked events and heads.
   final Seq<ElementRef> items;
+
+  /// The picked slurs, hairpins and other lines. A spanner sits in no bar
+  /// and on no event, so it is named by its id and not by an [ElementRef].
+  final Seq<SpannerId> spanners;
 
   @override
   EventRef? get singleEvent {
@@ -566,7 +583,7 @@ final class ItemSelection extends Selection {
   }
 
   @override
-  bool get isEmpty => items.isEmpty;
+  bool get isEmpty => items.isEmpty && spanners.isEmpty;
 }
 
 /// A time range across a contiguous block of staves: every voice of staves
