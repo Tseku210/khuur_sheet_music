@@ -4010,6 +4010,87 @@ void main() {
   });
 
   testWidgets(
+    'a selected slur or hairpin is boxed and drawn in the selection ink, '
+    'and the other is not',
+    (tester) async {
+      var score = tune(bars: 2);
+      score = withSlur(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(1, 2)),
+      );
+      score = withSpanner(
+        score,
+        const Hairpin(crescendo: true),
+        pointAt(score, 1, Moment.zero),
+        pointAt(score, 1, at(3, 4)),
+      );
+      final [slur, hairpin] = [for (final s in score.spanners) s.id];
+      const red = Color(0xFFFF0000);
+      final palette = inked.copyWith(
+        selection: const SheetHighlight(fill: Color(0x553366FF), ink: red),
+      );
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      final key = GlobalKey();
+      final width = viewSize.width.toInt();
+
+      Future<Uint8List> shot(Selection selection) async {
+        await tester.pumpWidget(
+          host(
+            RepaintBoundary(
+              key: key,
+              child: ColoredBox(
+                color: const Color(0xFFFFFFFF),
+                child: SheetView(
+                  score: score,
+                  selection: selection,
+                  controller: controller,
+                  palette: palette,
+                ),
+              ),
+            ),
+          ),
+        );
+        return (await tester.runAsync(() async {
+          final image = await tester
+              .renderObject<RenderRepaintBoundary>(find.byKey(key))
+              .toImage();
+          final bytes = (await image.toByteData())!.buffer.asUint8List();
+          image.dispose();
+          return bytes;
+        }))!;
+      }
+
+      bool isRed(Uint8List rgba, int at) =>
+          rgba[at] > 200 && rgba[at + 1] < 80 && rgba[at + 2] < 80;
+      bool isShaded(Uint8List rgba, Offset at) {
+        final i = (at.dy.floor() * width + at.dx.floor()) * 4;
+        return rgba[i + 2] > rgba[i] + 30;
+      }
+
+      for (final (picked, other) in [(slur, hairpin), (hairpin, slur)]) {
+        final rgba = await shot(Selection.spanner(picked));
+        final box = controller.rectsOf(Selection.spanner(picked)).single;
+        final away = controller.rectsOf(Selection.spanner(other)).single;
+        final reds = [
+          for (var at = 0; at < rgba.length; at += 4)
+            if (isRed(rgba, at))
+              Offset(at ~/ 4 % width + 0.5, at ~/ 4 ~/ width + 0.5),
+        ];
+        expect(reds.length, greaterThan(20), reason: 'spanner $picked inked');
+        expect(
+          reds.where((pixel) => !box.inflate(1).contains(pixel)),
+          isEmpty,
+          reason: 'only spanner $picked is inked',
+        );
+        expect(isShaded(rgba, box.center), isTrue, reason: 'boxed $picked');
+        expect(isShaded(rgba, away.center), isFalse, reason: 'not $other');
+      }
+    },
+  );
+
+  testWidgets(
     'a view of the ensemble score shows the picture its drawables make on '
     'one canvas, with a caret, a selection, a tint and a playhead',
     (tester) async {

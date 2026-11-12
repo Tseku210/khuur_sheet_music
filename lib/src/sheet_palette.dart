@@ -67,8 +67,9 @@ final class SheetHighlight {
 
   /// The colour the marked item is drawn in again. Null leaves it in its
   /// own. The ink reaches what the item owns. For an event that is the
-  /// chord or the rest with its stem, accidentals and dots, and for one
-  /// note of a chord it is the head. A selected range has a box and no
+  /// chord or the rest with its stem, accidentals and dots, for one note
+  /// of a chord it is the head, and for a slur, a hairpin or another
+  /// spanner it is the whole line. A selected range has a box and no
   /// ink, since it is a region of the sheet and not a list of notes.
   final Color? ink;
 
