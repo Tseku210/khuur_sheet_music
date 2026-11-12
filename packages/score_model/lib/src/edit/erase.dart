@@ -106,7 +106,7 @@ Score _eraseRange(
         (item, onset, duration) =>
             inRange(ScorePoint(measure, onset)) &&
             (item is! Tuplet ||
-                !_precedes(score, to, ScorePoint(measure, onset + duration))),
+                score.compare(to, ScorePoint(measure, onset + duration)) >= 0),
     ids,
     keep: keep,
   );

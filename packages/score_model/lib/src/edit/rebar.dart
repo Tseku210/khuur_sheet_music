@@ -87,7 +87,7 @@ _Result _setMeter(Score score, SetMeter edit, _Ids ids, EditSession session) {
     final first = onset(from);
     final section = holding[to.measure];
     final last = section == null ? to : section.moved(to) ?? section.end;
-    selection = first != null && _precedes(rebarred, first, last)
+    selection = first != null && rebarred.compare(first, last) < 0
         ? RangeSelection(from: first, to: last, top: top, bottom: bottom)
         : const Selection.none();
   }
