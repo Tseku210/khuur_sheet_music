@@ -59,13 +59,19 @@ Entry overwrites by default. A note entered over other notes replaces them. To i
 
 ## Edit by tap
 
-The app owns the `EditSession`. In this handler a tap on a note selects it, and a tap anywhere else enters a note. A tap on a rest enters a note too. A rest of voice one is the room its bar has left, and `Erase` leaves it as it is, so an editor that selects a rest on a tap offers nothing to do with it and takes no note where a finger most often lands in an empty bar.
+The app owns the `EditSession`. In this handler a tap on a note or a line selects it, and a tap anywhere else enters a note. A tap on a rest enters a note too. A rest of voice one is the room its bar has left, and `Erase` leaves it as it is, so an editor that selects a rest on a tap offers nothing to do with it and takes no note where a finger most often lands in an empty bar.
 
 ```dart
 void _onTap(SheetHit hit) {
-  if (hit.target case ElementOwner(:final ref)
-      when _session.score.lookup(ref.event)?.event is ChordEvent) {
-    setState(() => _session = _session.select(ItemSelection(Seq([ref]))));
+  final picked = switch (hit.target) {
+    ElementOwner(:final ref)
+        when _session.score.lookup(ref.event)?.event is ChordEvent =>
+      ItemSelection(Seq([ref])),
+    SpannerOwner(:final id) => Selection.spanner(id),
+    _ => null,
+  };
+  if (picked != null) {
+    setState(() => _session = _session.select(picked));
     return;
   }
   final tone = _session.score.toneForStaffStep(hit.staff, hit.at, hit.staffStep);
@@ -97,6 +103,8 @@ SheetView(
 ```
 
 The hit names the staff, the voice, the time and the staff step under the tap, so the app works out none of them. On a note or a rest the time is the start of that note or rest. So this handler enters a note tapped on a rest at the start of the rest, and a note tapped on a bar rest at the start of the bar, though the bar rest is drawn in the middle of it. An app that wants the note where the finger is takes the tap in a `GestureDetector` of its own around the view and asks `SheetController.entryAt`, as the next section does for a held finger. The example app does that.
+
+A line is a slur, a hairpin or another spanner, and `Selection.spanner(id)` selects one. An `ItemSelection` keeps its events and heads in `items` and its lines in `spanners`, so one selection can hold both. The view draws a selected line in the selection style. `Erase` on a selection removes the lines it names and leaves their notes. It clears the notes it names, and it keeps every line it does not name, even one over a cleared note. Undo brings a removed line back. `SheetController.rectsOf(selection)` gives the boxes of a selection, with a box for a line on each system it crosses.
 
 `tapGrid` is the grid a tap snaps to, a sixteenth unless given. With the base of the value being entered, a note starts on a beat of its own value. A tap within a staff space of where a note or a rest of its voice starts takes that start, whatever the grid. A whole note that starts in the middle of a bar, on a finer grid or at such a start, is cut at the beats and the barline, and the model ties the pieces.
 
@@ -331,7 +339,7 @@ SheetPalette.of(context).copyWith(
 | `outOfRange` | `Color` | A note its instrument cannot play. |
 | `inks` | `Map<InkRole, Color>` | A colour for one kind of mark, in place of the three above. |
 | `paper` | `Color?` | The colour behind the sheet, on screen and in an image from `toImage`. Null draws none. |
-| `selection` | `SheetHighlight` | The selected notes and ranges. |
+| `selection` | `SheetHighlight` | The selected notes, lines and ranges. |
 | `playback` | `SheetHighlight` | The notes that sound now. |
 | `cursor` | `SheetLine` | The caret at the edit cursor. |
 | `preview` | `Color?` | The note of `SheetView.preview`. Null draws it in the cursor's colour. |
@@ -345,7 +353,7 @@ A `SheetHighlight` draws a box, a border around the box and the marked item agai
 | `border`, `borderWidth` | The colour and the width of the line around the box. The line lies inside the box. A width of zero draws none. |
 | `radius` | How round the corners are. |
 | `padding` | How far the box reaches past the notes. Under zero it makes the box smaller than the notes. |
-| `ink` | The colour the marked item is drawn in. A selected or sounding event is the whole chord or rest, with its stem, accidentals and dots. One selected note of a chord is its head alone. A selected range has a box and no ink. |
+| `ink` | The colour the marked item is drawn in. A selected or sounding event is the whole chord or rest, with its stem, accidentals and dots. One selected note of a chord is its head alone. A selected slur, hairpin or other line is the whole line. A selected range has a box and no ink. |
 
 A `SheetLine` has a `color` and a `width`, and a width of zero draws no line. Every length is in staff spaces, so a box and a line grow with the zoom. A width or a radius under zero fails an `assert`, so only a debug build refuses it. In a release build a width under zero draws no line and no border. A radius under zero goes to Flutter's `RRect` as it is. Flutter checks it in a debug build only and gives it no meaning, so do not pass one.
 
@@ -426,7 +434,7 @@ cd example
 flutter run -d macos
 ```
 
-The example is one page, `example/lib/main.dart`. It shows the tune of `demo_score.dart`, enters a note on a tap, selects a note on a tap on it, zooms through the controller, and plays through `ScorePlayer` with a tempo slider. Two switches under the sheet turn off the bars and the beams that entry adds by itself. A row of actions works on the selected notes, and `example/lib/selection_actions.dart` builds it as one table.
+The example is one page, `example/lib/main.dart`. It shows the tune of `demo_score.dart`, enters a note on a tap, selects a note, a slur or a hairpin on a tap on it, zooms through the controller, and plays through `ScorePlayer` with a tempo slider. Two switches under the sheet turn off the bars and the beams that entry adds by itself. A row of actions works on the selected notes, and `example/lib/selection_actions.dart` builds it as one table.
 
 ## Work on the package
 
