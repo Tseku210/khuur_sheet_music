@@ -15,3 +15,4 @@ export 'src/smufl_font.dart';
 export 'src/style.dart';
 export 'src/system_layout.dart';
 export 'src/text.dart';
+export 'src/value_glyphs.dart';
