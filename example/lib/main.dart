@@ -98,16 +98,21 @@ class _ScorePageState extends State<ScorePage>
     super.dispose();
   }
 
-  /// A tap on a note selects it. A tap anywhere else enters a note where the
-  /// finger is. That holds on a rest too, which is the room its bar has left
-  /// and no thing to select.
+  /// A tap on a note, a slur or a hairpin selects it. A tap anywhere else
+  /// enters a note where the finger is. That holds on a rest too, which is
+  /// the room its bar has left and no thing to select, and on a pedal line,
+  /// which lies where the low notes of a bass staff go.
   void _onTap(Offset at) {
     final voice = _session.cursor.voice;
-    if (_sheet.hitTest(at, voice: voice)?.target case ElementOwner(:final ref)
-        when _session.score.lookup(ref.event)?.event is ChordEvent) {
-      setState(
-        () => _session = _session.select(ItemSelection(Seq([_whole(ref)]))),
-      );
+    final picked = switch (_sheet.hitTest(at, voice: voice)?.target) {
+      ElementOwner(:final ref)
+          when _session.score.lookup(ref.event)?.event is ChordEvent =>
+        ItemSelection(Seq([_whole(ref)])),
+      SpannerOwner(:final id) when _isSelectable(id) => Selection.spanner(id),
+      _ => null,
+    };
+    if (picked != null) {
+      setState(() => _session = _session.select(picked));
       return;
     }
     if (_sheet.entryAt(at, voice: voice) case final hit?) {
@@ -196,6 +201,14 @@ class _ScorePageState extends State<ScorePage>
       _enter(hit);
     }
   }
+
+  /// Whether spanner [id] is a slur or a hairpin, the lines the action row
+  /// adds.
+  bool _isSelectable(SpannerId id) =>
+      switch (_session.score.spanners.where((s) => s.id == id).firstOrNull) {
+        Spanner(kind: Slur() || Hairpin()) => true,
+        _ => false,
+      };
 
   /// The only head of a chord stands for the chord, so that a tap selects
   /// the same thing wherever on a note it lands.
@@ -511,7 +524,7 @@ class _ScorePageState extends State<ScorePage>
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
-                    'Tap a staff to enter a note. Tap a note to select it.',
+                    'Tap a staff to enter a note. Tap a note or a line to select it.',
                   ),
                 ),
               ),

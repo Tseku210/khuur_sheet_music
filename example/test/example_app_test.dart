@@ -348,6 +348,18 @@ Future<EventRef> tapNoteAt(WidgetTester tester, VoicePoint at) async {
   return ref;
 }
 
+/// Taps a point where line [id] is drawn and nothing nearer is.
+Future<void> tapLineOf(WidgetTester tester, SpannerId id) async {
+  final controller = controllerOf(tester);
+  final box = controller.rectsOf(Selection.spanner(id)).first;
+  final on = [
+    for (var y = box.top; y <= box.bottom; y += 0.5)
+      for (var x = box.left; x <= box.right; x += 2) Offset(x, y),
+  ].firstWhere((at) => controller.hitTest(at)?.target == SpannerOwner(id));
+  await tester.tapAt(onScreen(tester, on));
+  await tester.pump();
+}
+
 /// Taps the first note of the top staff.
 Future<EventRef> tapFirstNote(WidgetTester tester) =>
     tapNoteAt(tester, beatOf(scoreOf(tester), 0, 0));
@@ -1200,6 +1212,62 @@ void main() {
       ('crescendo', score.staves.first.id, first, last),
       ('decrescendo', score.staves.first.id, first, last),
     ]);
+  });
+
+  for (final (kind, button) in [('slur', 'Slur'), ('crescendo', 'Crescendo')]) {
+    testWidgets('a tap on a $kind selects it, Delete takes it away and '
+        'leaves its notes, and Undo brings it back', (tester) async {
+      await pumpApp(tester);
+      await tapFirstNote(tester);
+      await press(tester, 'Widen right');
+      await press(tester, button);
+      await press(tester, 'Deselect');
+      final lined = scoreOf(tester);
+      final id = lined.spanners.single.id;
+
+      await tapLineOf(tester, id);
+
+      expect(
+        sheetOf(tester).selection,
+        isA<ItemSelection>().having((s) => s.items, 'items', isEmpty).having(
+          (s) => s.spanners,
+          'spanners',
+          [id],
+        ),
+      );
+      expect(scoreOf(tester), same(lined), reason: 'the tap entered nothing');
+      expect(actionButton('Deselect'), findsOneWidget);
+      expect(actionButton('Widen right'), findsNothing);
+      expect(actionButton('Pitch up'), findsNothing);
+      expect(isOn(tester, 'Delete'), isTrue);
+
+      await press(tester, 'Delete');
+
+      expect(linesOf(scoreOf(tester)), isEmpty);
+      expect(writtenIn(scoreOf(tester), 0), writtenIn(lined, 0));
+      expect(sheetOf(tester).selection, isA<NoSelection>());
+
+      await tester.tap(find.byTooltip('Undo'));
+      await tester.pump();
+
+      expect(scoreOf(tester).spanners.single.id, id);
+      expect(sheetOf(tester).selection, isA<ItemSelection>());
+    });
+  }
+
+  testWidgets('a tap on a pedal line enters a note there and leaves the line '
+      'unselected', (tester) async {
+    await pumpApp(tester, demo: true);
+    final before = scoreOf(tester);
+    final pedal = before.spanners.firstWhere((s) => s.kind is PedalLine).id;
+
+    await tapLineOf(tester, pedal);
+
+    expect(scoreOf(tester), isNot(same(before)));
+    expect(
+      sheetOf(tester).selection,
+      isA<ItemSelection>().having((s) => s.spanners, 'spanners', isEmpty),
+    );
   });
 
   testWidgets('Unbeam takes the selected notes out of their beam, and Beam '
