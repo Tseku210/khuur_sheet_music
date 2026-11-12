@@ -280,6 +280,20 @@ final class Score {
         .firstOrNull;
   }
 
+  /// The events of [voice] on [staff] in every bar, in score order. Each
+  /// [TimedEvent.onset] counts from the start of the bar that
+  /// [TimedEvent.ref] names. A bar where the voice is absent adds nothing,
+  /// and gaps are skipped. Walks only that voice, so it is much cheaper than
+  /// building a [measureView] per bar. Throws if [staff] is not in this
+  /// score.
+  Iterable<TimedEvent> laneOf(StaffId staff, VoiceSlot voice) sync* {
+    for (final column in measures) {
+      if (column.staff(staff).voice(voice) case final lane?) {
+        yield* timedEvents(lane, measure: column.id, staff: staff);
+      }
+    }
+  }
+
   /// The event a slur, glissando or trill line on [staff] attaches to at
   /// [at]: the one sounding there in [voice], else in voice one.
   TimedEvent? anchorAt(StaffId staff, VoiceSlot voice, ScorePoint at) =>

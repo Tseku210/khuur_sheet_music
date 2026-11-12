@@ -707,6 +707,112 @@ void main() {
       expect(hit.tuplets, [const TupletId(1)]);
     });
 
+    group('laneOf', () {
+      List<(int, int, Moment)> lane(
+        Score score,
+        VoiceSlot voice, {
+        int staff = 0,
+      }) => [
+        for (final timed in score.laneOf(score.staves[staff].id, voice))
+          (score.indexOf(timed.ref.measure), timed.event.id.value, timed.onset),
+      ];
+
+      Score threeBars() {
+        var score = blankScore(bars: 3);
+        score = fill(score, 0, [
+          chord(10, f4, NoteValue.half),
+          rest(11, NoteValue.half),
+        ]);
+        score = fill(score, 1, [
+          tripletOfEighths(1, [
+            chord(12, f4, NoteValue.eighth),
+            chord(13, g4, NoteValue.eighth),
+            chord(14, f4, NoteValue.eighth),
+          ]),
+          chord(15, g4, NoteValue.quarter),
+          chord(16, f4, NoteValue.half),
+        ]);
+        score = fill(score, 2, [chord(17, g4, NoteValue.whole)]);
+        score = fill(score, 0, [
+          Gap(len(1, 2)),
+          chord(20, g4, NoteValue.half),
+        ], slot: VoiceSlot.two);
+        return fill(score, 2, [
+          rest(21, NoteValue.quarter),
+          Gap(len(3, 4)),
+        ], slot: VoiceSlot.two);
+      }
+
+      test('walks voice one through every bar in order', () {
+        expect(lane(threeBars(), VoiceSlot.one), [
+          (0, 10, Moment.zero),
+          (0, 11, at(1, 2)),
+          (1, 12, Moment.zero),
+          (1, 13, at(1, 12)),
+          (1, 14, at(1, 6)),
+          (1, 15, at(1, 4)),
+          (1, 16, at(1, 2)),
+          (2, 17, Moment.zero),
+        ]);
+      });
+
+      test('walks voice two, skipping gaps and bars without it', () {
+        expect(lane(threeBars(), VoiceSlot.two), [
+          (0, 20, at(1, 2)),
+          (2, 21, Moment.zero),
+        ]);
+      });
+
+      test('lists what the bar views list for that voice', () {
+        final score = threeBars();
+
+        for (final slot in [VoiceSlot.one, VoiceSlot.two]) {
+          expect(
+            [
+              for (final timed in score.laneOf(score.staves.first.id, slot))
+                (timed.ref, timed.onset, timed.duration),
+            ],
+            [
+              for (final column in score.measures)
+                for (final voice
+                    in score.measureView(column.id).staves.single.voices)
+                  if (voice.slot == slot)
+                    for (final timed in voice.events)
+                      (timed.ref, timed.onset, timed.duration),
+            ],
+          );
+        }
+      });
+
+      test('reads only the staff it names', () {
+        var score = blankScore(
+          parts: const [
+            PartTemplate(
+              name: 'Duo',
+              instrument: fiddle,
+              staves: 2,
+              clefs: [Clef.treble, Clef.bass],
+            ),
+          ],
+        );
+        for (final bar in [0, 1]) {
+          score = fill(score, bar, [chord(10 + bar, f4, NoteValue.whole)]);
+          score = fill(score, bar, [
+            chord(20 + bar, g4, NoteValue.whole),
+          ], staff: 1);
+        }
+
+        expect(lane(score, VoiceSlot.one), [
+          (0, 10, Moment.zero),
+          (1, 11, Moment.zero),
+        ]);
+        expect(lane(score, VoiceSlot.one, staff: 1), [
+          (0, 20, Moment.zero),
+          (1, 21, Moment.zero),
+        ]);
+      });
+    });
+
     test('lookup falls back to the event id when the hint is wrong', () {
       final score = halves();
       const stale = EventRef(
