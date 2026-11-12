@@ -716,9 +716,12 @@ final class OverlayPainter extends CustomPainter {
 
   // A range has a box and no ink, since it lists no notes.
   late final List<Drawable> _picked = switch (selection) {
-    ItemSelection(:final items) when palette.selection.ink != null => [
-      for (final ref in items) ..._system.drawablesOf(ElementOwner(ref)),
-    ],
+    ItemSelection(:final items, :final spanners)
+        when palette.selection.ink != null =>
+      [
+        for (final ref in items) ..._system.drawablesOf(ElementOwner(ref)),
+        for (final id in spanners) ..._system.drawablesOf(SpannerOwner(id)),
+      ],
     _ => const [],
   };
 
