@@ -419,7 +419,7 @@ _Rippled _ripple(
         length,
         voices,
         direction: kept,
-        clef: (time) => kept(time) ?? at,
+        clef: (time) => movedTime(time) ?? at,
       ),
   };
   final grown = count > old.length;
