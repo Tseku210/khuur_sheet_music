@@ -200,11 +200,29 @@ Score _insertMeasures(Score score, int index, int count, _Ids ids) {
         restId: ids.event,
       ).copyWith(volta: () => volta),
   ];
-  final untied = index == 0
-      ? score
-      : _untieAt(score, index - 1, _barEnd(like), null);
+  if (index == 0) {
+    // The score's opening tempo mark moves to the new first bar, so every
+    // old bar still starts under the tempo mark it started under.
+    final (opening, rest) = _splitOpening(like.tempos);
+    if (opening.isEmpty) {
+      return score.copyWith(measures: score.measures.insertAllAt(0, bars));
+    }
+    bars[0] = bars[0].copyWith(tempos: opening);
+    return score.copyWith(
+      measures: score.measures
+          .replaceAt(0, like.copyWith(tempos: rest))
+          .insertAllAt(0, bars),
+    );
+  }
+  final untied = _untieAt(score, index - 1, _barEnd(like), null);
   return untied.copyWith(measures: untied.measures.insertAllAt(index, bars));
 }
+
+/// [marks] split into those at the bar's start and the rest.
+(Seq<TempoMark>, Seq<TempoMark>) _splitOpening(Seq<TempoMark> marks) => (
+  Seq(marks.where((mark) => mark.offset == Moment.zero)),
+  Seq(marks.where((mark) => mark.offset != Moment.zero)),
+);
 
 /// [score] without the bars from [start] up to [end]. Refused when no bar
 /// would be left.
@@ -224,9 +242,10 @@ Score _deleteMeasures(Score score, int start, int end) {
     measures: untied.measures.replaceRange(start, end, const []),
     spanners: const Seq.empty(),
   );
-  return cut.copyWith(
+  final kept = next == null ? cut : _keepTempo(cut, start, measures, end);
+  return kept.copyWith(
     spanners: _moveSpanners(
-      cut,
+      kept,
       untied.spanners,
       first: (spanner) =>
           gone.contains(spanner.first.measure) ? resume : spanner.first,
@@ -235,6 +254,32 @@ Score _deleteMeasures(Score score, int start, int end) {
           : before == null
           ? null
           : _lastOnset(before, spanner),
+    ),
+  );
+}
+
+/// [cut], whose bar [start] was bar [end] of [old], with that bar starting
+/// under the tempo mark it started under before bars [start] up to [end]
+/// were cut. It gains the last tempo mark they held at its start, unless it
+/// has one there of its own. Tempo lines are not counted.
+Score _keepTempo(Score cut, int start, Seq<MeasureColumn> old, int end) {
+  final bar = cut.measures[start];
+  final last = [
+    for (var i = start; i < end; i++) ...old[i].tempos,
+  ].lastOrNull;
+  if (last == null || bar.tempos.any((mark) => mark.offset == Moment.zero)) {
+    return cut;
+  }
+  final opening = TempoMark(
+    offset: Moment.zero,
+    tempo: last.tempo,
+    text: last.text,
+    showMetronome: last.showMetronome,
+  );
+  return cut.copyWith(
+    measures: cut.measures.replaceAt(
+      start,
+      bar.copyWith(tempos: Seq([opening, ...bar.tempos])),
     ),
   );
 }
