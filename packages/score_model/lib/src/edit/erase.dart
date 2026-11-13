@@ -233,7 +233,7 @@ List<VoiceItem> _cleared(
               id: id,
               value: value,
               articulations: Set.unmodifiable(
-                articulations.intersection(_restMarks),
+                articulations.intersection(restMarks),
               ),
             ),
           ],

@@ -284,9 +284,6 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
 /// A resolved note head: the event holding it, as a chord, and the head.
 typedef _Head = ({TimedEvent timed, ChordEvent chord, Note note});
 
-/// The only articulation a rest can carry.
-const Set<Articulation> _restMarks = {Articulation.fermata};
-
 TimedEvent _target(Score score, EventRef ref) =>
     score.lookup(ref) ?? (throw _Refuse(StaleReference(ref)));
 
@@ -541,14 +538,7 @@ Note _noteOn(
 /// pitched staff, or a drum of the part's kit on a percussion staff.
 void _checkTone(Score score, StaffId staff, Tone tone) {
   _staff(score, staff);
-  final instrument = score.partOf(staff).instrument;
-  _check(switch (tone) {
-    Pitch() when instrument.isPercussion => 'a percussion staff takes drums',
-    Drum() when !instrument.isPercussion => 'a pitched staff takes pitches',
-    Drum() when instrument.soundOf(tone) == null => 'the kit has no $tone',
-    Pitch() => pitchProblem(tone),
-    Drum() => null,
-  });
+  _check(toneProblem(score.partOf(staff).instrument, tone));
 }
 
 void _check(String? problem) {

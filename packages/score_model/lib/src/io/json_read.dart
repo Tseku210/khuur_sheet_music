@@ -441,16 +441,20 @@ final class _Decoder {
     final tie = json.maybe('tie')?.flag ?? false;
     if (instrument.isPercussion) {
       final drum =
-          json.maybe('drum') ?? json.fail('a percussion staff takes drums');
-      if (instrument.soundOf(Drum(drum.string)) == null) {
-        drum.fail('the kit has no ${drum.string}');
-      }
-      return DrumNote(id: id, drum: Drum(drum.string), tie: tie);
+          json.maybe('drum') ??
+          json.fail(toneKindProblem(instrument, isDrum: false)!);
+      final tone = drum.check(
+        Drum(drum.string),
+        (tone) => toneProblem(instrument, tone),
+      );
+      return DrumNote(id: id, drum: tone, tie: tie);
     }
     return PitchedNote(
       id: id,
-      pitch: (json.maybe('pitch') ?? json.fail('a pitched staff takes pitches'))
-          .pitch,
+      pitch:
+          (json.maybe('pitch') ??
+                  json.fail(toneKindProblem(instrument, isDrum: true)!))
+              .pitch,
       tie: tie,
       accidental:
           json.maybe('accidental')?.name(AccidentalRequest.values) ??
@@ -459,10 +463,7 @@ final class _Decoder {
       fingering: json.maybe('fingering')?.kept(fingerProblem),
       string: json
           .maybe('string')
-          ?.integerWhere(
-            (n) => n >= 0 && n < instrument.strings.length,
-            'the instrument has no such string',
-          ),
+          ?.kept((string) => stringProblem(instrument, string)),
     );
   }
 
@@ -507,8 +508,8 @@ final class _Decoder {
 
   Set<Articulation> _restMarks(_In json) {
     final marks = _articulationsOf(json);
-    if (marks.any((mark) => mark != Articulation.fermata)) {
-      json['articulations'].fail('a rest holds only a fermata');
+    if (restMarksProblem(marks) case final problem?) {
+      json['articulations'].fail(problem);
     }
     return marks;
   }
@@ -545,13 +546,15 @@ final class _Decoder {
     }
     final first = _point(json['from'], measures, bars);
     final last = _point(json['to'], measures, bars);
-    bool precedes((int, ScorePoint) a, (int, ScorePoint) b) =>
-        a.$1 < b.$1 || a.$1 == b.$1 && a.$2.offset < b.$2.offset;
-    if (kind.joinsNotes && !precedes(first, last)) {
-      json['to'].fail('a slur or glissando ends after it starts');
-    }
-    if (!kind.joinsNotes && precedes(last, first)) {
-      json['to'].fail('a line cannot end before it starts');
+    if (spannerOrderProblem(
+          joinsNotes: kind.joinsNotes,
+          firstBar: first.$1,
+          firstOffset: first.$2.offset,
+          lastBar: last.$1,
+          lastOffset: last.$2.offset,
+        )
+        case final problem?) {
+      json['to'].fail(problem);
     }
     final voice = json.maybe('voice')?.voice;
     if (kind.joinsNotes != (voice != null)) {
