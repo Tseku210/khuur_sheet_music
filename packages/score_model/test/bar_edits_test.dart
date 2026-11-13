@@ -55,6 +55,14 @@ void main() {
       expect(openingTempos(next), [140, 140, 90, 90]);
       expect(next.measures[0].tempos, Seq([tempoMark(140)]));
       expect(next.measures[1].tempos, Seq([tempoMark(90, half)]));
+
+      final three = applied(
+        session.run(InsertMeasures(before: idOf(session, 0), count: 3)),
+      ).score;
+      expect(openingTempos(three), [140, 140, 140, 140, 90, 90]);
+      expect(three.measures[0].tempos, Seq([tempoMark(140)]));
+      expect(three.measures[1].tempos, isEmpty);
+      expect(three.measures[3].tempos, Seq([tempoMark(90, half)]));
     });
 
     test('inserts empty bars that carry on from the bar before', () {
@@ -224,6 +232,30 @@ void main() {
         session.run(DeleteMeasures(idOf(session, 1), idOf(session, 1))),
       ).score;
       expect(openingTempos(middle), [140, 120, 120]);
+    });
+
+    test('the bar after the range gains the last mark the range held, its '
+        'words included, even one inside a bar', () {
+      final session = EditSession.start(
+        withTempos(blankScore(bars: 4), {
+          0: [tempoMark(140)],
+          1: [
+            tempoMark(120),
+            TempoMark(offset: at(1, 2), tempo: const Tempo(60), text: 'Lento'),
+          ],
+        }),
+      );
+
+      final next = applied(
+        session.run(DeleteMeasures(idOf(session, 1), idOf(session, 1))),
+      ).score;
+      expect(openingTempos(next), [140, 60, 60]);
+      expect(
+        next.measures[1].tempos,
+        Seq([
+          const TempoMark(offset: Moment.zero, tempo: Tempo(60), text: 'Lento'),
+        ]),
+      );
     });
 
     test('a bar after the range keeps its own opening tempo, and one after '
