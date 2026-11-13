@@ -22,7 +22,7 @@ MeasureView buildMeasureView(Score score, int index) {
       : null;
   final segments = [
     for (final spanner in score.spannersTouching(column.id))
-      _segment(column, spanner),
+      _segment(score, column, spanner),
   ];
   final staves = [
     for (final part in score.parts)
@@ -47,13 +47,15 @@ MeasureView buildMeasureView(Score score, int index) {
   );
 }
 
-SpannerSegment _segment(MeasureColumn column, Spanner spanner) {
+/// The piece of [spanner] in [column]. It ends at `Score.endOf` in the
+/// spanner's last bar and at the bar's end before it.
+SpannerSegment _segment(Score score, MeasureColumn column, Spanner spanner) {
   final startsHere = spanner.first.measure == column.id;
   final endsHere = spanner.last.measure == column.id;
   return SpannerSegment(
     spanner: spanner,
     from: startsHere ? spanner.first.offset : Moment.zero,
-    to: endsHere ? spanner.last.offset : Moment.zero + column.length,
+    to: endsHere ? score.endOf(spanner) : Moment.zero + column.length,
     startsHere: startsHere,
     endsHere: endsHere,
   );
@@ -87,7 +89,7 @@ StaffView _staffView(
   Pitch written(Note note, Moment onset) {
     final octaves =
         octaveLines
-            .where((line) => line.from <= onset && onset <= line.to)
+            .where((line) => line.from <= onset && onset < line.to)
             .firstOrNull
             ?.octaves ??
         0;
