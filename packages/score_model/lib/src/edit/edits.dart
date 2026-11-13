@@ -860,7 +860,9 @@ final class SetPartHidden extends Edit {
 /// [AddPart]. A dropped staff goes with its music and spanners, as for
 /// [RemovePart], and a cursor on it moves to the same point on the part's
 /// last staff. A string mark moves to the new instrument's string tuned
-/// the same, and is cleared where there is none. The selection stays.
+/// the same, and is cleared where there is none. A selection loses what
+/// lay on a dropped staff, and a range that reaches one is cleared. Giving
+/// a part the template it already has changes nothing.
 /// Refused with [InvalidValue] for a change between a pitched instrument
 /// and a drum kit, a kit that lacks a drum the part plays, or a template
 /// [AddPart] refuses, and with [StaleReference] for a gone part.

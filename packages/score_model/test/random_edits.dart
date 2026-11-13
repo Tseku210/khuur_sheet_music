@@ -394,15 +394,15 @@ Score randomEdit(Score score, Random random) {
       final part = score.parts[random.nextInt(score.parts.length)];
       return edited(score, switch (random.nextInt(5)) {
         0 => SetPartHidden(part.id, hidden: !part.hidden),
-        3 => SetInstrument(
-          part.id,
-          part.instrument.isPercussion
-              ? drums
-              : pick(random, const [morinKhuur, clarinet, piano]),
-        ),
         1 || 2 => AddPart(
           pick(random, const [morinKhuur, clarinet, piano, drums]),
           index: random.nextInt(score.parts.length + 1),
+        ),
+        3 => SetInstrument(
+          part.id,
+          part.instrument.isPercussion
+              ? pick(random, const [drums, bigKit])
+              : pick(random, const [morinKhuur, clarinet, piano]),
         ),
         _ => RemovePart(part.id),
       });

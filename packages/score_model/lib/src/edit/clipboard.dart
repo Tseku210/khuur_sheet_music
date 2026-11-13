@@ -276,12 +276,8 @@ _Result _paste(
       continue;
     }
     for (final (:item, offset: _) in lane.items) {
-      for (final event in _eventsIn(item)) {
-        if (event case ChordEvent(:final notes, :final graces)) {
-          for (final note in [...notes, for (final g in graces) ...g.notes]) {
-            _checkTone(score, staves[lane.staff], note.tone);
-          }
-        }
+      for (final note in _headsIn(item)) {
+        _checkTone(score, staves[lane.staff], note.tone);
       }
     }
     final strings = score.partOf(staves[lane.staff]).instrument.strings.length;
@@ -297,7 +293,17 @@ _Result _paste(
         start,
         [
           for (final item in run.items)
-            _restrung(item, (s) => s < strings ? s : null, ids),
+            _reminted(
+              _withHeads(
+                item,
+                (note) => switch (note) {
+                  PitchedNote(:final string?) when string >= strings =>
+                    note.copyWith(string: () => null),
+                  _ => note,
+                },
+              ),
+              ids,
+            ),
         ],
         ids,
         overfill,
@@ -430,49 +436,61 @@ List<({Moment offset, List<Content> items})> _runs(
   return runs;
 }
 
-/// [item] with each head's string mark set to what [string] gives its
-/// index, and cleared where that is null. With [ids], every event, note,
-/// grace and tuplet in it also gets a new id.
-Content _restrung(Content item, int? Function(int string) string, [_Ids? ids]) {
+/// [item] with each head, graces included, replaced by what [head] gives
+/// it. Ids are kept.
+Content _withHeads(Content item, Note Function(Note note) head) {
+  Seq<Note> heads(Seq<Note> notes) => Seq(notes.map(head));
+  return switch (item) {
+    ChordEvent(:final graces) => item.copyWith(
+      notes: heads(item.notes),
+      graces: Seq([
+        for (final grace in graces)
+          GraceChord(
+            id: grace.id,
+            kind: grace.kind,
+            value: grace.value,
+            notes: heads(grace.notes),
+          ),
+      ]),
+    ),
+    RestEvent() || MeasureRest() => item,
+    Tuplet(:final members) => _refill(item, [
+      for (final member in members) _withHeads(member, head),
+    ]),
+  };
+}
+
+/// [item] with a new id on every event, note, grace and tuplet in it.
+Content _reminted(Content item, _Ids ids) {
   Seq<Note> notes(Seq<Note> notes) => Seq([
-    for (final note in notes)
-      switch (note) {
-        PitchedNote(string: final from?) => note.copyWith(
-          id: ids?.note(),
-          string: () => string(from),
-        ),
-        _ => note.copyWith(id: ids?.note()),
-      },
+    for (final note in notes) note.copyWith(id: ids.note()),
   ]);
   return switch (item) {
     ChordEvent(:final graces) => item.copyWith(
-      id: ids?.event(),
+      id: ids.event(),
       notes: notes(item.notes),
       graces: Seq([
         for (final grace in graces)
           GraceChord(
-            id: ids?.event() ?? grace.id,
+            id: ids.event(),
             kind: grace.kind,
             value: grace.value,
             notes: notes(grace.notes),
           ),
       ]),
     ),
-    RestEvent() || MeasureRest() when ids == null => item,
     RestEvent(:final value, :final articulations, :final hidden) => RestEvent(
-      id: ids!.event(),
+      id: ids.event(),
       value: value,
       articulations: articulations,
       hidden: hidden,
     ),
     MeasureRest() => throw StateError('a clip holds no measure rest'),
     Tuplet(:final ratio, :final unit, :final members, :final bracket) => Tuplet(
-      id: ids?.tuplet() ?? item.id,
+      id: ids.tuplet(),
       ratio: ratio,
       unit: unit,
-      members: Seq([
-        for (final member in members) _restrung(member, string, ids),
-      ]),
+      members: Seq([for (final member in members) _reminted(member, ids)]),
       bracket: bracket,
     ),
   };

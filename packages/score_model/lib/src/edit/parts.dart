@@ -16,52 +16,21 @@ Score _addPart(Score score, PartTemplate template, int? index, _Ids ids) {
     instrument: instrument,
     staves: Seq([for (var i = 0; i < staves; i++) Staff(id: ids.staff())]),
   );
-  final row = score.parts.take(at).fold(0, (n, p) => n + p.staves.length);
   return score.copyWith(
     parts: score.parts.insertAt(at, part),
-    measures: Seq([
-      for (final column in score.measures)
-        column.copyWith(
-          staves: column.staves.insertAllAt(row, [
-            for (final (i, staff) in part.staves.indexed)
-              StaffMeasure(
-                staff: staff.id,
-                clef: clefs?[i] ?? instrument.clef,
-                voices: Seq([
-                  Voice(
-                    slot: VoiceSlot.one,
-                    items: Seq([
-                      MeasureRest(id: ids.event(), span: column.length),
-                    ]),
-                  ),
-                ]),
-              ),
-          ]),
-        ),
-    ]),
+    measures: _withRestStaves(score.measures, _rowOf(score, at), [
+      for (final (i, staff) in part.staves.indexed)
+        (staff.id, clefs?[i] ?? instrument.clef),
+    ], ids),
   );
 }
 
 _Result _removePart(Score score, PartId part, VoicePoint cursor) {
   final at = _shownOther(score, part);
-  final gone = {for (final staff in score.parts[at].staves) staff.id};
   return _Result(
-    score.copyWith(
-      parts: score.parts.removeAt(at),
-      measures: Seq([
-        for (final column in score.measures)
-          column.copyWith(
-            staves: Seq([
-              for (final measure in column.staves)
-                if (!gone.contains(measure.staff)) measure,
-            ]),
-          ),
-      ]),
-      spanners: Seq([
-        for (final spanner in score.spanners)
-          if (!gone.contains(spanner.staff)) spanner,
-      ]),
-    ),
+    _withoutStaves(score, score.parts.removeAt(at), {
+      for (final staff in score.parts[at].staves) staff.id,
+    }),
     cursor: _cursorOff(score, at, cursor),
   );
 }
@@ -84,84 +53,113 @@ _Result _setInstrument(
   }
   final kept = old.staves.take(staves).toList();
   final row = {for (final (i, staff) in kept.indexed) staff.id: i};
-  final gone = {for (final staff in old.staves.skip(staves)) staff.id};
+  Clef clef(int i) => clefs?[i] ?? instrument.clef;
+  final same =
+      identical(instrument, old.instrument) &&
+      (template.name, template.shortName) == (old.name, old.shortName) &&
+      staves == old.staves.length &&
+      score.measures.every(
+        (column) => column.staves.every(
+          (measure) => switch (row[measure.staff]) {
+            null => true,
+            final i => measure.clef == clef(i) && measure.clefChanges.isEmpty,
+          },
+        ),
+      );
+  if (same) {
+    return _Result(score);
+  }
+  if (instrument.isPercussion) {
+    for (final column in score.measures) {
+      for (final measure in column.staves) {
+        if (row.containsKey(measure.staff)) {
+          _checkKit(measure, instrument);
+        }
+      }
+    }
+  }
   final added = [
     for (var i = kept.length; i < staves; i++) Staff(id: ids.staff()),
   ];
-  Clef clef(int i) => clefs?[i] ?? instrument.clef;
-  int? restring(int string) {
-    final to = instrument.strings.indexOf(old.instrument.strings[string]);
-    return to < 0 ? null : to;
-  }
+  final strings = [
+    for (final open in old.instrument.strings) instrument.strings.indexOf(open),
+  ];
+  Note restring(Note note) => switch (note) {
+    PitchedNote(:final string?) => note.copyWith(
+      string: () => strings[string] < 0 ? null : strings[string],
+    ),
+    _ => note,
+  };
 
-  StaffMeasure moved(StaffMeasure measure, int i) => measure.copyWith(
-    clef: clef(i),
-    clefChanges: const Seq.empty(),
-    voices: Seq([
-      for (final voice in measure.voices)
-        Voice(
-          slot: voice.slot,
-          items: Seq([
-            for (final item in voice.items)
-              if (item is Content)
-                _restrung(_inKit(item, instrument), restring)
-              else
-                item,
+  final gone = {for (final staff in old.staves.skip(staves)) staff.id};
+  final restrung = score.copyWith(
+    measures: Seq([
+      for (final column in score.measures)
+        column.copyWith(
+          staves: Seq([
+            for (final measure in column.staves)
+              switch (row[measure.staff]) {
+                null => measure,
+                final i => measure.copyWith(
+                  clef: clef(i),
+                  clefChanges: const Seq.empty(),
+                  voices: Seq([
+                    for (final voice in measure.voices)
+                      Voice(
+                        slot: voice.slot,
+                        items: Seq([
+                          for (final item in voice.items)
+                            if (item is Content)
+                              _withHeads(item, restring)
+                            else
+                              item,
+                        ]),
+                      ),
+                  ]),
+                ),
+              },
           ]),
         ),
     ]),
   );
-
-  return _Result(
-    score.copyWith(
-      parts: score.parts.replaceAt(
-        at,
-        Part(
-          id: old.id,
-          name: template.name,
-          shortName: template.shortName,
-          instrument: instrument,
-          staves: Seq([...kept, ...added]),
-          hidden: old.hidden,
-        ),
-      ),
-      measures: Seq([
-        for (final column in score.measures)
-          column.copyWith(
-            staves: Seq([
-              for (final measure in column.staves)
-                if (row[measure.staff] case final i?) ...[
-                  moved(measure, i),
-                  if (i == kept.length - 1)
-                    for (final (j, staff) in added.indexed)
-                      _restStaff(
-                        staff.id,
-                        clef(kept.length + j),
-                        column.length,
-                        ids,
-                      ),
-                ] else if (!gone.contains(measure.staff))
-                  measure,
-            ]),
-          ),
-      ]),
-      spanners: Seq([
-        for (final spanner in score.spanners)
-          if (!gone.contains(spanner.staff)) spanner,
-      ]),
+  final parts = score.parts.replaceAt(
+    at,
+    Part(
+      id: old.id,
+      name: template.name,
+      shortName: template.shortName,
+      instrument: instrument,
+      staves: Seq([...kept, ...added]),
+      hidden: old.hidden,
     ),
+  );
+  return _Result(
+    added.isEmpty
+        ? _withoutStaves(restrung, parts, gone)
+        : restrung.copyWith(
+            parts: parts,
+            measures: _withRestStaves(
+              restrung.measures,
+              _rowOf(score, at) + kept.length,
+              [
+                for (final (j, staff) in added.indexed)
+                  (staff.id, clef(kept.length + j)),
+              ],
+              ids,
+            ),
+          ),
     cursor: gone.contains(cursor.staff)
         ? VoicePoint(staff: kept.last.id, voice: cursor.voice, at: cursor.at)
         : null,
   );
 }
 
-/// [item], refused with [InvalidValue] when it holds a drum that
+/// Refused with [InvalidValue] when [measure] holds a drum that
 /// [instrument]'s kit lacks.
-Content _inKit(Content item, Instrument instrument) {
-  for (final event in _eventsIn(item)) {
-    if (event case ChordEvent(:final notes, :final graces)) {
-      for (final note in [...notes, for (final g in graces) ...g.notes]) {
+void _checkKit(StaffMeasure measure, Instrument instrument) {
+  for (final voice in measure.voices) {
+    for (final item in voice.items.whereType<Content>()) {
+      for (final note in _headsIn(item)) {
         if (note case DrumNote(:final drum)
             when instrument.soundOf(drum) == null) {
           throw _Refuse(InvalidValue('the kit has no $drum'));
@@ -169,8 +167,48 @@ Content _inKit(Content item, Instrument instrument) {
       }
     }
   }
-  return item;
 }
+
+/// The row of part [at]'s first staff among all of [score]'s staves.
+int _rowOf(Score score, int at) =>
+    score.parts.take(at).fold(0, (n, p) => n + p.staves.length);
+
+/// [measures] with a staff of a [MeasureRest] in every bar for each of
+/// [staves], inserted from staff row [row] down.
+Seq<MeasureColumn> _withRestStaves(
+  Seq<MeasureColumn> measures,
+  int row,
+  List<(StaffId, Clef)> staves,
+  _Ids ids,
+) => Seq([
+  for (final column in measures)
+    column.copyWith(
+      staves: column.staves.insertAllAt(row, [
+        for (final (staff, clef) in staves)
+          _restStaff(staff, clef, column.length, ids),
+      ]),
+    ),
+]);
+
+/// [score] with [parts], without the bars and spanners of the [gone]
+/// staves.
+Score _withoutStaves(Score score, Seq<Part> parts, Set<StaffId> gone) =>
+    score.copyWith(
+      parts: parts,
+      measures: Seq([
+        for (final column in score.measures)
+          column.copyWith(
+            staves: Seq([
+              for (final measure in column.staves)
+                if (!gone.contains(measure.staff)) measure,
+            ]),
+          ),
+      ]),
+      spanners: Seq([
+        for (final spanner in score.spanners)
+          if (!gone.contains(spanner.staff)) spanner,
+      ]),
+    );
 
 _Result _setPartHidden(
   Score score,
