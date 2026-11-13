@@ -105,7 +105,7 @@ List<(int, Length)> _figure(
 ) {
   List<(int, Length)> repeat(List<int> steps, Length span, Length each) {
     final ratio = span / each;
-    final count = max(1, ratio.numerator ~/ ratio.denominator);
+    final count = max(1, ratio.floor());
     return [
       for (var i = 0; i < count; i++)
         (steps[i % steps.length], length * Fraction(1, count)),

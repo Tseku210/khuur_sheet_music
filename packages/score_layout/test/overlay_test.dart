@@ -438,6 +438,18 @@ void main() {
       }
     });
 
+    test('a range whose top is the lower staff shades the same staves', () {
+      final from = ScorePoint(barId(1), at(1, 4));
+      final to = ScorePoint(barId(5), at(1, 2));
+      final normal = rangeOf(from, to);
+      final inverted = rangeOf(from, to, top: 1, bottom: 0);
+      expect(layout.selectionBoxes(normal), hasLength(3));
+      expect(layout.selectionBoxes(inverted), layout.selectionBoxes(normal));
+      for (var i = 0; i < layout.systemCount; i++) {
+        expect(layout.selectionIn(i, inverted), layout.selectionIn(i, normal));
+      }
+    });
+
     test('a sounding ref on a hidden staff gives no box', () {
       final hidden = hidePart(score, 1);
       final layout = sheetOf(hidden);

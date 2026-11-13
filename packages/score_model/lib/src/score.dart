@@ -294,6 +294,49 @@ final class Score {
     }
   }
 
+  /// The event before [timed] in its staff and voice, skipping gaps. It is
+  /// the one before in the bar of [timed], or the last of the voice in the
+  /// bar before when [timed] opens its bar. Null at the start of the score,
+  /// and where the bar before has no such voice or no event in it. Reads
+  /// only those two bars.
+  TimedEvent? eventBefore(TimedEvent timed) {
+    final bar = indexOf(timed.ref.measure);
+    TimedEvent? earlier;
+    for (final event in _voiceEvents(bar, timed)) {
+      if (event.ref == timed.ref) {
+        break;
+      }
+      earlier = event;
+    }
+    return earlier ?? _voiceEvents(bar - 1, timed).lastOrNull;
+  }
+
+  /// The event after [timed] in its staff and voice, skipping gaps. It is
+  /// the one after in the bar of [timed], or the first of the voice in the
+  /// bar after when [timed] closes its bar. Null at the end of the score,
+  /// and where the bar after has no such voice or no event in it. Reads only
+  /// those two bars.
+  TimedEvent? eventAfter(TimedEvent timed) {
+    final bar = indexOf(timed.ref.measure);
+    final later = _voiceEvents(
+      bar,
+      timed,
+    ).skipWhile((event) => event.ref != timed.ref).skip(1);
+    return later.firstOrNull ?? _voiceEvents(bar + 1, timed).firstOrNull;
+  }
+
+  /// The events of the voice and staff of [like] in the bar at index [bar],
+  /// or nothing where this score has no such bar or the bar no such voice.
+  Iterable<TimedEvent> _voiceEvents(int bar, TimedEvent like) sync* {
+    if (bar < 0 || bar >= measures.length) {
+      return;
+    }
+    final column = measures[bar];
+    if (column.staff(like.ref.staff).voice(like.voice) case final lane?) {
+      yield* timedEvents(lane, measure: column.id, staff: like.ref.staff);
+    }
+  }
+
   /// Orders two points in time: negative when [a] comes before [b], zero
   /// when they are the same point, positive when [a] comes after. Bars
   /// order by their place in [measures], not by their ids, and points in
@@ -331,21 +374,42 @@ final class Score {
     }
   }
 
-  /// The event a slur, glissando or trill line on [staff] attaches to at
+  /// The staves from [a] to [b] in system order, whichever of the two comes
+  /// first. Null when the score has either no longer.
+  List<StaffId>? stavesBetween(StaffId a, StaffId b) {
+    final order = [for (final staff in staves) staff.id];
+    final first = order.indexOf(a);
+    final last = order.indexOf(b);
+    if (first == -1 || last == -1) {
+      return null;
+    }
+    return first <= last
+        ? order.sublist(first, last + 1)
+        : order.sublist(last, first + 1);
+  }
+
+  /// The event a spanner of [SpannerReach.events] on [staff] attaches to at
   /// [at]: the one sounding there in [voice], else in voice one.
   TimedEvent? anchorAt(StaffId staff, VoiceSlot voice, ScorePoint at) =>
       eventAt(VoicePoint(staff: staff, voice: voice, at: at)) ??
       eventAt(VoicePoint(staff: staff, voice: VoiceSlot.one, at: at));
 
-  /// Where a hairpin, octave line, pedal line or tempo line stops in its
-  /// last bar: the end of the voice-one event its last point falls in. The
-  /// line covers that event.
+  /// Where a spanner of [SpannerReach.time] stops in its last bar: the end
+  /// of the voice-one event its last point falls in. The line covers that
+  /// event.
   Moment lineEnd(Spanner spanner) {
     final last = eventAt(
       VoicePoint(staff: spanner.staff, voice: VoiceSlot.one, at: spanner.last),
     )!;
     return last.onset + last.duration;
   }
+
+  /// Where [spanner] stops in its last bar: [lineEnd] for a spanner of
+  /// [SpannerReach.time], its last point for one of [SpannerReach.events].
+  Moment endOf(Spanner spanner) => switch (spanner.kind.reach) {
+    SpannerReach.events => spanner.last.offset,
+    SpannerReach.time => lineEnd(spanner),
+  };
 
   /// Whether [spanner] joins notes but starts and ends on one event.
   bool isCollapsed(Spanner spanner) {
@@ -365,8 +429,9 @@ final class Score {
         .where(
           (s) =>
               s.staff == staff &&
+              s.kind is OctaveLine &&
               compare(s.first, at) <= 0 &&
-              compare(at, s.last) <= 0,
+              compare(at, ScorePoint(s.last.measure, endOf(s))) < 0,
         )
         .map((s) => s.kind)
         .whereType<OctaveLine>()
@@ -704,6 +769,17 @@ final class Spanner {
   final ScorePoint last;
 }
 
+/// What a spanner's ends attach to.
+enum SpannerReach {
+  /// The events sounding at its points, in its voice or else voice one: a
+  /// slur, glissando or trill line.
+  events,
+
+  /// Its points in time, the last one running to the end of the voice-one
+  /// event it falls in: a hairpin, octave, pedal or tempo line.
+  time,
+}
+
 sealed class SpannerKind {
   const SpannerKind();
 
@@ -711,6 +787,15 @@ sealed class SpannerKind {
   /// does. It then belongs to that voice and covers at least two events.
   /// Lines and hairpins mark a stretch of the staff and may cover one.
   bool get joinsNotes => false;
+
+  /// What the spanner's ends attach to.
+  SpannerReach get reach => switch (this) {
+    Slur() || Glissando() || TrillLine() => SpannerReach.events,
+    Hairpin() ||
+    OctaveLine() ||
+    PedalLine() ||
+    TempoLine() => SpannerReach.time,
+  };
 
   /// Kinds without fields are equal when they are the same kind.
   @override

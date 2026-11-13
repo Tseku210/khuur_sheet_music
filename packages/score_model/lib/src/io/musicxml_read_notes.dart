@@ -558,13 +558,10 @@ extension on _BarReader {
           );
         case 'technical':
           for (final child in mark.childElements) {
-            switch (child.name.local) {
-              case 'up-bow':
-                chord.bowing ??= Bowing.up;
-              case 'down-bow':
-                chord.bowing ??= Bowing.down;
-              case 'harmonic':
-                chord.articulations.add(Articulation.harmonic);
+            if (bowingByName[child.name.local] case final bowing?) {
+              chord.bowing ??= bowing;
+            } else if (child.name.local == 'harmonic') {
+              chord.articulations.add(Articulation.harmonic);
             }
           }
       }

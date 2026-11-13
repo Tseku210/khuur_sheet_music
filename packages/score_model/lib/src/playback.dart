@@ -46,43 +46,10 @@ final class PlaybackCompiler {
     PlaybackOptions options = const PlaybackOptions(),
   ]) {
     final measures = score.measures;
-    final starts = _starts(score);
-    final tempo = _TempoMap(score, starts);
-    final channels = <ChannelSetup>[];
-    final sounds = <StaffId, _Sound>{};
-    var melodic = 0;
-    for (final Part(:id, :instrument, :staves) in score.parts) {
-      final channel = instrument.isPercussion
-          ? 9
-          : _melodicChannels[melodic++ % _melodicChannels.length];
-      if (!options.muted.contains(id)) {
-        channels.add(
-          ChannelSetup(
-            channel: channel,
-            part: id,
-            program: instrument.program,
-            bank: instrument.bank,
-          ),
-        );
-        final loudness = _Loudness(score, staves, starts);
-        for (final staff in staves) {
-          sounds[staff.id] = (
-            channel: channel,
-            instrument: instrument,
-            loudness: loudness,
-          );
-        }
-      }
-    }
-    final trills = <StaffId, List<(Moment, Moment)>>{};
-    for (final Spanner(:kind, :staff, :first, :last) in score.spanners) {
-      if (kind is TrillLine) {
-        (trills[staff] ??= []).add((
-          _place(score, starts, first.measure, first.offset),
-          _place(score, starts, last.measure, last.offset),
-        ));
-      }
-    }
+    final time = _Timeline(score);
+    final tempo = _TempoMap(score, time);
+    final (:channels, :sounds) = _soundSetup(score, options, time);
+    final trills = _trillSpans(score, time);
     final windows = options.from == null && options.to == null
         ? [
             for (final (:index, :pass) in _playOrder(measures))
@@ -103,7 +70,7 @@ final class PlaybackCompiler {
       final fragment = _fragments[column] ??= _compileBar(column);
       final clock = _Clock(
         tempo,
-        Moment.zero + starts[index],
+        Moment.zero + time.startOf(index),
         column.length,
         fragment.holds,
       );
@@ -131,7 +98,7 @@ final class PlaybackCompiler {
       for (final chord in bar.heard) {
         final TimedEvent(:onset, :voice, ref: EventRef(:staff)) = chord.timed;
         final (:channel, :instrument, :loudness) = sounds[staff]!;
-        final position = onset + starts[index];
+        final position = onset + time.startOf(index);
         final level = loudness.at(position);
         final trilled =
             trills[staff]?.any((t) => t.$1 <= position && position <= t.$2) ??
@@ -173,7 +140,7 @@ final class PlaybackCompiler {
         }
       }
     }
-    final pedals = _pedals(score, starts, windows, timeline);
+    final pedals = _pedals(score, time, windows, timeline);
     return PlaybackScript._(
       timeline,
       stableSorted(
@@ -197,29 +164,28 @@ const _melodicChannels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15];
 /// tempo lines. Edits read it to keep the tempo of the bars they move.
 final class PlayedTempo {
   factory PlayedTempo(Score score) {
-    final starts = _starts(score);
-    return PlayedTempo._(score, starts, _TempoMap(score, starts));
+    final time = _Timeline(score);
+    return PlayedTempo._(time, _TempoMap(score, time));
   }
 
-  PlayedTempo._(this._score, this._barStarts, this._map);
+  PlayedTempo._(this._time, this._map);
 
-  final Score _score;
-  final List<Length> _barStarts;
+  final _Timeline _time;
   final _TempoMap _map;
 
   /// The tempo at [offset] into [measure].
   Tempo at(MeasureId measure, Moment offset) =>
-      _map.tempoAt(_place(_score, _barStarts, measure, offset));
+      _map.tempoAt(_time.of(measure, offset));
 
   /// The tempo [line] reaches at [offset] into [measure] when no later line
   /// takes over from it, or null when [line] is not a tempo line.
   Tempo? alongLine(SpannerId line, MeasureId measure, Moment offset) =>
-      _map.pieceOf(line)?.tempoAt(_place(_score, _barStarts, measure, offset));
+      _map.pieceOf(line)?.tempoAt(_time.of(measure, offset));
 
   /// The tempo line still moving the tempo at [offset] into [measure], and
   /// the tempo it moves to, or null when the tempo holds there.
   ({SpannerId line, Tempo target})? movingAt(MeasureId measure, Moment offset) {
-    final position = _place(_score, _barStarts, measure, offset);
+    final position = _time.of(measure, offset);
     return switch (_map.pieceAt(position)) {
       _TempoPiece(:final line?, :final to, :final target) when position < to =>
         (line: line, target: target),
@@ -228,24 +194,94 @@ final class PlayedTempo {
   }
 }
 
-/// Where each bar of [score] starts, from the start of the score.
-List<Length> _starts(Score score) {
-  final starts = <Length>[];
-  var elapsed = Length.zero;
-  for (final column in score.measures) {
-    starts.add(elapsed);
-    elapsed += column.length;
+/// A window of one played bar: the bar's index in the score, which pass it is
+/// on, and the part of it that plays.
+typedef _Window = ({int index, int pass, Moment from, Moment to});
+
+/// Where each bar of a score starts in notated time, and the points and
+/// extents that the folds over the score place on that line. Positions count
+/// from the start of the score.
+final class _Timeline {
+  _Timeline(this._score) {
+    var elapsed = Length.zero;
+    for (final column in _score.measures) {
+      _starts.add(elapsed);
+      elapsed += column.length;
+    }
   }
-  return starts;
+
+  final Score _score;
+
+  /// By bar index.
+  final List<Length> _starts = [];
+
+  /// How far into the score the bar at [index] starts.
+  Length startOf(int index) => _starts[index];
+
+  /// The point [offset] into [measure].
+  Moment of(MeasureId measure, Moment offset) =>
+      offset + _starts[_score.indexOf(measure)];
+
+  /// Where [spanner] starts and where it reaches to, in time.
+  (Moment, Moment) extentOf(Spanner spanner) => (
+    of(spanner.first.measure, spanner.first.offset),
+    of(spanner.last.measure, _score.endOf(spanner)),
+  );
 }
 
-/// A point in notated time from the start of the score.
-Moment _place(
+/// The channel and sound of every unmuted staff, and the channel setups to
+/// send for the parts that are heard.
+({List<ChannelSetup> channels, Map<StaffId, _Sound> sounds}) _soundSetup(
   Score score,
-  List<Length> starts,
-  MeasureId measure,
-  Moment offset,
-) => offset + starts[score.indexOf(measure)];
+  PlaybackOptions options,
+  _Timeline time,
+) {
+  final channels = <ChannelSetup>[];
+  final sounds = <StaffId, _Sound>{};
+  var melodic = 0;
+  for (final Part(:id, :instrument, :staves) in score.parts) {
+    final channel = instrument.isPercussion
+        ? 9
+        : _melodicChannels[melodic++ % _melodicChannels.length];
+    if (!options.muted.contains(id)) {
+      channels.add(
+        ChannelSetup(
+          channel: channel,
+          part: id,
+          program: instrument.program,
+          bank: instrument.bank,
+        ),
+      );
+      final loudness = _Loudness(score, staves, time);
+      for (final staff in staves) {
+        sounds[staff.id] = (
+          channel: channel,
+          instrument: instrument,
+          loudness: loudness,
+        );
+      }
+    }
+  }
+  return (channels: channels, sounds: sounds);
+}
+
+/// The spans of every trill line, from its first point to its last point, by
+/// staff.
+Map<StaffId, List<(Moment, Moment)>> _trillSpans(
+  Score score,
+  _Timeline time,
+) {
+  final trills = <StaffId, List<(Moment, Moment)>>{};
+  for (final Spanner(:kind, :staff, :first, :last) in score.spanners) {
+    if (kind is TrillLine) {
+      (trills[staff] ??= []).add((
+        time.of(first.measure, first.offset),
+        time.of(last.measure, last.offset),
+      ));
+    }
+  }
+  return trills;
+}
 
 /// The MIDI key and cents [note] plays on [instrument]. A drum note plays
 /// the kit sound it names.

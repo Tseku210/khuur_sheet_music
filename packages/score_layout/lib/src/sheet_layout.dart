@@ -9,6 +9,7 @@ import 'chords.dart' show loneNote;
 import 'drawable.dart';
 import 'geometry.dart';
 import 'hit.dart';
+import 'ink.dart';
 import 'signatures.dart';
 import 'style.dart';
 import 'system_layout.dart';
@@ -188,12 +189,7 @@ final class SheetLayout {
         number,
         at,
         spec: spec,
-        bounds: Box(
-          at.x,
-          at.y - extent.ascent,
-          at.x + extent.width,
-          at.y + extent.descent,
-        ),
+        bounds: extent.boxAt(at.x, at.y),
         ink: InkRole.barNumber,
       );
     });
@@ -485,13 +481,14 @@ final class SheetLayout {
         if (index < first || index > last) {
           return const [];
         }
+        final covered = score.stavesBetween(top, bottom)?.toSet();
+        if (covered == null) {
+          return const [];
+        }
         final system = systemAt(index);
-        final order = [for (final staff in score.staves) staff.id];
         final staves = [
           for (final staff in system.staves)
-            if (order.indexOf(top) <= order.indexOf(staff.staff) &&
-                order.indexOf(staff.staff) <= order.indexOf(bottom))
-              staff,
+            if (covered.contains(staff.staff)) staff,
         ];
         if (staves.isEmpty) {
           return const [];
@@ -623,12 +620,7 @@ final class SheetLayout {
             string,
             SpPoint(x, y),
             spec: spec,
-            bounds: Box(
-              x,
-              y - extent.ascent,
-              x + extent.width,
-              y + extent.descent,
-            ),
+            bounds: extent.boxAt(x, y),
             ink: ink,
           ),
         );

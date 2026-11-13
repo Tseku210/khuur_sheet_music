@@ -4,10 +4,8 @@ part of 'playback.dart';
 /// tempo: the dynamics on any of its staves, and its hairpins. Positions
 /// count from the start of the score.
 final class _Loudness {
-  factory _Loudness(Score score, Seq<Staff> staves, List<Length> starts) {
+  factory _Loudness(Score score, Seq<Staff> staves, _Timeline time) {
     final ids = {for (final staff in staves) staff.id};
-    Moment place(MeasureId measure, Moment offset) =>
-        _place(score, starts, measure, offset);
     final strikes = <Moment, Dynamic>{};
     final marks = <(Moment, Dynamic)>[];
     for (final column in score.measures) {
@@ -17,7 +15,7 @@ final class _Loudness {
         }
         for (final direction in measure.directions) {
           if (direction case DynamicMark(:final offset, :final level)) {
-            final position = place(column.id, offset);
+            final position = time.of(column.id, offset);
             switch (level) {
               case Dynamic.fp:
                 strikes[position] = level;
@@ -47,17 +45,13 @@ final class _Loudness {
         for (final spanner in score.spanners)
           if (spanner.kind case Hairpin(:final crescendo)
               when ids.contains(spanner.staff))
-            (
-              from: place(spanner.first.measure, spanner.first.offset),
-              spanner: spanner,
-              crescendo: crescendo,
-            ),
+            if (time.extentOf(spanner) case (final from, final end))
+              (from: from, end: end, crescendo: crescendo),
       ],
       (a, b) => a.from.compareTo(b.from),
     );
     final ramps = <_Ramp>[];
-    for (final (:from, :spanner, :crescendo) in hairpins) {
-      final end = place(spanner.last.measure, score.lineEnd(spanner));
+    for (final (:from, :end, :crescendo) in hairpins) {
       final start = _levelAt(levels, from);
       final arrival = written
           .where((l) => from < l.$1 && l.$1 <= end)

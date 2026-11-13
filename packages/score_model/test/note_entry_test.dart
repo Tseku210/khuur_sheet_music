@@ -813,6 +813,75 @@ void main() {
       });
     });
 
+    group('eventBefore and eventAfter', () {
+      Score threeBars() {
+        var score = blankScore(bars: 3);
+        score = fill(score, 0, [
+          chord(10, f4, NoteValue.half),
+          rest(11, NoteValue.half),
+        ]);
+        score = fill(score, 1, [
+          chord(12, f4, NoteValue.half),
+          chord(13, g4, NoteValue.half),
+        ]);
+        score = fill(score, 2, [chord(14, g4, NoteValue.whole)]);
+        score = fill(score, 0, [
+          Gap(len(1, 2)),
+          chord(20, g4, NoteValue.half),
+        ], slot: VoiceSlot.two);
+        return fill(score, 2, [
+          rest(21, NoteValue.quarter),
+          Gap(len(3, 4)),
+        ], slot: VoiceSlot.two);
+      }
+
+      TimedEvent event(Score score, int id) =>
+          score.lookup(score.locate(EventId(id))!)!;
+
+      int? before(Score score, int id) =>
+          score.eventBefore(event(score, id))?.event.id.value;
+
+      int? after(Score score, int id) =>
+          score.eventAfter(event(score, id))?.event.id.value;
+
+      test('step within a bar', () {
+        final score = threeBars();
+
+        expect(before(score, 11), 10);
+        expect(after(score, 12), 13);
+      });
+
+      test('cross a bar line both ways', () {
+        final score = threeBars();
+
+        expect(before(score, 12), 11);
+        expect(after(score, 11), 12);
+        expect(before(score, 14), 13);
+        expect(after(score, 13), 14);
+      });
+
+      test('end at the start and the end of the score', () {
+        final score = threeBars();
+
+        expect(before(score, 10), isNull);
+        expect(after(score, 14), isNull);
+      });
+
+      test('do not count the gap that opens or closes a voice', () {
+        final score = threeBars();
+
+        expect(before(score, 20), isNull);
+        expect(after(score, 21), isNull);
+      });
+
+      test('look only into the adjacent bar, which may lack the voice', () {
+        final score = threeBars();
+
+        expect(after(score, 20), isNull);
+        expect(before(score, 21), isNull);
+      });
+    });
+
     group('compare', () {
       test('orders points in one bar by offset', () {
         final score = blankScore();
@@ -956,6 +1025,41 @@ void main() {
 
         expect(between(score, (1, at(1, 2)), (1, at(1, 2))), isEmpty);
         expect(between(score, (2, Moment.zero), (0, Moment.zero)), isEmpty);
+      });
+    });
+
+    group('stavesBetween', () {
+      final score = blankScore(
+        parts: const [
+          PartTemplate(
+            name: 'Trio',
+            instrument: fiddle,
+            staves: 3,
+            clefs: [Clef.treble, Clef.treble, Clef.bass],
+          ),
+        ],
+      );
+      final [top, middle, bottom] = [for (final s in score.staves) s.id];
+
+      test('lists the staves from the first end to the second', () {
+        expect(score.stavesBetween(top, bottom), [top, middle, bottom]);
+        expect(score.stavesBetween(middle, bottom), [middle, bottom]);
+      });
+
+      test('lists them in system order when the ends are inverted', () {
+        expect(score.stavesBetween(bottom, top), [top, middle, bottom]);
+        expect(score.stavesBetween(bottom, middle), [middle, bottom]);
+      });
+
+      test('is the one staff when both ends name it', () {
+        expect(score.stavesBetween(middle, middle), [middle]);
+      });
+
+      test('is null when either staff is not in the score', () {
+        const gone = StaffId(999);
+
+        expect(score.stavesBetween(gone, bottom), isNull);
+        expect(score.stavesBetween(top, gone), isNull);
       });
     });
 

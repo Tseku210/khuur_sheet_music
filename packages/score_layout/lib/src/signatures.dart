@@ -11,6 +11,7 @@ import 'bar_space.dart';
 import 'drawable.dart';
 import 'geometry.dart';
 import 'glyphs.dart';
+import 'ink.dart';
 import 'spacing.dart';
 import 'style.dart';
 import 'text.dart';
@@ -268,19 +269,7 @@ GlyphDraw _glyph(
   required InkRole ink,
   double scale = 1,
 }) {
-  final box = style.font[glyph].box;
-  return GlyphDraw(
-    glyph,
-    SpPoint(x, y),
-    bounds: Box(
-      x + box.left * scale,
-      y + box.top * scale,
-      x + box.right * scale,
-      y + box.bottom * scale,
-    ),
-    ink: ink,
-    scale: scale,
-  );
+  return glyphAt(style.font, glyph, SpPoint(x, y), scale: scale, ink: ink);
 }
 
 /// The clef's glyph and the scale to draw it at. It is full size at the start
@@ -610,10 +599,10 @@ List<Drawable> _placePieces(
       for (final top in tops) {
         final origin = SpPoint(x - box.left, top + staffHeight);
         drawables.add(
-          GlyphDraw(
+          glyphAt(
+            style.font,
             Glyph.repeatDots,
             origin,
-            bounds: box.shift(origin.x, origin.y),
             ink: InkRole.barline,
           ),
         );
@@ -844,12 +833,7 @@ List<Drawable> placeLead(
           text,
           SpPoint(x, y),
           spec: spec,
-          bounds: Box(
-            x,
-            y - extent.ascent,
-            x + extent.width,
-            y + extent.descent,
-          ),
+          bounds: extent.boxAt(x, y),
           ink: InkRole.partName,
         ),
       );

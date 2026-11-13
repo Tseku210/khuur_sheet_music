@@ -616,10 +616,16 @@ Seq<Spanner> _moveSpanners(
 
 /// Whether [spanner] can stand in [score]: in order, and past its first
 /// event when it joins notes.
-bool _fits(Score score, Spanner spanner) => spanner.kind.joinsNotes
-    ? score.compare(spanner.first, spanner.last) < 0 &&
-          !score.isCollapsed(spanner)
-    : score.compare(spanner.last, spanner.first) >= 0;
+bool _fits(Score score, Spanner spanner) =>
+    spannerOrderProblem(
+          joinsNotes: spanner.kind.joinsNotes,
+          firstBar: score.indexOf(spanner.first.measure),
+          firstOffset: spanner.first.offset,
+          lastBar: score.indexOf(spanner.last.measure),
+          lastOffset: spanner.last.offset,
+        ) ==
+        null &&
+    !score.isCollapsed(spanner);
 
 /// [score] without the spanners an edit has left unable to stand, such as a
 /// slur whose notes a longer note has replaced.
