@@ -116,14 +116,17 @@ final class FlutterMidiOutput implements MidiOutput {
 
   /// The reverb this output asks for. Null asks for none.
   ///
-  /// The output asks for it each time it loads a SoundFont, and at once when
-  /// it changes while the synthesizer runs, so a new one sounds from the
-  /// next note.
+  /// The output asks for it each time it loads a SoundFont and each time
+  /// it sets a [program], which the player does as every play starts. It
+  /// also asks at once when it changes while the synthesizer runs, so a new
+  /// one sounds from the next note.
   ///
   /// The reverb and the [gain] belong to the plugin's one synthesizer and
   /// not to an output. So the output that asked last decides them for every
   /// output of the process, and one with no reverb turns off what an earlier
-  /// one turned on.
+  /// one turned on. An output still plays each play with its own, whatever
+  /// another output asked for before, because it asks again as the play
+  /// starts. Two outputs that sound at once share those of the later one.
   MidiReverb? get reverb => _reverb;
   set reverb(MidiReverb? value) {
     if (value != _reverb) {
@@ -220,9 +223,17 @@ final class FlutterMidiOutput implements MidiOutput {
     // changes. Sending it to rest first keeps [_bends] true either way, and
     // clears what an earlier output left on the channel.
     _bend(id, channel, 0);
-    if (bank > _largestBank) {
-      return;
-    }
+    // Another output may have put its own reverb and gain on the one
+    // synthesizer since this one last asked. Everything is sent before the
+    // first answer comes, so the programs keep the order they were asked in.
+    await Future.wait([
+      _askForReverb(),
+      _askForGain(),
+      if (bank <= _largestBank) _select(id, channel, program, bank),
+    ]);
+  }
+
+  Future<void> _select(int id, int channel, int program, int bank) async {
     try {
       await _midi.selectInstrument(
         sfId: id,

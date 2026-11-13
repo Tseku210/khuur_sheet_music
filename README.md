@@ -257,7 +257,7 @@ The two numbers do not mean the same on every platform, so neither has a default
 
 The output also takes a `gain`, how loud the synthesizer plays as a multiple of its own level. It is 1 unless given, and the output holds it to 0 to 4. One SoundFont can play louder on one platform than another, so an app may lower it for that file there.
 
-Both can change between plays. Keep the output, and set `reverb` or `gain` on it. The output asks the synthesizer for them at once while it runs, and otherwise when it next loads a SoundFont.
+Both can change between plays. Keep the output, and set `reverb` or `gain` on it. The output asks the synthesizer for them at once while it runs, each time it loads a SoundFont, and again as every play starts.
 
 ```dart
 final _output = FlutterMidiOutput();
@@ -273,7 +273,7 @@ void _playWet(Score score) {
 }
 ```
 
-`flutter_midi_pro` is one synthesizer for the whole process. The output that asked last decides the reverb and the gain for every output, and an output with no reverb turns it off.
+`flutter_midi_pro` is one synthesizer for the whole process. The output that asked last decides the reverb and the gain for every output, and an output with no reverb turns it off. An output asks again as each of its plays starts, so a play has its own reverb and gain whatever another output asked for before it. Two outputs that sound at once share those of the one that started later.
 
 `output` also takes your own `MidiOutput`, to play through another synthesizer.
 
