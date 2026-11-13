@@ -160,6 +160,40 @@ typedef _Sound = ({int channel, Instrument instrument, _Loudness loudness});
 /// percussion channel.
 const _melodicChannels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15];
 
+/// The tempo playback runs at through a score, from its tempo marks and its
+/// tempo lines. Edits read it to keep the tempo of the bars they move.
+final class PlayedTempo {
+  factory PlayedTempo(Score score) {
+    final time = _Timeline(score);
+    return PlayedTempo._(time, _TempoMap(score, time));
+  }
+
+  PlayedTempo._(this._time, this._map);
+
+  final _Timeline _time;
+  final _TempoMap _map;
+
+  /// The tempo at [offset] into [measure].
+  Tempo at(MeasureId measure, Moment offset) =>
+      _map.tempoAt(_time.of(measure, offset));
+
+  /// The tempo [line] reaches at [offset] into [measure] when no later line
+  /// takes over from it, or null when [line] is not a tempo line.
+  Tempo? alongLine(SpannerId line, MeasureId measure, Moment offset) =>
+      _map.pieceOf(line)?.tempoAt(_time.of(measure, offset));
+
+  /// The tempo line still moving the tempo at [offset] into [measure], and
+  /// the tempo it moves to, or null when the tempo holds there.
+  ({SpannerId line, Tempo target})? movingAt(MeasureId measure, Moment offset) {
+    final position = _time.of(measure, offset);
+    return switch (_map.pieceAt(position)) {
+      _TempoPiece(:final line?, :final to, :final target) when position < to =>
+        (line: line, target: target),
+      _ => null,
+    };
+  }
+}
+
 /// A window of one played bar: the bar's index in the score, which pass it is
 /// on, and the part of it that plays.
 typedef _Window = ({int index, int pass, Moment from, Moment to});
