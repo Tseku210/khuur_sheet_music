@@ -206,37 +206,22 @@ List<TieView> _ties(
 
 /// Tuplets in pre-order: an outer tuplet before the tuplets it holds.
 List<TupletView> _tuplets(Voice voice, List<TimedEvent> events) {
-  final views = <TupletView>[];
-  void walk(
-    Iterable<VoiceItem> items,
-    Moment start,
-    Fraction scale,
-    int depth,
-  ) {
-    var at = start;
-    for (final item in items) {
-      final duration = item.span * scale;
-      if (item is Tuplet) {
-        views.add(
-          TupletView(
-            tuplet: item,
-            onset: at,
-            duration: duration,
-            events: [
-              for (final timed in events)
-                if (timed.tuplets.contains(item.id)) timed.event.id,
-            ],
-            depth: depth,
-          ),
-        );
-        walk(item.members, at, scale * item.ratio.scale, depth + 1);
-      }
-      at += duration;
+  final members = <TupletId, List<EventId>>{};
+  for (final timed in events) {
+    for (final id in timed.tuplets) {
+      (members[id] ??= []).add(timed.event.id);
     }
   }
-
-  walk(voice.items, Moment.zero, Fraction.one, 0);
-  return views;
+  return [
+    for (final (:tuplet, :onset, :span, :depth) in timedTuplets(voice))
+      TupletView(
+        tuplet: tuplet,
+        onset: onset,
+        duration: span,
+        events: members[tuplet.id] ?? const [],
+        depth: depth,
+      ),
+  ];
 }
 
 typedef AccidentalHead = ({Moment onset, bool grace, Note note});
