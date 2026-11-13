@@ -64,27 +64,25 @@ final class Picked {
 
   /// The event before [timed] in its voice, in the bar before when [timed]
   /// opens its bar. Null at the start of the score.
-  TimedEvent? before(TimedEvent timed) {
-    final bar = _score.indexOf(timed.ref.measure);
-    final earlier = _lane(bar, timed).takeWhile((e) => e.ref != timed.ref);
-    return earlier.lastOrNull ?? _lane(bar - 1, timed).lastOrNull;
-  }
+  TimedEvent? before(TimedEvent timed) => _score.eventBefore(timed);
 
   /// The event after [timed] in its voice, in the next bar when [timed]
   /// closes its bar. Null at the end of the score.
-  TimedEvent? after(TimedEvent timed) {
-    final bar = _score.indexOf(timed.ref.measure);
-    final later = _lane(bar, timed).skipWhile((e) => e.ref != timed.ref);
-    return later.skip(1).firstOrNull ?? _lane(bar + 1, timed).firstOrNull;
-  }
+  TimedEvent? after(TimedEvent timed) => _score.eventAfter(timed);
 
   /// The chord after [timed] in its voice and its bar, past any rest.
-  TimedEvent? chordAfter(TimedEvent timed) =>
-      _lane(_score.indexOf(timed.ref.measure), timed)
-          .skipWhile((e) => e.ref != timed.ref)
-          .skip(1)
-          .where((e) => e.event is ChordEvent)
-          .firstOrNull;
+  TimedEvent? chordAfter(TimedEvent timed) {
+    for (
+      var next = _score.eventAfter(timed);
+      next != null && next.ref.measure == timed.ref.measure;
+      next = _score.eventAfter(next)
+    ) {
+      if (next.event is ChordEvent) {
+        return next;
+      }
+    }
+    return null;
+  }
 
   /// The line like [kind] that the score already has from the first picked
   /// event to the last.
@@ -101,16 +99,6 @@ final class Picked {
         )
         .firstOrNull;
   }
-
-  /// The voice of [like] in the bar at index [bar], or nothing where the
-  /// score has no such bar or the bar no such voice.
-  List<TimedEvent> _lane(int bar, TimedEvent like) => [
-    if (bar >= 0 && bar < _score.measures.length)
-      for (final staff in _score.measureView(_score.measures[bar].id).staves)
-        if (staff.source.staff == like.ref.staff)
-          for (final voice in staff.voices)
-            if (voice.slot == like.voice) ...voice.events,
-  ];
 
   /// The events that start in [range], on its staves that are shown.
   static List<TimedEvent> _within(Score score, RangeSelection range) => [

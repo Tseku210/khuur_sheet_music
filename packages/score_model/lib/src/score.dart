@@ -294,6 +294,49 @@ final class Score {
     }
   }
 
+  /// The event before [timed] in its staff and voice, skipping gaps. It is
+  /// the one before in the bar of [timed], or the last of the voice in the
+  /// bar before when [timed] opens its bar. Null at the start of the score,
+  /// and where the bar before has no such voice or no event in it. Reads
+  /// only those two bars.
+  TimedEvent? eventBefore(TimedEvent timed) {
+    final bar = indexOf(timed.ref.measure);
+    TimedEvent? earlier;
+    for (final event in _voiceEvents(bar, timed)) {
+      if (event.ref == timed.ref) {
+        break;
+      }
+      earlier = event;
+    }
+    return earlier ?? _voiceEvents(bar - 1, timed).lastOrNull;
+  }
+
+  /// The event after [timed] in its staff and voice, skipping gaps. It is
+  /// the one after in the bar of [timed], or the first of the voice in the
+  /// bar after when [timed] closes its bar. Null at the end of the score,
+  /// and where the bar after has no such voice or no event in it. Reads only
+  /// those two bars.
+  TimedEvent? eventAfter(TimedEvent timed) {
+    final bar = indexOf(timed.ref.measure);
+    final later = _voiceEvents(
+      bar,
+      timed,
+    ).skipWhile((event) => event.ref != timed.ref).skip(1);
+    return later.firstOrNull ?? _voiceEvents(bar + 1, timed).firstOrNull;
+  }
+
+  /// The events of the voice and staff of [like] in the bar at index [bar],
+  /// or nothing where this score has no such bar or the bar no such voice.
+  Iterable<TimedEvent> _voiceEvents(int bar, TimedEvent like) sync* {
+    if (bar < 0 || bar >= measures.length) {
+      return;
+    }
+    final column = measures[bar];
+    if (column.staff(like.ref.staff).voice(like.voice) case final lane?) {
+      yield* timedEvents(lane, measure: column.id, staff: like.ref.staff);
+    }
+  }
+
   /// Orders two points in time: negative when [a] comes before [b], zero
   /// when they are the same point, positive when [a] comes after. Bars
   /// order by their place in [measures], not by their ids, and points in
