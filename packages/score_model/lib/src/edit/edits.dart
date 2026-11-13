@@ -602,7 +602,10 @@ final class SetTempoMarks extends Edit {
 /// [MeasureRest] per staff. A bar inserted inside a volta joins it. Spanners
 /// that cross the insertion point stretch over the new bars. A tie into the
 /// bar at the insertion point is cleared, since it would lead into rests.
-/// Refused with [InvalidValue] for a [count] under 1.
+/// At the start, the first bar's opening tempo marks move to the first new
+/// bar, so every old bar starts under the tempo mark it started under.
+/// Refused with
+/// [InvalidValue] for a [count] under 1.
 final class InsertMeasures extends Edit {
   const InsertMeasures({this.before, this.count = 1});
 
@@ -617,8 +620,12 @@ final class InsertMeasures extends Edit {
 /// the range is cleared when it would land on a different note, or on one
 /// where it landed on none. Spanners wholly inside are removed. One that
 /// starts inside moves to the start of the bar after, and one that ends
-/// inside moves to the last onset before the range. Deleting every bar is
-/// refused with [WouldEmptyScore].
+/// inside moves to the last onset before the range. The bar after the
+/// range starts under the tempo mark it started under: without an opening
+/// tempo mark of its own, it gains the last one the range held. Tempo lines
+/// are not counted, so one that ends in the range without a mark after it
+/// leaves the bar after at the mark's tempo. Deleting every bar is refused
+/// with [WouldEmptyScore].
 final class DeleteMeasures extends Edit {
   const DeleteMeasures(this.first, this.last);
 
