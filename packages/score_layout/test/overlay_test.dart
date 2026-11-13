@@ -654,6 +654,45 @@ void main() {
   });
 
   group('the playhead', () {
+    test('glides into the next bar\'s downbeat when that bar plays next on '
+        'the same system, and stops at the barline before a jump or a new '
+        'system', () {
+      final score = after(beatsScore(6), [
+        const SetRepeatStart(MeasureId(3000), start: true),
+        const SetRepeatEnd(MeasureId(3002), RepeatEnd()),
+        const SetBreak(MeasureId(3003), LayoutBreak.system),
+      ]);
+      final layout = sheetOf(score);
+      final script = PlaybackCompiler().compile(score);
+
+      var glides = 0;
+      var stops = 0;
+      for (final bar in script.bars) {
+        final point = script.pointAt(bar.end - 1e-9)!;
+        expect(point.bar.measure, bar.measure);
+        final index = layout.systemOf(bar.measure)!;
+        final bars = layout.systemAt(index).bars;
+        final at = bars.indexWhere((placed) => placed.measure == bar.measure);
+        final following = at + 1 < bars.length ? bars[at + 1] : null;
+        final x = layout.playheadAt(point)!.left;
+        if (following != null && following.measure == point.next?.measure) {
+          glides++;
+          expect(
+            x,
+            closeTo(
+              xOf(layout, index, ScorePoint(following.measure, Moment.zero)),
+              1e-6,
+            ),
+          );
+        } else {
+          stops++;
+          expect(x, closeTo(bars[at].right, 1e-6));
+        }
+      }
+      expect(glides, greaterThan(0));
+      expect(stops, 3);
+    });
+
     test('moves right within a system except at the repeat\'s jump, and '
         'lands on each note\'s x at that note\'s second', () {
       final score = after(beatsScore(6), [

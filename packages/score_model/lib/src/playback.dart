@@ -283,7 +283,14 @@ final class PlaybackScript {
       .takeWhile((note) => note.start < to);
 
   /// The bar playing at [seconds], or null outside `[0, totalSeconds)`.
-  _Bar? _playing(double seconds) {
+  _Bar? _playing(double seconds) => switch (_playingIndex(seconds)) {
+    final at? => _timeline[at],
+    null => null,
+  };
+
+  /// The index in [_timeline] of the bar playing at [seconds], or null
+  /// outside `[0, totalSeconds)`.
+  int? _playingIndex(double seconds) {
     if (seconds < 0) {
       return null;
     }
@@ -291,7 +298,7 @@ final class PlaybackScript {
       _timeline.length,
       (i) => _timeline[i].played.end > seconds,
     );
-    return at == _timeline.length ? null : _timeline[at];
+    return at == _timeline.length ? null : at;
   }
 
   /// Events sounding at [seconds], one per voice, for highlighting. An
@@ -332,10 +339,16 @@ final class PlaybackScript {
   /// first pass it undoes [secondsAt]. Null outside `[0, totalSeconds)`.
   /// The instant a bar starts belongs to that bar.
   PlaybackPoint? pointAt(double seconds) {
-    final bar = _playing(seconds);
-    return bar == null
-        ? null
-        : PlaybackPoint(bar: bar.played, offset: bar.wholesAt(seconds));
+    final at = _playingIndex(seconds);
+    if (at == null) {
+      return null;
+    }
+    final bar = _timeline[at];
+    return PlaybackPoint(
+      bar: bar.played,
+      offset: bar.wholesAt(seconds),
+      next: at + 1 < _timeline.length ? _timeline[at + 1].played : null,
+    );
   }
 }
 
@@ -381,10 +394,14 @@ final class BarClock {
 
 /// Where playback is at one moment of a script.
 final class PlaybackPoint {
-  const PlaybackPoint({required this.bar, required this.offset});
+  const PlaybackPoint({required this.bar, required this.offset, this.next});
 
   /// The bar being played, with its pass.
   final PlayedBar bar;
+
+  /// The bar that plays after [bar], or null when [bar] plays last. After a
+  /// repeat it is the bar the repeat returns to.
+  final PlayedBar? next;
 
   /// How far into the bar, in whole notes from its downbeat. A double, not
   /// a [Moment], because a playhead moves continuously between onsets.
