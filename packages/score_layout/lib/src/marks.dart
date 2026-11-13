@@ -383,20 +383,6 @@ double _centreOf(TimedEvent timed, PlacedChord? chord, SmuflFont font) {
   return (box.left + box.right) / 2;
 }
 
-/// The y shift that puts [box] on [side] of everything the skyline has
-/// from [left] to [right], [gap] clear of it.
-double _clearance(
-  Skyline skyline,
-  Side side,
-  Box box,
-  double gap,
-  double left,
-  double right,
-) => switch (side) {
-  Side.above => skyline.freeAbove(left, right) - gap - box.bottom,
-  Side.below => skyline.freeBelow(left, right) + gap - box.top,
-};
-
 /// Stacks [mark] outside everything the skyline has over the mark and over
 /// its event's heads or rest, centred on the event, and reserves its room.
 /// Clearing the whole event keeps a narrow mark on the stem side beyond the
@@ -415,8 +401,7 @@ List<BarItem> _hang(
   final ink = _inkOf(timed, chord, font);
   final x = _centreOf(timed, chord, font) - (row.box.left + row.box.right) / 2;
   final box = row.box.shift(xs[slice] + x, 0);
-  final dy = _clearance(
-    skyline,
+  final dy = skyline.clearance(
     mark.side,
     box,
     mark.gap,
@@ -616,7 +601,7 @@ List<BarItem> fermataItems(
   final box = row.box.shift((xs[slice] + xs.last) / 2 + x, 0);
   final left = math.min(box.left, xs[slice]);
   final right = math.max(box.right, xs.last);
-  final dy = _clearance(skyline, mark.side, box, mark.gap, left, right);
+  final dy = skyline.clearance(mark.side, box, mark.gap, left, right);
   skyline.add(Box(left, box.top + dy, right, box.bottom + dy));
   return [
     for (final part in row.parts)
@@ -951,7 +936,7 @@ List<BarItem> _place(
     _Hold.end => -row.box.right - _endGap,
   };
   final box = row.box.shift(xs[mark.slice] + x, 0);
-  final dy = _clearance(skyline, mark.side, box, _markGap, box.left, box.right);
+  final dy = skyline.clearance(mark.side, box, _markGap, box.left, box.right);
   skyline.add(box.shift(0, dy));
   return [
     for (final part in row.parts) BarItem(mark.slice, staff, part.shift(x, dy)),
@@ -1272,10 +1257,13 @@ List<TupletStub> tupletStubs(
     final left = math.min(from, (from + to - number.width) / 2);
     final right = math.max(to, (from + to + number.width) / 2);
     final half = number.height / 2;
-    final line = switch (side) {
-      Side.above => skyline.freeAbove(left, right) - _markGap - half,
-      Side.below => skyline.freeBelow(left, right) + _markGap + half,
-    };
+    final line = skyline.clearance(
+      side,
+      Box(left, -half, right, half),
+      _markGap,
+      left,
+      right,
+    );
     skyline.add(Box(left, line - half, right, line + half));
     stubs.add(
       TupletStub(

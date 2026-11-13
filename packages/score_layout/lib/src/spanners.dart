@@ -198,12 +198,13 @@ List<TieEnd> tieEnds(
 
   double x(BarAnchor anchor) => xs[anchor.slice] + anchor.dx;
   void reserve(double x0, double x1, double y, Side side) {
-    final lo = math.min(x0, x1);
-    final hi = math.max(x0, x1);
-    skyline.add(switch (side) {
-      Side.above => Box(lo, y - tieRise, hi, y),
-      Side.below => Box(lo, y, hi, y + tieRise),
-    });
+    skyline.reserve(
+      side,
+      x0,
+      x1,
+      clear: y,
+      limit: side == Side.above ? y - tieRise : y + tieRise,
+    );
   }
 
   final ends = <TieEnd>[];
@@ -714,19 +715,10 @@ SpannerPiece _piece(
   final end = pieceEnd(segment, staffView, barLength);
   final startChord = start.event == null ? null : chords[start.event];
   final endChord = end.event == null ? null : chords[end.event];
-  double free(double x0, double x1) => switch (side) {
-    Side.above => sky.freeAbove(math.min(x0, x1), math.max(x0, x1)),
-    Side.below => sky.freeBelow(math.min(x0, x1), math.max(x0, x1)),
-  };
-  void reserve(double x0, double x1, double clear, double limit) {
-    final lo = math.min(x0, x1);
-    final hi = math.max(x0, x1);
-    sky.add(
-      side == Side.above
-          ? Box(lo, limit, hi, clear)
-          : Box(lo, clear, hi, limit),
-    );
-  }
+  double free(double x0, double x1) =>
+      sky.free(side, math.min(x0, x1), math.max(x0, x1));
+  void reserve(double x0, double x1, double clear, double limit) =>
+      sky.reserve(side, x0, x1, clear: clear, limit: limit);
 
   SpannerPiece piece({
     required BarAnchor from,
