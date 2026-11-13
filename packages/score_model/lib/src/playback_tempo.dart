@@ -19,13 +19,13 @@ final class _TempoMap {
         for (final spanner in score.spanners)
           if (spanner.kind case TempoLine(:final factor))
             if (time.extentOf(spanner) case (final from, final end))
-              (from: from, end: end, factor: factor),
+              (id: spanner.id, from: from, end: end, factor: factor),
       ],
       (a, b) => a.from.compareTo(b.from),
     );
     final pieces = [const _TempoPiece.steady(Moment.zero, Tempo.unmarked)];
     var next = 0;
-    for (final (:from, :end, :factor) in lines) {
+    for (final (:id, :from, :end, :factor) in lines) {
       for (; next < marks.length && marks[next].from <= from; next++) {
         pieces.add(marks[next]);
       }
@@ -39,6 +39,7 @@ final class _TempoMap {
           start,
           arrival?.from ?? end,
           arrival?.target ?? Tempo(start.bpm * factor, beat: start.beat),
+          line: id,
         ),
       );
     }
@@ -52,6 +53,16 @@ final class _TempoMap {
 
   _Pace paceAt(Moment position) =>
       _pieces[_covering(position)].paceAt(position);
+
+  Tempo tempoAt(Moment position) =>
+      _pieces[_covering(position)].tempoAt(position);
+
+  /// The piece in effect at [position].
+  _TempoPiece pieceAt(Moment position) => _pieces[_covering(position)];
+
+  /// The piece [line] makes, or null when [line] is not a tempo line.
+  _TempoPiece? pieceOf(SpannerId line) =>
+      _pieces.where((piece) => piece.line == line).firstOrNull;
 
   /// Where the tempo starts or stops moving inside `(from, to)`.
   Iterable<Moment> turnsBetween(Moment from, Moment to) sync* {
@@ -73,9 +84,9 @@ final class _TempoMap {
 }
 
 /// A tempo moving straight from [start] at [from] to [target] at [to], and
-/// then holding [target].
+/// then holding [target]. A tempo line makes it, or else a tempo mark does.
 final class _TempoPiece {
-  const _TempoPiece(this.from, this.start, this.to, this.target);
+  const _TempoPiece(this.from, this.start, this.to, this.target, {this.line});
 
   const _TempoPiece.steady(Moment at, Tempo tempo) : this(at, tempo, at, tempo);
 
@@ -83,6 +94,7 @@ final class _TempoPiece {
   final Tempo start;
   final Moment to;
   final Tempo target;
+  final SpannerId? line;
 
   Tempo tempoAt(Moment position) => switch (paceAt(position)) {
     _Steady(:final tempo) => tempo,
