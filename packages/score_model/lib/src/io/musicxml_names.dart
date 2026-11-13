@@ -106,6 +106,16 @@ final Map<String, Articulation> articulationByName = {
       name: articulation,
 };
 
+/// The `<technical>` child for [bowing].
+String bowingName(Bowing bowing) => switch (bowing) {
+  Bowing.up => 'up-bow',
+  Bowing.down => 'down-bow',
+};
+
+final Map<String, Bowing> bowingByName = {
+  for (final bowing in Bowing.values) bowingName(bowing): bowing,
+};
+
 /// MusicXML's `<kind>` for a chord quality, where it has one. Export writes
 /// `other` for the rest, with the quality as the kind's text.
 ///
