@@ -66,6 +66,112 @@ _Result _removePart(Score score, PartId part, VoicePoint cursor) {
   );
 }
 
+_Result _setInstrument(
+  Score score,
+  PartId part,
+  PartTemplate template,
+  _Ids ids,
+  VoicePoint cursor,
+) {
+  final at = _partIndex(score, part);
+  _check(templateProblem(template));
+  final old = score.parts[at];
+  final PartTemplate(:instrument, :staves, :clefs) = template;
+  if (instrument.isPercussion != old.instrument.isPercussion) {
+    throw const _Refuse(
+      InvalidValue('a drum kit and a pitched instrument do not swap'),
+    );
+  }
+  final kept = old.staves.take(staves).toList();
+  final row = {for (final (i, staff) in kept.indexed) staff.id: i};
+  final gone = {for (final staff in old.staves.skip(staves)) staff.id};
+  final added = [
+    for (var i = kept.length; i < staves; i++) Staff(id: ids.staff()),
+  ];
+  Clef clef(int i) => clefs?[i] ?? instrument.clef;
+  int? restring(int string) {
+    final to = instrument.strings.indexOf(old.instrument.strings[string]);
+    return to < 0 ? null : to;
+  }
+
+  StaffMeasure moved(StaffMeasure measure, int i) => measure.copyWith(
+    clef: clef(i),
+    clefChanges: const Seq.empty(),
+    voices: Seq([
+      for (final voice in measure.voices)
+        Voice(
+          slot: voice.slot,
+          items: Seq([
+            for (final item in voice.items)
+              if (item is Content)
+                _restrung(_inKit(item, instrument), restring)
+              else
+                item,
+          ]),
+        ),
+    ]),
+  );
+
+  return _Result(
+    score.copyWith(
+      parts: score.parts.replaceAt(
+        at,
+        Part(
+          id: old.id,
+          name: template.name,
+          shortName: template.shortName,
+          instrument: instrument,
+          staves: Seq([...kept, ...added]),
+          hidden: old.hidden,
+        ),
+      ),
+      measures: Seq([
+        for (final column in score.measures)
+          column.copyWith(
+            staves: Seq([
+              for (final measure in column.staves)
+                if (row[measure.staff] case final i?) ...[
+                  moved(measure, i),
+                  if (i == kept.length - 1)
+                    for (final (j, staff) in added.indexed)
+                      _restStaff(
+                        staff.id,
+                        clef(kept.length + j),
+                        column.length,
+                        ids,
+                      ),
+                ] else if (!gone.contains(measure.staff))
+                  measure,
+            ]),
+          ),
+      ]),
+      spanners: Seq([
+        for (final spanner in score.spanners)
+          if (!gone.contains(spanner.staff)) spanner,
+      ]),
+    ),
+    cursor: gone.contains(cursor.staff)
+        ? VoicePoint(staff: kept.last.id, voice: cursor.voice, at: cursor.at)
+        : null,
+  );
+}
+
+/// [item], refused with [InvalidValue] when it holds a drum that
+/// [instrument]'s kit lacks.
+Content _inKit(Content item, Instrument instrument) {
+  for (final event in _eventsIn(item)) {
+    if (event case ChordEvent(:final notes, :final graces)) {
+      for (final note in [...notes, for (final g in graces) ...g.notes]) {
+        if (note case DrumNote(:final drum)
+            when instrument.soundOf(drum) == null) {
+          throw _Refuse(InvalidValue('the kit has no $drum'));
+        }
+      }
+    }
+  }
+  return item;
+}
+
 _Result _setPartHidden(
   Score score,
   PartId part,

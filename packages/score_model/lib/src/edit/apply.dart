@@ -277,6 +277,13 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
       hidden,
       session.cursor,
     ),
+    SetInstrument(:final part, :final template) => _setInstrument(
+      score,
+      part,
+      template,
+      ids,
+      session.cursor,
+    ),
     Batch(:final edits) => _batch(edits, ids, session),
   };
 }
