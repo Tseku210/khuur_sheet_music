@@ -9,12 +9,6 @@ import 'random_edits.dart';
 import 'showcase.dart';
 import 'support.dart';
 
-Score reloaded(Score score) =>
-    scoreFromJson(jsonDecode(jsonEncode(scoreToJson(score))));
-
-String saved(Score score) =>
-    '${const JsonEncoder.withIndent('  ').convert(scoreToJson(score))}\n';
-
 List<String> views(Score score) => [
   for (final column in score.measures)
     describeView(score.measureView(column.id)),

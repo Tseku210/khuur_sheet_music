@@ -41,6 +41,87 @@ const violin = PartTemplate(
   instrument: Instrument(key: 'violin', program: 40),
 );
 
+const strung = PartTemplate(
+  name: 'Violin',
+  instrument: Instrument(
+    key: 'violin',
+    program: 40,
+    strings: [
+      Pitch(Step.g, 3),
+      Pitch(Step.d, 4),
+      Pitch(Step.a, 4),
+      Pitch(Step.e, 5),
+    ],
+  ),
+);
+
+const viola = PartTemplate(
+  name: 'Viola',
+  instrument: Instrument(
+    key: 'viola',
+    program: 41,
+    clef: Clef.alto,
+    strings: [
+      Pitch(Step.c, 3),
+      Pitch(Step.g, 3),
+      Pitch(Step.d, 4),
+      Pitch(Step.a, 4),
+    ],
+  ),
+);
+
+const cello = PartTemplate(
+  name: 'Cello',
+  instrument: Instrument(
+    key: 'cello',
+    program: 42,
+    clef: Clef.bass,
+    strings: [
+      Pitch(Step.c, 2),
+      Pitch(Step.g, 2),
+      Pitch(Step.d, 3),
+      Pitch(Step.a, 3),
+    ],
+  ),
+);
+
+/// A chord of [pitch] with id [id], its head [id] + 50 on [string].
+ChordEvent onString(
+  int id,
+  Pitch pitch,
+  int? string, {
+  NoteValue value = NoteValue.quarter,
+}) => ChordEvent(
+  id: EventId(id),
+  value: value,
+  notes: Seq([PitchedNote(id: NoteId(id + 50), pitch: pitch, string: string)]),
+);
+
+/// The chords of voice one on staff [staff] of bar [bar], each as its id
+/// and sounding tones.
+List<String> tonesOf(Score score, int bar, {int staff = 0}) => [
+  for (final item in score.measures[bar].staves[staff].voices.first.items)
+    if (item case ChordEvent(:final id, :final notes))
+      '$id ${notes.map((note) => note.tone).join(' ')}',
+];
+
+/// Every head of voice one on the first staff of bar 0, graces and tuplet
+/// members included, as `note id:string`.
+List<String> stringsOf(Score score) {
+  Iterable<String> heads(VoiceItem item) => switch (item) {
+    ChordEvent(:final notes, :final graces) => [
+      for (final note in [...notes, for (final g in graces) ...g.notes])
+        '${note.id}:${(note as PitchedNote).string}',
+    ],
+    Tuplet(:final members) => members.expand(heads),
+    _ => const [],
+  };
+  return [
+    for (final item in score.measures[0].staves[0].voices.first.items)
+      ...heads(item),
+  ];
+}
+
 void main() {
   group('AddPart', () {
     test('adds a part at the bottom with a measure rest in every bar', () {
@@ -362,6 +443,316 @@ void main() {
       );
       expect(
         refusal(session.run(const SetPartHidden(PartId(999), hidden: true))),
+        isA<StaleReference>(),
+      );
+    });
+  });
+
+  group('SetInstrument', () {
+    test('turns a khuur part into a piano part and back', () {
+      final khuur = fill(blankScore(), 0, [
+        chord(1, const Pitch(Step.f, 3), NoteValue.half),
+        chord(2, const Pitch(Step.c, 4), NoteValue.half),
+      ]);
+      final session = applied(
+        EditSession.start(khuur).run(
+          SetClef(
+            staff: khuur.staves[0].id,
+            at: pointAt(khuur, 0, at(1, 2)),
+            clef: Clef.bass,
+          ),
+        ),
+      );
+      final part = khuur.parts[0].id;
+
+      final asPiano = edited(session, SetInstrument(part, piano));
+      final back = edited(asPiano, SetInstrument(part, morinKhuur));
+
+      final score = asPiano.score;
+      expect(asPiano.undoLabel, 'Change instrument');
+      expect(
+        (score.parts.single.id, score.parts.single.name),
+        (part, 'Piano'),
+      );
+      expect(score.parts.single.instrument.key, 'piano');
+      expect(score.staves.first.id, khuur.staves[0].id);
+      expectStavesInOrder(score);
+      for (final column in score.measures) {
+        expect(
+          [for (final measure in column.staves) measure.clef],
+          [Clef.treble, Clef.bass],
+        );
+        expect(column.staves.every((m) => m.clefChanges.isEmpty), isTrue);
+        expect(
+          [for (final v in column.staves[1].voices) ...v.items],
+          [isA<MeasureRest>()],
+        );
+      }
+      expect(tonesOf(score, 0), tonesOf(khuur, 0));
+      expect(back.score.staves.map((s) => s.id), [khuur.staves[0].id]);
+      expect(back.score.parts.single.name, 'Морин хуур');
+      expect(tonesOf(back.score, 0), tonesOf(khuur, 0));
+      expect(back.score.measures.first.staves.single.clef, Clef.treble);
+    });
+
+    test('keeps a string mark on the string tuned the same', () {
+      final score = fill(
+        blankScore(parts: const [strung]),
+        0,
+        [
+          onString(1, const Pitch(Step.a, 4), 1),
+          onString(2, const Pitch(Step.a, 4), 2),
+          onString(3, const Pitch(Step.e, 5), 3),
+          onString(4, const Pitch(Step.e, 5), null),
+        ],
+      );
+
+      final next = edited(
+        EditSession.start(score),
+        SetInstrument(score.parts[0].id, viola),
+      ).score;
+
+      expect(stringsOf(next), [
+        '${const NoteId(51)}:2',
+        '${const NoteId(52)}:3',
+        '${const NoteId(53)}:null',
+        '${const NoteId(54)}:null',
+      ]);
+      expect(next.measures.first.staves.single.clef, Clef.alto);
+    });
+
+    test('clears a cello string the khuur lacks, so the piece loads', () {
+      final score = fill(blankScore(parts: const [cello]), 0, [
+        onString(1, const Pitch(Step.c, 2), 0),
+        onString(2, const Pitch(Step.a, 3), 3),
+        onString(3, const Pitch(Step.f, 3), 2),
+        onString(4, const Pitch(Step.b, 3, Alter.flat), 3),
+      ]);
+
+      final next = edited(
+        EditSession.start(score),
+        SetInstrument(score.parts[0].id, morinKhuur),
+      ).score;
+
+      expect(stringsOf(next).map((head) => head.split(':').last), [
+        for (var i = 0; i < 4; i++) 'null',
+      ]);
+      expect(saved(reloaded(next)), saved(next));
+    });
+
+    test('drops the music and spanners of a dropped staff', () {
+      var score = fill(
+        blankScore(parts: const [piano, violin]),
+        0,
+        [chord(1, const Pitch(Step.c, 3), NoteValue.whole)],
+        staff: 1,
+      );
+      for (final staff in [0, 1, 2]) {
+        score = withSlur(
+          score,
+          pointAt(score, 0, Moment.zero),
+          pointAt(score, 1, Moment.zero),
+          staff: staff,
+          voice: VoiceSlot.one,
+        );
+      }
+
+      final next = edited(
+        withCursor(score, 1),
+        SetInstrument(score.parts[0].id, morinKhuur),
+      );
+
+      expect(next.score.staves.map((s) => s.id), [
+        score.staves[0].id,
+        score.staves[2].id,
+      ]);
+      expectStavesInOrder(next.score);
+      expect(
+        [for (final s in next.score.spanners) s.staff],
+        [
+          score.staves[0].id,
+          score.staves[2].id,
+        ],
+      );
+      expect(
+        [
+          for (final column in next.score.measures)
+            for (final measure in column.staves)
+              for (final voice in measure.voices) ...voice.items,
+        ].whereType<ChordEvent>(),
+        isEmpty,
+      );
+      expect(cursorOf(next), (0, 1, at(1, 4), VoiceSlot.two));
+      expect(saved(reloaded(next.score)), saved(next.score));
+    });
+
+    test('moves string marks on graces and in tuplets and keeps ids', () {
+      final graced = onString(1, const Pitch(Step.a, 4), 2).copyWith(
+        graces: Seq([
+          GraceChord(
+            id: const EventId(2),
+            kind: GraceKind.acciaccatura,
+            value: NoteValue.eighth,
+            notes: Seq([
+              const PitchedNote(
+                id: NoteId(60),
+                pitch: Pitch(Step.d, 4),
+                string: 1,
+              ),
+            ]),
+          ),
+        ]),
+      );
+      final score = fill(blankScore(parts: const [strung]), 0, [
+        graced,
+        tripletOfEighths(3, [
+          onString(4, const Pitch(Step.g, 3), 0, value: NoteValue.eighth),
+          onString(5, const Pitch(Step.e, 5), 3, value: NoteValue.eighth),
+          onString(6, const Pitch(Step.a, 4), 2, value: NoteValue.eighth),
+        ]),
+        const RestEvent(id: EventId(7), value: NoteValue.half),
+      ]);
+
+      final next = edited(
+        EditSession.start(score),
+        SetInstrument(score.parts[0].id, viola),
+      ).score;
+
+      expect(stringsOf(next), [
+        '${const NoteId(51)}:3',
+        '${const NoteId(60)}:2',
+        '${const NoteId(54)}:1',
+        '${const NoteId(55)}:null',
+        '${const NoteId(56)}:3',
+      ]);
+      final items = next.measures[0].staves[0].voices.first.items;
+      expect((items[0] as ChordEvent).graces.single.id, const EventId(2));
+      expect((items[1] as Tuplet).id, const TupletId(3));
+      expect((items[2] as RestEvent).id, const EventId(7));
+    });
+
+    test('swaps one drum kit for another that has its drums', () {
+      final score = blankScore(parts: const [drums]);
+      final session = applied(
+        EditSession.start(score).run(
+          EnterNote(
+            at: point(score, 0, Moment.zero),
+            tone: snare,
+            value: NoteValue.quarter,
+          ),
+        ),
+      );
+
+      final next = edited(
+        session,
+        SetInstrument(score.parts[0].id, bigKit),
+      ).score;
+
+      expect(next.parts.single.instrument.key, 'big-kit');
+      expect(tonesOf(next, 0), tonesOf(session.score, 0));
+      expect(saved(reloaded(next)), saved(next));
+    });
+
+    test('drops what a selection held on a dropped staff', () {
+      final score = fill(
+        blankScore(parts: const [piano]),
+        0,
+        [chord(1, const Pitch(Step.c, 3), NoteValue.whole)],
+        staff: 1,
+      );
+      final range = RangeSelection(
+        from: pointAt(score, 0, Moment.zero),
+        to: pointAt(score, 1, Moment.zero),
+        top: score.staves[0].id,
+        bottom: score.staves[1].id,
+      );
+      final picked = EditSession.start(score).select(
+        ItemSelection(Seq([eventRef(EditSession.start(score), 1)])),
+      );
+
+      final ranged = edited(
+        EditSession.start(score).select(range),
+        SetInstrument(score.parts[0].id, morinKhuur),
+      );
+      final unpicked = edited(
+        picked,
+        SetInstrument(score.parts[0].id, morinKhuur),
+      );
+
+      expect(ranged.selection.isEmpty, isTrue);
+      expect(unpicked.selection.isEmpty, isTrue);
+    });
+
+    test('changes nothing when the part already has the template', () {
+      final session = EditSession.start(blankScore(parts: const [piano]));
+
+      expect(
+        changesNothing(
+          session,
+          SetInstrument(session.score.parts[0].id, piano),
+        ),
+        isTrue,
+      );
+    });
+
+    test('undoes to the old score', () {
+      final score = fill(blankScore(parts: const [cello]), 0, [
+        for (var i = 1; i <= 4; i++) onString(i, const Pitch(Step.c, 2), 0),
+      ]);
+      final session = EditSession.start(score);
+
+      final next = edited(session, SetInstrument(score.parts[0].id, piano));
+
+      expect(saved(next.undo().score), saved(score));
+    });
+
+    test('refuses a swap with a drum kit, a missing drum or a gone part', () {
+      final pitched = EditSession.start(blankScore());
+      final kit = applied(
+        EditSession.start(blankScore(parts: const [drums])).run(
+          EnterNote(
+            at: point(blankScore(parts: const [drums]), 0, Moment.zero),
+            tone: snare,
+            value: NoteValue.quarter,
+          ),
+        ),
+      );
+      const noSnare = PartTemplate(
+        name: 'Toms',
+        instrument: Instrument(
+          key: 'toms',
+          program: 0,
+          bank: 128,
+          clef: Clef.percussion,
+          drums: [
+            DrumSound(name: 'Tom', position: Pitch(Step.e, 5), midiKey: 45),
+          ],
+        ),
+      );
+      String refused(EditSession session, PartTemplate template) => (refusal(
+        session.run(
+          SetInstrument(session.score.parts[0].id, template),
+        ),
+      ) as InvalidValue).message;
+
+      expect(
+        refused(pitched, drums),
+        'a drum kit and a pitched instrument do not swap',
+      );
+      expect(
+        refused(kit, piano),
+        'a drum kit and a pitched instrument do not swap',
+      );
+      expect(refused(kit, noSnare), 'the kit has no Snare');
+      expect(
+        refused(
+          pitched,
+          const PartTemplate(name: 'x', instrument: fiddle, staves: 0),
+        ),
+        'a part needs a staff and a clef each',
+      );
+      expect(
+        refusal(pitched.run(const SetInstrument(PartId(999), piano))),
         isA<StaleReference>(),
       );
     });

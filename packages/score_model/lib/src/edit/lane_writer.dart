@@ -220,6 +220,18 @@ Iterable<Event> _eventsIn(Content item) sync* {
   }
 }
 
+/// Every head in [item], graces included.
+Iterable<Note> _headsIn(Content item) sync* {
+  for (final event in _eventsIn(item)) {
+    if (event case ChordEvent(:final notes, :final graces)) {
+      yield* notes;
+      for (final grace in graces) {
+        yield* grace.notes;
+      }
+    }
+  }
+}
+
 /// An empty bar after [last], with its meter, key and closing clefs.
 MeasureColumn _barAfter(MeasureColumn last, _Ids ids) => emptyBar(
   id: ids.measure(),
