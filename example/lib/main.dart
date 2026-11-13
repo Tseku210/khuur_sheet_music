@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:example/demo_score.dart';
 import 'package:example/selection_actions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:khuur_sheet_music/khuur_sheet_music.dart';
 
 void main() => runApp(const ExampleApp());

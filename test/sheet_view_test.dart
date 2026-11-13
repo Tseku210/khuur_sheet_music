@@ -4,7 +4,6 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart' show ColorScheme, Theme, ThemeData;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
@@ -14,6 +13,7 @@ import 'package:khuur_sheet_music/src/paragraph_measurer.dart';
 import 'package:khuur_sheet_music/src/score_player.dart';
 import 'package:khuur_sheet_music/src/sheet_palette.dart';
 import 'package:khuur_sheet_music/src/sheet_view.dart';
+import 'package:material_ui/material_ui.dart' show ColorScheme, Theme, ThemeData;
 import 'package:score_layout/score_layout.dart';
 import 'package:score_model/score_model.dart';
 

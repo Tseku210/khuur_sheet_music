@@ -16,6 +16,7 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_midi_pro: ^4.0.4
+  material_ui: ^1.11.0
   score_layout:
     path: packages/score_layout
   score_model:
