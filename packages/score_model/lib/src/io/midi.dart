@@ -1,11 +1,11 @@
 /// Standard MIDI File export, from the playback script.
 ///
 /// The file holds what `PlaybackCompiler` plays, so repeats, endings,
-/// jumps, ties, dynamics, ornaments and the pedal come out as they play. It
-/// is a format 1 file at 960 ticks a quarter. The first track holds the
-/// tempo, the time signature and the key signature. Each part has a track
-/// after it, in score order, on the channel the script gives it, with its
-/// bank and program.
+/// jumps, ties, slurs, dynamics, ornaments and the pedal come out as they
+/// play. It is a format 1 file at 960 ticks a quarter. The first track
+/// holds the tempo, the time signature and the key signature. Each part has
+/// a track after it, in score order, on the channel the script gives it,
+/// with its bank and program.
 ///
 /// Ticks count notated time along the play order, so every played bar
 /// starts on a barline in another program. The tempo is written where it
@@ -105,7 +105,10 @@ Uint8List scoreToMidi(Score score) {
     final track = tracks[score.partOf(note.source.staff).id]!;
     final channel = note.channel;
     final on = tempo.tickAt(note.start);
-    final off = max(on + 1, tempo.tickAt(note.start + note.duration));
+    final off = max(
+      on + 1,
+      tempo.tickAt(note.start + note.duration + note.overlap),
+    );
     if (note.cents != (bends[channel] ?? 0)) {
       if (!bends.containsKey(channel)) {
         track.bendRange(channel);
@@ -151,11 +154,7 @@ int _ticks(Fraction wholes) =>
 /// The sixteenths strictly between [from] and [to].
 Iterable<Length> _sixteenthsBetween(Length from, Length to) sync* {
   final sixteenths = from.wholeNotes * Fraction(16);
-  for (
-    var k = sixteenths.floor() + 1;
-    Length(Fraction(k, 16)) < to;
-    k++
-  ) {
+  for (var k = sixteenths.floor() + 1; Length(Fraction(k, 16)) < to; k++) {
     yield Length(Fraction(k, 16));
   }
 }

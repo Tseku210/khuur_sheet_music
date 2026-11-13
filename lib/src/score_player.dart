@@ -300,7 +300,7 @@ final class ScorePlayer {
       if (note.start > at) {
         break;
       }
-      final end = note.start + note.duration;
+      final end = note.start + note.duration + note.overlap * _tempoScale;
       final endedInAStall = end <= at;
       if (endedInAStall) {
         continue;
