@@ -18,6 +18,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: 3.47.5
           cache: true
 
       - name: Get dependencies
@@ -26,14 +27,23 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
+      # Each suite runs even when one before it failed, so that one run
+      # shows every failure.
       - name: Library unit tests
+        if: ${{ !cancelled() }}
         run: flutter test
 
-      - name: Upload test artifacts
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          retention-days: 14
-          name: test-failures
-          path: test/failures/**
-          if-no-files-found: ignore
+      - name: Score model tests
+        if: ${{ !cancelled() }}
+        run: dart test
+        working-directory: packages/score_model
+
+      - name: Layout engine tests
+        if: ${{ !cancelled() }}
+        run: dart test
+        working-directory: packages/score_layout
+
+      - name: Example tests
+        if: ${{ !cancelled() }}
+        run: flutter test
+        working-directory: example
