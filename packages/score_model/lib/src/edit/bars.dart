@@ -18,9 +18,14 @@ _Result _insertMeasuresBefore(
   return _Result(_insertMeasures(score, index, count, ids));
 }
 
-_Result _deleteMeasuresBetween(Score score, MeasureId first, MeasureId last) {
+_Result _deleteMeasuresBetween(
+  Score score,
+  MeasureId first,
+  MeasureId last,
+  _Ids ids,
+) {
   final (start, end) = _barSpan(score, first, last);
-  return _Result(_deleteMeasures(score, start, end));
+  return _Result(_deleteMeasures(score, start, end, ids));
 }
 
 _Result _setBarline(Score score, MeasureId measure, Barline barline) =>
@@ -225,8 +230,9 @@ Score _insertMeasures(Score score, int index, int count, _Ids ids) {
 );
 
 /// [score] without the bars from [start] up to [end]. Refused when no bar
-/// would be left.
-Score _deleteMeasures(Score score, int start, int end) {
+/// would be left. The bars left play at the tempo they played at, with the
+/// one exception [_keepTempoLines] names.
+Score _deleteMeasures(Score score, int start, int end, _Ids ids) {
   final measures = score.measures;
   if (start == 0 && end == measures.length) {
     throw const _Refuse(WouldEmptyScore());
@@ -242,10 +248,9 @@ Score _deleteMeasures(Score score, int start, int end) {
     measures: untied.measures.replaceRange(start, end, const []),
     spanners: const Seq.empty(),
   );
-  final kept = next == null ? cut : _keepTempo(cut, start, measures, end);
-  return kept.copyWith(
+  final moved = cut.copyWith(
     spanners: _moveSpanners(
-      kept,
+      cut,
       untied.spanners,
       first: (spanner) =>
           gone.contains(spanner.first.measure) ? resume : spanner.first,
@@ -256,26 +261,142 @@ Score _deleteMeasures(Score score, int start, int end) {
           : _lastOnset(before, spanner),
     ),
   );
+  final played = PlayedTempo(untied);
+  final lined = _keepTempoLines(moved, untied, played, start, end, ids);
+  return next == null ? lined : _keepTempo(lined, start, played, measures, end);
+}
+
+/// [cut], the bars [start] up to [end] of [old] cut and its spanners moved,
+/// with its tempo lines bent so the bars left play at the tempo [played]
+/// gave them in [old]:
+///
+/// - A line that ended in the range now ends before it, and reaches the
+///   tempo it had reached there.
+/// - A line that ran past the range from inside it, or from before it,
+///   goes on from the bar after the range, reaching the tempo it reached.
+///   One that ran from before the range is split in two. It goes on only if
+///   it was still moving the tempo there.
+///
+/// Where a line now ends just as the bar after the range starts at another
+/// tempo, it reaches that tempo instead, as the tempo mark there takes over
+/// a line that ends on it.
+Score _keepTempoLines(
+  Score cut,
+  Score old,
+  PlayedTempo played,
+  int start,
+  int end,
+  _Ids ids,
+) {
+  int index(ScorePoint point) => old.indexOf(point.measure);
+  bool touches(Spanner line) =>
+      line.kind is TempoLine &&
+      index(line.last) >= start &&
+      index(line.first) < end;
+  if (!old.spanners.any(touches)) {
+    return cut;
+  }
+  final next = end < old.measures.length ? old.measures[end] : null;
+  final moving = next == null ? null : played.movingAt(next.id, Moment.zero);
+  final moved = {for (final spanner in cut.spanners) spanner.id: spanner};
+
+  /// [line] ending at the last onset before the range, reaching the tempo
+  /// it reached there, or null when that onset is before its start.
+  Spanner? head(Spanner line) {
+    final before = cut.measures[start - 1];
+    final trimmed = _tempoLine(line, last: _lastOnset(before, line));
+    if (!_fits(cut, trimmed)) {
+      return null;
+    }
+    final from = played.at(line.first.measure, line.first.offset);
+    final to = played.alongLine(line.id, before.id, cut.lineEnd(trimmed))!;
+    return _tempoLine(trimmed, factor: to.bpm / from.bpm);
+  }
+
+  /// [line] going on from the start of the bar after the range, or null
+  /// when it no longer moved the tempo there.
+  Spanner? tail(Spanner line, SpannerId Function() id) {
+    if (moving == null || moving.line != line.id) {
+      return null;
+    }
+    final from = played.at(next!.id, Moment.zero);
+    return _tempoLine(
+      line,
+      id: id(),
+      first: ScorePoint(next.id, Moment.zero),
+      factor: moving.target.bpm / from.bpm,
+    );
+  }
+
+  /// What [line], which touches the range, becomes. A line inside the range
+  /// goes with it.
+  List<Spanner> bend(Spanner line) {
+    final startsBefore = index(line.first) < start;
+    return [
+      if (startsBefore) ?head(line),
+      if (index(line.last) >= end)
+        ?tail(line, startsBefore ? ids.spanner : () => line.id),
+    ];
+  }
+
+  return cut.copyWith(
+    spanners: Seq([
+      for (final spanner in old.spanners)
+        if (touches(spanner)) ...bend(spanner) else ?moved[spanner.id],
+    ]),
+  );
+}
+
+/// [line], a tempo line, with what is given changed.
+Spanner _tempoLine(
+  Spanner line, {
+  SpannerId? id,
+  ScorePoint? first,
+  ScorePoint? last,
+  double? factor,
+}) {
+  final kind = line.kind as TempoLine;
+  return Spanner(
+    id: id ?? line.id,
+    kind: TempoLine(text: kind.text, factor: factor ?? kind.factor),
+    staff: line.staff,
+    voice: line.voice,
+    first: first ?? line.first,
+    last: last ?? line.last,
+  );
 }
 
 /// [cut], whose bar [start] was bar [end] of [old], with that bar starting
-/// under the tempo mark it started under before bars [start] up to [end]
-/// were cut. It gains the last tempo mark they held at its start, unless it
-/// has one there of its own. Tempo lines are not counted.
-Score _keepTempo(Score cut, int start, Seq<MeasureColumn> old, int end) {
+/// at the tempo [played] had there before bars [start] up to [end] were
+/// cut. It gains a tempo mark at its start for that tempo, unless it has
+/// one there of its own or plays at that tempo already. The mark is a copy
+/// of the last one the range held when that one gives the tempo.
+Score _keepTempo(
+  Score cut,
+  int start,
+  PlayedTempo played,
+  Seq<MeasureColumn> old,
+  int end,
+) {
   final bar = cut.measures[start];
+  if (bar.tempos.any((mark) => mark.offset == Moment.zero)) {
+    return cut;
+  }
+  final tempo = played.at(bar.id, Moment.zero);
+  if (_sameTempo(PlayedTempo(cut).at(bar.id, Moment.zero), tempo)) {
+    return cut;
+  }
   final last = [
     for (var i = start; i < end; i++) ...old[i].tempos,
   ].lastOrNull;
-  if (last == null || bar.tempos.any((mark) => mark.offset == Moment.zero)) {
-    return cut;
-  }
-  final opening = TempoMark(
-    offset: Moment.zero,
-    tempo: last.tempo,
-    text: last.text,
-    showMetronome: last.showMetronome,
-  );
+  final opening = last != null && _sameTempo(last.tempo, tempo)
+      ? TempoMark(
+          offset: Moment.zero,
+          tempo: last.tempo,
+          text: last.text,
+          showMetronome: last.showMetronome,
+        )
+      : TempoMark(offset: Moment.zero, tempo: tempo);
   return cut.copyWith(
     measures: cut.measures.replaceAt(
       start,
@@ -283,6 +404,10 @@ Score _keepTempo(Score cut, int start, Seq<MeasureColumn> old, int end) {
     ),
   );
 }
+
+/// Whether [a] and [b] are one tempo, but for rounding.
+bool _sameTempo(Tempo a, Tempo b) =>
+    a.beat == b.beat && (a.bpm - b.bpm).abs() <= 1e-9 * b.bpm;
 
 /// [score] with bar [index] [length] long, or as long as its meter when
 /// [length] is null. A shorter bar loses its music past the new end, and an

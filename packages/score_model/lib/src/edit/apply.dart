@@ -209,6 +209,7 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
       score,
       first,
       last,
+      ids,
     ),
     SetBarline(:final measure, :final barline) => _setBarline(
       score,
