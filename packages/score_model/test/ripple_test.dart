@@ -816,8 +816,129 @@ void main() {
           for (final d in next.score.measures[0].staves.first.directions)
             mark(d),
         ],
-        ['3/4 f', '15/16 p'],
+        ['15/16 p', '15/16 f'],
       );
+    });
+
+    test('a push leaves the dynamic after the section as it was', () {
+      var score = fill(blankScore(), 0, [
+        rest(1, NoteValue.quarter),
+        chordOf(2, 'F4', value: NoteValue.sixteenth),
+        rest(3, NoteValue.sixteenth),
+        rest(4, NoteValue.eighth),
+        rest(5, NoteValue.half),
+      ]);
+      score = fill(score, 1, quarters(11, 'F4 G4 A4 B4'));
+      score = changeBar(
+        score,
+        0,
+        (column) => column
+            .copyWith(barline: Barline.doubleBar)
+            .withStaff(
+              column.staves.first.copyWith(
+                directions: Seq([
+                  DynamicMark(at(1, 2), Dynamic.p),
+                  DynamicMark(at(3, 4), Dynamic.f),
+                ]),
+              ),
+            ),
+      );
+      List<int> secondBar(Score score) => [
+        for (final note
+            in PlaybackCompiler()
+                .compile(score)
+                .notesBetween(
+                  0,
+                  double.infinity,
+                ))
+          if (note.source.measure == score.measures[1].id) note.velocity,
+      ];
+
+      final next = applied(
+        revalue(EditSession.start(score), 2, NoteValue.half),
+      );
+
+      expect(secondBar(next.score), secondBar(score));
+      expect(secondBar(score), hasLength(4));
+    });
+
+    EditSession withClefs(List<VoiceItem> items, List<ClefChange> changes) =>
+        EditSession.start(
+          changeBar(
+            fill(blankScore(bars: 1), 0, items),
+            0,
+            (column) => column.withStaff(
+              column.staves.first.copyWith(clefChanges: Seq(changes)),
+            ),
+          ),
+        );
+    List<VoiceItem> twoNotes() => [
+      rest(1, NoteValue.quarter),
+      chordOf(2, 'F4', value: NoteValue.eighth),
+      rest(3, NoteValue.eighth),
+      chordOf(4, 'G4'),
+      rest(5, NoteValue.quarter),
+    ];
+    List<ClefChange> clefChanges(EditSession session) =>
+        session.score.measures[0].staves.first.clefChanges.toList();
+
+    test('a note a push moves keeps its clef past a clef that stays', () {
+      final session = withClefs(twoNotes(), [
+        ClefChange(at(1, 2), Clef.bass),
+        ClefChange(at(3, 4), Clef.alto),
+      ]);
+
+      final next = applied(revalue(session, 2, NoteValue.quarter.dotted));
+
+      expect(bar(next.score, 0), [
+        'rest/quarter',
+        'F4/quarter.',
+        'rest/eighth',
+        'G4/quarter',
+      ]);
+      expect(clefChanges(next), [ClefChange(at(3, 4), Clef.bass)]);
+    });
+
+    test('a note a push moves onto a clef that stays keeps its clef', () {
+      final session = withClefs(twoNotes(), [ClefChange(at(3, 4), Clef.alto)]);
+
+      final next = applied(revalue(session, 2, NoteValue.quarter.dotted));
+
+      expect(clefChanges(next), isEmpty);
+    });
+
+    test('a clef a push moves past one that stays replaces it', () {
+      final session = withClefs(
+        [
+          rest(1, NoteValue.quarter),
+          chordOf(2, 'F4', value: NoteValue.sixteenth),
+          rest(3, NoteValue.sixteenth),
+          rest(4, NoteValue.eighth),
+          rest(5, NoteValue.half),
+        ],
+        [ClefChange(at(1, 2), Clef.bass), ClefChange(at(3, 4), Clef.alto)],
+      );
+
+      final next = applied(revalue(session, 2, NoteValue.half));
+
+      expect(saved(reloaded(next.score)), saved(next.score));
+      expect(clefChanges(next), [ClefChange(at(15, 16), Clef.bass)]);
+    });
+
+    test('keeps a clef on rests that a push takes up', () {
+      final session = withClefs(
+        [
+          chordOf(1, 'F4', value: NoteValue.eighth),
+          rest(2, NoteValue.eighth),
+          rest(3, NoteValue.quarter),
+          rest(4, NoteValue.half),
+        ],
+        [ClefChange(at(7, 8), Clef.alto)],
+      );
+
+      final next = applied(revalue(session, 1, NoteValue.quarter));
+
+      expect(clefChanges(next), [ClefChange(at(7, 8), Clef.alto)]);
     });
   });
 
