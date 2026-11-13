@@ -566,6 +566,13 @@ List<MeasureColumn> _rippledBars(
   final closing = old.last;
   final length = first.length;
   final grown = count > old.length;
+  final placed = {
+    for (final bars in cut.values)
+      for (final bar in bars)
+        for (final voice in bar.voices)
+          for (final item in voice.items)
+            if (item is Event) item.id,
+  };
   MeasureColumn column(int k) {
     final base = k < old.length - 1
         ? old[k]
@@ -578,7 +585,7 @@ List<MeasureColumn> _rippledBars(
           base?.staff(s.staff) ??
               _restStaff(s.staff, closing.staff(s.staff).clefAtEnd, length, ids)
         else if (base != null &&
-            _sameStaff(base.staff(s.staff), cut[s.staff]![k]))
+            _sameStaff(base.staff(s.staff), cut[s.staff]![k], placed))
           base.staff(s.staff)
         else
           cut[s.staff]![k],
@@ -833,8 +840,9 @@ StaffMeasure _restStaff(StaffId staff, Clef clef, Length length, _Ids ids) =>
     );
 
 /// Whether [cut], a staff bar a ripple cut again, holds the same music as
-/// [old], so the bar can keep its old object.
-bool _sameStaff(StaffMeasure old, StaffMeasure cut) =>
+/// [old], so the bar can keep its old object. [placed] holds the id of
+/// every event the cut bars hold.
+bool _sameStaff(StaffMeasure old, StaffMeasure cut, Set<EventId> placed) =>
     old.clef == cut.clef &&
     _same(old.directions, cut.directions) &&
     _sameBy(
@@ -845,25 +853,35 @@ bool _sameStaff(StaffMeasure old, StaffMeasure cut) =>
     _sameBy(
       old.voices,
       cut.voices,
-      (x, y) => x.slot == y.slot && _sameBy(x.items, y.items, _sameItem),
+      (x, y) =>
+          x.slot == y.slot &&
+          _sameBy(x.items, y.items, (x, y) => _sameItem(x, y, placed)),
     );
 
-/// Whether [x] and [y] are the same item, or the same blank time under
-/// other ids: a re-cut bar mints new ids for the rests it fills in.
-bool _sameItem(VoiceItem x, VoiceItem y) =>
-    identical(x, y) ||
-    switch ((x, y)) {
+/// Whether [old] and [cut] are the same item, or the same blank time under
+/// other ids: a re-cut bar mints new ids for the rests it fills in. A rest
+/// the ripple moved to another bar took its id there, so the blank time
+/// that follows it into its old bar is not the same.
+bool _sameItem(VoiceItem old, VoiceItem cut, Set<EventId> placed) =>
+    identical(old, cut) ||
+    switch ((old, cut)) {
       (Gap(span: final a), Gap(span: final b)) => a == b,
       (final MeasureRest a, final MeasureRest b) =>
-        a.span == b.span && _elastic(a) && _elastic(b),
+        a.span == b.span && _elastic(a) && _elastic(b) && _free(a, b, placed),
       (final RestEvent a, final RestEvent b) =>
         a.value == b.value &&
             !a.hidden &&
             !b.hidden &&
             _elastic(a) &&
-            _elastic(b),
+            _elastic(b) &&
+            _free(a, b, placed),
       _ => false,
     };
+
+/// Whether [old] in place of [cut] repeats no id of [placed], the ids the
+/// cut bars hold.
+bool _free(Event old, Event cut, Set<EventId> placed) =>
+    old.id == cut.id || !placed.contains(old.id);
 
 bool _sameBy<T>(Iterable<T> a, Iterable<T> b, bool Function(T, T) same) {
   if (a.length != b.length) {
