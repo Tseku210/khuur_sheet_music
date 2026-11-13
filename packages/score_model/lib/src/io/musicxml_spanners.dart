@@ -5,6 +5,7 @@ library;
 import 'dart:collection';
 
 import '../refs.dart';
+import '../rules.dart';
 import '../score.dart';
 import '../time.dart';
 import '../voice_walk.dart';
@@ -131,6 +132,16 @@ final class _Placing {
         (EventAnchor(), TimeAnchor()) || (TimeAnchor(), EventAnchor()) => null,
       };
 
+  bool _misordered(SpannerKind kind, ScorePoint first, ScorePoint last) =>
+      spannerOrderProblem(
+        joinsNotes: kind.joinsNotes,
+        firstBar: score.indexOf(first.measure),
+        firstOffset: first.offset,
+        lastBar: score.indexOf(last.measure),
+        lastOffset: last.offset,
+      ) !=
+      null;
+
   ScorePoint _point(int bar, Moment offset) =>
       ScorePoint(document.measures[bar], offset);
 
@@ -139,7 +150,7 @@ final class _Placing {
     if (!record.kind.joinsNotes) {
       final first = _point(start.bar, start.event.onset);
       final last = _point(stop.bar, stop.event.onset);
-      return score.compare(first, last) > 0
+      return _misordered(record.kind, first, last)
           ? null
           : _Placed(
               record,
@@ -169,7 +180,7 @@ final class _Placing {
       ),
       voice: voice,
     );
-    return score.compare(first, placed.last) >= 0 ||
+    return _misordered(record.kind, first, placed.last) ||
             score.isCollapsed(placed.spanner(const SpannerId(0)))
         ? null
         : placed;
