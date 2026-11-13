@@ -51,6 +51,11 @@ final class Box {
   Box shift(double dx, double dy) =>
       Box(left + dx, top + dy, right + dx, bottom + dy);
 
+  /// This box at [scale] about the origin. The box itself at scale 1.
+  Box scaled(double scale) => scale == 1
+      ? this
+      : Box(left * scale, top * scale, right * scale, bottom * scale);
+
   Box union(Box other) => Box(
     left < other.left ? left : other.left,
     top < other.top ? top : other.top,
