@@ -92,11 +92,15 @@ bool _startsSlice(SpannerKind kind) => switch (kind) {
 /// in any voice. Its ideal is `quarterSpace * ratio^log2(d / quarter)`,
 /// scaled by `(times[i+1] - times[i]) / d` when the next slice comes sooner
 /// than d. A slice where nothing starts, which a clef change or a mark
-/// makes, takes d from the slice before it. The rod is
-/// `reach[i].right + minGap + reach[i+1].left`. The scale is absolute, so a
-/// bar's spacing never depends on another bar. The last slice is the bar's
-/// end, with no spring and a rod of [end], the width of the bar's end
-/// barline.
+/// makes, takes d from the slice before it. A bar where every voice of
+/// every visible staff holds only a `MeasureRest` is spaced as if notes of
+/// its meter's lower number filled it, so d is that note and every spring
+/// scales by `(times[i+1] - times[i]) / d`, longer or shorter. The bar then
+/// takes the room of its beats, and its time runs as evenly across it as
+/// theirs. The rod is `reach[i].right + minGap + reach[i+1].left`. The
+/// scale is absolute, so a bar's spacing never depends on another bar. The
+/// last slice is the bar's end, with no spring and a rod of [end], the
+/// width of the bar's end barline.
 List<Slice> spaceSlices(
   MeasureView view,
   List<Moment> times,
@@ -119,23 +123,41 @@ List<Slice> spaceSlices(
   for (var i = 1; i < times.length - 1; i++) {
     shortest[i] ??= shortest[i - 1];
   }
+  final beat = _restBeat(view);
+  double idealAt(int i) {
+    final toNext = times[i].until(times[i + 1]);
+    final d = beat ?? shortest[i]!;
+    return _ideal(d, beat == null && toNext > d ? d : toNext, policy);
+  }
+
   return [
     for (var i = 0; i < times.length - 1; i++)
       Slice(
         at: times[i],
-        ideal: _ideal(shortest[i]!, times[i].until(times[i + 1]), policy),
+        ideal: idealAt(i),
         rod: reach[i].right + policy.minGap + reach[i + 1].left,
       ),
     Slice(at: times.last, ideal: 0, rod: end),
   ];
 }
 
-double _ideal(Length shortest, Length toNext, SpacingPolicy policy) {
-  final quarters = (shortest / DurationBase.quarter.length).toDouble();
-  final ideal =
-      policy.quarterSpace *
-      math.pow(policy.ratio, math.log(quarters) / math.ln2);
-  return toNext < shortest ? ideal * (toNext / shortest).toDouble() : ideal;
+/// The note of the meter's lower number when every voice of [view] holds
+/// only bar rests, and null otherwise.
+Length? _restBeat(MeasureView view) {
+  final restsOnly = view.staves.every(
+    (staff) => staff.voices.every(
+      (voice) => voice.events.every((timed) => timed.event is MeasureRest),
+    ),
+  );
+  return restsOnly ? Length(Fraction(1, view.column.meter.unit)) : null;
+}
+
+/// The ideal room of [span] filled with notes of duration [d].
+double _ideal(Length d, Length span, SpacingPolicy policy) {
+  final quarters = (d / DurationBase.quarter.length).toDouble();
+  return policy.quarterSpace *
+      math.pow(policy.ratio, math.log(quarters) / math.ln2) *
+      (span / d).toDouble();
 }
 
 /// [slices] with every rod before the bar's end grown by an equal share, so
