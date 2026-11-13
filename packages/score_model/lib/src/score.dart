@@ -372,8 +372,9 @@ final class Score {
         .where(
           (s) =>
               s.staff == staff &&
+              s.kind is OctaveLine &&
               compare(s.first, at) <= 0 &&
-              compare(at, s.last) <= 0,
+              compare(at, ScorePoint(s.last.measure, endOf(s))) < 0,
         )
         .map((s) => s.kind)
         .whereType<OctaveLine>()
@@ -733,8 +734,10 @@ sealed class SpannerKind {
   /// What the spanner's ends attach to.
   SpannerReach get reach => switch (this) {
     Slur() || Glissando() || TrillLine() => SpannerReach.events,
-    Hairpin() || OctaveLine() || PedalLine() || TempoLine() =>
-      SpannerReach.time,
+    Hairpin() ||
+    OctaveLine() ||
+    PedalLine() ||
+    TempoLine() => SpannerReach.time,
   };
 
   /// Kinds without fields are equal when they are the same kind.

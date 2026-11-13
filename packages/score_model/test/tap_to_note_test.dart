@@ -150,7 +150,8 @@ void main() {
       expect(context.tempo, Tempo.unmarked);
     });
 
-    test('applies an octave line on its staff from first to last anchor', () {
+    test('applies an octave line on its staff from its first point to the '
+        'end of the voice-one event at its last point', () {
       final base = blankScore(parts: const [piano]);
       final score = withOctaveLine(
         base,
@@ -166,7 +167,7 @@ void main() {
       expect(shift(0, 0, at(1, 4)), 1);
       expect(shift(0, 1, Moment.zero), 1);
       expect(shift(0, 1, at(1, 4)), 1);
-      expect(shift(0, 1, at(1, 2)), 0);
+      expect(shift(0, 1, at(1, 2)), 1);
       expect(shift(1, 0, at(1, 2)), 0);
     });
 

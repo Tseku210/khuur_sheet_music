@@ -340,6 +340,35 @@ void main() {
       expect(printed(staffOf(score, 1)), ['E4', 'E4', 'E5', 'E5']);
     });
 
+    test('prints every note an 8va line is drawn over an octave lower, '
+        'to the end of the voice-one event its last point falls in', () {
+      var score = blankScore(bars: 1);
+      score = fill(score, 0, [
+        chordOf(100, 'E5', value: NoteValue.half),
+        chordOf(101, 'E5', value: NoteValue.half),
+      ]);
+      score = fill(score, 0, [
+        for (var i = 0; i < 4; i++) chordOf(110 + i, 'C5'),
+      ], slot: VoiceSlot.two);
+      score = withOctaveLine(
+        score,
+        OctaveShift.up8,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(1, 2)),
+      );
+
+      expect(
+        staffOf(score, 0).writtenPitches[const NoteId(1130)],
+        Pitch.parse('C4'),
+      );
+      expect(
+        score
+            .contextAt(score.staves.first.id, pointAt(score, 0, at(3, 4)))
+            .octaveShift,
+        OctaveShift.up8.octaves,
+      );
+    });
+
     test('leaves other staves alone under an 8va line', () {
       var score = blankScore(parts: const [piano]);
       score = fill(score, 0, [

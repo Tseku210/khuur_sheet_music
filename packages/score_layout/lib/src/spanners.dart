@@ -961,8 +961,8 @@ TimedEvent? _anchor(StaffView staff, Spanner spanner, Moment at) =>
 
 /// Where the piece of [segment] starts in its bar, and on which event.
 ///
-/// This and [pieceEnd] apply `Score.anchorAt` and `Score.lineEnd` to the
-/// bar's view, so the bar needs no `Score`.
+/// This and [pieceEnd] apply `Score.anchorAt` to the bar's view, so the bar
+/// needs no `Score`. A segment's `to` is already `Score.endOf` its spanner.
 ({Moment at, EventId? event}) pieceStart(
   SpannerSegment segment,
   StaffView staff,
@@ -993,11 +993,7 @@ TimedEvent? _anchor(StaffView staff, Spanner spanner, Moment at) =>
       final anchor = _anchor(staff, segment.spanner, segment.to);
       return (at: anchor?.onset ?? segment.to, event: anchor?.event.id);
     case SpannerReach.time:
-      final last = _sounding(staff, VoiceSlot.one, segment.to);
-      return (
-        at: last == null ? segment.to : last.onset + last.duration,
-        event: null,
-      );
+      return (at: segment.to, event: null);
   }
 }
 
