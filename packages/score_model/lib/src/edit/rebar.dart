@@ -262,11 +262,17 @@ _Section _rebar(
 
 /// [staff]'s [count] bars, [length] long, cut from the bars [old]: the
 /// voices of [voices] that are on [staff], and the clefs and directions of
-/// [old] at the section times [direction] and [clef] give them. A direction
-/// [direction] drops, or one past the last bar, is lost. Both are put in
-/// the order of their new times. Of the clefs that land on one time the
-/// last stays, the one in force after them, and it goes too when it only
-/// repeats the clef before it.
+/// [old] at the section times [direction] and [clef] give them.
+///
+/// A direction [direction] drops, or one past the last bar, is lost. No
+/// direction lands before one that came before it: it takes that one's time
+/// instead, so the later of two dynamics is still the one in force.
+///
+/// Of the clefs that land on one time the last stays, the one in force
+/// after them. A clef [clef] puts past the last bar stays where it was, on
+/// rests the music took up, unless a clef or a note now lies at or after
+/// that place. It is dropped then, because that music was written before
+/// it. A clef that only repeats the clef before it is dropped too.
 List<StaffMeasure> _staffBars(
   List<MeasureColumn> old,
   StaffId staff,
@@ -276,46 +282,52 @@ List<StaffMeasure> _staffBars(
   Length? Function(Length time) direction = _unmoved,
   Length Function(Length time) clef = _unmoved,
 }) {
-  final movedClefs = <(Length, Clef)>[];
-  final movedMarks = <(Length, StaffDirection)>[];
+  final total = length * Fraction(count);
+  late final lastNote = _lastNote(old.first.id, staff, length, voices);
+  final clefs = <(Length, Clef)>[];
+  var lastClef = Length.zero;
+  void place(Length from, Clef change) {
+    var time = clef(from);
+    if (time >= total) {
+      if (from >= total ||
+          from <= lastClef ||
+          (lastNote != null && from <= lastNote!)) {
+        return;
+      }
+      time = from;
+    }
+    lastClef = time;
+    if (clefs.isNotEmpty && clefs.last.$1 == time) {
+      clefs.removeLast();
+    }
+    if (clefs.isEmpty || clefs.last.$2 != change) {
+      clefs.add((time, change));
+    }
+  }
+
+  final directions = [for (var k = 0; k < count; k++) <StaffDirection>[]];
+  var lastMark = Length.zero;
   for (final (i, column) in old.indexed) {
     final measure = column.staff(staff);
     final start = old.first.length * Fraction(i);
-    if (i == 0 || measure.clef != old[i - 1].staff(staff).clefAtEnd) {
-      movedClefs.add((i == 0 ? start : clef(start), measure.clef));
+    if (i == 0) {
+      clefs.add((start, measure.clef));
+    } else if (measure.clef != old[i - 1].staff(staff).clefAtEnd) {
+      place(start, measure.clef);
     }
     for (final change in measure.clefChanges) {
-      movedClefs.add((
-        clef(start + Moment.zero.until(change.offset)),
-        change.clef,
-      ));
+      place(start + Moment.zero.until(change.offset), change.clef);
     }
     for (final mark in measure.directions) {
       final time = direction(start + Moment.zero.until(mark.offset));
-      if (time != null && time < length * Fraction(count)) {
-        movedMarks.add((time, mark));
+      if (time != null && time < total) {
+        if (time > lastMark) {
+          lastMark = time;
+        }
+        final (k, offset) = _barAt(lastMark, length);
+        directions[k].add(_movedTo(mark, offset));
       }
     }
-  }
-  final clefs = <(Length, Clef)>[];
-  for (final change in stableSorted(
-    movedClefs,
-    (a, b) => a.$1.compareTo(b.$1),
-  )) {
-    if (clefs.isNotEmpty && clefs.last.$1 == change.$1) {
-      clefs.removeLast();
-    }
-    if (clefs.isEmpty || clefs.last.$2 != change.$2) {
-      clefs.add(change);
-    }
-  }
-  final directions = [for (var k = 0; k < count; k++) <StaffDirection>[]];
-  for (final (time, mark) in stableSorted(
-    movedMarks,
-    (a, b) => a.$1.compareTo(b.$1),
-  )) {
-    final (k, offset) = _barAt(time, length);
-    directions[k].add(_movedTo(mark, offset));
   }
   return [
     for (var k = 0; k < count; k++)
@@ -339,6 +351,32 @@ List<StaffMeasure> _staffBars(
 }
 
 Length _unmoved(Length time) => time;
+
+/// When the last note of [staff] starts in [voices], whose bars are
+/// [length] long. Null when the staff holds no note.
+Length? _lastNote(
+  MeasureId measure,
+  StaffId staff,
+  Length length,
+  List<(StaffId, VoiceSlot, List<List<VoiceItem>>)> voices,
+) {
+  Length? last;
+  for (final (lane, slot, bars) in voices) {
+    if (lane != staff) {
+      continue;
+    }
+    for (final (k, items) in bars.indexed) {
+      final voice = Voice(slot: slot, items: Seq(items));
+      for (final timed in timedEvents(voice, measure: measure, staff: staff)) {
+        final onset = length * Fraction(k) + Moment.zero.until(timed.onset);
+        if (timed.event is ChordEvent && (last == null || onset > last)) {
+          last = onset;
+        }
+      }
+    }
+  }
+  return last;
+}
 
 /// One voice of one staff through a section, barlines dissolved: each item
 /// with the bar it came from, and a gap for a bar without the voice.
