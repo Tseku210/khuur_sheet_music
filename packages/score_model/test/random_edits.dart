@@ -54,7 +54,9 @@ T pick<T>(Random random, List<T> options) =>
 
 /// [score] after [edit], or as it was when the edit is refused. Throws when
 /// the edit leaves a score that does not load from its own JSON, since an
-/// app that saved it would lose the piece.
+/// app that saved it would lose the piece. Throws too when a rippled edit
+/// changes the dynamic in force after the bars it changed, since the rest
+/// of the piece would play at another level.
 Score edited(Score score, Edit edit) {
   final outcome = EditSession.start(score).run(edit);
   if (outcome is! Applied) {
@@ -68,7 +70,56 @@ Score edited(Score score, Edit edit) {
       '${edit.runtimeType} left a score that does not load: $error',
     );
   }
+  final rippled = switch (edit) {
+    EnterNote(:final ripple) ||
+    EnterRest(:final ripple) ||
+    SetValue(:final ripple) ||
+    Erase(:final ripple) => ripple != Ripple.none,
+    _ => false,
+  };
+  if (rippled) {
+    for (final staff in score.staves) {
+      if (_dynamicAfterChanged(score, next, staff.id)) {
+        throw StateError(
+          '${edit.runtimeType} changed the dynamic in force after it',
+        );
+      }
+    }
+  }
   return next;
+}
+
+/// The dynamics of [staff] in each bar of [score], in order.
+List<List<Dynamic>> _dynamicsOf(Score score, StaffId staff) => [
+  for (final column in score.measures)
+    [
+      for (final direction in column.staff(staff).directions)
+        if (direction is DynamicMark) direction.level,
+    ],
+];
+
+/// Whether [staff]'s last dynamic before the bars that [before] and [after]
+/// both end with differs between them: the one in force where those bars
+/// start. A staff that lost a dynamic is passed over, since an erase takes
+/// the marks in the time it removes.
+bool _dynamicAfterChanged(Score before, Score after, StaffId staff) {
+  final was = _dynamicsOf(before, staff);
+  final now = _dynamicsOf(after, staff);
+  if (now.expand((bar) => bar).length < was.expand((bar) => bar).length) {
+    return false;
+  }
+  var kept = 0;
+  while (kept < was.length &&
+      kept < now.length &&
+      identical(
+        before.measures[was.length - 1 - kept],
+        after.measures[now.length - 1 - kept],
+      )) {
+    kept++;
+  }
+  Dynamic? last(List<List<Dynamic>> bars) =>
+      bars.take(bars.length - kept).expand((bar) => bar).lastOrNull;
+  return last(was) != last(now);
 }
 
 /// Every event of [score], tuplet members included, with a reference to it.
