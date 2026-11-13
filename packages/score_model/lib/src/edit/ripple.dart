@@ -1,8 +1,8 @@
 part of 'session.dart';
 
-/// A change to the time of one part, counted from the start of the edit's
-/// bar: `by` is added at `at` when positive, and the time from `at` for
-/// minus `by` is removed when negative.
+/// A change to the time of the staves a ripple moves, counted from the start
+/// of the edit's bar: `by` is added at `at` when positive, and the time from
+/// `at` for minus `by` is removed when negative.
 typedef _Shift = ({Length at, Length by});
 
 /// The edited voice's own change, counted from the start of the edit's
@@ -40,14 +40,24 @@ final class _Rippled {
   final MeasureColumn? next;
 }
 
-/// Enters [event] at [at], pushing the later music of its part by the time
-/// the rests at [at] cannot give it.
+/// The staves that [ripple] moves for an edit on [staff], the staff that
+/// stands for them first.
+List<StaffId> _rippledStaves(Score score, StaffId staff, Ripple ripple) =>
+    switch (ripple) {
+      Ripple.none => throw StateError('Ripple.none moves nothing'),
+      Ripple.staff => [staff],
+      Ripple.part => [for (final s in score.partOf(staff).staves) s.id],
+    };
+
+/// Enters [event] at [at], pushing the later music that [ripple] moves by
+/// the time the rests at [at] cannot give it.
 _Result _enterRippled(
   Score score,
   VoicePoint at,
   Event event,
   _Ids ids,
-  Overfill overfill, {
+  Overfill overfill,
+  Ripple ripple, {
   required bool appendBar,
   required EditSession session,
 }) {
@@ -90,7 +100,7 @@ _Result _enterRippled(
   final rippled = _ripple(
     score,
     ids,
-    staff: at.staff,
+    staves: _rippledStaves(score, at.staff, ripple),
     bar: bar,
     shift: (at: from + rests, by: span - rests),
     cursor: session.cursor,
@@ -173,13 +183,14 @@ Length _restsFrom(Score score, VoicePoint at, int bar, int end, Length cap) {
   return rests;
 }
 
-/// Changes [ref]'s value and moves the later music of its part by the
-/// change.
+/// Changes [ref]'s value and moves the later music that [ripple] moves by
+/// the change.
 _Result _setValueRippled(
   Score score,
   EventRef ref,
   NoteValue value,
   _Ids ids,
+  Ripple ripple,
   EditSession session,
 ) {
   final timed = _target(score, ref);
@@ -195,7 +206,7 @@ _Result _setValueRippled(
   final rippled = _ripple(
     score,
     ids,
-    staff: timed.ref.staff,
+    staves: _rippledStaves(score, timed.ref.staff, ripple),
     bar: score.indexOf(timed.ref.measure),
     shift: (at: by.isPositive ? to : from + value.length, by: by),
     cursor: session.cursor,
@@ -215,22 +226,23 @@ _Result _setValueRippled(
   );
 }
 
-/// Deletes what [selection] holds and pulls the later music of each part
-/// it touches back over the gap.
+/// Deletes what [selection] holds and pulls the later music that [ripple]
+/// moves back over each gap.
 _Result _eraseRippled(
   Score score,
   Selection selection,
   _Ids ids,
+  Ripple ripple,
   EditSession session,
 ) {
   var now = score;
   var cursor = session.cursor;
   Selection? selected;
-  void remove(StaffId staff, int bar, Length from, Length to) {
+  void remove(List<StaffId> staves, int bar, Length from, Length to) {
     final rippled = _ripple(
       now,
       ids,
-      staff: staff,
+      staves: staves,
       bar: bar,
       shift: (at: from, by: from - to),
       cursor: cursor,
@@ -251,19 +263,23 @@ _Result _eraseRippled(
           if (!whole.contains(id))
             (score.indexOf(timed.ref.measure), timed.ref.staff),
       });
-      for (final (:part, :bar, :from, :to) in _gaps(score, [
+      for (final (:staves, :bar, :from, :to) in _gaps(score, ripple, [
         for (final id in whole) targets[id]!,
       ])) {
-        remove(part.staves.first.id, bar, from, to);
+        remove(staves, bar, from, to);
       }
       return _Result(now, cursor: cursor, selection: selected);
     case final RangeSelection range:
       selected = const Selection.none();
       final (:staves, lanes: _, inRange: _) = _covers(score, range);
-      final parts = {for (final staff in staves) score.partOf(staff)};
+      final scopes = <StaffId, List<StaffId>>{};
+      for (final staff in staves) {
+        final scope = _rippledStaves(score, staff, ripple);
+        scopes[scope.first] = scope;
+      }
       final first = score.indexOf(range.from.measure);
       final last = score.indexOf(range.to.measure);
-      for (final part in parts) {
+      for (final scope in scopes.values) {
         var bar = first;
         while (bar <= last) {
           final (_, end) = _sectionAround(now.measures, bar);
@@ -276,7 +292,7 @@ _Result _eraseRippled(
                     Moment.zero.until(range.to.offset)
               : length * Fraction(end - bar);
           if (to > from) {
-            remove(part.staves.first.id, bar, from, to);
+            remove(scope, bar, from, to);
           }
           bar = end;
         }
@@ -285,39 +301,42 @@ _Result _eraseRippled(
   }
 }
 
-/// The time [events] take in each part, as gaps within one bar each, last
-/// first: a pull of a later gap leaves the earlier ones where they were.
-/// Events of one part that overlap in time make one gap.
-List<({Part part, int bar, Length from, Length to})> _gaps(
+/// The time [events] take in the staves that [ripple] moves with each, as
+/// gaps within one bar each, last first: a pull of a later gap leaves the
+/// earlier ones where they were. Events that move together and overlap in
+/// time make one gap.
+List<({List<StaffId> staves, int bar, Length from, Length to})> _gaps(
   Score score,
+  Ripple ripple,
   List<TimedEvent> events,
 ) {
-  final spans = <(Part, int), List<(Length, Length)>>{};
+  final scopes = <StaffId, List<StaffId>>{};
+  final spans = <(StaffId, int), List<(Length, Length)>>{};
   for (final timed in events) {
     if (timed.tuplets.isNotEmpty) {
       throw _Refuse(WouldSplitTuplet(timed.tuplets.last, timed.ref.measure));
     }
     final from = Moment.zero.until(timed.onset);
-    final key = (
-      score.partOf(timed.ref.staff),
-      score.indexOf(timed.ref.measure),
-    );
+    final staves = _rippledStaves(score, timed.ref.staff, ripple);
+    scopes[staves.first] = staves;
+    final key = (staves.first, score.indexOf(timed.ref.measure));
     (spans[key] ??= []).add((from, from + timed.duration));
   }
-  final gaps = <({Part part, int bar, Length from, Length to})>[];
-  for (final MapEntry(key: (part, bar), value: list) in spans.entries) {
+  final gaps = <({List<StaffId> staves, int bar, Length from, Length to})>[];
+  for (final MapEntry(key: (first, bar), value: list) in spans.entries) {
+    final staves = scopes[first]!;
     list.sort((x, y) => x.$1.compareTo(y.$1));
     var (from, to) = list.first;
     for (final (start, stop) in list.skip(1)) {
       if (start > to) {
-        gaps.add((part: part, bar: bar, from: from, to: to));
+        gaps.add((staves: staves, bar: bar, from: from, to: to));
         from = start;
       }
       if (stop > to) {
         to = stop;
       }
     }
-    gaps.add((part: part, bar: bar, from: from, to: to));
+    gaps.add((staves: staves, bar: bar, from: from, to: to));
   }
   return gaps..sort(
     (x, y) => x.bar != y.bar ? y.bar - x.bar : y.from.compareTo(x.from),
@@ -342,14 +361,15 @@ List<({Part part, int bar, Length from, Length to})> _gaps(
   return (start, end);
 }
 
-/// [score] with the music of [staff]'s part moved by [shift] through the
-/// section that holds bar [bar], and the edited voice changed by [splice].
-/// The section grows by whole bars when the music no longer fits it. The
-/// cursor, a range selection and spanner ends on the part follow the music.
+/// [score] with the music of [staves] moved by [shift] through the section
+/// that holds bar [bar], and the edited voice changed by [splice]. The
+/// section grows by whole bars when the music no longer fits it, and every
+/// other staff rests in the new bars. The cursor, a range selection and
+/// spanner ends on [staves] follow the music.
 _Rippled _ripple(
   Score score,
   _Ids ids, {
-  required StaffId staff,
+  required List<StaffId> staves,
   required int bar,
   required _Shift shift,
   required VoicePoint cursor,
@@ -366,7 +386,7 @@ _Rippled _ripple(
   final at = origin + shift.at;
   final by = shift.by;
   final next = b < measures.length ? measures[b] : null;
-  final part = {for (final s in score.partOf(staff).staves) s.id};
+  final moving = staves.toSet();
   final origins = <EventId, EventId>{};
   final edited = measures[bar].id;
 
@@ -392,7 +412,7 @@ _Rippled _ripple(
         : _grown(items, at, by, slot, edited, ids);
   }
 
-  final (count, voices) = _rippledVoices(old, part, moved, ids, origins);
+  final (count, voices) = _rippledVoices(old, moving, moved, ids, origins);
 
   final end = length * Fraction(count);
 
@@ -411,7 +431,7 @@ _Rippled _ripple(
   };
 
   final cut = {
-    for (final s in part)
+    for (final s in moving)
       s: _staffBars(
         old,
         s,
@@ -441,7 +461,7 @@ _Rippled _ripple(
   final rebuilt = _retied(
     score,
     score.copyWith(measures: measures.replaceRange(a, b, bars)),
-    part,
+    moving,
     max(a - 1, 0),
     a + count,
     origins,
@@ -466,9 +486,9 @@ _Rippled _ripple(
     rebuilt,
     score.spanners,
     first: (spanner) =>
-        part.contains(spanner.staff) ? onset(spanner.first) : spanner.first,
+        moving.contains(spanner.staff) ? onset(spanner.first) : spanner.first,
     last: (spanner) {
-      final time = part.contains(spanner.staff) ? timeOf(spanner.last) : null;
+      final time = moving.contains(spanner.staff) ? timeOf(spanner.last) : null;
       if (time == null) {
         return spanner.last;
       }
@@ -484,13 +504,13 @@ _Rippled _ripple(
     selection,
     onset: onset,
     close: close,
-    movesCursor: part.contains(cursor.staff),
+    movesCursor: moving.contains(cursor.staff),
     movesRange: switch (selection) {
       RangeSelection(:final top, :final bottom) => _reaches(
         score,
         top,
         bottom,
-        part,
+        moving,
       ),
       _ => false,
     },
@@ -505,12 +525,12 @@ _Rippled _ripple(
 }
 
 /// How many bars the rippled section that held [old] needs, and the voices
-/// of [part] cut into that many bars, each voice's music given by [moved].
+/// of [staves] cut into that many bars, each voice's music given by [moved].
 /// Each later piece of a split event is entered in [origins] under the
 /// event it came from. Refused when an irregular bar would have to grow.
 (int, List<(StaffId, VoiceSlot, List<List<VoiceItem>>)>) _rippledVoices(
   List<MeasureColumn> old,
-  Set<StaffId> part,
+  Set<StaffId> staves,
   List<_Placed> Function(StaffId staff, VoiceSlot slot) moved,
   _Ids ids,
   Map<EventId, EventId> origins,
@@ -520,7 +540,7 @@ _Rippled _ripple(
   final total = length * Fraction(old.length);
   final lanes = [
     for (final s in first.staves)
-      if (part.contains(s.staff))
+      if (staves.contains(s.staff))
         for (final slot in VoiceSlot.values)
           (s.staff, slot, _fitted(moved(s.staff, slot), total)),
   ];
@@ -551,8 +571,8 @@ _Rippled _ripple(
 }
 
 /// The [count] bars of a rippled section that held [old], with [untied] in
-/// place of its last bar and [cut] the new bars of each staff of the edited
-/// part. A bar whose staves did not change is kept as it was, and bars past
+/// place of its last bar and [cut] the new bars of each staff the ripple
+/// moved. A bar whose staves did not change is kept as it was, and bars past
 /// the old section are new, the last of them taking the section's closing
 /// barline, repeat end and closing navigation.
 List<MeasureColumn> _rippledBars(
@@ -648,9 +668,9 @@ List<MeasureColumn> _rippledBars(
 }
 
 /// Whether the staves from [top] to [bottom], in system order, include one
-/// of [part].
-bool _reaches(Score score, StaffId top, StaffId bottom, Set<StaffId> part) =>
-    score.stavesBetween(top, bottom)?.any(part.contains) ?? false;
+/// of [staves].
+bool _reaches(Score score, StaffId top, StaffId bottom, Set<StaffId> staves) =>
+    score.stavesBetween(top, bottom)?.any(staves.contains) ?? false;
 
 /// [items] with [music] in place of the time from [from] to [to]. An item
 /// cut at [from] keeps its head before [music], and an item cut at [to]
