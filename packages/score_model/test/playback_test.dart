@@ -311,6 +311,20 @@ void main() {
       );
     });
 
+    test('each point names the bar that plays next, and the last bar none', () {
+      final score = marked(4, {2: repeatStart(), 3: repeatEnd()});
+      final script = compiled(score);
+      String? name(PlayedBar? bar) => bar == null
+          ? null
+          : '${score.indexOf(bar.measure) + 1}'
+                '${bar.pass == 1 ? '' : '#${bar.pass}'}';
+
+      expect(
+        [for (final bar in script.bars) name(script.pointAt(bar.start)!.next)],
+        ['2', '3', '2#2', '3#2', '4', null],
+      );
+    });
+
     test('a later repeat without a start returns after the one before', () {
       expect(
         played(marked(4, {1: repeatEnd(), 3: repeatEnd()})),

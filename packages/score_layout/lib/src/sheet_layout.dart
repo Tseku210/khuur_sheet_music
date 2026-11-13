@@ -552,16 +552,30 @@ final class SheetLayout {
   }
 
   /// The playhead's x in the space of system [index], or null when [point]
-  /// is on another system.
-  double? playheadIn(int index, PlaybackPoint point) =>
-      systemOf(point.bar.measure) == index
-      ? systemAt(index)
-            .barOf(point.bar.measure)
-            ?.time
-            .xAtWholeNotes(
-              point.offset,
-            )
-      : null;
+  /// is on another system. When the bar that plays next is the one drawn
+  /// next on this system, the playhead runs on from the bar's last onset to
+  /// that bar's downbeat instead of to the barline, so it meets each
+  /// downbeat as it sounds rather than jumping across the barline.
+  double? playheadIn(int index, PlaybackPoint point) {
+    if (systemOf(point.bar.measure) != index) {
+      return null;
+    }
+    final bars = systemAt(index).bars;
+    final at = bars.indexWhere((bar) => bar.measure == point.bar.measure);
+    if (at < 0) {
+      return null;
+    }
+    final time = bars[at].time;
+    final following = at + 1 < bars.length ? bars[at + 1] : null;
+    if (following == null || following.measure != point.next?.measure) {
+      return time.xAtWholeNotes(point.offset);
+    }
+    final (end, _) = time.stops.last;
+    return TimeAxis([
+      ...time.stops.take(time.stops.length - 1),
+      (end, following.time.xAtWholeNotes(0)),
+    ]).xAtWholeNotes(point.offset);
+  }
 
   static List<Drawable> _header(
     ScoreMeta meta,
