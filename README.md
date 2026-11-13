@@ -20,13 +20,15 @@ dependencies:
 
 `pubspec.lock` keeps the commit that pub got, and `flutter pub upgrade khuur_sheet_music` moves it to the newest commit on `main`. To work on the package and an app together, depend on a checkout by path, as `example/pubspec.yaml` does. The package needs Dart 3.13 and Flutter 3.47 or later.
 
+The sheet takes its colours from the `Theme` of [`material_ui`](https://pub.dev/packages/material_ui), the package that replaces `package:flutter/material.dart`. The two libraries keep separate themes. Under a `MaterialApp` of `flutter/material.dart` the sheet finds no theme and draws in the light default colours. To move an app to `material_ui`, follow the migration steps in the README of `material_ui`.
+
 ## Show a score
 
 ```dart
 SheetView(score: scoreFromJson(jsonDecode(saved)))
 ```
 
-`SheetView` takes its width from its constraints and scrolls vertically. It draws at 8 logical pixels per staff space times the zoom. Its colours come from the ambient `Theme`. Give it a new `Score` after each edit, and it lays out only what the edit touched.
+`SheetView` takes its width from its constraints and scrolls vertically. It draws at 8 logical pixels per staff space times the zoom. Its colours come from the ambient `Theme` of `material_ui`. Give it a new `Score` after each edit, and it lays out only what the edit touched.
 
 Put the view where its width and its height are bounded, as for any scroll view. It breaks lines at its width and never scales a score to fit a box.
 

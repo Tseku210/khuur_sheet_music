@@ -1,4 +1,5 @@
 ## Unreleased
+* **Breaking:** The package uses `package:material_ui` in place of `package:flutter/material.dart`, which Flutter 3.50 deprecates. `SheetPalette.of` reads the `Theme` of `material_ui`. An app that still builds its `MaterialApp` from `flutter/material.dart` gives the sheet no theme, and the sheet draws in the light default colours. Move the app to `material_ui` to keep the sheet in its colours and in dark mode.
 * **Breaking:** The package is renamed `khuur_sheet_music`. Name it so in `pubspec.yaml` and import `package:khuur_sheet_music/khuur_sheet_music.dart`. Its assets are under `packages/khuur_sheet_music/`.
 * **Breaking:** The library is rewritten on an immutable score model. `SheetView` shows a `Score` and replaces `SimpleSheetMusic`. `ScorePlayer` replaces `MidiPlayer` and the playback methods of `SimpleSheetMusicState`. The old engine and every type it exported are deleted. The README shows the new API, and this table names what replaces each old name.
 
