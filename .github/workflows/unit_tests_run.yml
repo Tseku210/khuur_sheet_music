@@ -9,7 +9,18 @@ on:
 
 jobs:
   build:
+    name: Flutter ${{ matrix.flutter }}
     runs-on: ubuntu-latest
+    # The oldest Flutter the package supports, and the newest stable, so a
+    # deprecation in a new Flutter shows here before it reaches an app.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flutter: 3.47.5
+            version: 3.47.5
+          - flutter: newest stable
+            version: ""
 
     steps:
       - name: Checkout project
@@ -18,7 +29,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-          flutter-version: 3.47.5
+          flutter-version: ${{ matrix.version }}
           cache: true
 
       - name: Get dependencies
