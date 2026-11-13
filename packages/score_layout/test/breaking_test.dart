@@ -718,6 +718,43 @@ void main() {
       expect(endOf(always.plans.last), closeTo(sheet, 1e-9));
     });
 
+    test('without justify every system keeps its natural spacing, the '
+        'style\'s threshold for the last one notwithstanding', () {
+      const ragged = EngravingStyle(justify: false, justifyLastSystemFrom: 0);
+      final justified = breaksOf(twelve, sheet);
+      final breaks = breaksOf(twelve, sheet, style: ragged);
+      final starts = startsOf(breaks);
+
+      expect(starts, startsOf(justified));
+      expect(breaks.plans, hasLength(greaterThan(2)));
+      for (final (index, plan) in breaks.plans.indexed) {
+        final to = index + 1 < starts.length
+            ? starts[index + 1] - 1
+            : twelve.length - 1;
+        expect(plan.stretch, 1, reason: 'system $index');
+        expect(
+          endOf(plan),
+          closeTo(naturalOf(breaks.units, starts[index], to), 1e-9),
+          reason: 'system $index',
+        );
+        expect(endOf(plan), lessThan(sheet), reason: 'system $index');
+      }
+    });
+
+    test('without justify a bar wider than the sheet is still compressed to '
+        'its rods', () {
+      final bars = layoutsOf(barsOf([16, 16, 16]));
+      final plan = breaksOf(
+        bars,
+        10,
+        lead: flush,
+        style: const EngravingStyle(justify: false),
+      ).plans[1];
+
+      expect(plan.stretch, 0);
+      expect(endOf(plan), closeTo(plan.width, 1e-9));
+    });
+
     test('the first system starts at the first indent and the others at the '
         'indent', () {
       final breaks = breaksOf(twelve, sheet);

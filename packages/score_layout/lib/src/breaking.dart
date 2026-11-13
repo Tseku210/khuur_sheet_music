@@ -211,7 +211,8 @@ final class SystemKey {
   /// The first system prints full part names and has its own indent.
   final bool first;
 
-  /// The last system may stay ragged (`justifyLastSystemFrom`).
+  /// The last system may stay ragged (`justifyLastSystemFrom`) when every
+  /// other is justified.
   final bool last;
 
   /// The lyric hyphens and extenders open at the system's start.
@@ -567,8 +568,10 @@ SystemPlan planSystem(SystemKey key, EngravingStyle style, TextMeasurer text) {
   final room = key.width - fixed;
   final fill = stretchFor(slices, room);
   final ragged =
+      !style.justify ||
       key.last &&
-      fixed + naturalWidth(slices) < key.width * style.justifyLastSystemFrom;
+          fixed + naturalWidth(slices) <
+              key.width * style.justifyLastSystemFrom;
 
   final number = text.measure('0', style.specOf(TextRole.barNumber));
   final numberRoom = style.barNumbers ? number.ascent + number.descent : 0.0;
