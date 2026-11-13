@@ -33,6 +33,8 @@ build/
 .flutter-plugins
 .flutter-plugins-dependencies
 
-# Locally installed agent skills
-.claude/skills/
+# Kept on the maintainer's machine. CLAUDE.md is the one agent file in git.
+/.claude/
+/.mcp.json
+/docs/
 skills-lock.json

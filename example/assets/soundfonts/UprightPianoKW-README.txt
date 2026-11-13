@@ -1,7 +1,7 @@
 Upright piano KW
 ----------------
 
-Version 2019-07-03
+Version 2022-02-21
 
 This sound bank has been created from a Kawai upright piano, located in a
 living room. Thanks to Inma Martínez de Miguel for kindly letting us access to

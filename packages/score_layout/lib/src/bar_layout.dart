@@ -1,0 +1,534 @@
+/// One bar laid out alone, the unit of the layout cache. Not exported.
+library;
+
+import 'dart:math' as math;
+
+import 'package:score_model/score_model.dart';
+
+import 'bar_space.dart';
+import 'beams.dart';
+import 'chords.dart';
+import 'lyrics.dart';
+import 'marks.dart';
+import 'signatures.dart';
+import 'spacing.dart';
+import 'spanners.dart';
+import 'style.dart';
+import 'text.dart';
+
+/// A bar laid out without knowing which system it lands in.
+///
+/// Invariant: a BarLayout is a function of its bar's `MeasureView`, the
+/// style and the text measurer, and of nothing else. [layoutBar] takes no
+/// score. So it stays valid exactly as long as `Score.changesSince` leaves
+/// its measure out of `relayout`, and it holds no bar number, no x on a
+/// line and nothing about its neighbours.
+///
+/// It also keeps no view. Everything a system needs from the bar is here in
+/// resolved form, with the head for each place the bar can land. Planning
+/// reads [widths], [staves], [lyrics] and [breakBefore]. Assembly reads the
+/// rest.
+final class BarLayout {
+  const BarLayout({
+    required this.measure,
+    required this.length,
+    required this.breakBefore,
+    required this.restOnly,
+    required this.widths,
+    required this.lead,
+    required this.slices,
+    required this.staves,
+    required this.items,
+    required this.heads,
+    required this.edges,
+    required this.beams,
+    required this.tuplets,
+    required this.ties,
+    required this.spanners,
+    required this.volta,
+    required this.lyrics,
+  });
+
+  final MeasureId measure;
+  final Length length;
+
+  /// `MeasureColumn.breakBefore`. A change of it makes a new column, so
+  /// the bar is laid out again and line breaking sees a new object.
+  final LayoutBreak? breakBefore;
+
+  /// Whether the bar can fold into a multi-measure rest, which is
+  /// `MeasureView.isRestOnly`.
+  final bool restOnly;
+
+  final BarWidths widths;
+
+  /// Clear space from the end of the bar's head to its first slice. It is what
+  /// the first slice reaches to the left, plus `SpacingPolicy.barPad`.
+  final double lead;
+
+  final List<Slice> slices;
+
+  /// The visible staves, top to bottom, with how far the bar's content reaches
+  /// outside each. The reach covers the inline and the system head. The
+  /// courtesy head is drawn on the system before, so planning counts it there.
+  /// Lyric rows are not in it. Planning adds them from [lyrics], because a
+  /// row's height belongs to the system.
+  final List<BarStaff> staves;
+
+  /// Everything placed against one slice, in bar space.
+  final List<BarItem> items;
+
+  final BarHeads heads;
+  final BarEdges edges;
+  final List<BeamPlan> beams;
+  final List<TupletStub> tuplets;
+  final List<TieEnd> ties;
+  final List<SpannerPiece> spanners;
+  final VoltaStub? volta;
+  final BarLyrics lyrics;
+
+  @override
+  bool operator ==(Object other) =>
+      other is BarLayout &&
+      other.measure == measure &&
+      other.length == length &&
+      other.breakBefore == breakBefore &&
+      other.restOnly == restOnly &&
+      other.widths == widths &&
+      other.lead == lead &&
+      _same(other.slices, slices) &&
+      _same(other.staves, staves) &&
+      _same(other.items, items) &&
+      other.heads == heads &&
+      other.edges == edges &&
+      _same(other.beams, beams) &&
+      _same(other.tuplets, tuplets) &&
+      _same(other.ties, ties) &&
+      _same(other.spanners, spanners) &&
+      other.volta == volta &&
+      other.lyrics == lyrics;
+
+  @override
+  int get hashCode =>
+      Object.hash(measure, length, breakBefore, restOnly, widths, lead, edges);
+}
+
+bool _same<T>(List<T> a, List<T> b) =>
+    a.length == b.length && a.indexed.every((item) => b[item.$1] == item.$2);
+
+/// One visible staff of a bar, with how far content reaches above its top line
+/// and below its bottom line, in staff spaces.
+typedef BarStaff = ({StaffId staff, int lines, double above, double below});
+
+/// A bar's widths in staff spaces, known before its system is.
+///
+/// A system from bar i to bar j is
+/// `heads(i).system + sum(body) + sum(heads(i+1..j).inline) + courtesy(j+1)`
+/// wide at its natural spacing. Line breaking reads nothing else, which is
+/// why it can run without building a system. A head's room before a
+/// barline is drawn at the end of the bar before, and counted here once, as
+/// the width of the bar whose head it is.
+final class BarWidths {
+  const BarWidths({
+    required this.inlineHead,
+    required this.systemHead,
+    required this.courtesy,
+    required this.body,
+    required this.minBody,
+  });
+
+  /// Clef, key and meter changes printed when the bar is not first on its
+  /// system, the clef before the barline and the rest after it.
+  final double inlineHead;
+
+  /// Clef, key and meter printed when the bar starts a system.
+  final double systemHead;
+
+  /// What the previous system ends with when this bar starts a system,
+  /// which is a clef change before its last barline and a key and meter
+  /// courtesy after it. 0 when nothing changes, or when only a key or a
+  /// meter changes and says noCourtesy.
+  final double courtesy;
+
+  /// The lead and the slices at their ideal spacing, never below
+  /// [minBody].
+  final double body;
+
+  /// The lead and the slices compressed to their rods.
+  final double minBody;
+
+  @override
+  bool operator ==(Object other) =>
+      other is BarWidths &&
+      other.inlineHead == inlineHead &&
+      other.systemHead == systemHead &&
+      other.courtesy == courtesy &&
+      other.body == body &&
+      other.minBody == minBody;
+
+  @override
+  int get hashCode =>
+      Object.hash(inlineHead, systemHead, courtesy, body, minBody);
+}
+
+/// Lays out [view] alone, for the cache.
+///
+/// The order is fixed by what each step reads. Chords are planned before
+/// spacing, because spacing needs their reach. They are placed after it,
+/// because marks stack against placed notes. A clef change inside the bar is
+/// placed before spacing, left of what its slice reaches, and then widens
+/// that reach. The marks widen the reach last, since what they need depends
+/// on the rods the notes already give.
+///
+/// Ties reserve their room first. A tie keeps to its heads and reads nothing
+/// from the skyline, so every mark after it stands clear of it. Each mark
+/// then takes the next free room in its staff's skyline, in this order. Per
+/// staff, every event's articulations, ornament, string marks and fermata,
+/// voice by voice. Then the tuplets of each voice, then the staff's
+/// directions. Slurs and lines reserve their room after these. The system
+/// marks then stack over the top staff, outside what a slur or a line needs
+/// there, and the volta goes outermost.
+BarLayout layoutBar(
+  MeasureView view,
+  EngravingStyle style,
+  TextMeasurer text,
+) {
+  final times = sliceTimes(view);
+  final chords = <EventId, PlacedChord>{};
+  final reach = List<SliceReach>.filled(times.length, noReach);
+  for (final (staff, staffView) in view.staves.indexed) {
+    final lines = _linesOf(staffView);
+    for (final voice in staffView.voices) {
+      final sides = beamStemSides(voice, staffView);
+      for (final timed in voice.events) {
+        final slice = times.indexOf(timed.onset);
+        final event = timed.event;
+        if (event is ChordEvent) {
+          final plan = planChord(
+            timed: timed,
+            chord: event,
+            staff: staffView,
+            lines: lines,
+            stem:
+                sides[event.id] ??
+                stemSideFor(event, staffView, voice.slot, at: timed.onset),
+            beamed: sides.containsKey(event.id),
+            style: style,
+          );
+          chords[event.id] = (plan: plan, slice: slice, staff: staff);
+          reach[slice] = widest(reach[slice], plan.reach);
+        } else {
+          reach[slice] = widest(reach[slice], restReach(event, style));
+        }
+      }
+    }
+  }
+  for (final staffView in view.staves) {
+    for (final (:slice, :right) in letRingReach(staffView, chords)) {
+      reach[slice] = widest(reach[slice], (left: 0, right: right));
+    }
+  }
+  for (final (:slice, :right) in lineStartReach(
+    view,
+    chords,
+    times: times,
+    style: style,
+    text: text,
+  )) {
+    reach[slice] = widest(reach[slice], (left: 0, right: right));
+  }
+  final lyrics = lyricsOf(view, chords, style, text);
+  for (final syllable in lyrics.syllables) {
+    reach[syllable.slice] = widest(reach[syllable.slice], syllable.reach);
+  }
+
+  final items = [
+    for (final (staff, staffView) in view.staves.indexed)
+      ...clefChangeItems(
+        staffView,
+        staff: staff,
+        times: times,
+        reach: reach,
+        style: style,
+      ),
+  ];
+  for (final clef in items) {
+    reach[clef.slice] = widest(reach[clef.slice], (
+      left: -clef.drawable.bounds.left,
+      right: 0,
+    ));
+  }
+  final trills = trillLineStarts(view);
+  reach.setAll(
+    0,
+    markReach(
+      view,
+      chords,
+      reach,
+      times: times,
+      trills: trills,
+      style: style,
+      text: text,
+    ),
+  );
+
+  final column = view.column;
+  final heads = barHeads(view, style);
+  final edges = (
+    repeatStart: column.repeatStart,
+    startJoins: heads.inline.after.items.isEmpty,
+    end: column.barline,
+    repeatEnd: column.repeatEnd,
+  );
+  final lead = reach.first.left + style.spacing.barPad;
+  final label = voltaLabel(view, style, text);
+  final slices = widenedTo(
+    spaceSlices(
+      view,
+      times,
+      reach,
+      style.spacing,
+      end: endBarlineWidth(edges, style),
+    ),
+    voltaLabelRoom(view, label) - lead,
+  );
+  final xs = sliceXs(slices, 1, 0);
+  final rods = sliceXs(slices, 0, 0);
+
+  final beams = <BeamPlan>[];
+  for (final (staff, staffView) in view.staves.indexed) {
+    final lines = _linesOf(staffView);
+    for (final voice in staffView.voices) {
+      for (final timed in voice.events) {
+        final placed = chords[timed.event.id];
+        if (placed == null) {
+          items.addAll(
+            placeRest(
+              timed: timed,
+              slice: times.indexOf(timed.onset),
+              staff: staff,
+              voiceCount: staffView.voices.length,
+              lines: lines,
+              style: style,
+            ),
+          );
+        } else {
+          items
+            ..addAll(placeChord(placed.plan, slice: placed.slice, staff: staff))
+            ..addAll(
+              graceItems(
+                placed.plan,
+                slice: placed.slice,
+                staff: staff,
+                style: style,
+              ),
+            );
+        }
+      }
+      for (final group in voice.beams) {
+        beams.add(
+          planBeam(
+            group,
+            [for (final id in group.events) chords[id]!],
+            xs: xs,
+            rods: rods,
+            style: style,
+          ),
+        );
+      }
+    }
+  }
+
+  final skylines = [for (final _ in view.staves) Skyline()];
+  for (final item in items) {
+    final x = item.centred ? (xs[item.slice] + xs.last) / 2 : xs[item.slice];
+    skylines[item.staff].add(item.drawable.bounds.shift(x, 0));
+  }
+  for (final beam in beams) {
+    beam.boxes.forEach(skylines[beam.first.staff].add);
+  }
+
+  final ties = [
+    for (final (staff, staffView) in view.staves.indexed)
+      ...tieEnds(
+        staffView,
+        chords,
+        skylines[staff],
+        staff: staff,
+        xs: xs,
+        left: -lead,
+      ),
+  ];
+  final tuplets = <TupletStub>[];
+  for (final (staff, staffView) in view.staves.indexed) {
+    final skyline = skylines[staff];
+    final voices = staffView.voices.length;
+    for (final voice in staffView.voices) {
+      for (final timed in voice.events) {
+        if (!carriesMarks(timed.event)) {
+          continue;
+        }
+        final placed = chords[timed.event.id];
+        if (placed != null) {
+          items
+            ..addAll(
+              articulationItems(
+                placed,
+                skyline,
+                voices: voices,
+                xs: xs,
+                style: style,
+              ),
+            )
+            ..addAll(
+              ornamentItems(
+                placed,
+                skyline,
+                voices: voices,
+                lineStarts: trills.contains(timed.event.id),
+                xs: xs,
+                style: style,
+              ),
+            )
+            ..addAll(
+              stringMarkItems(
+                placed,
+                skyline,
+                voices: voices,
+                strings: staffView.part.instrument.strings.length,
+                xs: xs,
+                style: style,
+                text: text,
+              ),
+            );
+        }
+        items.addAll(
+          fermataItems(
+            timed,
+            skyline,
+            chord: placed,
+            slice: times.indexOf(timed.onset),
+            staff: staff,
+            voices: voices,
+            xs: xs,
+            style: style,
+          ),
+        );
+      }
+    }
+    for (final voice in staffView.voices) {
+      tuplets.addAll(
+        tupletStubs(
+          voice,
+          chords,
+          skyline,
+          staff: staff,
+          times: times,
+          xs: xs,
+          style: style,
+        ),
+      );
+    }
+    items.addAll(
+      directionItems(
+        staffView,
+        skyline,
+        staff: staff,
+        times: times,
+        xs: xs,
+        style: style,
+        text: text,
+      ),
+    );
+  }
+  final spanners = spannerPieces(
+    view,
+    skylines,
+    chords,
+    times: times,
+    xs: xs,
+    style: style,
+    text: text,
+  );
+  if (skylines.isNotEmpty) {
+    items.addAll(
+      systemMarkItems(
+        view,
+        skylines.first,
+        times: times,
+        xs: xs,
+        left: -lead,
+        style: style,
+        text: text,
+      ),
+    );
+  }
+  final volta = skylines.isEmpty
+      ? null
+      : voltaStub(
+          view,
+          skylines.first,
+          xs: xs,
+          left: -lead,
+          headAbove: headReach(_drawnHeads(heads), 0).above,
+          label: label,
+          style: style,
+        );
+  return BarLayout(
+    measure: column.id,
+    length: column.length,
+    breakBefore: column.breakBefore,
+    restOnly: view.isRestOnly,
+    widths: BarWidths(
+      inlineHead: heads.inline.width,
+      systemHead:
+          heads.system.width +
+          arrivingRoom(ties, spanners, xs: xs, lead: lead, style: style),
+      courtesy: heads.courtesy.width,
+      body: lead + naturalWidth(slices),
+      minBody: lead + rodWidth(slices),
+    ),
+    lead: lead,
+    slices: slices,
+    staves: [
+      for (final (staff, staffView) in view.staves.indexed)
+        _staffOf(staffView, staff, skylines[staff], heads),
+    ],
+    items: items,
+    heads: heads,
+    edges: edges,
+    beams: beams,
+    tuplets: tuplets,
+    ties: ties,
+    spanners: spanners,
+    volta: volta,
+    lyrics: lyrics,
+  );
+}
+
+BarStaff _staffOf(
+  StaffView view,
+  int staff,
+  Skyline skyline,
+  BarHeads heads,
+) {
+  final reach = headReach(_drawnHeads(heads), staff);
+  return (
+    staff: view.source.staff,
+    lines: _linesOf(view),
+    above: math.max(skyline.above, reach.above),
+    below: math.max(skyline.below, reach.below),
+  );
+}
+
+/// The heads the bar draws on its own system, wherever it lands there. A
+/// clef before the barline stands over the bar before, which is on the same
+/// system.
+List<BarHead> _drawnHeads(BarHeads heads) => [
+  heads.inline.before,
+  heads.inline.after,
+  heads.system,
+];
+
+int _linesOf(StaffView view) =>
+    view.part.staves.firstWhere((s) => s.id == view.source.staff).lines;

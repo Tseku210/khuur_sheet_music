@@ -1,0 +1,709 @@
+{
+  "schema": 1,
+  "meta": {
+    "title": "Showcase",
+    "subtitle": "for testing",
+    "composer": "Anon.",
+    "lyricist": "Anon.",
+    "copyright": "CC0"
+  },
+  "parts": [
+    {
+      "id": 1,
+      "name": "Violin",
+      "shortName": "Vln.",
+      "instrument": {
+        "key": "violin",
+        "program": 40,
+        "strings": [
+          "G3",
+          "D4",
+          "A4",
+          "E5"
+        ],
+        "lowest": "G3",
+        "highest": "A7"
+      },
+      "staves": [
+        {
+          "id": 2
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Clarinet in B♭",
+      "hidden": true,
+      "instrument": {
+        "key": "clarinet-b-flat",
+        "program": 71,
+        "transposition": [
+          -1,
+          -2
+        ]
+      },
+      "staves": [
+        {
+          "id": 4
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Drums",
+      "instrument": {
+        "key": "drums",
+        "program": 0,
+        "bank": 128,
+        "clef": "percussion",
+        "drums": [
+          {
+            "name": "Snare",
+            "position": "C5",
+            "midiKey": 38
+          },
+          {
+            "name": "Side stick",
+            "position": "C5",
+            "midiKey": 37,
+            "head": "cross"
+          },
+          {
+            "name": "Bass drum",
+            "position": "F4",
+            "midiKey": 36
+          }
+        ]
+      },
+      "staves": [
+        {
+          "id": 6,
+          "lines": 1
+        }
+      ]
+    }
+  ],
+  "measures": [
+    {
+      "id": 10,
+      "meter": "4/4",
+      "meterSymbol": "common",
+      "key": 2,
+      "mode": "major",
+      "length": "1/4",
+      "repeatStart": true,
+      "navigation": [
+        "segno"
+      ],
+      "rehearsal": "A",
+      "tempos": [
+        {
+          "at": "0",
+          "bpm": 120.0,
+          "text": "Allegro"
+        }
+      ],
+      "staves": [
+        {
+          "clef": "treble",
+          "directions": [
+            {
+              "at": "0",
+              "dynamic": "mf"
+            },
+            {
+              "at": "0",
+              "text": "dolce",
+              "above": false
+            },
+            {
+              "at": "1/8",
+              "chord": "D",
+              "quality": "maj7",
+              "bass": "Ebb"
+            }
+          ],
+          "voices": [
+            {
+              "voice": 1,
+              "items": [
+                {
+                  "chord": 11,
+                  "value": "quarter",
+                  "notes": [
+                    {
+                      "id": 12,
+                      "pitch": "F#4",
+                      "fingering": 1,
+                      "string": 1
+                    },
+                    {
+                      "id": 13,
+                      "pitch": "A4",
+                      "tie": true,
+                      "accidental": "cautionary",
+                      "head": "diamond"
+                    }
+                  ],
+                  "articulations": [
+                    "staccato",
+                    "accent"
+                  ],
+                  "ornament": "trill",
+                  "bowing": "down",
+                  "graces": [
+                    {
+                      "id": 14,
+                      "kind": "appoggiatura",
+                      "value": "eighth",
+                      "notes": [
+                        {
+                          "id": 15,
+                          "pitch": "E4"
+                        }
+                      ]
+                    }
+                  ],
+                  "stem": "up",
+                  "beam": "begin",
+                  "tremolo": 2,
+                  "lyrics": [
+                    {
+                      "verse": 1,
+                      "text": "la",
+                      "syllabic": "begin",
+                      "extend": true
+                    },
+                    {
+                      "verse": 2,
+                      "text": "Тай"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "voice": 2,
+              "items": [
+                {
+                  "gap": "1/8"
+                },
+                {
+                  "rest": 16,
+                  "value": "eighth",
+                  "hidden": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "clef": "treble",
+          "voices": [
+            {
+              "voice": 1,
+              "items": [
+                {
+                  "measureRest": 17,
+                  "articulations": [
+                    "fermata"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "clef": "percussion",
+          "voices": [
+            {
+              "voice": 1,
+              "items": [
+                {
+                  "chord": 18,
+                  "value": "quarter",
+                  "notes": [
+                    {
+                      "id": 180,
+                      "drum": "Bass drum"
+                    },
+                    {
+                      "id": 181,
+                      "drum": "Snare"
+                    }
+                  ],
+                  "graces": [
+                    {
+                      "id": 21,
+                      "kind": "acciaccatura",
+                      "value": "sixteenth",
+                      "notes": [
+                        {
+                          "id": 22,
+                          "drum": "Snare"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "barline": "doubleBar",
+      "repeatEnd": 3,
+      "volta": {
+        "endings": [
+          1
+        ]
+      },
+      "navigation": [
+        "toCoda",
+        {
+          "jump": "segno",
+          "then": "toCoda",
+          "text": "D.S. al Coda"
+        }
+      ],
+      "break": "system",
+      "keyDisplay": "noCourtesy",
+      "meterDisplay": "restated",
+      "staves": [
+        {
+          "clefChanges": [
+            {
+              "at": "1/2",
+              "clef": "alto"
+            }
+          ],
+          "directions": [
+            {
+              "at": "0",
+              "text": "pizz."
+            }
+          ],
+          "voices": [
+            {
+              "voice": 1,
+              "items": [
+                {
+                  "tuplet": 31,
+                  "ratio": [
+                    3,
+                    2
+                  ],
+                  "unit": "eighth",
+                  "bracket": "shown",
+                  "members": [
+                    {
+                      "chord": 32,
+                      "value": "eighth",
+                      "notes": [
+                        {
+                          "id": 33,
+                          "pitch": "A4"
+                        }
+                      ]
+                    },
+                    {
+                      "rest": 34,
+                      "value": "eighth",
+                      "articulations": [
+                        "fermata"
+                      ]
+                    },
+                    {
+                      "tuplet": 35,
+                      "ratio": [
+                        3,
+                        2
+                      ],
+                      "unit": "sixteenth",
+                      "members": [
+                        {
+                          "chord": 36,
+                          "value": "sixteenth",
+                          "notes": [
+                            {
+                              "id": 37,
+                              "pitch": "Bb4"
+                            }
+                          ]
+                        },
+                        {
+                          "chord": 38,
+                          "value": "sixteenth",
+                          "notes": [
+                            {
+                              "id": 39,
+                              "pitch": "C+5"
+                            }
+                          ]
+                        },
+                        {
+                          "rest": 40,
+                          "value": "sixteenth"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "chord": 41,
+                  "value": "half.",
+                  "notes": [
+                    {
+                      "id": 42,
+                      "pitch": "Bd4"
+                    },
+                    {
+                      "id": 43,
+                      "pitch": "C#+5"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "voice": 2,
+              "items": [
+                {
+                  "gap": "1/2"
+                },
+                {
+                  "chord": 45,
+                  "value": "half",
+                  "notes": [
+                    {
+                      "id": 46,
+                      "pitch": "G4"
+                    }
+                  ],
+                  "stem": "down",
+                  "beam": "none"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "voices": [
+            {
+              "voice": 1,
+              "items": [
+                {
+                  "measureRest": 47
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "voices": [
+            {
+              "voice": 1,
+              "items": [
+                {
+                  "chord": 48,
+                  "value": "half",
+                  "notes": [
+                    {
+                      "id": 480,
+                      "drum": "Side stick"
+                    }
+                  ]
+                },
+                {
+                  "rest": 50,
+                  "value": "half"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 60,
+      "meter": "6/8",
+      "key": -3,
+      "mode": "minor",
+      "volta": {
+        "endings": [
+          2,
+          3
+        ],
+        "open": true
+      },
+      "tempos": [
+        {
+          "at": "0",
+          "bpm": 60.0,
+          "beat": "quarter.",
+          "metronome": false
+        },
+        {
+          "at": "3/8",
+          "bpm": 66.5,
+          "beat": "quarter."
+        }
+      ],
+      "staves": [
+        {
+          "directions": [
+            {
+              "at": "0",
+              "dynamic": "p"
+            }
+          ],
+          "voices": [
+            {
+              "voice": 1,
+              "items": [
+                {
+                  "measureRest": 61
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "voices": [
+            {
+              "voice": 1,
+              "items": [
+                {
+                  "measureRest": 62
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "voices": [
+            {
+              "voice": 1,
+              "items": [
+                {
+                  "chord": 63,
+                  "value": "quarter.",
+                  "notes": [
+                    {
+                      "id": 630,
+                      "drum": "Bass drum"
+                    }
+                  ]
+                },
+                {
+                  "chord": 65,
+                  "value": "quarter.",
+                  "notes": [
+                    {
+                      "id": 650,
+                      "drum": "Snare"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 70,
+      "meter": "3+2+2/8",
+      "barline": "finalBar",
+      "navigation": [
+        "coda",
+        "fine"
+      ],
+      "break": "page",
+      "keyDisplay": "restated",
+      "staves": [
+        {
+          "clef": "treble",
+          "voices": [
+            {
+              "voice": 1,
+              "items": [
+                {
+                  "chord": 71,
+                  "value": "half.",
+                  "notes": [
+                    {
+                      "id": 72,
+                      "pitch": "Fx4"
+                    },
+                    {
+                      "id": 73,
+                      "pitch": "Adb4"
+                    }
+                  ]
+                },
+                {
+                  "rest": 74,
+                  "value": "eighth"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "voices": [
+            {
+              "voice": 1,
+              "items": [
+                {
+                  "measureRest": 75
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "voices": [
+            {
+              "voice": 1,
+              "items": [
+                {
+                  "measureRest": 76
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "spanners": [
+    {
+      "id": 80,
+      "kind": "slur",
+      "dashed": true,
+      "staff": 2,
+      "voice": 1,
+      "from": {
+        "measure": 30,
+        "at": "0"
+      },
+      "to": {
+        "measure": 30,
+        "at": "1/4"
+      }
+    },
+    {
+      "id": 81,
+      "kind": "crescendo",
+      "staff": 2,
+      "from": {
+        "measure": 10,
+        "at": "0"
+      },
+      "to": {
+        "measure": 30,
+        "at": "1/2"
+      }
+    },
+    {
+      "id": 82,
+      "kind": "diminuendo",
+      "staff": 2,
+      "from": {
+        "measure": 30,
+        "at": "1/2"
+      },
+      "to": {
+        "measure": 30,
+        "at": "1/2"
+      }
+    },
+    {
+      "id": 83,
+      "kind": "octave",
+      "shift": "up8",
+      "staff": 2,
+      "from": {
+        "measure": 60,
+        "at": "0"
+      },
+      "to": {
+        "measure": 70,
+        "at": "0"
+      }
+    },
+    {
+      "id": 84,
+      "kind": "trill",
+      "staff": 2,
+      "from": {
+        "measure": 30,
+        "at": "1/4"
+      },
+      "to": {
+        "measure": 30,
+        "at": "1/4"
+      }
+    },
+    {
+      "id": 85,
+      "kind": "tempo",
+      "text": "poco rit.",
+      "factor": 0.9,
+      "staff": 2,
+      "from": {
+        "measure": 60,
+        "at": "0"
+      },
+      "to": {
+        "measure": 70,
+        "at": "3/4"
+      }
+    },
+    {
+      "id": 86,
+      "kind": "pedal",
+      "staff": 2,
+      "from": {
+        "measure": 10,
+        "at": "0"
+      },
+      "to": {
+        "measure": 30,
+        "at": "3/4"
+      }
+    },
+    {
+      "id": 87,
+      "kind": "glissando",
+      "staff": 2,
+      "voice": 2,
+      "from": {
+        "measure": 30,
+        "at": "1/2"
+      },
+      "to": {
+        "measure": 70,
+        "at": "0"
+      }
+    },
+    {
+      "id": 88,
+      "kind": "slur",
+      "staff": 6,
+      "voice": 1,
+      "from": {
+        "measure": 60,
+        "at": "0"
+      },
+      "to": {
+        "measure": 60,
+        "at": "3/8"
+      }
+    }
+  ]
+}
