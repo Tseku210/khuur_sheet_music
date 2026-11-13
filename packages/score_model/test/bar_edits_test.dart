@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:score_model/score_model.dart';
 import 'package:test/test.dart';
 
@@ -36,6 +38,34 @@ List<double> openingTempos(Score score) => [
         .tempo
         .bpm,
 ];
+
+/// [score] with a tempo line of [factor] from the start of bar [first] to
+/// the start of bar [last], so it covers both bars when they are blank.
+Score withTempoLine(Score score, double factor, int first, int last) =>
+    withSpanner(
+      score,
+      TempoLine(text: factor < 1 ? 'rit.' : 'accel.', factor: factor),
+      pointAt(score, first, Moment.zero),
+      pointAt(score, last, Moment.zero),
+    );
+
+/// How many seconds each bar plays for, by bar id.
+Map<MeasureId, double> barSeconds(Score score) => {
+  for (final bar in PlaybackCompiler().compile(score).bars)
+    bar.measure: bar.end - bar.start,
+};
+
+/// Expects each bar of [next] but [except] to play for as long as it did
+/// in [old].
+void expectPlaysLike(Score next, Score old, {Set<int> except = const {}}) {
+  final before = barSeconds(old);
+  final after = barSeconds(next).entries.toList();
+  for (final (index, MapEntry(key: bar, value: seconds)) in after.indexed) {
+    if (!except.contains(index)) {
+      expect(seconds, closeTo(before[bar]!, 1e-9), reason: 'bar $index');
+    }
+  }
+}
 
 void main() {
   group('InsertMeasures', () {
@@ -283,6 +313,77 @@ void main() {
       ).score;
       expect(none.measures[1].tempos, isEmpty);
       expect(openingTempos(none), [140, 140]);
+    });
+
+    group('keeps the tempo a tempo line gave the bars it leaves', () {
+      /// [score] without bars [first] to [last], counted from 0.
+      Score deleting(Score score, int first, int last) {
+        final session = EditSession.start(score);
+        return applied(
+          session.run(
+            DeleteMeasures(idOf(session, first), idOf(session, last)),
+          ),
+        ).score;
+      }
+
+      final at120 = withTempos(blankScore(bars: 4), {
+        0: [tempoMark(120)],
+      });
+
+      test('when the range held a line with no mark after it', () {
+        final old = withTempoLine(at120, 0.75, 1, 1);
+
+        final next = deleting(old, 1, 1);
+
+        expectPlaysLike(next, old);
+        expect(barSeconds(next).values.last, closeTo(240 / 90, 1e-9));
+      });
+
+      test('when the range held a mark and then a line', () {
+        final old = withTempoLine(
+          withTempos(at120, {
+            1: [tempoMark(160)],
+          }),
+          0.75,
+          1,
+          1,
+        );
+
+        final next = deleting(old, 1, 1);
+
+        expectPlaysLike(next, old);
+        expect(barSeconds(next).values.last, closeTo(2, 1e-9));
+      });
+
+      test('when a line starts in the range and runs past it', () {
+        final old = withTempoLine(at120, 0.5, 1, 2);
+
+        final next = deleting(old, 1, 1);
+
+        expectPlaysLike(next, old);
+        expect(next.spanners, hasLength(1));
+      });
+
+      test('when a line runs from before the range to past it, and the bar '
+          'before reaches the tempo the bar after starts at', () {
+        final old = withTempoLine(at120, 0.5, 0, 2);
+
+        final next = deleting(old, 1, 1);
+
+        expectPlaysLike(next, old, except: {0});
+        expect(next.spanners, hasLength(2));
+        // From a half to a third of a whole note a second, as the tempo
+        // falls from 120 to the 80 bar 2 started at.
+        expect(barSeconds(next).values.first, closeTo(6 * log(1.5), 1e-9));
+      });
+
+      test('in the bars before a range at the end that trims a line', () {
+        final old = withTempoLine(at120, 0.5, 2, 3);
+
+        final next = deleting(old, 3, 3);
+
+        expectPlaysLike(next, old);
+      });
     });
 
     test('deletes a range given in either order', () {
