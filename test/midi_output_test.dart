@@ -256,6 +256,48 @@ void main() {
     },
   );
 
+  testWidgets(
+    'on Apple platforms a program is ready only once the sampler has taken '
+    'it, so the first note sounds',
+    (tester) async {
+      final output = FlutterMidiOutput();
+      await tester.runAsync(() => output.load(soundFont));
+      var ready = false;
+      unawaited(
+        output
+            .program(soundFont: soundFont, channel: 0, program: 42, bank: 0)
+            .then((_) => ready = true),
+      );
+
+      await tester.pump(const Duration(milliseconds: 49));
+      expect(ready, isFalse);
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(ready, isTrue);
+      output.dispose();
+    },
+    variant: const TargetPlatformVariant({
+      TargetPlatform.iOS,
+      TargetPlatform.macOS,
+    }),
+  );
+
+  testWidgets('on Android a program is ready as the plugin answers', (
+    tester,
+  ) async {
+    final output = FlutterMidiOutput();
+    await tester.runAsync(() => output.load(soundFont));
+    var ready = false;
+    unawaited(
+      output
+          .program(soundFont: soundFont, channel: 0, program: 42, bank: 0)
+          .then((_) => ready = true),
+    );
+
+    await tester.pump();
+    expect(ready, isTrue);
+    output.dispose();
+  });
+
   testWidgets('loads an asset SoundFont by its app asset key', (tester) async {
     assets['assets/soundfonts/piano.sf2'] = [4, 5, 6];
     final output = FlutterMidiOutput();
