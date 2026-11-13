@@ -170,9 +170,9 @@ typedef _Wide = ({
 List<SliceReach> markReach(
   MeasureView view,
   Map<EventId, PlacedChord> chords,
+  Map<EventId, EventMarks> eventMarks,
   List<SliceReach> reach, {
   required List<Moment> times,
-  required Set<EventId> trills,
   required EngravingStyle style,
   required TextMeasurer text,
 }) {
@@ -183,42 +183,20 @@ List<SliceReach> markReach(
       wide[slice] = widest(wide[slice], (left: left, right: right));
 
   for (final staffView in view.staves) {
-    final voices = staffView.voices.length;
-    final strings = staffView.part.instrument.strings.length;
     for (final voice in staffView.voices) {
       for (final timed in voice.events) {
-        if (!carriesMarks(timed.event)) {
+        final marks = eventMarks[timed.event.id];
+        if (marks == null) {
           continue;
         }
-        final chord = chords[timed.event.id];
-        final rows = [
-          if (chord != null) ...[
-            for (final entry in _articulations(chord.plan, voices, style))
-              entry.mark.row,
-            ?_ornament(
-              chord.plan,
-              voices,
-              style,
-              lineStarts: trills.contains(timed.event.id),
-            )?.row,
-            for (final mark in _stringMarks(
-              chord.plan,
-              voices,
-              strings,
-              style,
-              text,
-            ))
-              mark.row,
-          ],
-          ?_fermata(timed, voices, style)?.row,
-        ];
-        final slice = times.indexOf(timed.onset);
-        for (final row in rows) {
+        final chord = marks.chord;
+        final slice = marks.slice;
+        for (final width in marks.widths) {
           if (timed.event is MeasureRest) {
-            hold(slice, 0, row.box.width);
+            hold(slice, 0, width);
           } else {
             final centre = _centreOf(timed, chord, font);
-            hold(slice, row.box.width / 2 - centre, centre + row.box.width / 2);
+            hold(slice, width / 2 - centre, centre + width / 2);
           }
         }
       }
@@ -317,6 +295,184 @@ void _widen(
   for (var i = from; i < to; i++) {
     reach[i] = (left: reach[i].left, right: reach[i].right + share);
   }
+}
+
+/// The marks one event carries, built once for a bar. Their rows depend on
+/// the event and the style, not on where the bar's slices fall, so
+/// [markReach] reads their widths and [eventMarkItems] hangs them.
+final class EventMarks {
+  EventMarks._(
+    this.timed,
+    this.chord,
+    this.staff,
+    this.slice,
+    this.voices,
+    this._articulations,
+    this._stacked,
+    this._fermata,
+  );
+
+  /// The event.
+  final TimedEvent timed;
+
+  /// Where the event's chord is placed, or null for a rest.
+  final PlacedChord? chord;
+
+  /// The index of the event's staff in the bar.
+  final int staff;
+
+  /// The index of the event's slice in the bar.
+  final int slice;
+
+  /// How many voices the event's staff has.
+  final int voices;
+
+  /// The articulations but the fermata, nearest the head first.
+  final List<({Articulation kind, _Hung mark})> _articulations;
+
+  /// The ornament, then the string marks, each outside the one before.
+  final List<_Hung> _stacked;
+
+  /// The fermata, outside every other mark.
+  final _Hung? _fermata;
+
+  /// The width of every row of the event.
+  Iterable<double> get widths => [
+    for (final entry in _articulations) entry.mark.row.box.width,
+    for (final mark in _stacked) mark.row.box.width,
+    ?_fermata?.row.box.width,
+  ];
+}
+
+/// The marks of every event of [view] that has any, in the order of staff,
+/// voice and event. A chord whose trill starts a line in [trills] leaves the
+/// sign to the line.
+Map<EventId, EventMarks> eventMarks(
+  MeasureView view,
+  Map<EventId, PlacedChord> chords, {
+  required List<Moment> times,
+  required Set<EventId> trills,
+  required EngravingStyle style,
+  required TextMeasurer text,
+}) {
+  final marks = <EventId, EventMarks>{};
+  for (final (staff, staffView) in view.staves.indexed) {
+    final voices = staffView.voices.length;
+    final strings = staffView.part.instrument.strings.length;
+    for (final voice in staffView.voices) {
+      for (final timed in voice.events) {
+        if (!carriesMarks(timed.event)) {
+          continue;
+        }
+        final id = timed.event.id;
+        final chord = chords[id];
+        final plan = chord?.plan;
+        marks[id] = EventMarks._(
+          timed,
+          chord,
+          staff,
+          times.indexOf(timed.onset),
+          voices,
+          plan == null ? const [] : _articulations(plan, voices, style),
+          plan == null
+              ? const []
+              : [
+                  ?_ornament(
+                    plan,
+                    voices,
+                    style,
+                    lineStarts: trills.contains(id),
+                  ),
+                  ..._stringMarks(plan, voices, strings, style, text),
+                ],
+          _fermata(timed, voices, style),
+        );
+      }
+    }
+  }
+  return marks;
+}
+
+/// Hangs the marks of every event in [marks] on [skyline], the skyline of
+/// their staff, each event's articulations, ornament and string marks, then its fermata
+/// outside them. Articulations are one glyph per `Articulation` but the
+/// fermata, in the SMuFL `Above` or `Below` variant, nearest the head in the
+/// order staccato, staccatissimo, tenuto, accent, marcato, harmonic.
+///
+/// A voice alone on its staff puts them on the head side, and the harmonic
+/// above. Staccato and tenuto then sit in the next space that is clear of
+/// the head, which is the next space for a head in a space and the one after
+/// it for a head on a line, as long as that space is inside the staff or
+/// between the staff and the head. Every other mark, and every mark after
+/// the first that leaves the staff, stacks outside the staff. With two
+/// voices or more every mark stacks outside the staff on its voice's side,
+/// which is the stem side.
+///
+/// The ornament goes above, and the string marks are each head's fingering,
+/// each head's string number, then the bowing, all above. On a staff with
+/// two voices or more all go on their voice's side. The marks of several
+/// heads stack in head order with the highest head's on top. A string number
+/// counts from the highest of the instrument's strings, as a circled digit
+/// or a roman numeral (`style.stringNumbers`). A string the instrument does
+/// not have draws nothing.
+///
+/// A fermata goes above, and on a staff with two voices or more on its
+/// voice's side, inverted below. A measure rest's is centred in the bar with
+/// its rest and keeps the whole bar's width clear, since a stretch moves it
+/// against the bar's slices. A hidden rest draws none.
+List<BarItem> eventMarkItems(
+  Iterable<EventMarks> marks,
+  Skyline skyline, {
+  required List<double> xs,
+  required EngravingStyle style,
+}) => [for (final event in marks) ..._hangEvent(event, skyline, xs, style)];
+
+List<BarItem> _hangEvent(
+  EventMarks event,
+  Skyline skyline,
+  List<double> xs,
+  EngravingStyle style,
+) {
+  final font = style.font;
+  final chord = event.chord;
+  final items = <BarItem>[];
+  if (chord != null) {
+    items
+      ..addAll(_hangArticulations(event, chord, skyline, xs, font))
+      ..addAll([
+        for (final mark in event._stacked)
+          ..._hangOnChord(mark, skyline, chord, xs, font),
+      ]);
+  }
+  final fermata = event._fermata;
+  if (fermata == null) {
+    return items;
+  }
+  if (event.timed.event is! MeasureRest) {
+    return items..addAll(
+      _hang(
+        fermata,
+        skyline,
+        event.timed,
+        chord,
+        slice: event.slice,
+        staff: event.staff,
+        xs: xs,
+        font: font,
+      ),
+    );
+  }
+  final row = fermata.row;
+  final x = -(row.box.left + row.box.right) / 2;
+  final box = row.box.shift((xs[event.slice] + xs.last) / 2 + x, 0);
+  final left = math.min(box.left, xs[event.slice]);
+  final right = math.max(box.right, xs.last);
+  final dy = skyline.clearance(fermata.side, box, fermata.gap, left, right);
+  skyline.add(Box(left, box.top + dy, right, box.bottom + dy));
+  return items..addAll([
+    for (final part in row.parts)
+      BarItem(event.slice, event.staff, part.shift(x, dy), centred: true),
+  ]);
 }
 
 /// Whether [event] has a mark of its own to draw, which is an articulation,
@@ -424,7 +580,7 @@ List<BarItem> _hangOnChord(
   font: font,
 );
 
-/// Nearest the head first. A fermata is not here. [fermataItems] puts it
+/// Nearest the head first. A fermata is not here. [eventMarkItems] puts it
 /// outside every other mark of its event.
 const List<Articulation> _nearestFirst = [
   Articulation.staccato,
@@ -487,37 +643,21 @@ List<({Articulation kind, _Hung mark})> _articulations(
   return marks;
 }
 
-/// One glyph per `Articulation` but the fermata, in the SMuFL `Above` or
-/// `Below` variant, nearest the head in the order staccato, staccatissimo,
-/// tenuto, accent, marcato, harmonic.
-///
-/// A voice alone on its staff ([voices] is 1) puts them on the head side,
-/// and the harmonic above. Staccato and tenuto then sit in the next space
-/// that is clear of the head, which is the next space for a head in a space
-/// and the one after it for a head on a line, as long as that space is
-/// inside the staff or between the staff and the head. Every other mark,
-/// and every mark after the first that leaves the staff, stacks outside the
-/// staff. With two voices or more every mark stacks outside the staff on
-/// its voice's side, which is the stem side.
-List<BarItem> articulationItems(
+List<BarItem> _hangArticulations(
+  EventMarks event,
   PlacedChord chord,
-  Skyline skyline, {
-  required int voices,
-  required List<double> xs,
-  required EngravingStyle style,
-}) {
+  Skyline skyline,
+  List<double> xs,
+  SmuflFont font,
+) {
   final plan = chord.plan;
-  final marks = _articulations(plan, voices, style);
-  if (marks.isEmpty) {
-    return const [];
-  }
-  final font = style.font;
+  final voices = event.voices;
   final up = plan.stem == StemSide.up;
   final head = up ? plan.heads.first : plan.heads.last;
   final away = up ? -1 : 1;
   var step = voices < 2 ? head.step + (head.step.isOdd ? 2 : 3) * away : null;
   final items = <BarItem>[];
-  for (final (:kind, :mark) in marks) {
+  for (final (:kind, :mark) in event._articulations) {
     final inStaff =
         step != null &&
         (kind == Articulation.staccato || kind == Articulation.tenuto) &&
@@ -555,51 +695,6 @@ _Hung? _fermata(TimedEvent timed, int voices, EngravingStyle style) {
     side: side,
     gap: _markGap,
   );
-}
-
-/// The fermata of a chord or a rest, outside every other mark of its event,
-/// so the bar calls this after them. It goes above, and on a staff with two
-/// voices or more on its voice's side, inverted below. A measure rest's is
-/// centred in the bar with its rest and keeps the whole bar's width clear,
-/// since a stretch moves it against the bar's slices. A hidden rest draws
-/// none.
-List<BarItem> fermataItems(
-  TimedEvent timed,
-  Skyline skyline, {
-  required PlacedChord? chord,
-  required int slice,
-  required int staff,
-  required int voices,
-  required List<double> xs,
-  required EngravingStyle style,
-}) {
-  final mark = _fermata(timed, voices, style);
-  if (mark == null) {
-    return const [];
-  }
-  if (timed.event is! MeasureRest) {
-    return _hang(
-      mark,
-      skyline,
-      timed,
-      chord,
-      slice: slice,
-      staff: staff,
-      xs: xs,
-      font: style.font,
-    );
-  }
-  final row = mark.row;
-  final x = -(row.box.left + row.box.right) / 2;
-  final box = row.box.shift((xs[slice] + xs.last) / 2 + x, 0);
-  final left = math.min(box.left, xs[slice]);
-  final right = math.max(box.right, xs.last);
-  final dy = skyline.clearance(mark.side, box, mark.gap, left, right);
-  skyline.add(Box(left, box.top + dy, right, box.bottom + dy));
-  return [
-    for (final part in row.parts)
-      BarItem(slice, staff, part.shift(x, dy), centred: true),
-  ];
 }
 
 _Hung? _ornament(
@@ -641,23 +736,6 @@ Set<EventId> trillLineStarts(MeasureView view) => {
         if (staff.source.staff == segment.spanner.staff)
           ?pieceStart(segment, staff).event,
 };
-
-/// The ornament above the staff, centred on the chord, or on its voice's
-/// side on a staff with two voices or more. A trill whose chord starts a
-/// `TrillLine` ([lineStarts]) leaves the sign to the spanner.
-List<BarItem> ornamentItems(
-  PlacedChord chord,
-  Skyline skyline, {
-  required int voices,
-  required bool lineStarts,
-  required List<double> xs,
-  required EngravingStyle style,
-}) {
-  final mark = _ornament(chord.plan, voices, style, lineStarts: lineStarts);
-  return mark == null
-      ? const []
-      : _hangOnChord(mark, skyline, chord, xs, style.font);
-}
 
 const List<Glyph> _circled = [
   Glyph.guitarString0,
@@ -761,26 +839,6 @@ List<_Hung> _stringMarks(
   }
   return marks;
 }
-
-/// The marks of a string player, nearest the chord first. Those are each
-/// head's fingering, each head's string number, then the bowing. All go
-/// above, or on their voice's side on a staff with two voices or more, and
-/// the marks of several heads stack in head order with the highest head's
-/// on top. A string number counts from the highest of the instrument's
-/// [strings], as a circled digit or a roman numeral (`style.stringNumbers`).
-/// A string the instrument does not have draws nothing.
-List<BarItem> stringMarkItems(
-  PlacedChord chord,
-  Skyline skyline, {
-  required int voices,
-  required int strings,
-  required List<double> xs,
-  required EngravingStyle style,
-  required TextMeasurer text,
-}) => [
-  for (final mark in _stringMarks(chord.plan, voices, strings, style, text))
-    ..._hangOnChord(mark, skyline, chord, xs, style.font),
-];
 
 /// A chord symbol's root or bass as its staff prints it.
 PitchName _spelled(PitchName stored, StaffView staff, EngravingStyle style) {
