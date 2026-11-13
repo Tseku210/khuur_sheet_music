@@ -331,6 +331,20 @@ final class Score {
     }
   }
 
+  /// The staves from [a] to [b] in system order, whichever of the two comes
+  /// first. Null when the score has either no longer.
+  List<StaffId>? stavesBetween(StaffId a, StaffId b) {
+    final order = [for (final staff in staves) staff.id];
+    final first = order.indexOf(a);
+    final last = order.indexOf(b);
+    if (first == -1 || last == -1) {
+      return null;
+    }
+    return first <= last
+        ? order.sublist(first, last + 1)
+        : order.sublist(last, first + 1);
+  }
+
   /// The event a spanner of [SpannerReach.events] on [staff] attaches to at
   /// [at]: the one sounding there in [voice], else in voice one.
   TimedEvent? anchorAt(StaffId staff, VoiceSlot voice, ScorePoint at) =>

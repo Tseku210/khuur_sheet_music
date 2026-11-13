@@ -16,7 +16,7 @@ final class Picked {
         for (final ref in {for (final item in items) item.event})
           ?score.lookup(ref),
       ],
-      RangeSelection() => _within(score, selection, staves),
+      RangeSelection() => _within(score, selection),
     };
     return Picked._(
       score,
@@ -112,28 +112,14 @@ final class Picked {
             if (voice.slot == like.voice) ...voice.events,
   ];
 
-  /// The events that start in [range], on its staves.
-  static List<TimedEvent> _within(
-    Score score,
-    RangeSelection range,
-    List<StaffId> staves,
-  ) {
-    final first = score.indexOf(range.from.measure);
-    final last = score.indexOf(range.to.measure);
-    final top = staves.indexOf(range.top);
-    final bottom = staves.indexOf(range.bottom);
-    return [
-      for (var bar = first; bar <= last; bar++)
-        for (final staff in score.measureView(score.measures[bar].id).staves)
-          if (staves.indexOf(staff.source.staff) case final index
-              when index >= top && index <= bottom)
-            for (final voice in staff.voices)
-              for (final timed in voice.events)
-                if ((bar > first || timed.onset >= range.from.offset) &&
-                    (bar < last || timed.onset < range.to.offset))
-                  timed,
-    ];
-  }
+  /// The events that start in [range], on its staves that are shown.
+  static List<TimedEvent> _within(Score score, RangeSelection range) => [
+    for (final staff
+        in score.stavesBetween(range.top, range.bottom) ?? const <StaffId>[])
+      if (!score.partOf(staff).hidden)
+        for (final slot in VoiceSlot.values)
+          ...score.laneBetween(staff, slot, range.from, range.to),
+  ];
 }
 
 /// What a button of the action row does.

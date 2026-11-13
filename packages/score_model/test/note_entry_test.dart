@@ -959,6 +959,41 @@ void main() {
       });
     });
 
+    group('stavesBetween', () {
+      final score = blankScore(
+        parts: const [
+          PartTemplate(
+            name: 'Trio',
+            instrument: fiddle,
+            staves: 3,
+            clefs: [Clef.treble, Clef.treble, Clef.bass],
+          ),
+        ],
+      );
+      final [top, middle, bottom] = [for (final s in score.staves) s.id];
+
+      test('lists the staves from the first end to the second', () {
+        expect(score.stavesBetween(top, bottom), [top, middle, bottom]);
+        expect(score.stavesBetween(middle, bottom), [middle, bottom]);
+      });
+
+      test('lists them in system order when the ends are inverted', () {
+        expect(score.stavesBetween(bottom, top), [top, middle, bottom]);
+        expect(score.stavesBetween(bottom, middle), [middle, bottom]);
+      });
+
+      test('is the one staff when both ends name it', () {
+        expect(score.stavesBetween(middle, middle), [middle]);
+      });
+
+      test('is null when either staff is not in the score', () {
+        const gone = StaffId(999);
+
+        expect(score.stavesBetween(gone, bottom), isNull);
+        expect(score.stavesBetween(top, gone), isNull);
+      });
+    });
+
     test('lookup falls back to the event id when the hint is wrong', () {
       final score = halves();
       const stale = EventRef(
