@@ -26,7 +26,7 @@ abstract interface class MidiOutput {
   Future<void> load(SoundFont soundFont);
 
   /// Selects [program] of [bank] from [soundFont] for [channel], which is 0
-  /// to 15.
+  /// to 15. Completes once a note on [channel] sounds with it.
   Future<void> program({
     required SoundFont soundFont,
     required int channel,
@@ -190,6 +190,9 @@ final class FlutterMidiOutput implements MidiOutput {
         bank: bank,
         program: program,
       );
+      if (_samplerDropsEarlyNotes.contains(defaultTargetPlatform)) {
+        await Future<void>.delayed(_instrumentTakesHold);
+      }
     } on PlatformException catch (error) {
       if (!_missingPreset.contains(error.code)) {
         rethrow;
@@ -260,6 +263,21 @@ final class FlutterMidiOutput implements MidiOutput {
 /// reports nothing. A bank over [_largestBank] is such a preset too, and
 /// is never asked for.
 const _missingPreset = {'SOUND_FONT_LOAD_FAILED', 'SOUND_FONT_LOAD_FAILED2'};
+
+/// Where the plugin plays through Apple's sampler, which takes a new
+/// instrument on its next render cycle and drops a note that comes before
+/// it. The note is silent for its whole length, so without a wait the
+/// first note of every play is lost.
+const Set<TargetPlatform> _samplerDropsEarlyNotes = {
+  TargetPlatform.iOS,
+  TargetPlatform.macOS,
+};
+
+/// How long [FlutterMidiOutput.program] waits on [_samplerDropsEarlyNotes]
+/// after the sampler loads an instrument. A render cycle is about 11 ms at
+/// 512 frames, which the iOS simulator uses, and 23 ms at 1024, the most
+/// iOS usually grants, so this holds twice that.
+const _instrumentTakesHold = Duration(milliseconds: 50);
 
 /// The largest bank the plugin's `selectInstrument` takes. On macOS and on
 /// iOS it makes a byte of the bank, and a larger one stops the app.
