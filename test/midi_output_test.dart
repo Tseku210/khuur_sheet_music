@@ -21,6 +21,9 @@ class FakeMidiPlatform extends FlutterMidiProPlatform
 
   /// What each `setReverb` asked for, in order.
   final reverbs = <String>[];
+
+  /// What each `setMasterGain` asked for, in order.
+  final gains = <double>[];
   String? selectError;
 
   @override
@@ -77,12 +80,15 @@ class FakeMidiPlatform extends FlutterMidiProPlatform
   );
 
   @override
+  Future<void> setMasterGain(double gain) async => gains.add(gain);
+
+  @override
   Future<void> dispose() async {}
 }
 
 /// A platform whose `init` waits for [endInit] and fails with [initError].
-/// Its [calls] also tell when `init` begins and ends, when the reverb is
-/// asked for and when a SoundFont is loaded.
+/// Its [calls] also tell when `init` begins and ends, when the reverb and
+/// the gain are asked for and when a SoundFont is loaded.
 class GatedMidiPlatform extends FakeMidiPlatform {
   PlatformException? initError;
 
@@ -114,6 +120,12 @@ class GatedMidiPlatform extends FakeMidiPlatform {
     final asked = super.setReverb(enabled, roomSize, damping, width, level);
     calls.add('reverb ${reverbs.last}');
     return asked;
+  }
+
+  @override
+  Future<void> setMasterGain(double gain) {
+    calls.add('gain $gain');
+    return super.setMasterGain(gain);
   }
 
   @override
@@ -574,6 +586,8 @@ void main() {
         'init ends',
         'reverb off',
         'reverb off',
+        'gain 1.0',
+        'gain 1.0',
         'load',
         'load',
       ]);
@@ -609,6 +623,7 @@ void main() {
       'init begins',
       'init ends',
       'reverb off',
+      'gain 1.0',
       'load',
     ]);
     first.dispose();
@@ -616,7 +631,8 @@ void main() {
   });
 
   testWidgets(
-    'asks for its reverb after the init ends and before its SoundFont loads',
+    'asks for its reverb and gain after the init ends and before its '
+    'SoundFont loads',
     (tester) async {
       final gated = GatedMidiPlatform();
       FlutterMidiProPlatform.instance = gated;
@@ -639,6 +655,7 @@ void main() {
         'init begins',
         'init ends',
         'reverb room 0.5 damping 0.2 width 0.9 level 0.3',
+        'gain 1.0',
         'load',
       ]);
       output.dispose();
@@ -725,6 +742,99 @@ void main() {
     await tester.runAsync(() => output.load(soundFont));
 
     expect(midi.reverbs, ['room 0.0 damping 0.0 width 0.0 level 0.0']);
+    output.dispose();
+  });
+
+  testWidgets(
+    'asks for a new reverb and gain at once while the synthesizer runs',
+    (tester) async {
+      final output = FlutterMidiOutput();
+      await tester.runAsync(() async {
+        await output.load(soundFont);
+        output
+          ..reverb = const MidiReverb(roomSize: 0.5, level: 0.3)
+          ..gain = 0.2;
+        await Future<void>.delayed(Duration.zero);
+      });
+
+      expect(midi.reverbs, ['off', 'room 0.5 damping 0.0 width 0.5 level 0.3']);
+      expect(midi.gains, [1.0, 0.2]);
+      output.dispose();
+    },
+  );
+
+  testWidgets('asks for nothing when the reverb and gain stay the same', (
+    tester,
+  ) async {
+    final output = FlutterMidiOutput(
+      reverb: const MidiReverb(roomSize: 0.5, level: 0.3),
+      gain: 0.2,
+    );
+    await tester.runAsync(() async {
+      await output.load(soundFont);
+      output
+        ..reverb = const MidiReverb(roomSize: 0.5, level: 0.3)
+        ..gain = 0.2;
+      await Future<void>.delayed(Duration.zero);
+    });
+
+    expect(midi.reverbs, hasLength(1));
+    expect(midi.gains, [0.2]);
+    output.dispose();
+  });
+
+  testWidgets(
+    'a reverb and gain set while the init runs are asked for once it ends',
+    (tester) async {
+      final gated = GatedMidiPlatform();
+      FlutterMidiProPlatform.instance = gated;
+      final output = FlutterMidiOutput();
+
+      await tester.runAsync(() async {
+        final loading = output.load(soundFont);
+        output
+          ..reverb = const MidiReverb(roomSize: 0.5, level: 0.3)
+          ..gain = 0.2;
+        gated.endInit();
+        await loading;
+      });
+
+      expect(gated.calls, [
+        'init begins',
+        'init ends',
+        'reverb room 0.5 damping 0.0 width 0.5 level 0.3',
+        'gain 0.2',
+        'load',
+      ]);
+      output.dispose();
+    },
+  );
+
+  testWidgets('a disposed output asks for nothing', (tester) async {
+    final output = FlutterMidiOutput();
+    await tester.runAsync(() async {
+      await output.load(soundFont);
+      output
+        ..dispose()
+        ..gain = 0.2;
+      await Future<void>.delayed(Duration.zero);
+    });
+
+    expect(midi.gains, [1.0]);
+  });
+
+  testWidgets('holds a gain to 0 to 4, and sends one that is not a number '
+      'as 0', (tester) async {
+    final output = FlutterMidiOutput(gain: 9);
+    await tester.runAsync(() async {
+      await output.load(soundFont);
+      output.gain = -1;
+      await Future<void>.delayed(Duration.zero);
+      output.gain = double.nan;
+      await Future<void>.delayed(Duration.zero);
+    });
+
+    expect(midi.gains, [4.0, 0.0, 0.0]);
     output.dispose();
   });
 

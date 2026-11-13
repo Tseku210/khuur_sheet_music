@@ -235,6 +235,8 @@ late final _player = ScorePlayer(
 
 Here the piano part plays from `piano.sf2` and the cello part from `cello.sf2`. The player loads a SoundFont when the first `play` that needs it starts, and loads it only once, also when two instruments name it. A SoundFont that no unmuted part of the score needs is not loaded. If one SoundFont does not load, the future of `play` fails, and the next `play` tries that SoundFont again. The map is not part of the score, because a saved score keeps its instruments and not the files they play from.
 
+The map can change between plays. Set `instrumentSoundFonts` to a new map, for example once a better SoundFont an app downloaded is on the device, and the next `play` plays from it.
+
 The example app ships a 57 MB piano, `example/assets/soundfonts/piano.sf2`. It is [Upright Piano KW](https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html#UprightKW) from FreePats, a Kawai upright sampled in stereo at two loudnesses and released under CC0. Its readme and license are next to it. FreePats also has a 9.5 MB version in mono at one loudness, for an app that has to stay small.
 
 ### Add reverb
@@ -253,7 +255,25 @@ late final _player = ScorePlayer(
 
 The two numbers do not mean the same on every platform, so neither has a default. iOS and macOS have six rooms, from a small room to a cathedral, and pick one by `roomSize`. They take `level` as the reverb's share of the whole sound. Android gives `roomSize`, `level`, `damping` and `width` to FluidSynth, where `level` is the reverb's own output level. Listen on each platform your app ships to.
 
-`flutter_midi_pro` is one synthesizer for the whole process. The output that loaded last decides the reverb for every output, and an output with no reverb turns it off.
+The output also takes a `gain`, how loud the synthesizer plays as a multiple of its own level. It is 1 unless given, and the output holds it to 0 to 4. One SoundFont can play louder on one platform than another, so an app may lower it for that file there.
+
+Both can change between plays. Keep the output, and set `reverb` or `gain` on it. The output asks the synthesizer for them at once while it runs, and otherwise when it next loads a SoundFont.
+
+```dart
+final _output = FlutterMidiOutput();
+late final _player = ScorePlayer(
+  soundFont: const AssetSoundFont('assets/soundfonts/piano.sf2'),
+  vsync: this,
+  output: _output,
+);
+
+void _playWet(Score score) {
+  _output.reverb = const MidiReverb(roomSize: 0.5, level: 0.3);
+  _player.play(score);
+}
+```
+
+`flutter_midi_pro` is one synthesizer for the whole process. The output that asked last decides the reverb and the gain for every output, and an output with no reverb turns it off.
 
 `output` also takes your own `MidiOutput`, to play through another synthesizer.
 
