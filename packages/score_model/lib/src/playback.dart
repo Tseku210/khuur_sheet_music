@@ -6,9 +6,9 @@
 /// compile unrolls the repeats into a play order, folds tempo and each
 /// part's dynamics over the bars, and places each played bar's fragment in
 /// seconds, merging tie chains across the bars as they are played, and
-/// holds what a part's pedal catches until the pedal lifts. Dynamics and
-/// pedals are folded on every compile because a hairpin or a pedal line is
-/// stored beside the columns it spans, not in them.
+/// holds what a part's pedal catches until the pedal lifts. Dynamics, slurs
+/// and pedals are folded on every compile because a hairpin, a slur or a
+/// pedal line is stored beside the columns it spans, not in them.
 library;
 
 import 'dart:math';
@@ -27,6 +27,7 @@ import 'voice_walk.dart';
 
 part 'playback_attacks.dart';
 part 'playback_dynamics.dart';
+part 'playback_legato.dart';
 part 'playback_order.dart';
 part 'playback_pedal.dart';
 part 'playback_tempo.dart';
@@ -80,12 +81,23 @@ final class PlaybackCompiler {
       }
     }
     final trills = <StaffId, List<(Moment, Moment)>>{};
-    for (final Spanner(:kind, :staff, :first, :last) in score.spanners) {
+    final slurs = <_Lane, List<(Moment, Moment)>>{};
+    for (final Spanner(:kind, :staff, :voice, :first, :last)
+        in score.spanners) {
       if (kind is TrillLine) {
         (trills[staff] ??= []).add((
           _place(score, starts, first.measure, first.offset),
           _place(score, starts, last.measure, last.offset),
         ));
+      } else if (kind is Slur) {
+        final slot = voice ?? VoiceSlot.one;
+        Moment onsetAt(ScorePoint point) => _place(
+          score,
+          starts,
+          point.measure,
+          score.anchorAt(staff, slot, point)!.onset,
+        );
+        (slurs[(staff, slot)] ??= []).add((onsetAt(first), onsetAt(last)));
       }
     }
     final windows = options.from == null && options.to == null
@@ -141,6 +153,11 @@ final class PlaybackCompiler {
         final trilled =
             trills[staff]?.any((t) => t.$1 <= position && position <= t.$2) ??
             false;
+        final slurred =
+            slurs[(staff, voice)]?.any(
+              (s) => s.$1 <= position && position < s.$2,
+            ) ??
+            false;
         for (final attack
             in trilled
                 ? _attacks(chord.timed, chord.event, column.key, trill: true)
@@ -148,23 +165,29 @@ final class PlaybackCompiler {
           final (key, cents) = _key(attack.note, instrument);
           final start = bar.secondsAt(attack.onset);
           final end = bar.secondsAt(attack.onset + attack.length);
-          final release = (end - start) * (1 - attack.gate);
+          final legato = slurred && attack.gate == null;
+          final release = legato
+              ? 0.0
+              : (end - start) * (1 - (attack.gate ?? 0.9));
           final lane = (staff, voice, attack.note.tone);
           final _Sounding note;
           if (ties.remove(lane) case (final held, final window, final expected)
               when window == k && expected == attack.onset) {
             note = held
               ..end = end
-              ..release = release;
+              ..release = release
+              ..legato = legato;
           } else {
             note = _Sounding(
               start: start,
               end: end,
               release: release,
+              legato: legato,
               key: key,
               cents: cents,
               velocity: min((level * attack.stress).round(), 127),
               channel: channel,
+              voice: voice,
               source: attack.source,
             );
             sounding.add(note);
@@ -178,6 +201,7 @@ final class PlaybackCompiler {
         }
       }
     }
+    _join(sounding);
     final pedals = _pedals(score, starts, windows, timeline);
     return PlaybackScript._(
       timeline,
@@ -193,6 +217,8 @@ final class PlaybackCompiler {
 }
 
 typedef _Sound = ({int channel, Instrument instrument, _Loudness loudness});
+
+typedef _Lane = (StaffId, VoiceSlot);
 
 /// Channels for pitched parts, in order. Channel 9 is General MIDI's
 /// percussion channel.
@@ -400,6 +426,7 @@ final class PlaybackNote {
     required this.channel,
     required this.source,
     this.cents = 0,
+    this.overlap = 0,
   });
 
   /// Seconds from the script start.
@@ -408,6 +435,10 @@ final class PlaybackNote {
   /// How long it sounds, in seconds. It sounds until its key is let go, or
   /// until the pedal that holds it lifts.
   final double duration;
+
+  /// Seconds of real time it sounds past [duration] at any speed, into the
+  /// note after it under a slur.
+  final double overlap;
 
   /// MIDI key 0–127.
   final int key;
@@ -497,8 +528,8 @@ final class _Attack {
   /// The factor on its dynamic's velocity.
   final double stress;
 
-  /// The share of [length] it sounds.
-  final double gate;
+  /// The share of [length] its marks make it sound, or null where none do.
+  final double? gate;
 
   /// Its chord, or its grace chord.
   final EventRef source;
@@ -510,10 +541,12 @@ final class _Sounding {
     required this.start,
     required this.end,
     required this.release,
+    required this.legato,
     required this.key,
     required this.cents,
     required this.velocity,
     required this.channel,
+    required this.voice,
     required this.source,
   });
 
@@ -522,11 +555,19 @@ final class _Sounding {
 
   /// Seconds cut from the end, set by the chain's last note.
   double release;
+
+  /// Whether the chain's last note is slurred to the note after it and no
+  /// mark sets its length.
+  bool legato;
+  double overlap = 0;
   final int key;
   final int cents;
   final int velocity;
   final int channel;
+  final VoiceSlot voice;
   final EventRef source;
+
+  _Lane get lane => (source.staff, voice);
 
   /// The note as it sounds. A [pedal] that is down when the key is let go
   /// holds it until the pedal lifts.
@@ -535,6 +576,7 @@ final class _Sounding {
     return PlaybackNote(
       start: start,
       duration: lift == null ? end - start - release : lift - start,
+      overlap: lift == null ? overlap : 0,
       key: key,
       cents: cents,
       velocity: velocity,
