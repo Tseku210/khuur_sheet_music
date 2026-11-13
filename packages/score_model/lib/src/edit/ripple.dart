@@ -910,50 +910,27 @@ Score _retied(
     ),
   );
 
-  var retied = after;
-  for (var bar = from; bar < to; bar++) {
-    final column = after.measures[bar];
-    for (final staff in column.staves) {
-      if (!staves.contains(staff.staff)) {
-        continue;
-      }
-      for (final voice in staff.voices) {
-        for (final timed in timedEvents(
-          voice,
-          measure: column.id,
-          staff: staff.staff,
-        )) {
-          final chord = timed.event;
-          if (chord is! ChordEvent || !chord.notes.any((n) => n.tie)) {
-            continue;
-          }
-          final old = was(timed);
-          if (old == null) {
-            continue;
-          }
-          final then = _next(before, old);
-          final now = _next(after, timed);
-          bool stays(Note note) {
-            final ahead = _headWhere(now, (n) => n.tone == note.tone);
-            final behind = _headWhere(then, (n) => n.tone == note.tone);
-            if (ahead == null) {
-              return behind == null;
-            }
-            final target = source(ahead.timed.event.id);
-            return target == old.event.id ||
-                target == behind?.timed.event.id ||
-                was(ahead.timed) == null;
-          }
-
-          bool moves(Note note) => note.tie && !stays(note);
-          if (chord.notes.any(moves)) {
-            retied = _replace(retied, timed, _untied(chord, moves));
-          }
-        }
-      }
+  bool moves(TimedEvent timed, ChordEvent chord, Note note) {
+    final old = was(timed);
+    if (old == null || !note.tie) {
+      return false;
     }
+    final ahead = _headOfTone(_next(after, timed), note.tone);
+    final behind = _headOfTone(_next(before, old), note.tone);
+    if (ahead == null) {
+      return behind != null;
+    }
+    final target = source(ahead.timed.event.id);
+    return target != old.event.id &&
+        target != behind?.timed.event.id &&
+        was(ahead.timed) != null;
   }
-  return retied;
+
+  return _untieWhere(after, [
+    for (var bar = from; bar < to; bar++)
+      for (final staff in after.measures[bar].staves)
+        if (staves.contains(staff.staff)) (bar, staff.staff),
+  ], moves);
 }
 
 /// Where the last event of [spanner]'s voice that starts before [point]

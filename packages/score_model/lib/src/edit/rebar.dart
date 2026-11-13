@@ -353,7 +353,7 @@ final class _Stream {
         when opening is ChordEvent) {
       final event = _eventsIn(item).last;
       bool meets(Note note) =>
-          note.tie && opening.notes.any((n) => n.tone == note.tone);
+          note.tie && headOfTone(opening, note.tone) != null;
       if (event is ChordEvent && event.notes.any(meets)) {
         items.last = (_replaceEvent(item, _untied(event, meets)), origin);
       }

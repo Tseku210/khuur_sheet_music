@@ -3,6 +3,7 @@ library;
 
 import 'events.dart';
 import 'measure.dart';
+import 'pitch.dart';
 import 'refs.dart';
 import 'seq.dart';
 import 'time.dart';
@@ -75,4 +76,18 @@ TimedEvent? openingEvent(MeasureColumn column, StaffId staff, VoiceSlot slot) {
       ? null
       : timedEvents(voice, measure: column.id, staff: staff).firstOrNull;
   return first != null && first.onset.isZero ? first : null;
+}
+
+/// The head of [event] with [tone], or null when [event] is null, a rest,
+/// or has no head of that tone. A tie ends on this head of the next event
+/// of its voice.
+Note? headOfTone(Event? event, Tone tone) {
+  if (event case ChordEvent(:final notes)) {
+    for (final note in notes) {
+      if (note.tone == tone) {
+        return note;
+      }
+    }
+  }
+  return null;
 }
