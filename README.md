@@ -384,7 +384,7 @@ Where a note has several of them, the ink of the selection covers a tint, and th
 | `staffGap`, `lyricGap`, `systemGap` | The clear space between staves, above a row of lyrics and between systems. |
 | `graceScale` | The size of grace notes. |
 | `barNumbers`, `courtesySignatures`, `meterEverySystem`, `multiMeasureRests` | What is printed. |
-| `justifyLastSystemFrom` | How full the last system must be before it is stretched to the full width. |
+| `justify`, `justifyLastSystemFrom` | Whether systems are stretched to the full width, and how full the last system must be before it is. With `justify: false` every system keeps its natural width, so a bar added at the end never moves the bars before it, as an editor needs. |
 | `quarterTones`, `stringNumbers`, `chordSymbols` | Which glyphs and spellings these marks use. |
 | `font` | The music font, with the thickness of every line the engine draws. The package bundles Bravura. |
 
