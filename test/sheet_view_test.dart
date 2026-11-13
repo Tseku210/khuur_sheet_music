@@ -3529,6 +3529,148 @@ void main() {
     },
   );
 
+  group('a held finger', () {
+    late Score score;
+    late SheetController controller;
+    late List<Object?> log;
+
+    /// A report of [SheetView.onHold] or [SheetView.onRelease], by the
+    /// fields of its entry.
+    Object? held(EntryHold? hold) => switch (hold) {
+      EntryHold(:final finger, :final entry) => (
+        finger,
+        entry == null ? null : fieldsOf(entry),
+      ),
+      null => null,
+    };
+
+    /// What [held] would log for a finger at [at] on the sheet as it is now.
+    Object? expectedAt(Offset at) => held(
+      EntryHold(
+        finger: at,
+        entry: controller.entryAt(at, voice: VoiceSlot.two),
+      ),
+    );
+
+    Future<void> pumpView(WidgetTester tester) async {
+      score = tune();
+      controller = SheetController();
+      addTearDown(controller.dispose);
+      log = [];
+      await tester.pumpWidget(
+        host(
+          SheetView(
+            score: score,
+            cursor: point(score, 0, Moment.zero, voice: VoiceSlot.two),
+            controller: controller,
+            onHold: (hold) => log.add(held(hold)),
+            onRelease: (hit) => log.add(('release', fieldsOf(hit))),
+            followCursor: false,
+          ),
+        ),
+      );
+    }
+
+    Future<TestGesture> holdAt(WidgetTester tester, Offset at) async {
+      final gesture = await tester.startGesture(at);
+      await tester.pump(kLongPressTimeout);
+      await tester.pump();
+      return gesture;
+    }
+
+    testWidgets(
+      'reports where a note would go as it is held and moved, reports null '
+      'off the view, and enters nothing when it lifts there',
+      (tester) async {
+        await pumpView(tester);
+        final start = middleOf(tester, headOf(score, 0, 0));
+        await tester.tapAt(start);
+        await tester.pump();
+        expect(log, isEmpty, reason: 'a tap is no hold');
+
+        final gesture = await holdAt(tester, start);
+        expect(log, [expectedAt(start)]);
+        expect(
+          (log.single! as (Offset, Object?)).$2,
+          isNotNull,
+          reason: 'the finger is on a system',
+        );
+
+        final moved = start + const Offset(40, 8);
+        await gesture.moveTo(moved);
+        await tester.pump();
+        expect(log.last, expectedAt(moved));
+        expect(log.last, isNot(log.first));
+
+        log.clear();
+        await gesture.moveTo(Offset(viewSize.width + 50, start.dy));
+        await tester.pump();
+        expect(log, [null], reason: 'the finger slid off the view');
+        await gesture.moveTo(Offset(viewSize.width + 60, start.dy));
+        await tester.pump();
+        expect(log, [null], reason: 'off the view is reported once');
+
+        await gesture.moveTo(start);
+        await tester.pump();
+        expect(log, [null, expectedAt(start)], reason: 'it slid back on');
+
+        log.clear();
+        await gesture.moveTo(Offset(viewSize.width + 50, start.dy));
+        await gesture.up();
+        await tester.pump();
+        expect(log, [null], reason: 'a finger lifted off the view enters none');
+      },
+    );
+
+    testWidgets(
+      'reports null and then the entry under it when it lifts over a system',
+      (tester) async {
+        await pumpView(tester);
+        final start = middleOf(tester, headOf(score, 0, 1));
+        final gesture = await holdAt(tester, start);
+        final lift = start + const Offset(30, -4);
+        await gesture.moveTo(lift);
+        await tester.pump();
+        final entry = controller.entryAt(lift, voice: VoiceSlot.two)!;
+        log.clear();
+        await gesture.up();
+        await tester.pump();
+        expect(log, [null, ('release', fieldsOf(entry))]);
+        expect(entry.voice, VoiceSlot.two, reason: "the cursor's voice");
+      },
+    );
+
+    testWidgets(
+      'reports again when the sheet scrolls under a finger held still',
+      (tester) async {
+        await pumpView(tester);
+        final start = middleOf(tester, headOf(score, 0, 0));
+        final gesture = await holdAt(tester, start);
+        final before = log.single;
+
+        log.clear();
+        scrollOf(tester).jumpTo(57);
+        await tester.pump();
+        expect(log, isNotEmpty);
+        expect(log.last, expectedAt(start));
+        expect(log.last, isNot(before), reason: 'another place is under it');
+
+        log.clear();
+        await gesture.up();
+        await tester.pump();
+        expect(log.first, isNull);
+        expect(
+          log.skip(1),
+          switch (controller.entryAt(start, voice: VoiceSlot.two)) {
+            final entry? => [('release', fieldsOf(entry))],
+            null => isEmpty,
+          },
+          reason: 'the entry is asked again as the finger lifts',
+        );
+      },
+    );
+  });
+
   testWidgets(
     'the controller tells its listeners when a new tap grid changes where a '
     'note entered at a point would go, and tells none for the grid it has',

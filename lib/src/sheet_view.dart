@@ -44,6 +44,8 @@ class SheetView extends StatefulWidget {
     this.tints = const {},
     this.playback,
     this.onTap,
+    this.onHold,
+    this.onRelease,
     this.controller,
     this.style = EngravingStyle.standard,
     this.palette,
@@ -64,11 +66,8 @@ class SheetView extends StatefulWidget {
   /// The view draws it as a note that stands alone, with its stem, its flag
   /// and the ledger lines it needs, in the palette's preview colour. It
   /// lays nothing out for it, so nothing moves under a finger. An app that
-  /// shows where a held finger would put a note sets it from
-  /// [SheetController.entryAt] and clears it when the finger lifts.
-  /// The place under a still finger changes when the sheet scrolls, zooms
-  /// or is laid out again, so the app asks again when the controller
-  /// notifies.
+  /// shows where a held finger would put a note sets it from the entry
+  /// [onHold] reports, and clears it when [onHold] reports null.
   final NotePreview? preview;
 
   /// Usually `EditSession.selection`. The overlay repaints for a selection
@@ -87,6 +86,26 @@ class SheetView extends StatefulWidget {
   /// Called with what a tap means. Not called for a tap outside every
   /// system.
   final ValueChanged<SheetHit>? onTap;
+
+  /// Called while a finger is held on the view, with where it is and where
+  /// a note entered there would go. It is called when the long press
+  /// starts, each time the finger moves, and each time the sheet moves
+  /// under the finger, as it does when it scrolls, zooms or is laid out
+  /// again. It is called with null when the hold ends and when the finger
+  /// slides off the view, and again with a hold when the finger slides
+  /// back on. The entry is for the cursor's voice, or voice one with no
+  /// cursor.
+  ///
+  /// The view recognizes a long press only when this or [onRelease] is
+  /// set.
+  final ValueChanged<EntryHold?>? onHold;
+
+  /// Called with where a note entered goes when a held finger lifts over a
+  /// system, after [onHold] reports null. The entry is asked again as the
+  /// finger lifts, for the sheet on screen then. Not called when the finger
+  /// lifts off the view or off every system, or when the hold is
+  /// cancelled.
+  final ValueChanged<SheetHit>? onRelease;
 
   final SheetController? controller;
 
@@ -125,6 +144,22 @@ class SheetView extends StatefulWidget {
 
   @override
   State<SheetView> createState() => _SheetViewState();
+}
+
+/// A finger held on a [SheetView], and where a note entered there would go.
+@immutable
+final class EntryHold {
+  const EntryHold({required this.finger, required this.entry});
+
+  /// Where the finger is, in the view's local logical pixels.
+  final Offset finger;
+
+  /// What [SheetController.entryAt] answers at [finger] now, in the voice
+  /// the view enters in. Null off every system.
+  final SheetHit? entry;
+
+  @override
+  String toString() => 'EntryHold(finger: $finger, entry: $entry)';
 }
 
 /// Zoom, geometry queries and export for one [SheetView].
@@ -200,10 +235,9 @@ class SheetController extends ChangeNotifier {
       _view?._hitTest(local, voice);
 
   /// Where a note entered at [local] in [voice] would go, whatever is drawn
-  /// there, on the view's tap grid. The hit has no target. An app asks this
-  /// for a finger held on the sheet, and shows the answer as the view's
-  /// preview. It asks again when the finger lifts, since a hit it kept may
-  /// be of a sheet that has moved since.
+  /// there, on the view's tap grid. The hit has no target. `SheetView.onHold`
+  /// reports this for a held finger, so an app asks it only for other
+  /// gestures, such as a tap that enters a note.
   SheetHit? entryAt(Offset local, {VoiceSlot voice = VoiceSlot.one}) =>
       _view?._entryAt(local, voice);
 
@@ -456,6 +490,10 @@ class _SheetViewState extends State<SheetView> {
   /// The bar the playhead was last seen in.
   MeasureId? _playing;
 
+  /// Where a finger is held on the view, in its local pixels. Null with no
+  /// finger held, and while the held finger is off the view.
+  Offset? _held;
+
   static bool _licensed = false;
 
   SheetController get _controller =>
@@ -481,6 +519,47 @@ class _SheetViewState extends State<SheetView> {
     ),
     null => null,
   };
+
+  /// The voice a tap or a held finger enters in.
+  VoiceSlot get _voice => widget.cursor?.voice ?? VoiceSlot.one;
+
+  EntryHold? get _hold => switch (_held) {
+    final at? => EntryHold(finger: at, entry: _entryAt(at, _voice)),
+    null => null,
+  };
+
+  /// A held finger is at [local]. A finger off the view is reported once,
+  /// as null.
+  void _holdAt(Offset local) {
+    final was = _held;
+    final size = context.size;
+    _held = size != null && size.contains(local) ? local : null;
+    if (was != null || _held != null) {
+      widget.onHold?.call(_hold);
+    }
+  }
+
+  void _letGo({required bool release}) {
+    final held = _held;
+    if (held == null) {
+      return;
+    }
+    _held = null;
+    final entry = _entryAt(held, _voice);
+    widget.onHold?.call(null);
+    if (release && entry != null) {
+      widget.onRelease?.call(entry);
+    }
+  }
+
+  /// Tells the controller's listeners that the geometry moved, and the app
+  /// what is under a finger held still.
+  void _moved() {
+    _controller._moved();
+    if (_held != null) {
+      widget.onHold?.call(_hold);
+    }
+  }
 
   SheetHit? _entryAt(Offset local, VoiceSlot voice) => switch (_shown) {
     final shown? => shown.layout.entryAt(
@@ -562,9 +641,12 @@ class _SheetViewState extends State<SheetView> {
       // allow.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
-          _controller._moved();
+          _moved();
         }
       });
+    }
+    if (widget.onHold == null && widget.onRelease == null) {
+      _held = null;
     }
     final cursor = widget.cursor;
     if (widget.followCursor && cursor != null && cursor != oldWidget.cursor) {
@@ -581,7 +663,7 @@ class _SheetViewState extends State<SheetView> {
 
   void _onScroll() {
     _toldAt = _offset;
-    _controller._moved();
+    _moved();
   }
 
   double? get _offset => _scroll.hasClients ? _scroll.position.pixels : null;
@@ -1052,11 +1134,12 @@ class _SheetViewState extends State<SheetView> {
         }
         if (relaid || _movedSilently) {
           _toldAt = _offset;
-          _controller._moved();
+          _moved();
         }
       });
       final scale = SheetScale(spacePx: spacePx);
       final onTap = widget.onTap;
+      final holds = widget.onHold != null || widget.onRelease != null;
       final sheet = CustomScrollView(
         controller: _scroll,
         slivers: [
@@ -1144,14 +1227,19 @@ class _SheetViewState extends State<SheetView> {
         onTapUp: onTap == null
             ? null
             : (details) {
-                final hit = _hitTest(
-                  details.localPosition,
-                  widget.cursor?.voice ?? VoiceSlot.one,
-                );
+                final hit = _hitTest(details.localPosition, _voice);
                 if (hit != null) {
                   onTap(hit);
                 }
               },
+        onLongPressStart: holds
+            ? (details) => _holdAt(details.localPosition)
+            : null,
+        onLongPressMoveUpdate: holds
+            ? (details) => _holdAt(details.localPosition)
+            : null,
+        onLongPressEnd: holds ? (_) => _letGo(release: true) : null,
+        onLongPressCancel: holds ? () => _letGo(release: false) : null,
         // The box is there without a paper too. A box that came and went
         // with the paper would build the scroll view anew, at offset zero.
         child: ColoredBox(
