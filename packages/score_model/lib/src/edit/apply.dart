@@ -301,8 +301,8 @@ bool _tieMoves(
   Tone? from,
 }) =>
     note.tie &&
-    _headWhere(before, (n) => n.tone == (from ?? note.tone))?.note.id !=
-        _headWhere(after, (n) => n.tone == note.tone)?.note.id;
+    headOfTone(before?.event, from ?? note.tone)?.id !=
+        headOfTone(after?.event, note.tone)?.id;
 
 /// The head of [timed] that [matches], or null when [timed] is null, a
 /// rest, or has no such head.
@@ -312,6 +312,17 @@ _Head? _headWhere(TimedEvent? timed, bool Function(Note note) matches) {
       if (matches(note)) {
         return (timed: timed, chord: chord, note: note);
       }
+    }
+  }
+  return null;
+}
+
+/// The head of [timed] with [tone], as [headOfTone] finds it, or null when
+/// [timed] is null, a rest, or has no head of that tone.
+_Head? _headOfTone(TimedEvent? timed, Tone tone) {
+  if (timed case TimedEvent(event: final ChordEvent chord)) {
+    if (headOfTone(chord, tone) case final note?) {
+      return (timed: timed, chord: chord, note: note);
     }
   }
   return null;
@@ -356,17 +367,17 @@ Score _replace(Score score, TimedEvent timed, Event replacement) =>
 /// the head of the same tone in the adjacent event of its voice, as
 /// `measureView` draws it.
 List<_Head> _tieChain(Score score, _Head head) {
-  bool samePitch(Note note) => note.tone == head.note.tone;
+  final tone = head.note.tone;
   final chain = [head];
   while (true) {
-    final back = _headWhere(_previous(score, chain.first.timed), samePitch);
+    final back = _headOfTone(_previous(score, chain.first.timed), tone);
     if (back == null || !back.note.tie) {
       break;
     }
     chain.insert(0, back);
   }
   while (chain.last.note.tie) {
-    final ahead = _headWhere(_next(score, chain.last.timed), samePitch);
+    final ahead = _headOfTone(_next(score, chain.last.timed), tone);
     if (ahead == null) {
       break;
     }
@@ -467,14 +478,40 @@ ScorePoint? _outsideBar(Score score, RangeSelection range) {
 /// on another head than they did in [before], or on none where they ended
 /// on one.
 Score _retie(Score before, Score after, Set<(int, StaffId)> lanes) {
-  var retied = after;
   final checked = {
     for (final (bar, staff) in lanes) ...[
       (bar, staff),
       if (bar > 0) (bar - 1, staff),
     ],
   };
-  for (final (bar, staff) in checked) {
+  bool moves(TimedEvent timed, ChordEvent chord, Note note) {
+    final old = before.lookup(timed.ref)!;
+    final tones = {
+      if (old.event case ChordEvent(:final notes))
+        for (final note in notes) note.id: note.tone,
+    };
+    return _tieMoves(
+      note,
+      _next(before, old),
+      _next(after, timed),
+      from: tones[note.id],
+    );
+  }
+
+  return _untieWhere(after, checked, moves);
+}
+
+/// [after] with every tie cleared that [moves] picks, in each voice of
+/// each lane, a bar and staff of [after]. [moves] is asked of each tied
+/// head with the event and chord that hold it, and reads only the scores
+/// it was built over, never the partly untied one.
+Score _untieWhere(
+  Score after,
+  Iterable<(int bar, StaffId staff)> lanes,
+  bool Function(TimedEvent timed, ChordEvent chord, Note note) moves,
+) {
+  var untied = after;
+  for (final (bar, staff) in lanes) {
     final column = after.measures[bar];
     for (final voice in column.staff(staff).voices) {
       for (final timed in timedEvents(
@@ -482,26 +519,18 @@ Score _retie(Score before, Score after, Set<(int, StaffId)> lanes) {
         measure: column.id,
         staff: staff,
       )) {
-        final event = timed.event;
-        if (event is! ChordEvent) {
+        final chord = timed.event;
+        if (chord is! ChordEvent || !chord.notes.any((n) => n.tie)) {
           continue;
         }
-        final old = before.lookup(timed.ref)!;
-        final tones = {
-          if (old.event case ChordEvent(:final notes))
-            for (final note in notes) note.id: note.tone,
-        };
-        final was = _next(before, old);
-        final now = _next(after, timed);
-        bool moves(Note note) =>
-            _tieMoves(note, was, now, from: tones[note.id]);
-        if (event.notes.any(moves)) {
-          retied = _replace(retied, timed, _untied(event, moves));
+        bool clears(Note note) => moves(timed, chord, note);
+        if (chord.notes.any(clears)) {
+          untied = _replace(untied, timed, _untied(chord, clears));
         }
       }
     }
   }
-  return retied;
+  return untied;
 }
 
 /// Refuses [staff] when the score no longer has it.

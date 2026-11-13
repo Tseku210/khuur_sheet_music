@@ -155,11 +155,9 @@ bool _tied(ChordEvent chord) => chord.notes.any((note) => note.tie);
 /// that the tie lands on, or null when none matches.
 List<(Note, NoteRef?)> _tieEnds(ChordEvent chord, TimedEvent? target) {
   NoteRef? landing(Note tied) {
-    if (target case TimedEvent(:final ref, event: ChordEvent(:final notes))) {
-      for (final note in notes) {
-        if (note.tone == tied.tone) {
-          return NoteRef(ref, note.id);
-        }
+    if (target != null) {
+      if (headOfTone(target.event, tied.tone) case final note?) {
+        return NoteRef(target.ref, note.id);
       }
     }
     return null;
