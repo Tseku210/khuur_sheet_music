@@ -1,9 +1,12 @@
+import 'package:score_layout/src/sheet_layout.dart';
 import 'package:score_layout/src/spacing.dart';
 import 'package:score_layout/src/style.dart';
+import 'package:score_layout/src/system_layout.dart';
 import 'package:score_model/score_model.dart';
 import 'package:test/test.dart';
 
 import 'support/bars.dart';
+import 'support/fake_measurer.dart';
 
 void main() {
   group('stretchFor and sliceXs', () {
@@ -148,5 +151,57 @@ void main() {
         expect(slices.last, Slice(at: at(1, 1), ideal: 0, rod: 0.16));
       },
     );
+  });
+
+  group('a bar that holds only a bar rest', () {
+    /// A justified system of a bar of beats, a bar rest and a bar of beats
+    /// again, every beat a note of [meter]'s lower number, before a system
+    /// of one more bar of beats.
+    SystemLayout restBetweenBeats(Meter meter) {
+      final value = NoteValue(
+        DurationBase.values.firstWhere(
+          (base) => base.length == Length(Fraction(1, meter.unit)),
+        ),
+      );
+      StaffSpec beats(int bar) => staffOf([
+        for (var k = 0; k < meter.numerator; k++)
+          chordOf(bar * 20 + k + 1, 'B4', value: value),
+      ]);
+      final score = after(
+        scoreOf([
+          [beats(0)],
+          [
+            staffOf([MeasureRest(id: const EventId(19), span: meter.length)]),
+          ],
+          [beats(2)],
+          [beats(3)],
+        ], meter: meter),
+        [SetBreak(barId(3), LayoutBreak.system)],
+      );
+      final layout = SheetLayout(score, width: 80, text: const FakeMeasurer());
+      expect(layout.systemCount, 2);
+      return layout.systemAt(0);
+    }
+
+    for (final meter in [Meter.fourFour, Meter.sixEight]) {
+      test('in ${meter.numerator}/${meter.unit} takes the room and spaces the '
+          'time of the bar filled with its beats', () {
+        final system = restBetweenBeats(meter);
+        final rest = system.barOf(barId(1))!;
+        final beats = system.barOf(barId(2))!;
+
+        expect(
+          rest.right - rest.left,
+          closeTo(beats.right - beats.left, 1e-9),
+        );
+        for (var k = 0; k <= meter.numerator; k++) {
+          final offset = at(k, meter.unit);
+          expect(
+            rest.time.xAt(offset) - rest.left,
+            closeTo(beats.time.xAt(offset) - beats.left, 1e-9),
+          );
+        }
+      });
+    }
   });
 }
