@@ -233,7 +233,9 @@ void expectPlaysAsScript(Score score) {
   // compared per key and channel, in order.
   final ends = <(int, int), List<double>>{};
   for (final note in scripted) {
-    (ends[(note.channel, note.key)] ??= []).add(note.start + note.duration);
+    (ends[(note.channel, note.key)] ??= []).add(
+      note.start + note.duration + note.overlap,
+    );
   }
   final releases = <(int, int), List<int>>{};
   for (final note in file.allNotes) {
@@ -429,6 +431,45 @@ void main() {
       final notes = exported(score).notes(1);
       expect([for (final note in notes) (note.key, note.on)], [(64, 0)]);
       expect(notes.single.off, greaterThan(whole));
+    });
+
+    test('writes a slurred note into the next, and lets go of a key before '
+        'it strikes it again', () {
+      var score = fill(quarters(1), 0, [
+        for (final (i, pitch) in const ['C4', 'C4', 'D4', 'D4'].indexed)
+          chordOf(i + 1, pitch),
+      ]);
+      score = withSlur(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(3, 4)),
+        voice: VoiceSlot.one,
+      );
+      expectPlaysAsScript(score);
+
+      final file = exported(score);
+      expect(
+        [for (final note in file.notes(1)) (note.key, note.on, note.off)],
+        [
+          (60, 0, quarter),
+          (60, quarter, 2 * quarter + 38),
+          (62, 2 * quarter, 3 * quarter),
+          (62, 3 * quarter, 3 * quarter + 864),
+        ],
+      );
+      final sounding = <int>{};
+      for (final MidiEvent(:status, :data, :tick) in file.tracks[1]) {
+        if (status case 0x80 || 0x90) {
+          final [key, velocity] = data;
+          expect(
+            status == 0x90 && velocity > 0
+                ? sounding.add(key)
+                : sounding.remove(key),
+            isTrue,
+            reason: 'key $key at tick $tick',
+          );
+        }
+      }
     });
 
     test('bends a quarter tone and bends back for the next note', () {

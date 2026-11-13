@@ -81,8 +81,7 @@ final class Fraction implements Comparable<Fraction> {
   int get hashCode => Object.hash(numerator, denominator);
 
   @override
-  String toString() =>
-      isInteger ? '$numerator' : '$numerator/$denominator';
+  String toString() => isInteger ? '$numerator' : '$numerator/$denominator';
 
   static Fraction sum(Iterable<Fraction> values) =>
       values.fold(zero, (total, value) => total + value);

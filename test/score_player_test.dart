@@ -115,6 +115,28 @@ Score duet() => fill(
   staff: 2,
 );
 
+/// A score at 60 quarters a minute of one piano bar per entry of [bars].
+Score line(List<List<VoiceItem>> bars) {
+  var score = atSixty(blankScore(parts: const [piano], bars: bars.length));
+  for (final (bar, items) in bars.indexed) {
+    score = fill(score, bar, items);
+  }
+  return score;
+}
+
+/// [score] with a slur in voice one of the first staff from the quarter
+/// [first] to the quarter [last], each a bar and a beat counted from 0.
+Score slurred(Score score, (int, int) first, (int, int) last) => withSpanner(
+  score,
+  const Slur(),
+  pointAt(score, first.$1, at(first.$2, 4)),
+  pointAt(score, last.$1, at(last.$2, 4)),
+  voice: VoiceSlot.one,
+);
+
+ChordEvent marked(ChordEvent chord, Set<Articulation> marks) =>
+    chord.copyWith(articulations: marks);
+
 class Host extends StatefulWidget {
   const Host(this.create, {super.key});
 
@@ -814,6 +836,181 @@ void main() {
         expect(rig.status, PlayerStatus.idle);
       },
     );
+  });
+
+  group('slurs', () {
+    testPlayer(
+      'a slurred note sounds 40 ms into the next, and the last note of the '
+      'slur and the notes outside it keep their length',
+      (tester, rig) async {
+        await rig.player.play(slurred(tune(), (0, 1), (0, 2)));
+        await tester.pump(second * 4);
+
+        expect(rig.midi.log.skip(2), [
+          '0.000 on 0:60',
+          '0.900 off 0:60',
+          '1.000 on 0:62',
+          '2.000 on 0:64',
+          '2.040 off 0:62',
+          '2.900 off 0:64',
+          '3.000 on 0:65',
+          '3.900 off 0:65',
+        ]);
+      },
+    );
+
+    testPlayer('a slurred note keeps the length its staccato, portato or '
+        'tenuto gives it, and an accent leaves it legato', (
+      tester,
+      rig,
+    ) async {
+      final score = line([
+        [
+          marked(chordOf(1, 'C4'), {Articulation.staccato}),
+          marked(chordOf(2, 'D4'), {Articulation.accent}),
+          marked(chordOf(3, 'E4'), {
+            Articulation.staccato,
+            Articulation.tenuto,
+          }),
+          marked(chordOf(4, 'F4'), {Articulation.tenuto}),
+        ],
+        [chordOf(5, 'G4', value: NoteValue.whole)],
+      ]);
+      await rig.player.play(slurred(score, (0, 0), (1, 0)));
+      await tester.pump(second * 8);
+
+      expect(rig.midi.log.skip(2), [
+        '0.000 on 0:60',
+        '0.500 off 0:60',
+        '1.000 on 0:62',
+        '2.000 on 0:64',
+        '2.040 off 0:62',
+        '2.750 off 0:64',
+        '3.000 on 0:65',
+        '4.000 off 0:65',
+        '4.000 on 0:67',
+        '7.600 off 0:67',
+      ]);
+    });
+
+    testPlayer(
+      'a slurred note that its key strikes again ends as the next starts',
+      (tester, rig) async {
+        final score = line([
+          [
+            chordOf(1, 'C4'),
+            chordOf(2, 'C4'),
+            chordOf(3, 'D4'),
+            chordOf(4, 'D4'),
+          ],
+        ]);
+        await rig.player.play(slurred(score, (0, 0), (0, 3)));
+        await tester.pump(second * 4);
+
+        expect(rig.midi.log.skip(2), [
+          '0.000 on 0:60',
+          '1.000 off 0:60',
+          '1.000 on 0:60',
+          '2.000 on 0:62',
+          '2.040 off 0:60',
+          '3.000 off 0:62',
+          '3.000 on 0:62',
+          '3.900 off 0:62',
+        ]);
+        expect(rig.midi.held, isEmpty);
+      },
+    );
+
+    testPlayer('a slurred chord sounds into the next chord, except on a key '
+        'that chord strikes again', (tester, rig) async {
+      final score = line([
+        [chordOf(1, 'C4 E4'), chordOf(2, 'C4 G4'), rest(3, NoteValue.half)],
+      ]);
+      await rig.player.play(slurred(score, (0, 0), (0, 1)));
+      await tester.pump(second * 4);
+
+      expect(rig.midi.log.skip(2), [
+        '0.000 on 0:60',
+        '0.000 on 0:64',
+        '1.000 off 0:60',
+        '1.000 on 0:60',
+        '1.000 on 0:67',
+        '1.040 off 0:64',
+        '1.900 off 0:60',
+        '1.900 off 0:67',
+      ]);
+    });
+
+    testPlayer('a slurred note before a rest ends where the rest starts', (
+      tester,
+      rig,
+    ) async {
+      final score = line([
+        [
+          chordOf(1, 'C4'),
+          rest(2, NoteValue.quarter),
+          chordOf(3, 'E4'),
+          chordOf(4, 'F4'),
+        ],
+      ]);
+      await rig.player.play(slurred(score, (0, 0), (0, 3)));
+      await tester.pump(second * 4);
+
+      expect(rig.midi.log.skip(2), [
+        '0.000 on 0:60',
+        '1.000 off 0:60',
+        '2.000 on 0:64',
+        '3.000 on 0:65',
+        '3.040 off 0:64',
+        '3.900 off 0:65',
+      ]);
+    });
+
+    testPlayer('a tie chain under a slur sounds as one note into the next', (
+      tester,
+      rig,
+    ) async {
+      final score = line([
+        [
+          chordOf(1, 'C4', tie: true),
+          chordOf(2, 'C4'),
+          chordOf(3, 'D4', value: NoteValue.half),
+        ],
+      ]);
+      await rig.player.play(slurred(score, (0, 0), (0, 2)));
+      await tester.pump(second * 4);
+
+      expect(rig.midi.log.skip(2), [
+        '0.000 on 0:60',
+        '2.000 on 0:62',
+        '2.040 off 0:60',
+        '3.800 off 0:62',
+      ]);
+    });
+
+    testPlayer('a slur across a barline joins its notes', (tester, rig) async {
+      await rig.player.play(slurred(tune(bars: 2), (0, 3), (1, 0)));
+      await tester.pump(second * 4.5);
+
+      expect(rig.midi.log.skip(8), [
+        '3.000 on 0:65',
+        '4.000 on 0:60',
+        '4.040 off 0:65',
+      ]);
+    });
+
+    testPlayer('the overlap lasts 40 ms at any speed', (tester, rig) async {
+      rig.player.tempoScale = 0.5;
+      await rig.player.play(slurred(tune(), (0, 0), (0, 1)));
+      await tester.pump(second * 3.9);
+
+      expect(rig.midi.log.skip(2), [
+        '0.000 on 0:60',
+        '2.000 on 0:62',
+        '2.040 off 0:60',
+        '3.800 off 0:62',
+      ]);
+    });
   });
 
   group('tempoScale', () {
