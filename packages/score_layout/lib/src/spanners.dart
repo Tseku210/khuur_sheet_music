@@ -18,6 +18,7 @@ import 'chords.dart';
 import 'drawable.dart';
 import 'geometry.dart';
 import 'glyphs.dart';
+import 'ink.dart';
 import 'smufl_font.dart';
 import 'style.dart';
 import 'text.dart';
@@ -65,7 +66,13 @@ const double _voltaPad = 0.3;
 /// neither.
 Side curveSide(Spanner spanner) => switch (spanner.kind) {
   Slur() when !(spanner.voice ?? VoiceSlot.one).stemsUp => Side.below,
-  _ => Side.above,
+  Slur() ||
+  Hairpin() ||
+  OctaveLine() ||
+  PedalLine() ||
+  TrillLine() ||
+  TempoLine() ||
+  Glissando() => Side.above,
 };
 
 /// One end of a tie, or both, as one bar sees it.
@@ -192,12 +199,13 @@ List<TieEnd> tieEnds(
 
   double x(BarAnchor anchor) => xs[anchor.slice] + anchor.dx;
   void reserve(double x0, double x1, double y, Side side) {
-    final lo = math.min(x0, x1);
-    final hi = math.max(x0, x1);
-    skyline.add(switch (side) {
-      Side.above => Box(lo, y - tieRise, hi, y),
-      Side.below => Box(lo, y, hi, y + tieRise),
-    });
+    skyline.reserve(
+      side,
+      x0,
+      x1,
+      clear: y,
+      limit: side == Side.above ? y - tieRise : y + tieRise,
+    );
   }
 
   final ends = <TieEnd>[];
@@ -359,7 +367,11 @@ double arrivingRoom(
             _inset(piece.kind, defaults) +
                 _rowWidth(_restatedGlyphs(piece.kind), style.font) -
                 lead,
-          _ => 0.0,
+          Hairpin() ||
+          PedalLine() ||
+          TrillLine() ||
+          TempoLine() ||
+          Glissando() => 0.0,
         },
   ].reduce(math.max);
 }
@@ -652,26 +664,26 @@ List<SpannerPiece> spannerPieces(
       segments.add((segment, staff));
     }
   }
+  final order = [
+    for (var i = 0; i < segments.length; i++)
+      (_rank(segments[i].$1.spanner.kind), i),
+  ]..sort((a, b) => a.$1 != b.$1 ? a.$1.compareTo(b.$1) : a.$2.compareTo(b.$2));
   return [
-    for (var rank = 0; rank <= _lastRank; rank++)
-      for (final (segment, staff) in segments)
-        if (_rank(segment.spanner.kind) == rank)
-          _piece(
-            segment,
-            view.staves[staff],
-            skylines[staff],
-            chords,
-            staff: staff,
-            barLength: view.column.length,
-            times: times,
-            xs: xs,
-            style: style,
-            text: text,
-          ),
+    for (final (_, index) in order)
+      _piece(
+        segments[index].$1,
+        view.staves[segments[index].$2],
+        skylines[segments[index].$2],
+        chords,
+        staff: segments[index].$2,
+        barLength: view.column.length,
+        times: times,
+        xs: xs,
+        style: style,
+        text: text,
+      ),
   ];
 }
-
-const int _lastRank = 6;
 
 /// The reservation order of the kinds.
 int _rank(SpannerKind kind) => switch (kind) {
@@ -681,7 +693,7 @@ int _rank(SpannerKind kind) => switch (kind) {
   PedalLine() => 3,
   TrillLine() => 4,
   TempoLine() => 5,
-  Glissando() => _lastRank,
+  Glissando() => 6,
 };
 
 SpannerPiece _piece(
@@ -704,19 +716,10 @@ SpannerPiece _piece(
   final end = pieceEnd(segment, staffView, barLength);
   final startChord = start.event == null ? null : chords[start.event];
   final endChord = end.event == null ? null : chords[end.event];
-  double free(double x0, double x1) => switch (side) {
-    Side.above => sky.freeAbove(math.min(x0, x1), math.max(x0, x1)),
-    Side.below => sky.freeBelow(math.min(x0, x1), math.max(x0, x1)),
-  };
-  void reserve(double x0, double x1, double clear, double limit) {
-    final lo = math.min(x0, x1);
-    final hi = math.max(x0, x1);
-    sky.add(
-      side == Side.above
-          ? Box(lo, limit, hi, clear)
-          : Box(lo, clear, hi, limit),
-    );
-  }
+  double free(double x0, double x1) =>
+      sky.free(side, math.min(x0, x1), math.max(x0, x1));
+  void reserve(double x0, double x1, double clear, double limit) =>
+      sky.reserve(side, x0, x1, clear: clear, limit: limit);
 
   SpannerPiece piece({
     required BarAnchor from,
@@ -930,7 +933,7 @@ List<Glyph> _startGlyphs(SpannerKind kind) => switch (kind) {
   OctaveLine(:final shift) => [_octaveGlyph(shift)],
   PedalLine() => const [Glyph.keyboardPedalPed],
   TrillLine() => const [Glyph.ornamentTrill],
-  _ => const [],
+  Slur() || Hairpin() || TempoLine() || Glissando() => const [],
 };
 
 /// The glyphs a line of [kind] restates when it continues onto a new system.
@@ -940,7 +943,12 @@ List<Glyph> _restatedGlyphs(SpannerKind kind) => switch (kind) {
     _octaveGlyph(shift),
     Glyph.octaveParensRight,
   ],
-  _ => const [],
+  Slur() ||
+  Hairpin() ||
+  PedalLine() ||
+  TrillLine() ||
+  TempoLine() ||
+  Glissando() => const [],
 };
 
 /// The event sounding at [at] in voice [slot] of [staff], as
@@ -952,8 +960,8 @@ TimedEvent? _sounding(StaffView staff, VoiceSlot slot, Moment at) => staff
     .where((e) => e.onset <= at && at < e.onset + e.duration)
     .firstOrNull;
 
-/// The event a slur, glissando or trill line attaches to at [at], which is
-/// the one sounding there in the spanner's voice, or in voice one when that
+/// The event a spanner of [SpannerReach.events] attaches to at [at], which
+/// is the one sounding there in the spanner's voice, or in voice one when that
 /// voice has none there (`Score.anchorAt`).
 TimedEvent? _anchor(StaffView staff, Spanner spanner, Moment at) =>
     _sounding(staff, spanner.voice ?? VoiceSlot.one, at) ??
@@ -961,8 +969,8 @@ TimedEvent? _anchor(StaffView staff, Spanner spanner, Moment at) =>
 
 /// Where the piece of [segment] starts in its bar, and on which event.
 ///
-/// This and [pieceEnd] apply `Score.anchorAt` and `Score.lineEnd` to the
-/// bar's view, so the bar needs no `Score`.
+/// This and [pieceEnd] apply `Score.anchorAt` to the bar's view, so the bar
+/// needs no `Score`. A segment's `to` is already `Score.endOf` its spanner.
 ({Moment at, EventId? event}) pieceStart(
   SpannerSegment segment,
   StaffView staff,
@@ -970,11 +978,11 @@ TimedEvent? _anchor(StaffView staff, Spanner spanner, Moment at) =>
   if (!segment.startsHere) {
     return (at: Moment.zero, event: null);
   }
-  switch (segment.spanner.kind) {
-    case Slur() || Glissando() || TrillLine():
+  switch (segment.spanner.kind.reach) {
+    case SpannerReach.events:
       final anchor = _anchor(staff, segment.spanner, segment.from);
       return (at: anchor?.onset ?? segment.from, event: anchor?.event.id);
-    case Hairpin() || OctaveLine() || PedalLine() || TempoLine():
+    case SpannerReach.time:
       return (at: segment.from, event: null);
   }
 }
@@ -988,16 +996,12 @@ TimedEvent? _anchor(StaffView staff, Spanner spanner, Moment at) =>
   if (!segment.endsHere) {
     return (at: Moment.zero + barLength, event: null);
   }
-  switch (segment.spanner.kind) {
-    case Slur() || Glissando() || TrillLine():
+  switch (segment.spanner.kind.reach) {
+    case SpannerReach.events:
       final anchor = _anchor(staff, segment.spanner, segment.to);
       return (at: anchor?.onset ?? segment.to, event: anchor?.event.id);
-    case Hairpin() || OctaveLine() || PedalLine() || TempoLine():
-      final last = _sounding(staff, VoiceSlot.one, segment.to);
-      return (
-        at: last == null ? segment.to : last.onset + last.duration,
-        event: null,
-      );
+    case SpannerReach.time:
+      return (at: segment.to, event: null);
   }
 }
 
@@ -1259,12 +1263,7 @@ List<Drawable> _placeRun(
           text,
           SpPoint(startX, baseline),
           spec: style.specOf(TextRole.expression),
-          bounds: Box(
-            startX,
-            baseline - extent.ascent,
-            startX + extent.width,
-            baseline + extent.descent,
-          ),
+          bounds: extent.boxAt(startX, baseline),
           ink: InkRole.tempo,
           owner: owner,
         );
@@ -1332,15 +1331,7 @@ double _rowWidth(List<Glyph> glyphs, SmuflFont font) {
   for (final glyph in glyphs) {
     final metrics = font[glyph];
     final origin = SpPoint(at, baseline);
-    row.add(
-      GlyphDraw(
-        glyph,
-        origin,
-        bounds: metrics.box.shift(origin.x, origin.y),
-        ink: ink,
-        owner: owner,
-      ),
-    );
+    row.add(glyphAt(font, glyph, origin, ink: ink, owner: owner));
     at += metrics.advance;
   }
   return (row, row.last.bounds.right);
@@ -1486,12 +1477,7 @@ List<Drawable> placeVoltas(
           first.of.label,
           SpPoint(x, baseline),
           spec: style.specOf(TextRole.volta),
-          bounds: Box(
-            x,
-            baseline - extent.ascent,
-            x + extent.width,
-            baseline + extent.descent,
-          ),
+          bounds: extent.boxAt(x, baseline),
           ink: InkRole.volta,
         ),
       );

@@ -81,9 +81,9 @@ List<Moment> sliceTimes(MeasureView view) {
   return times;
 }
 
-bool _startsSlice(SpannerKind kind) => switch (kind) {
-  Hairpin() || OctaveLine() || PedalLine() || TempoLine() => true,
-  Slur() || Glissando() || TrillLine() => false,
+bool _startsSlice(SpannerKind kind) => switch (kind.reach) {
+  SpannerReach.time => true,
+  SpannerReach.events => false,
 };
 
 /// The slices of [view] at [times], with the reach each one's content has.

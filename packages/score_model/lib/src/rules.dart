@@ -4,6 +4,7 @@
 /// accepts the same values.
 library;
 
+import 'events.dart';
 import 'pitch.dart';
 import 'score.dart';
 import 'time.dart';
@@ -70,11 +71,61 @@ String? startProblem(Moment at) => _onGrid(Moment.zero.until(at))
     : 'a note starts a whole number of 128th notes into its bar or tuplet';
 
 bool _onGrid(Length length) =>
-    (length / DurationBase.oneTwentyEighth.length).denominator == 1;
+    (length / DurationBase.oneTwentyEighth.length).isInteger;
 
 String? pitchProblem(Pitch pitch) => pitch.midiKey >= 0 && pitch.midiKey <= 127
     ? null
     : 'a pitch lies within MIDI keys 0 to 127';
+
+/// Whether [instrument] takes a tone of the kind a note offers: a drum on a
+/// percussion staff, a pitch on a pitched one.
+String? toneKindProblem(Instrument instrument, {required bool isDrum}) {
+  if (isDrum == instrument.isPercussion) {
+    return null;
+  }
+  return isDrum
+      ? 'a pitched staff takes pitches'
+      : 'a percussion staff takes drums';
+}
+
+/// A pitch in the MIDI range on a pitched staff, or a drum of the part's
+/// kit on a percussion staff.
+String? toneProblem(Instrument instrument, Tone tone) => switch (tone) {
+  Pitch() => toneKindProblem(instrument, isDrum: false) ?? pitchProblem(tone),
+  Drum() =>
+    toneKindProblem(instrument, isDrum: true) ??
+        (instrument.soundOf(tone) == null ? 'the kit has no $tone' : null),
+};
+
+String? stringProblem(Instrument instrument, int string) =>
+    string >= 0 && string < instrument.strings.length
+    ? null
+    : 'the instrument has no such string';
+
+/// The only articulations a rest can carry.
+const Set<Articulation> restMarks = {Articulation.fermata};
+
+String? restMarksProblem(Set<Articulation> marks) =>
+    restMarks.containsAll(marks) ? null : 'a rest holds only a fermata';
+
+/// A spanner that joins notes ends after it starts; any other ends no
+/// sooner than it starts. The ends are bar indices and offsets so the rule
+/// needs no [Score].
+String? spannerOrderProblem({
+  required bool joinsNotes,
+  required int firstBar,
+  required Moment firstOffset,
+  required int lastBar,
+  required Moment lastOffset,
+}) {
+  final order = firstBar != lastBar
+      ? firstBar.compareTo(lastBar)
+      : firstOffset.compareTo(lastOffset);
+  if (joinsNotes) {
+    return order < 0 ? null : 'a slur or glissando ends after it starts';
+  }
+  return order <= 0 ? null : 'a line cannot end before it starts';
+}
 
 String? tempoMarkProblem(Tempo tempo) =>
     tempoProblem(tempo.bpm) ?? valueProblem(tempo.beat);

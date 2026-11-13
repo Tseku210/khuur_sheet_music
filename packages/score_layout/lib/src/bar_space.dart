@@ -121,6 +121,45 @@ final class Skyline {
     return free;
   }
 
+  /// The free edge on [side] over [left] to [right]: [freeAbove] or
+  /// [freeBelow].
+  double free(Side side, double left, double right) => switch (side) {
+    Side.above => freeAbove(left, right),
+    Side.below => freeBelow(left, right),
+  };
+
+  /// Reserves the room between [clear], the edge nearest the staff, and
+  /// [limit], the edge farthest from it, on [side] over [left] to [right].
+  /// The ends may come in either order.
+  void reserve(
+    Side side,
+    double left,
+    double right, {
+    required double clear,
+    required double limit,
+  }) {
+    final lo = math.min(left, right);
+    final hi = math.max(left, right);
+    add(
+      side == Side.above
+          ? Box(lo, limit, hi, clear)
+          : Box(lo, clear, hi, limit),
+    );
+  }
+
+  /// The y shift that puts [box] on [side] of everything the outline has
+  /// from [left] to [right], [gap] clear of it.
+  double clearance(
+    Side side,
+    Box box,
+    double gap,
+    double left,
+    double right,
+  ) => switch (side) {
+    Side.above => freeAbove(left, right) - gap - box.bottom,
+    Side.below => freeBelow(left, right) + gap - box.top,
+  };
+
   /// How far the outline reaches above the top line. Never negative.
   double get above {
     var top = 0.0;

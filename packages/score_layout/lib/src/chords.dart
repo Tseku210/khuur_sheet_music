@@ -15,6 +15,7 @@ import 'bar_space.dart';
 import 'drawable.dart';
 import 'geometry.dart';
 import 'glyphs.dart';
+import 'ink.dart';
 import 'signatures.dart';
 import 'smufl_font.dart';
 import 'spacing.dart';
@@ -429,13 +430,7 @@ List<BarItem> placeRest({
         BarItem(
           slice,
           staff,
-          GlyphDraw(
-            glyph,
-            origin,
-            bounds: box,
-            ink: InkRole.rest,
-            owner: owner,
-          ),
+          glyphAt(font, glyph, origin, ink: InkRole.rest, owner: owner),
         ),
         for (var i = 0; i < value.dots; i++)
           BarItem(
@@ -454,10 +449,10 @@ List<BarItem> placeRest({
         BarItem(
           slice,
           staff,
-          GlyphDraw(
+          glyphAt(
+            font,
             Glyph.restWhole,
             origin,
-            bounds: box.shift(origin.x, origin.y),
             ink: InkRole.rest,
             owner: owner,
           ),
@@ -511,12 +506,7 @@ List<Drawable> placeRestRun(
     final rightEnd = SpPoint(to - rightBox.right, line);
     drawables
       ..add(
-        GlyphDraw(
-          Glyph.restHBarLeft,
-          leftEnd,
-          bounds: leftBox.shift(leftEnd.x, leftEnd.y),
-          ink: InkRole.rest,
-        ),
+        glyphAt(font, Glyph.restHBarLeft, leftEnd, ink: InkRole.rest),
       )
       ..add(
         LineDraw(
@@ -530,24 +520,12 @@ List<Drawable> placeRestRun(
         ),
       )
       ..add(
-        GlyphDraw(
-          Glyph.restHBarRight,
-          rightEnd,
-          bounds: rightBox.shift(rightEnd.x, rightEnd.y),
-          ink: InkRole.rest,
-        ),
+        glyphAt(font, Glyph.restHBarRight, rightEnd, ink: InkRole.rest),
       );
     var x = (from + to - digitsWidth) / 2;
     for (final glyph in digits) {
       final origin = SpPoint(x, top + _countY);
-      drawables.add(
-        GlyphDraw(
-          glyph,
-          origin,
-          bounds: font[glyph].box.shift(origin.x, origin.y),
-          ink: InkRole.rest,
-        ),
-      );
+      drawables.add(glyphAt(font, glyph, origin, ink: InkRole.rest));
       x += font[glyph].advance;
     }
   }
@@ -717,7 +695,7 @@ SpPoint _flagStemAnchor(GlyphMetrics metrics, bool up) =>
 double _flagReach(SmuflFont font, Glyph flag, bool up, double scale) {
   final metrics = font[flag];
   final anchor = _scaledPoint(_flagStemAnchor(metrics, up), scale);
-  final box = _scaled(metrics.box, scale);
+  final box = metrics.box.scaled(scale);
   return up ? box.bottom - anchor.y : anchor.y - box.top;
 }
 
@@ -795,7 +773,7 @@ final class _ChordInk {
         if (head.column != column) {
           continue;
         }
-        final box = _scaled(font[head.glyph].box, scale);
+        final box = font[head.glyph].box.scaled(scale);
         final x = up ? columnFrom - box.left : columnFrom - box.right;
         origins[i] = SpPoint(x, origins[i].y);
         columnEnd = up
@@ -808,14 +786,14 @@ final class _ChordInk {
     Box? headsBox;
     for (final (i, head) in heads.indexed) {
       final origin = origins[i];
-      final at = _scaled(font[head.glyph].box, scale).shift(origin.x, origin.y);
+      final at = font[head.glyph].box.scaled(scale).shift(origin.x, origin.y);
       headBoxes[head.id] = at;
       headsBox = headsBox?.union(at) ?? at;
       drawables.add(
-        GlyphDraw(
+        glyphAt(
+          font,
           head.glyph,
           origin,
-          bounds: at,
           scale: scale,
           owner: headOwner(head),
           ink: head.ink,
@@ -830,7 +808,7 @@ final class _ChordInk {
       Box? span;
       for (final (i, head) in heads.indexed) {
         if (served(head.step)) {
-          final box = _scaled(font[head.glyph].box, scale);
+          final box = font[head.glyph].box.scaled(scale);
           final at = box.shift(origins[i].x, origins[i].y);
           span = span?.union(at) ?? at;
         }
@@ -874,7 +852,7 @@ final class _ChordInk {
       var top = double.infinity;
       var bottom = double.negativeInfinity;
       for (final glyph in run) {
-        final box = _scaled(font[glyph].box, scale);
+        final box = font[glyph].box.scaled(scale);
         width += box.width;
         top = math.min(top, y + box.top);
         bottom = math.max(bottom, y + box.bottom);
@@ -895,14 +873,13 @@ final class _ChordInk {
       for (final entry in column.entries) {
         var x = edge;
         for (final glyph in entry.run.reversed) {
-          final box = _scaled(font[glyph].box, scale);
+          final box = font[glyph].box.scaled(scale);
           x -= box.right;
-          final origin = SpPoint(x, entry.y);
           drawables.add(
-            GlyphDraw(
+            glyphAt(
+              font,
               glyph,
-              origin,
-              bounds: box.shift(origin.x, origin.y),
+              SpPoint(x, entry.y),
               ink: InkRole.accidental,
               scale: scale,
               owner: owner,
@@ -928,7 +905,7 @@ final class _ChordInk {
       strokes = (
         glyph: glyph,
         origin: origin,
-        box: _scaled(font[glyph].box, scale).shift(origin.x, origin.y),
+        box: font[glyph].box.scaled(scale).shift(origin.x, origin.y),
       );
     }
     var length = stemLength * scale;
@@ -949,10 +926,10 @@ final class _ChordInk {
       final metrics = font[flag];
       final anchor = _scaledPoint(_flagStemAnchor(metrics, up), scale);
       final origin = SpPoint(stemLeft - anchor.x, tipY - anchor.y);
-      flagDraw = GlyphDraw(
+      flagDraw = glyphAt(
+        font,
         flag,
         origin,
-        bounds: _scaled(metrics.box, scale).shift(origin.x, origin.y),
         ink: InkRole.flag,
         scale: scale,
         owner: owner,
@@ -960,7 +937,7 @@ final class _ChordInk {
     }
 
     if (dots > 0) {
-      final dot = _scaled(font[Glyph.augmentationDot].box, scale);
+      final dot = font[Glyph.augmentationDot].box.scaled(scale);
       final rows = [
         for (final step in {
           for (final head in heads) head.step.isOdd ? head.step : head.step + 1,
@@ -1112,15 +1089,6 @@ GlyphDraw _dot(
 double _dotsRight(double from, int dots, double dotWidth) => dots == 0
     ? from
     : from + _dotGap + dots * dotWidth + (dots - 1) * _dotSpacing;
-
-Box _scaled(Box box, double scale) => scale == 1
-    ? box
-    : Box(
-        box.left * scale,
-        box.top * scale,
-        box.right * scale,
-        box.bottom * scale,
-      );
 
 SpPoint _scaledPoint(SpPoint point, double scale) =>
     scale == 1 ? point : SpPoint(point.x * scale, point.y * scale);

@@ -75,28 +75,20 @@ _Result _setMeter(Score score, SetMeter edit, _Ids ids, EditSession session) {
                 _lastOnset(section.bars.last, spanner);
     },
   );
-  final cursor = session.cursor;
-  final at = onset(cursor.at);
-  Selection? selection;
-  if (session.selection case RangeSelection(
-    :final from,
-    :final to,
-    :final top,
-    :final bottom,
-  )) {
-    final first = onset(from);
-    final section = holding[to.measure];
-    final last = section == null ? to : section.moved(to) ?? section.end;
-    selection = first != null && rebarred.compare(first, last) < 0
-        ? RangeSelection(from: first, to: last, top: top, bottom: bottom)
-        : const Selection.none();
-  }
+  final followed = _follow(
+    rebarred,
+    session.cursor,
+    session.selection,
+    onset: onset,
+    close: (point) {
+      final section = holding[point.measure];
+      return section == null ? point : section.moved(point) ?? section.end;
+    },
+  );
   return _Result(
     rebarred.copyWith(spanners: spanners),
-    cursor: at == null
-        ? null
-        : VoicePoint(staff: cursor.staff, voice: cursor.voice, at: at),
-    selection: selection,
+    cursor: followed.cursor,
+    selection: followed.selection,
   );
 }
 
@@ -361,7 +353,7 @@ final class _Stream {
         when opening is ChordEvent) {
       final event = _eventsIn(item).last;
       bool meets(Note note) =>
-          note.tie && opening.notes.any((n) => n.tone == note.tone);
+          note.tie && headOfTone(opening, note.tone) != null;
       if (event is ChordEvent && event.notes.any(meets)) {
         items.last = (_replaceEvent(item, _untied(event, meets)), origin);
       }
@@ -504,7 +496,7 @@ List<_Span> _spans(Length time, Length span, Length length) {
 /// from 0, and the offset in it.
 (int, Moment) _barAt(Length time, Length length) {
   final ratio = time / length;
-  final bar = ratio.numerator ~/ ratio.denominator;
+  final bar = ratio.floor();
   return (bar, Moment.zero + (time - length * Fraction(bar)));
 }
 

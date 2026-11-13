@@ -8,33 +8,27 @@ part of 'playback.dart';
 /// starts under another takes over from it. Positions count from the start
 /// of the score.
 final class _TempoMap {
-  factory _TempoMap(Score score, List<Length> starts) {
-    Moment place(MeasureId measure, Moment offset) =>
-        _place(score, starts, measure, offset);
+  factory _TempoMap(Score score, _Timeline time) {
     final marks = [
       for (final column in score.measures)
         for (final TempoMark(:offset, :tempo) in column.tempos)
-          _TempoPiece.steady(place(column.id, offset), tempo),
+          _TempoPiece.steady(time.of(column.id, offset), tempo),
     ];
     final lines = stableSorted(
       [
         for (final spanner in score.spanners)
           if (spanner.kind case TempoLine(:final factor))
-            (
-              from: place(spanner.first.measure, spanner.first.offset),
-              spanner: spanner,
-              factor: factor,
-            ),
+            if (time.extentOf(spanner) case (final from, final end))
+              (id: spanner.id, from: from, end: end, factor: factor),
       ],
       (a, b) => a.from.compareTo(b.from),
     );
     final pieces = [const _TempoPiece.steady(Moment.zero, Tempo.unmarked)];
     var next = 0;
-    for (final (:from, :spanner, :factor) in lines) {
+    for (final (:id, :from, :end, :factor) in lines) {
       for (; next < marks.length && marks[next].from <= from; next++) {
         pieces.add(marks[next]);
       }
-      final end = place(spanner.last.measure, score.lineEnd(spanner));
       final start = pieces.last.tempoAt(from);
       final arrival = next < marks.length && marks[next].from <= end
           ? marks[next]
@@ -45,7 +39,7 @@ final class _TempoMap {
           start,
           arrival?.from ?? end,
           arrival?.target ?? Tempo(start.bpm * factor, beat: start.beat),
-          line: spanner.id,
+          line: id,
         ),
       );
     }

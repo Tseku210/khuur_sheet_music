@@ -37,6 +37,14 @@ final class Fraction implements Comparable<Fraction> {
   bool get isNegative => numerator < 0;
   bool get isPositive => numerator > 0;
 
+  /// Whether this fraction is a whole number.
+  bool get isInteger => denominator == 1;
+
+  /// The greatest integer not above this fraction; rounds negatives down.
+  int floor() => numerator >= 0
+      ? numerator ~/ denominator
+      : -((-numerator + denominator - 1) ~/ denominator);
+
   Fraction operator +(Fraction other) => Fraction(
     numerator * other.denominator + other.numerator * denominator,
     denominator * other.denominator,
@@ -74,7 +82,7 @@ final class Fraction implements Comparable<Fraction> {
 
   @override
   String toString() =>
-      denominator == 1 ? '$numerator' : '$numerator/$denominator';
+      isInteger ? '$numerator' : '$numerator/$denominator';
 
   static Fraction sum(Iterable<Fraction> values) =>
       values.fold(zero, (total, value) => total + value);

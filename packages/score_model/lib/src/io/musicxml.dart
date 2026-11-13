@@ -514,7 +514,7 @@ final class _Export {
       ];
       final technical = [
         if (chord?.bowing case final Bowing bowing when first)
-          _el(bowing == Bowing.up ? 'up-bow' : 'down-bow'),
+          _el(bowingName(bowing)),
         if (first && event.articulations.contains(Articulation.harmonic))
           _el('harmonic'),
         ...fingered(note),

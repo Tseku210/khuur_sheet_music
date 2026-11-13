@@ -45,9 +45,10 @@ _Result _setFingering(Score score, NoteRef note, int? finger) {
 _Result _setString(Score score, NoteRef note, int? string) {
   final head = _targetHead(score, note);
   final pitched = _pitchedOnly(head, 'string');
-  final strings = score.partOf(head.timed.ref.staff).instrument.strings;
-  if (string != null && (string < 0 || string >= strings.length)) {
-    throw const _Refuse(InvalidValue('the instrument has no such string'));
+  if (string != null) {
+    _check(
+      stringProblem(score.partOf(head.timed.ref.staff).instrument, string),
+    );
   }
   return _changeNote(
     score,
@@ -109,10 +110,8 @@ _Result _setArticulation(
   if (marks.contains(articulation) == present) {
     return _Result(score);
   }
-  if (present &&
-      timed.event is! ChordEvent &&
-      !_restMarks.contains(articulation)) {
-    throw const _Refuse(InvalidValue('a rest holds only a fermata'));
+  if (present && timed.event is! ChordEvent) {
+    _check(restMarksProblem({articulation}));
   }
   return _changeEvent(
     score,
@@ -266,7 +265,7 @@ Score _removeNote(Score score, _Head head) {
           id: chord.id,
           value: chord.value,
           articulations: Set.unmodifiable(
-            chord.articulations.intersection(_restMarks),
+            chord.articulations.intersection(restMarks),
           ),
         );
   final into = _headWhere(

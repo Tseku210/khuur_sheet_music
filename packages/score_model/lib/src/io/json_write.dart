@@ -224,19 +224,23 @@ Map<String, Object?> _note(Note note) => switch (note) {
 Map<String, Object?> _spanner(Spanner spanner) => {
   'id': spanner.id.value,
   ...switch (spanner.kind) {
-    Slur(:final dashed) => {'kind': 'slur', if (dashed) 'dashed': true},
-    Hairpin(:final crescendo) => {
-      'kind': crescendo ? 'crescendo' : 'diminuendo',
+    Slur(:final dashed) => {
+      'kind': _kindName(spanner.kind),
+      if (dashed) 'dashed': true,
     },
-    OctaveLine(:final shift) => {'kind': 'octave', 'shift': shift.name},
-    TrillLine() => {'kind': 'trill'},
+    OctaveLine(:final shift) => {
+      'kind': _kindName(spanner.kind),
+      'shift': shift.name,
+    },
     TempoLine(:final text, :final factor) => {
-      'kind': 'tempo',
+      'kind': _kindName(spanner.kind),
       'text': text,
       'factor': factor,
     },
-    PedalLine() => {'kind': 'pedal'},
-    Glissando() => {'kind': 'glissando'},
+    Hairpin() ||
+    TrillLine() ||
+    PedalLine() ||
+    Glissando() => {'kind': _kindName(spanner.kind)},
   },
   'staff': spanner.staff.value,
   if (spanner.voice case final voice?) 'voice': voice.index + 1,
@@ -245,4 +249,15 @@ Map<String, Object?> _spanner(Spanner spanner) => {
       'measure': point.measure.value,
       'at': _fraction(point.offset.wholeNotes),
     },
+};
+
+/// The name a spanner of [kind] is written under.
+String _kindName(SpannerKind kind) => switch (kind) {
+  Slur() => 'slur',
+  Hairpin(:final crescendo) => crescendo ? 'crescendo' : 'diminuendo',
+  OctaveLine() => 'octave',
+  TrillLine() => 'trill',
+  TempoLine() => 'tempo',
+  PedalLine() => 'pedal',
+  Glissando() => 'glissando',
 };
