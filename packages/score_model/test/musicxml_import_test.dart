@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -10,9 +9,6 @@ import 'random_edits.dart';
 import 'support.dart';
 
 final golden = File('test/golden/showcase.musicxml');
-
-Score reloaded(Score score) =>
-    scoreFromJson(jsonDecode(jsonEncode(scoreToJson(score))));
 
 /// [xml] read from another app, checking that the score saves and that
 /// reading its export gives the same export.
