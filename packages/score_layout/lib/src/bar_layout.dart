@@ -258,15 +258,22 @@ BarLayout layoutBar(
       right: 0,
     ));
   }
-  final trills = trillLineStarts(view);
+  final marks = eventMarks(
+    view,
+    chords,
+    times: times,
+    trills: trillLineStarts(view),
+    style: style,
+    text: text,
+  );
   reach.setAll(
     0,
     markReach(
       view,
       chords,
+      marks,
       reach,
       times: times,
-      trills: trills,
       style: style,
       text: text,
     ),
@@ -362,60 +369,14 @@ BarLayout layoutBar(
   final tuplets = <TupletStub>[];
   for (final (staff, staffView) in view.staves.indexed) {
     final skyline = skylines[staff];
-    final voices = staffView.voices.length;
-    for (final voice in staffView.voices) {
-      for (final timed in voice.events) {
-        if (!carriesMarks(timed.event)) {
-          continue;
-        }
-        final placed = chords[timed.event.id];
-        if (placed != null) {
-          items
-            ..addAll(
-              articulationItems(
-                placed,
-                skyline,
-                voices: voices,
-                xs: xs,
-                style: style,
-              ),
-            )
-            ..addAll(
-              ornamentItems(
-                placed,
-                skyline,
-                voices: voices,
-                lineStarts: trills.contains(timed.event.id),
-                xs: xs,
-                style: style,
-              ),
-            )
-            ..addAll(
-              stringMarkItems(
-                placed,
-                skyline,
-                voices: voices,
-                strings: staffView.part.instrument.strings.length,
-                xs: xs,
-                style: style,
-                text: text,
-              ),
-            );
-        }
-        items.addAll(
-          fermataItems(
-            timed,
-            skyline,
-            chord: placed,
-            slice: times.indexOf(timed.onset),
-            staff: staff,
-            voices: voices,
-            xs: xs,
-            style: style,
-          ),
-        );
-      }
-    }
+    items.addAll(
+      eventMarkItems(
+        marks.values.where((event) => event.staff == staff),
+        skyline,
+        xs: xs,
+        style: style,
+      ),
+    );
     for (final voice in staffView.voices) {
       tuplets.addAll(
         tupletStubs(
