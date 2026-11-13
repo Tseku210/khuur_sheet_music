@@ -24,6 +24,7 @@ import 'chords.dart';
 import 'drawable.dart';
 import 'geometry.dart';
 import 'glyphs.dart';
+import 'ink.dart';
 import 'smufl_font.dart';
 import 'spacing.dart';
 import 'spanners.dart';
@@ -74,25 +75,17 @@ final class _Row {
   Box get box => _box!;
 
   void glyph(Glyph glyph, {double scale = 1, double dy = 0}) {
-    final metrics = _font[glyph];
-    final bounds = Box(
-      _x + metrics.box.left * scale,
-      dy + metrics.box.top * scale,
-      _x + metrics.box.right * scale,
-      dy + metrics.box.bottom * scale,
+    final draw = glyphAt(
+      _font,
+      glyph,
+      SpPoint(_x, dy),
+      scale: scale,
+      ink: ink,
+      owner: owner,
     );
-    parts.add(
-      GlyphDraw(
-        glyph,
-        SpPoint(_x, dy),
-        bounds: bounds,
-        ink: ink,
-        scale: scale,
-        owner: owner,
-      ),
-    );
-    _box = _box?.union(bounds) ?? bounds;
-    _x += metrics.advance * scale;
+    parts.add(draw);
+    _box = _box?.union(draw.bounds) ?? draw.bounds;
+    _x += _font[glyph].advance * scale;
   }
 
   /// Adds [text], or nothing when it is empty. With an [enclosure], the

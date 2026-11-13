@@ -18,6 +18,7 @@ import 'chords.dart';
 import 'drawable.dart';
 import 'geometry.dart';
 import 'glyphs.dart';
+import 'ink.dart';
 import 'smufl_font.dart';
 import 'style.dart';
 import 'text.dart';
@@ -1262,12 +1263,7 @@ List<Drawable> _placeRun(
           text,
           SpPoint(startX, baseline),
           spec: style.specOf(TextRole.expression),
-          bounds: Box(
-            startX,
-            baseline - extent.ascent,
-            startX + extent.width,
-            baseline + extent.descent,
-          ),
+          bounds: extent.boxAt(startX, baseline),
           ink: InkRole.tempo,
           owner: owner,
         );
@@ -1335,15 +1331,7 @@ double _rowWidth(List<Glyph> glyphs, SmuflFont font) {
   for (final glyph in glyphs) {
     final metrics = font[glyph];
     final origin = SpPoint(at, baseline);
-    row.add(
-      GlyphDraw(
-        glyph,
-        origin,
-        bounds: metrics.box.shift(origin.x, origin.y),
-        ink: ink,
-        owner: owner,
-      ),
-    );
+    row.add(glyphAt(font, glyph, origin, ink: ink, owner: owner));
     at += metrics.advance;
   }
   return (row, row.last.bounds.right);
@@ -1489,12 +1477,7 @@ List<Drawable> placeVoltas(
           first.of.label,
           SpPoint(x, baseline),
           spec: style.specOf(TextRole.volta),
-          bounds: Box(
-            x,
-            baseline - extent.ascent,
-            x + extent.width,
-            baseline + extent.descent,
-          ),
+          bounds: extent.boxAt(x, baseline),
           ink: InkRole.volta,
         ),
       );

@@ -15,6 +15,7 @@ import 'bar_space.dart';
 import 'chords.dart';
 import 'drawable.dart';
 import 'geometry.dart';
+import 'ink.dart';
 import 'spacing.dart';
 import 'style.dart';
 import 'text.dart';
@@ -565,7 +566,7 @@ List<Drawable> placeLyrics(
     '-',
     SpPoint(x, y),
     spec: spec,
-    bounds: Box(x, y - hyphen.ascent, x + hyphen.width, y + hyphen.descent),
+    bounds: hyphen.boxAt(x, y),
     ink: InkRole.lyric,
   );
   List<TextDraw> hyphensBetween(double from, double to, double y) {

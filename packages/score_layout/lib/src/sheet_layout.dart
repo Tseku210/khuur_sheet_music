@@ -9,6 +9,7 @@ import 'chords.dart' show loneNote;
 import 'drawable.dart';
 import 'geometry.dart';
 import 'hit.dart';
+import 'ink.dart';
 import 'signatures.dart';
 import 'style.dart';
 import 'system_layout.dart';
@@ -188,12 +189,7 @@ final class SheetLayout {
         number,
         at,
         spec: spec,
-        bounds: Box(
-          at.x,
-          at.y - extent.ascent,
-          at.x + extent.width,
-          at.y + extent.descent,
-        ),
+        bounds: extent.boxAt(at.x, at.y),
         ink: InkRole.barNumber,
       );
     });
@@ -624,12 +620,7 @@ final class SheetLayout {
             string,
             SpPoint(x, y),
             spec: spec,
-            bounds: Box(
-              x,
-              y - extent.ascent,
-              x + extent.width,
-              y + extent.descent,
-            ),
+            bounds: extent.boxAt(x, y),
             ink: ink,
           ),
         );
