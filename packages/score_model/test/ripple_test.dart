@@ -712,6 +712,115 @@ void main() {
     });
   });
 
+  group('Marks a ripple moves stay loadable', () {
+    test('of clef changes a pull brings together, the last one stays', () {
+      final blank = blankScore();
+      final staff = blank.staves.first.id;
+      var session = EditSession.start(blank);
+      for (final (offset, clef) in [
+        (at(1, 2), Clef.bass),
+        (at(3, 4), Clef.alto),
+      ]) {
+        session = applied(
+          session.run(
+            SetClef(staff: staff, at: pointAt(blank, 0, offset), clef: clef),
+          ),
+        );
+      }
+
+      final next = applied(
+        session.run(
+          Erase(
+            RangeSelection(
+              from: pointAt(blank, 0, at(1, 4)),
+              to: pointAt(blank, 0, at(3, 4)),
+              top: staff,
+              bottom: staff,
+            ),
+            ripple: Ripple.part,
+          ),
+        ),
+      );
+
+      expect(saved(reloaded(next.score)), saved(next.score));
+      expect(next.score.measures[0].staves.first.clefChanges.toList(), [
+        ClefChange(at(1, 4), Clef.alto),
+      ]);
+    });
+
+    test('drops a clef change a pull leaves on the clef in force', () {
+      final blank = blankScore();
+      final staff = blank.staves.first.id;
+      var session = EditSession.start(blank);
+      for (final (offset, clef) in [
+        (at(1, 2), Clef.bass),
+        (at(3, 4), Clef.treble),
+      ]) {
+        session = applied(
+          session.run(
+            SetClef(staff: staff, at: pointAt(blank, 0, offset), clef: clef),
+          ),
+        );
+      }
+
+      final next = applied(
+        session.run(
+          Erase(
+            RangeSelection(
+              from: pointAt(blank, 0, at(1, 4)),
+              to: pointAt(blank, 0, at(3, 4)),
+              top: staff,
+              bottom: staff,
+            ),
+            ripple: Ripple.part,
+          ),
+        ),
+      );
+
+      expect(next.score.measures[0].staves.first.clef, Clef.treble);
+      expect(next.score.measures[0].staves.first.clefChanges, isEmpty);
+    });
+
+    test('keeps directions in time order when a push passes one', () {
+      final blank = blankScore(bars: 1);
+      var session = applied(
+        EditSession.start(blank).run(
+          EnterNote(
+            at: point(blank, 0, at(1, 4)),
+            tone: f4,
+            value: NoteValue.sixteenth,
+          ),
+        ),
+      );
+      session = applied(
+        session.run(
+          SetDirections(
+            staff: blank.staves.first.id,
+            measure: blank.measures[0].id,
+            directions: Seq([
+              DynamicMark(at(1, 2), Dynamic.p),
+              DynamicMark(at(3, 4), Dynamic.f),
+            ]),
+          ),
+        ),
+      );
+      final note = voiceOf(session.score, 0).items.whereType<ChordEvent>();
+
+      final next = applied(
+        revalue(session, note.single.id.value, NoteValue.half),
+      );
+
+      expect(saved(reloaded(next.score)), saved(next.score));
+      expect(
+        [
+          for (final d in next.score.measures[0].staves.first.directions)
+            mark(d),
+        ],
+        ['3/4 f', '15/16 p'],
+      );
+    });
+  });
+
   group('A ripple and the session', () {
     test('a range selection follows the music', () {
       final session = barsOf([
