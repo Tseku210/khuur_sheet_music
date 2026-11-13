@@ -201,9 +201,12 @@ Score _insertMeasures(Score score, int index, int count, _Ids ids) {
       ).copyWith(volta: () => volta),
   ];
   if (index == 0) {
-    // The score's opening tempo moves to the new first bar, so every old
-    // bar still starts at the tempo it started at.
+    // The score's opening tempo mark moves to the new first bar, so every
+    // old bar still starts under the tempo mark it started under.
     final (opening, rest) = _splitOpening(like.tempos);
+    if (opening.isEmpty) {
+      return score.copyWith(measures: score.measures.insertAllAt(0, bars));
+    }
     bars[0] = bars[0].copyWith(tempos: opening);
     return score.copyWith(
       measures: score.measures
@@ -255,19 +258,14 @@ Score _deleteMeasures(Score score, int start, int end) {
   );
 }
 
-/// [cut], whose bar [start] was bar [end] of [before], with that bar
-/// starting at the tempo it started at before bars [start] up to [end] were
-/// cut. It gains the last tempo mark they held at its start, unless it has
-/// one there of its own.
-Score _keepTempo(
-  Score cut,
-  int start,
-  Seq<MeasureColumn> before,
-  int end,
-) {
+/// [cut], whose bar [start] was bar [end] of [old], with that bar starting
+/// under the tempo mark it started under before bars [start] up to [end]
+/// were cut. It gains the last tempo mark they held at its start, unless it
+/// has one there of its own. Tempo lines are not counted.
+Score _keepTempo(Score cut, int start, Seq<MeasureColumn> old, int end) {
   final bar = cut.measures[start];
   final last = [
-    for (var i = start; i < end; i++) ...before[i].tempos,
+    for (var i = start; i < end; i++) ...old[i].tempos,
   ].lastOrNull;
   if (last == null || bar.tempos.any((mark) => mark.offset == Moment.zero)) {
     return cut;
