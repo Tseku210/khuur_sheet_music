@@ -379,6 +379,31 @@ typedef _OwnScroll = ({
 /// view shows, in logical pixels.
 typedef _Place = ({double top, double bottom, double viewport});
 
+/// The top and bottom of the system at [index] in the scroll content, in
+/// logical pixels.
+({double top, double bottom}) _spanOf(
+  SheetLayout layout,
+  int index,
+  double spacePx,
+  EdgeInsets padding,
+) {
+  final top = padding.top + layout.tops[index] * spacePx;
+  return (top: top, bottom: top + layout.heightOf(index) * spacePx);
+}
+
+/// The offset that brings a system spanning [top] to [bottom] into a view
+/// [viewport] high that is at [pixels]. It is the system's top when [toTop]
+/// is set, when the system starts above the view or when it is taller than
+/// the view, and otherwise the offset that puts its bottom at the view's.
+double _visibleTarget({
+  required double top,
+  required double bottom,
+  required double viewport,
+  required double pixels,
+  required bool toTop,
+}) =>
+    toTop || top < pixels || bottom - top > viewport ? top : bottom - viewport;
+
 /// A scroll controller whose position starts at [start]. The view knows
 /// where that is only once it has laid the sheet out, which is after a
 /// controller's own initial offset is fixed.
@@ -702,10 +727,15 @@ class _SheetViewState extends State<SheetView> {
     if (shown == null || index == null || !_scroll.hasClients) {
       return null;
     }
-    final top = shown.padding.top + shown.layout.tops[index] * shown.spacePx;
+    final (:top, :bottom) = _spanOf(
+      shown.layout,
+      index,
+      shown.spacePx,
+      shown.padding,
+    );
     return (
       top: top,
-      bottom: top + shown.layout.heightOf(index) * shown.spacePx,
+      bottom: bottom,
       viewport: _scroll.position.viewportDimension,
     );
   }
@@ -734,11 +764,13 @@ class _SheetViewState extends State<SheetView> {
     }
     final position = _scroll.position;
     final (:top, :bottom, :viewport) = place;
-    final fits = bottom - top <= viewport;
-    return (scroll.toTop || top < position.pixels || !fits
-            ? top
-            : bottom - viewport)
-        .clamp(position.minScrollExtent, position.maxScrollExtent);
+    return _visibleTarget(
+      top: top,
+      bottom: bottom,
+      viewport: viewport,
+      pixels: position.pixels,
+      toTop: scroll.toTop,
+    ).clamp(position.minScrollExtent, position.maxScrollExtent);
   }
 
   /// Whether a frame that may lay the sheet out again is on its way. It is
@@ -913,9 +945,17 @@ class _SheetViewState extends State<SheetView> {
     if (index == null) {
       return 0;
     }
-    final top = padding.top + layout.tops[index] * spacePx;
-    final bottom = top + layout.heightOf(index) * spacePx;
-    return math.max(0, bottom - top <= viewport ? bottom - viewport : top);
+    final (:top, :bottom) = _spanOf(layout, index, spacePx, padding);
+    return math.max(
+      0,
+      _visibleTarget(
+        top: top,
+        bottom: bottom,
+        viewport: viewport,
+        pixels: 0,
+        toTop: false,
+      ),
+    );
   }
 
   /// Scrolls so the system holding the anchor's bar sits as far below the
