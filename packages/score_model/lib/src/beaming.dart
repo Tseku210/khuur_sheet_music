@@ -139,7 +139,7 @@ List<int> _secondaryBreaks(List<_Beamed> group, Meter meter) {
     for (var i = 1; i < group.length; i++)
       if (group[i - 1].beams >= 2 &&
           group[i].beams >= 2 &&
-          (group[i].onset.wholeNotes / unit).denominator == 1)
+          (group[i].onset.wholeNotes / unit).isInteger)
         i,
   ];
 }

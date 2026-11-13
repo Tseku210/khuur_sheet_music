@@ -49,7 +49,7 @@ final class BeatGrid {
   /// Distance from zero to the start of the period holding [m] (m >= 0).
   Length _periodStart(Moment m) {
     final ratio = m.wholeNotes / period.wholeNotes;
-    return period * Fraction(ratio.numerator ~/ ratio.denominator);
+    return period * Fraction(ratio.floor());
   }
 }
 
@@ -116,4 +116,4 @@ bool _fits(
 }
 
 bool _isMultiple(Moment at, Length unit) =>
-    (at.wholeNotes / unit.wholeNotes).denominator == 1;
+    (at.wholeNotes / unit.wholeNotes).isInteger;

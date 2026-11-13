@@ -152,7 +152,7 @@ int _ticks(Fraction wholes) =>
 Iterable<Length> _sixteenthsBetween(Length from, Length to) sync* {
   final sixteenths = from.wholeNotes * Fraction(16);
   for (
-    var k = sixteenths.numerator ~/ sixteenths.denominator + 1;
+    var k = sixteenths.floor() + 1;
     Length(Fraction(k, 16)) < to;
     k++
   ) {

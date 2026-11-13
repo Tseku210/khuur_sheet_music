@@ -47,6 +47,24 @@ void main() {
       expect(Fraction(1, 2) / Fraction(-1, 4), Fraction(-2));
     });
 
+    test('knows whether it is a whole number', () {
+      expect(Fraction(6, 3).isInteger, isTrue);
+      expect(Fraction(0).isInteger, isTrue);
+      expect(Fraction(-4, 2).isInteger, isTrue);
+      expect(Fraction(7, 2).isInteger, isFalse);
+      expect(Fraction(-1, 3).isInteger, isFalse);
+    });
+
+    test('floors toward negative infinity, across signs', () {
+      expect(Fraction(7, 2).floor(), 3);
+      expect(Fraction(3).floor(), 3);
+      expect(Fraction(1, 3).floor(), 0);
+      expect(Fraction(0).floor(), 0);
+      expect(Fraction(-1, 3).floor(), -1);
+      expect(Fraction(-7, 2).floor(), -4);
+      expect(Fraction(-4, 2).floor(), -2);
+    });
+
     test('has no zero denominator, built or divided by', () {
       expect(() => Fraction(1, 0), throwsArgumentError);
       expect(() => Fraction(1, 2) / Fraction.zero, throwsArgumentError);
