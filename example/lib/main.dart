@@ -78,11 +78,10 @@ class _ScorePageState extends State<ScorePage>
   bool _autoBeams = true;
   ScoreClip? _clip;
 
-  /// Where a finger is held down on the sheet, in the view's own pixels.
-  /// Null with no finger held, and while the held finger is off the sheet.
-  Offset? _held;
-  late final SheetController _sheet = SheetController()
-    ..addListener(_onSheetMoved);
+  /// A finger held down on the sheet. Null with no finger held, and while
+  /// the held finger is off the sheet.
+  EntryHold? _hold;
+  final SheetController _sheet = SheetController();
   final ScrollController _rowScroll = ScrollController();
   late final ScorePlayer _player = ScorePlayer(
     soundFont: const AssetSoundFont('assets/soundfonts/piano.sf2'),
@@ -151,32 +150,6 @@ class _ScorePageState extends State<ScorePage>
     }
   }
 
-  /// A finger is held at [at] over a sheet of [sheet] pixels. A finger that
-  /// slides off the sheet is as good as lifted, until it slides back.
-  void _onHold(Offset at, Size sheet) =>
-      setState(() => _held = sheet.contains(at) ? at : null);
-
-  void _onHoldOver() {
-    if (_held != null) {
-      setState(() => _held = null);
-    }
-  }
-
-  /// A sheet that scrolled, zoomed or changed has another place under a
-  /// finger that is held still.
-  void _onSheetMoved() {
-    if (_held != null) {
-      setState(() {});
-    }
-  }
-
-  /// Where a note of the held finger would go on the sheet as it is now.
-  /// Null off every system.
-  SheetHit? get _heldEntry => switch (_held) {
-    final at? => _sheet.entryAt(at, voice: _session.cursor.voice),
-    null => null,
-  };
-
   /// The note that [hit] would enter, to show before it is entered. Null
   /// where it would enter none.
   NotePreview? _ghostAt(SheetHit hit) => switch (_toneAt(hit)) {
@@ -191,16 +164,6 @@ class _ScorePageState extends State<ScorePage>
       },
     ),
   };
-
-  /// Enters the note that the held finger shows. A finger held on a note
-  /// enters one there, where a tap selects the note.
-  void _onLetGo() {
-    final hit = _heldEntry;
-    _onHoldOver();
-    if (hit != null) {
-      _enter(hit);
-    }
-  }
 
   /// Whether spanner [id] is a slur or a hairpin, the lines the action row
   /// adds.
@@ -330,7 +293,7 @@ class _ScorePageState extends State<ScorePage>
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final sheet = constraints.biggest;
-                final ghost = switch (_heldEntry) {
+                final ghost = switch (_hold?.entry) {
                   final hit? => _ghostAt(hit),
                   null => null,
                 };
@@ -339,12 +302,6 @@ class _ScorePageState extends State<ScorePage>
                   children: [
                     GestureDetector(
                       onTapUp: (details) => _onTap(details.localPosition),
-                      onLongPressStart: (details) =>
-                          _onHold(details.localPosition, sheet),
-                      onLongPressMoveUpdate: (details) =>
-                          _onHold(details.localPosition, sheet),
-                      onLongPressEnd: (_) => _onLetGo(),
-                      onLongPressCancel: _onHoldOver,
                       child: SheetView(
                         key: ValueKey(_sheetsOpened),
                         score: _session.score,
@@ -353,6 +310,10 @@ class _ScorePageState extends State<ScorePage>
                         selection: _session.selection,
                         playback: _player.position,
                         controller: _sheet,
+                        // A finger held on a note enters one there, where a
+                        // tap selects the note.
+                        onHold: (hold) => setState(() => _hold = hold),
+                        onRelease: _enter,
                         palette: _palette(context),
                         // A note starts on a beat of its own value. On a
                         // finer grid a whole note tapped in the middle of a
@@ -360,7 +321,7 @@ class _ScorePageState extends State<ScorePage>
                         tapGrid: _value.base,
                       ),
                     ),
-                    if (_held case final finger?)
+                    if (_hold?.finger case final finger?)
                       _loupe(
                         finger,
                         _lookAt(finger, switch (ghost) {
