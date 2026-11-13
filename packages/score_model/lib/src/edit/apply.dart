@@ -433,14 +433,14 @@ _covers(Score score, RangeSelection range) {
   if (_outsideBar(score, range) case final point?) {
     throw _Refuse(OutsideMeasure(point));
   }
-  final order = [for (final staff in score.staves) staff.id];
-  final ends = [
-    for (final staff in [top, bottom])
-      order.contains(staff)
-          ? order.indexOf(staff)
-          : throw _Refuse(StaleReference(staff)),
-  ];
-  final staves = order.sublist(ends.reduce(min), ends.reduce(max) + 1).toSet();
+  final staves =
+      (score.stavesBetween(top, bottom) ??
+              (throw _Refuse(
+                StaleReference(
+                  score.staves.any((staff) => staff.id == top) ? bottom : top,
+                ),
+              )))
+          .toSet();
   return (
     lanes: {
       for (var bar = first; bar <= last; bar++)

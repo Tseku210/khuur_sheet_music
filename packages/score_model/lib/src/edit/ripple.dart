@@ -649,16 +649,8 @@ List<MeasureColumn> _rippledBars(
 
 /// Whether the staves from [top] to [bottom], in system order, include one
 /// of [part].
-bool _reaches(Score score, StaffId top, StaffId bottom, Set<StaffId> part) {
-  final order = [for (final staff in score.staves) staff.id];
-  final ends = [order.indexOf(top), order.indexOf(bottom)];
-  if (ends.contains(-1)) {
-    return false;
-  }
-  return order
-      .sublist(ends.reduce(min), ends.reduce(max) + 1)
-      .any(part.contains);
-}
+bool _reaches(Score score, StaffId top, StaffId bottom, Set<StaffId> part) =>
+    score.stavesBetween(top, bottom)?.any(part.contains) ?? false;
 
 /// [items] with [music] in place of the time from [from] to [to]. An item
 /// cut at [from] keeps its head before [music], and an item cut at [to]

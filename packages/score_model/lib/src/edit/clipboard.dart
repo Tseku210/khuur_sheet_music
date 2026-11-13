@@ -63,9 +63,10 @@ ScoreClip? _copy(Score score, RangeSelection range) {
   if (_outsideBar(score, range) != null || score.compare(from, to) >= 0) {
     return null;
   }
-  final order = [for (final staff in score.staves) staff.id];
-  final ends = [order.indexOf(top), order.indexOf(bottom)];
-  final staves = order.sublist(ends.reduce(min), ends.reduce(max) + 1);
+  final staves = score.stavesBetween(top, bottom);
+  if (staves == null) {
+    return null;
+  }
   bool inRange(ScorePoint point) =>
       score.compare(point, from) >= 0 && score.compare(point, to) < 0;
   Moment offsetOf(ScorePoint point) =>

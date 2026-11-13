@@ -485,13 +485,14 @@ final class SheetLayout {
         if (index < first || index > last) {
           return const [];
         }
+        final covered = score.stavesBetween(top, bottom)?.toSet();
+        if (covered == null) {
+          return const [];
+        }
         final system = systemAt(index);
-        final order = [for (final staff in score.staves) staff.id];
         final staves = [
           for (final staff in system.staves)
-            if (order.indexOf(top) <= order.indexOf(staff.staff) &&
-                order.indexOf(staff.staff) <= order.indexOf(bottom))
-              staff,
+            if (covered.contains(staff.staff)) staff,
         ];
         if (staves.isEmpty) {
           return const [];
