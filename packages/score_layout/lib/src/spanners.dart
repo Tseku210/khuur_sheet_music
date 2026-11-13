@@ -952,8 +952,8 @@ TimedEvent? _sounding(StaffView staff, VoiceSlot slot, Moment at) => staff
     .where((e) => e.onset <= at && at < e.onset + e.duration)
     .firstOrNull;
 
-/// The event a slur, glissando or trill line attaches to at [at], which is
-/// the one sounding there in the spanner's voice, or in voice one when that
+/// The event a spanner of [SpannerReach.events] attaches to at [at], which
+/// is the one sounding there in the spanner's voice, or in voice one when that
 /// voice has none there (`Score.anchorAt`).
 TimedEvent? _anchor(StaffView staff, Spanner spanner, Moment at) =>
     _sounding(staff, spanner.voice ?? VoiceSlot.one, at) ??
@@ -970,11 +970,11 @@ TimedEvent? _anchor(StaffView staff, Spanner spanner, Moment at) =>
   if (!segment.startsHere) {
     return (at: Moment.zero, event: null);
   }
-  switch (segment.spanner.kind) {
-    case Slur() || Glissando() || TrillLine():
+  switch (segment.spanner.kind.reach) {
+    case SpannerReach.events:
       final anchor = _anchor(staff, segment.spanner, segment.from);
       return (at: anchor?.onset ?? segment.from, event: anchor?.event.id);
-    case Hairpin() || OctaveLine() || PedalLine() || TempoLine():
+    case SpannerReach.time:
       return (at: segment.from, event: null);
   }
 }
@@ -988,11 +988,11 @@ TimedEvent? _anchor(StaffView staff, Spanner spanner, Moment at) =>
   if (!segment.endsHere) {
     return (at: Moment.zero + barLength, event: null);
   }
-  switch (segment.spanner.kind) {
-    case Slur() || Glissando() || TrillLine():
+  switch (segment.spanner.kind.reach) {
+    case SpannerReach.events:
       final anchor = _anchor(staff, segment.spanner, segment.to);
       return (at: anchor?.onset ?? segment.to, event: anchor?.event.id);
-    case Hairpin() || OctaveLine() || PedalLine() || TempoLine():
+    case SpannerReach.time:
       final last = _sounding(staff, VoiceSlot.one, segment.to);
       return (
         at: last == null ? segment.to : last.onset + last.duration,

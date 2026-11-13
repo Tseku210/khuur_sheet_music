@@ -331,21 +331,28 @@ final class Score {
     }
   }
 
-  /// The event a slur, glissando or trill line on [staff] attaches to at
+  /// The event a spanner of [SpannerReach.events] on [staff] attaches to at
   /// [at]: the one sounding there in [voice], else in voice one.
   TimedEvent? anchorAt(StaffId staff, VoiceSlot voice, ScorePoint at) =>
       eventAt(VoicePoint(staff: staff, voice: voice, at: at)) ??
       eventAt(VoicePoint(staff: staff, voice: VoiceSlot.one, at: at));
 
-  /// Where a hairpin, octave line, pedal line or tempo line stops in its
-  /// last bar: the end of the voice-one event its last point falls in. The
-  /// line covers that event.
+  /// Where a spanner of [SpannerReach.time] stops in its last bar: the end
+  /// of the voice-one event its last point falls in. The line covers that
+  /// event.
   Moment lineEnd(Spanner spanner) {
     final last = eventAt(
       VoicePoint(staff: spanner.staff, voice: VoiceSlot.one, at: spanner.last),
     )!;
     return last.onset + last.duration;
   }
+
+  /// Where [spanner] stops in its last bar: [lineEnd] for a spanner of
+  /// [SpannerReach.time], its last point for one of [SpannerReach.events].
+  Moment endOf(Spanner spanner) => switch (spanner.kind.reach) {
+    SpannerReach.events => spanner.last.offset,
+    SpannerReach.time => lineEnd(spanner),
+  };
 
   /// Whether [spanner] joins notes but starts and ends on one event.
   bool isCollapsed(Spanner spanner) {
@@ -704,6 +711,17 @@ final class Spanner {
   final ScorePoint last;
 }
 
+/// What a spanner's ends attach to.
+enum SpannerReach {
+  /// The events sounding at its points, in its voice or else voice one: a
+  /// slur, glissando or trill line.
+  events,
+
+  /// Its points in time, the last one running to the end of the voice-one
+  /// event it falls in: a hairpin, octave, pedal or tempo line.
+  time,
+}
+
 sealed class SpannerKind {
   const SpannerKind();
 
@@ -711,6 +729,13 @@ sealed class SpannerKind {
   /// does. It then belongs to that voice and covers at least two events.
   /// Lines and hairpins mark a stretch of the staff and may cover one.
   bool get joinsNotes => false;
+
+  /// What the spanner's ends attach to.
+  SpannerReach get reach => switch (this) {
+    Slur() || Glissando() || TrillLine() => SpannerReach.events,
+    Hairpin() || OctaveLine() || PedalLine() || TempoLine() =>
+      SpannerReach.time,
+  };
 
   /// Kinds without fields are equal when they are the same kind.
   @override
