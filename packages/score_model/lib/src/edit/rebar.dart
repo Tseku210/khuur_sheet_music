@@ -496,7 +496,7 @@ List<_Span> _spans(Length time, Length span, Length length) {
 /// from 0, and the offset in it.
 (int, Moment) _barAt(Length time, Length length) {
   final ratio = time / length;
-  final bar = ratio.numerator ~/ ratio.denominator;
+  final bar = ratio.floor();
   return (bar, Moment.zero + (time - length * Fraction(bar)));
 }
 

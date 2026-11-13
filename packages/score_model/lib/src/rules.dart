@@ -70,7 +70,7 @@ String? startProblem(Moment at) => _onGrid(Moment.zero.until(at))
     : 'a note starts a whole number of 128th notes into its bar or tuplet';
 
 bool _onGrid(Length length) =>
-    (length / DurationBase.oneTwentyEighth.length).denominator == 1;
+    (length / DurationBase.oneTwentyEighth.length).isInteger;
 
 String? pitchProblem(Pitch pitch) => pitch.midiKey >= 0 && pitch.midiKey <= 127
     ? null
