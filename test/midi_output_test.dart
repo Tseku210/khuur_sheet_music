@@ -711,6 +711,22 @@ void main() {
 
       expect(midi.reverbs.last, 'room 0.5 damping 0.0 width 0.5 level 0.3');
       expect(midi.gains.last, 0.2);
+
+      final asked = midi.reverbs.length + midi.gains.length;
+      first
+        ..noteOn(
+          soundFont: soundFont,
+          channel: 0,
+          key: 60,
+          velocity: 80,
+          cents: 0,
+        )
+        ..noteOff(soundFont: soundFont, channel: 0, key: 60);
+      expect(
+        midi.reverbs.length + midi.gains.length,
+        asked,
+        reason: 'a note asks for neither',
+      );
       first.dispose();
       second.dispose();
     },
