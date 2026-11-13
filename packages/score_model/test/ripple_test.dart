@@ -626,6 +626,27 @@ void main() {
 
         expect(saved(reloaded(next.score)), saved(next.score));
       });
+
+      test('and keeps a bar whose rests only moved inside it', () {
+        final session = barsOf([
+          [
+            chordOf(1, 'C4'),
+            rest(2, NoteValue.quarter),
+            rest(3, NoteValue.quarter),
+            rest(4, NoteValue.quarter),
+          ],
+          [for (var i = 0; i < 4; i++) rest(10 + i, NoteValue.quarter)],
+          [chordOf(20, 'F4', value: NoteValue.whole)],
+        ]);
+
+        final next = applied(pull(session, [2]));
+
+        expect(
+          next.score.measures[0].staves[0],
+          same(session.score.measures[0].staves[0]),
+        );
+        expect(saved(reloaded(next.score)), saved(next.score));
+      });
     });
 
     test('clears the ties of other parts that a grown section cuts off', () {
