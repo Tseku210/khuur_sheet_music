@@ -19,6 +19,7 @@ final class EngravingStyle {
     this.multiMeasureRests = false,
     this.meterEverySystem = false,
     this.courtesySignatures = true,
+    this.justify = true,
     this.justifyLastSystemFrom = 0.75,
     this.barNumbers = true,
     this.quarterTones = QuarterToneGlyphs.steinZimmermann,
@@ -60,9 +61,17 @@ final class EngravingStyle {
   /// to, unless the change itself says `noCourtesy`.
   final bool courtesySignatures;
 
-  /// The last system is stretched to the full width only when it fills at
-  /// least this fraction of the width at its natural spacing, its indent and
-  /// signatures counted. Otherwise it stays ragged.
+  /// Stretch every system but the last to the full width, as printed music
+  /// does. Off, every system keeps its natural width and stays ragged, and
+  /// [justifyLastSystemFrom] has no effect. An editor turns it off so that a
+  /// bar added at the end never respaces the bars before it, the line it
+  /// wraps from included. A system wider than the sheet is still compressed
+  /// to fit either way.
+  final bool justify;
+
+  /// With [justify], the last system is stretched to the full width only
+  /// when it fills at least this fraction of the width at its natural
+  /// spacing, its indent and signatures counted. Otherwise it stays ragged.
   final double justifyLastSystemFrom;
 
   /// Number the first bar of every system.
@@ -87,6 +96,7 @@ final class EngravingStyle {
     bool? multiMeasureRests,
     bool? meterEverySystem,
     bool? courtesySignatures,
+    bool? justify,
     double? justifyLastSystemFrom,
     bool? barNumbers,
     QuarterToneGlyphs? quarterTones,
@@ -103,6 +113,7 @@ final class EngravingStyle {
     multiMeasureRests: multiMeasureRests ?? this.multiMeasureRests,
     meterEverySystem: meterEverySystem ?? this.meterEverySystem,
     courtesySignatures: courtesySignatures ?? this.courtesySignatures,
+    justify: justify ?? this.justify,
     justifyLastSystemFrom: justifyLastSystemFrom ?? this.justifyLastSystemFrom,
     barNumbers: barNumbers ?? this.barNumbers,
     quarterTones: quarterTones ?? this.quarterTones,
@@ -123,6 +134,7 @@ final class EngravingStyle {
       other.multiMeasureRests == multiMeasureRests &&
       other.meterEverySystem == meterEverySystem &&
       other.courtesySignatures == courtesySignatures &&
+      other.justify == justify &&
       other.justifyLastSystemFrom == justifyLastSystemFrom &&
       other.barNumbers == barNumbers &&
       other.quarterTones == quarterTones &&
@@ -143,6 +155,7 @@ final class EngravingStyle {
     multiMeasureRests,
     meterEverySystem,
     courtesySignatures,
+    justify,
     justifyLastSystemFrom,
     barNumbers,
     quarterTones,

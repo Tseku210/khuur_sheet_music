@@ -29,6 +29,7 @@ void main() {
       multiMeasureRests: true,
       meterEverySystem: true,
       courtesySignatures: false,
+      justify: false,
       justifyLastSystemFrom: 0.5,
       barNumbers: false,
       quarterTones: QuarterToneGlyphs.gouldArrows,
@@ -71,6 +72,7 @@ void main() {
         (s) => s.courtesySignatures,
         base.copyWith(courtesySignatures: standard.courtesySignatures),
       ),
+      'justify': ((s) => s.justify, base.copyWith(justify: standard.justify)),
       'justifyLastSystemFrom': (
         (s) => s.justifyLastSystemFrom,
         base.copyWith(
@@ -134,6 +136,7 @@ void main() {
       'multiMeasureRests': const EngravingStyle(multiMeasureRests: true),
       'meterEverySystem': const EngravingStyle(meterEverySystem: true),
       'courtesySignatures': const EngravingStyle(courtesySignatures: false),
+      'justify': const EngravingStyle(justify: false),
       'justifyLastSystemFrom': const EngravingStyle(justifyLastSystemFrom: 0.5),
       'barNumbers': const EngravingStyle(barNumbers: false),
       'quarterTones': const EngravingStyle(

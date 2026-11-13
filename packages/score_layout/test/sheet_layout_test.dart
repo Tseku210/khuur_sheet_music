@@ -302,6 +302,55 @@ void main() {
     });
   });
 
+  group('a sheet that does not justify', () {
+    test('moves and respaces no earlier bar as bars are added one at a time '
+        'at the end, the bar that wraps to a new system included', () {
+      const ragged = EngravingStyle(justify: false);
+      Score withBar(Score score) {
+        final next = edit(score, const InsertMeasures());
+        final bar = next.measures.length - 1;
+        final eighths = bar.isOdd;
+        return fill(next, bar, [
+          for (var beat = 0; beat < (eighths ? 8 : 4); beat++)
+            chordOf(
+              10000 + bar * 10 + beat,
+              const ['C5', 'D5', 'F#5', 'G5'][beat % 4],
+              value: eighths ? NoteValue.eighth : NoteValue.quarter,
+            ),
+        ]);
+      }
+
+      // Per bar, its system, its left and right and the x of every stop.
+      Map<MeasureId, List<Object>> barsOf(SheetLayout layout) => {
+        for (var system = 0; system < layout.systemCount; system++)
+          for (final bar in layout.systemAt(system).bars)
+            bar.measure: [system, bar.left, bar.right, ...bar.time.stops],
+      };
+
+      var score = ensemble(1);
+      var layout = sheetOf(score, style: ragged);
+      while (layout.systemCount < 4) {
+        final before = barsOf(layout);
+        score = withBar(score);
+        layout = layout.update(score);
+        final after = barsOf(layout);
+
+        expect(after, hasLength(before.length + 1));
+        for (final MapEntry(key: bar, value: was) in before.entries) {
+          expect(after[bar], was, reason: 'bar $bar of ${after.length}');
+        }
+        expectSameSheet(layout, sheetOf(score, style: ragged));
+      }
+      for (var system = 0; system < layout.systemCount; system++) {
+        expect(
+          inkRightOf(layout, system),
+          lessThan(layout.width - 1),
+          reason: 'system $system stays ragged',
+        );
+      }
+    });
+  });
+
   group('the header', () {
     final titled = ensemble(12).copyWith(
       meta: const ScoreMeta(
