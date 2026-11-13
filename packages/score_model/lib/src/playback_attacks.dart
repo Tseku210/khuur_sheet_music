@@ -160,8 +160,9 @@ bool _canPlay(Note note, List<(int, Length)> figure, KeySignature key) =>
     );
 
 /// The share of its time a note sounds, by the marks on the last note of
-/// its chain. A staccato under a tenuto is a portato.
-double _gate(Set<Articulation> marks) => switch ((
+/// its chain, or null where no mark sets it. A staccato under a tenuto is a
+/// portato.
+double? _gate(Set<Articulation> marks) => switch ((
   marks.contains(Articulation.staccatissimo),
   marks.contains(Articulation.staccato),
   marks.contains(Articulation.tenuto),
@@ -170,7 +171,7 @@ double _gate(Set<Articulation> marks) => switch ((
   (_, true, true) => 0.75,
   (_, true, _) => 0.5,
   (_, _, true) => 1,
-  _ => 0.9,
+  _ => null,
 };
 
 /// How much harder than its dynamic a note strikes, by the marks on the
