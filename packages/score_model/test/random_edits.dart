@@ -52,11 +52,72 @@ String describeView(MeasureView view) => [
 T pick<T>(Random random, List<T> options) =>
     options[random.nextInt(options.length)];
 
-Score edited(Score score, Edit edit) =>
-    switch (EditSession.start(score).run(edit)) {
-      Applied(:final session) => session.score,
-      Refused() => score,
-    };
+/// [score] after [edit], or [score] when the edit is refused. Throws when
+/// the edit leaves two things of a kind with one id, which no file may
+/// hold.
+Score edited(Score score, Edit edit) {
+  switch (EditSession.start(score).run(edit)) {
+    case Applied(:final session):
+      final repeated = repeatedIds(session.score);
+      if (repeated.isNotEmpty) {
+        throw StateError('${edit.runtimeType} repeats ${repeated.join(', ')}');
+      }
+      return session.score;
+    case Refused():
+      return score;
+  }
+}
+
+/// Each id of [score] that two things of its kind share, as `event 6`. The
+/// kinds are the ones `scoreFromJson` tells apart.
+List<String> repeatedIds(Score score) {
+  final events = [
+    for (final column in score.measures)
+      for (final staff in column.staves)
+        for (final voice in staff.voices) ..._flat(voice.items),
+  ];
+  final chords = events.whereType<ChordEvent>();
+  final ids = {
+    'part': [for (final part in score.parts) part.id.value],
+    'staff': [for (final staff in score.staves) staff.id.value],
+    'measure': [for (final column in score.measures) column.id.value],
+    'event': [
+      for (final event in events) event.id.value,
+      for (final chord in chords)
+        for (final grace in chord.graces) grace.id.value,
+    ],
+    'note': [
+      for (final chord in chords) ...[
+        for (final note in chord.notes) note.id.value,
+        for (final grace in chord.graces)
+          for (final note in grace.notes) note.id.value,
+      ],
+    ],
+    'tuplet': [
+      for (final column in score.measures)
+        for (final staff in column.staves)
+          for (final voice in staff.voices)
+            for (final tuplet in _tuplets(voice.items)) tuplet.id.value,
+    ],
+    'spanner': [for (final spanner in score.spanners) spanner.id.value],
+  };
+  return [
+    for (final MapEntry(key: kind, value: list) in ids.entries)
+      for (final id in _repeats(list)) '$kind $id',
+  ];
+}
+
+Set<int> _repeats(List<int> ids) {
+  final seen = <int>{};
+  return {
+    for (final id in ids)
+      if (!seen.add(id)) id,
+  };
+}
+
+Iterable<Tuplet> _tuplets(Iterable<VoiceItem> items) => items
+    .whereType<Tuplet>()
+    .expand((tuplet) => [tuplet, ..._tuplets(tuplet.members)]);
 
 /// Every event of [score], tuplet members included, with a reference to it.
 List<(EventRef, Event)> _eventsOf(Score score) => [
