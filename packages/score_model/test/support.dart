@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:score_model/score_model.dart';
 
 /// One token per item: `F4/quarter`, `F4/quarter~` (tied), `rest/half`,
@@ -87,6 +89,12 @@ Score scoreWith(List<VoiceItem> items) => Score(
 RestEvent rest(int id, NoteValue value) =>
     RestEvent(id: EventId(id), value: value);
 
+Score reloaded(Score score) =>
+    scoreFromJson(jsonDecode(jsonEncode(scoreToJson(score))));
+
+String saved(Score score) =>
+    '${const JsonEncoder.withIndent('  ').convert(scoreToJson(score))}\n';
+
 Tuplet tripletOfEighths(int id, List<Content> members) => Tuplet(
   id: TupletId(id),
   ratio: TupletRatio.triplet,
@@ -169,6 +177,28 @@ const drums = PartTemplate(
         head: NoteHead.cross,
       ),
       DrumSound(name: 'Bass drum', position: Pitch(Step.f, 4), midiKey: 36),
+    ],
+  ),
+);
+
+/// A kit with every drum of [drums] and a tom.
+const bigKit = PartTemplate(
+  name: 'Big kit',
+  instrument: Instrument(
+    key: 'big-kit',
+    program: 0,
+    bank: 128,
+    clef: Clef.percussion,
+    drums: [
+      DrumSound(name: 'Snare', position: Pitch(Step.c, 5), midiKey: 38),
+      DrumSound(
+        name: 'Side stick',
+        position: Pitch(Step.c, 5),
+        midiKey: 37,
+        head: NoteHead.cross,
+      ),
+      DrumSound(name: 'Bass drum', position: Pitch(Step.f, 4), midiKey: 36),
+      DrumSound(name: 'Tom', position: Pitch(Step.e, 5), midiKey: 45),
     ],
   ),
 );

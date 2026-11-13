@@ -856,6 +856,30 @@ final class SetPartHidden extends Edit {
   String get label => hidden ? 'Hide instrument' : 'Show instrument';
 }
 
+/// Gives a part the instrument, name and staff count of [template]. The
+/// music keeps its sounding pitches, so only the written view follows the
+/// new transposition. Each staff takes the template's clef in every bar,
+/// and its clef changes go. Music stays on the staves the part keeps, from
+/// the top. A new staff gets a [MeasureRest] in every bar, as for
+/// [AddPart]. A dropped staff goes with its music and spanners, as for
+/// [RemovePart], and a cursor on it moves to the same point on the part's
+/// last staff. A string mark moves to the new instrument's string tuned
+/// the same, and is cleared where there is none. A selection loses what
+/// lay on a dropped staff, and a range that reaches one is cleared. Giving
+/// a part the template it already has changes nothing.
+/// Refused with [InvalidValue] for a change between a pitched instrument
+/// and a drum kit, a kit that lacks a drum the part plays, or a template
+/// [AddPart] refuses, and with [StaleReference] for a gone part.
+final class SetInstrument extends Edit {
+  const SetInstrument(this.part, this.template);
+
+  final PartId part;
+  final PartTemplate template;
+
+  @override
+  String get label => 'Change instrument';
+}
+
 /// Runs [edits] in order as one undo step. Each edit sees the score, cursor
 /// and selection the one before it left. All or nothing: if any edit is
 /// refused, the batch is refused and the score is unchanged.

@@ -834,6 +834,9 @@ XmlElement _navigation(NavigationMark mark, XmlElement? staff) {
 XmlElement _tempo(TempoMark mark, XmlElement? staff) {
   final beat = mark.tempo.beat;
   final quarters = beat.length.wholeNotes * Fraction(4);
+  // The sound's tempo is of the beat as written, so that a file read back
+  // writes the same sound.
+  final bpm = _number(mark.tempo.bpm);
   return _direction(
     [
       if (mark.text case final String text) _text('words', text),
@@ -842,7 +845,7 @@ XmlElement _tempo(TempoMark mark, XmlElement? staff) {
         [
           _text('beat-unit', typeName(beat.base)),
           for (var i = 0; i < beat.dots; i++) _el('beat-unit-dot'),
-          _text('per-minute', _number(mark.tempo.bpm)),
+          _text('per-minute', bpm),
         ],
         {'print-object': mark.showMetronome ? null : 'no'},
       ),
@@ -850,7 +853,7 @@ XmlElement _tempo(TempoMark mark, XmlElement? staff) {
     above: true,
     staff: staff,
     sound: _el('sound', const [], {
-      'tempo': _number(mark.tempo.bpm * quarters.toDouble()),
+      'tempo': _number(double.parse(bpm) * quarters.toDouble()),
     }),
   );
 }
