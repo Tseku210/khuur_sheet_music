@@ -1750,7 +1750,7 @@ void main() {
         kinds.update(kind, (n) => n + 1, ifAbsent: () => 1);
       }
 
-      for (final seed in [1, 2, 3, 4, 5, 6]) {
+      for (final seed in [1, 2, 3, 4, 5, 6, 7]) {
         final random = Random(seed);
         var score = model.blankScore(
           parts: const [
@@ -1821,7 +1821,7 @@ void main() {
         '$scores scores, $bars bars, $boxes boxes, $brackets brackets, '
         '$stacked stacked, $twoVoiced two-voiced, $kinds',
       );
-      expect(scores, 1500);
+      expect(scores, 1750);
       expect(bars, greaterThan(4000));
       expect(boxes, greaterThan(20000));
       expect(brackets, greaterThan(300));
