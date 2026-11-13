@@ -392,36 +392,7 @@ _Rippled _ripple(
         : _grown(items, at, by, slot, edited, ids);
   }
 
-  final total = length * Fraction(old.length);
-  final lanes = [
-    for (final s in first.staves)
-      if (part.contains(s.staff))
-        for (final slot in VoiceSlot.values)
-          (s.staff, slot, _fitted(moved(s.staff, slot), total)),
-  ];
-  final longest = lanes
-      .map((lane) => Length.sum(lane.$3.map((placed) => placed.span)))
-      .reduce((x, y) => x > y ? x : y);
-  final count = max(_ceil(longest / length), old.length);
-  if (count > old.length && first.irregularLength != null) {
-    throw _Refuse(WouldCrossBarline(first.id, longest - total));
-  }
-  final voices = [
-    for (final (s, slot, items) in lanes)
-      (
-        s,
-        slot,
-        _cut(
-          items,
-          count,
-          first.meter,
-          ids,
-          gaps: slot != VoiceSlot.one,
-          length: length,
-          origins: origins,
-        ),
-      ),
-  ];
+  final (count, voices) = _rippledVoices(old, part, moved, ids, origins);
 
   final end = length * Fraction(count);
 
@@ -455,53 +426,7 @@ _Rippled _ripple(
   final untied = grown
       ? _untieAt(score, b - 1, _barEnd(closing), null).measures[b - 1]
       : closing;
-  MeasureColumn column(int k) {
-    final base = k < old.length - 1
-        ? old[k]
-        : k == old.length - 1
-        ? untied
-        : null;
-    final staves = [
-      for (final s in first.staves)
-        if (!part.contains(s.staff))
-          base?.staff(s.staff) ??
-              _restStaff(s.staff, closing.staff(s.staff).clefAtEnd, length, ids)
-        else if (base != null &&
-            _sameStaff(base.staff(s.staff), cut[s.staff]![k]))
-          base.staff(s.staff)
-        else
-          cut[s.staff]![k],
-    ];
-    if (base == null) {
-      final last = k == count - 1;
-      return MeasureColumn(
-        id: ids.measure(),
-        meter: first.meter,
-        key: first.key,
-        volta: first.volta,
-        staves: Seq(staves),
-        barline: last ? closing.barline : Barline.regular,
-        repeatEnd: last ? closing.repeatEnd : null,
-        navigation: Seq([
-          if (last) ...closing.navigation.where((mark) => !mark.atBarStart),
-        ]),
-      );
-    }
-    var column = base;
-    if (!_same(staves, base.staves)) {
-      column = column.copyWith(staves: Seq(staves));
-    }
-    if (grown && k == old.length - 1) {
-      column = column.copyWith(
-        barline: Barline.regular,
-        repeatEnd: () => null,
-        navigation: Seq(base.navigation.where((mark) => mark.atBarStart)),
-      );
-    }
-    return column;
-  }
-
-  final bars = [for (var k = 0; k < count; k++) column(k)];
+  final bars = _rippledBars(old, untied, cut, count, ids);
   ScorePoint? place(Length time) {
     if (time >= end) {
       return null;
@@ -553,37 +478,172 @@ _Rippled _ripple(
       };
     },
   );
-  VoicePoint? movedCursor;
-  if (part.contains(cursor.staff)) {
-    if (onset(cursor.at) case final point?) {
-      movedCursor = VoicePoint(
-        staff: cursor.staff,
-        voice: cursor.voice,
-        at: point,
-      );
-    }
-  }
-  Selection? movedSelection;
-  if (selection
-      case RangeSelection(
-        :final from,
-        :final to,
-        :final top,
-        :final bottom,
-      )
-      when _reaches(score, top, bottom, part)) {
-    final start = onset(from);
-    final stop = close(to);
-    movedSelection = start != null && rebuilt.compare(start, stop) < 0
-        ? RangeSelection(from: start, to: stop, top: top, bottom: bottom)
-        : const Selection.none();
-  }
+  final followed = _follow(
+    rebuilt,
+    cursor,
+    selection,
+    onset: onset,
+    close: close,
+    movesCursor: part.contains(cursor.staff),
+    movesRange: switch (selection) {
+      RangeSelection(:final top, :final bottom) => _reaches(
+        score,
+        top,
+        bottom,
+        part,
+      ),
+      _ => false,
+    },
+  );
   return _Rippled(
     rebuilt.copyWith(spanners: spanners),
-    movedCursor,
-    movedSelection,
+    followed.cursor,
+    followed.selection,
     (time) => place(origin + time),
     next,
+  );
+}
+
+/// How many bars the rippled section that held [old] needs, and the voices
+/// of [part] cut into that many bars, each voice's music given by [moved].
+/// Each later piece of a split event is entered in [origins] under the
+/// event it came from. Refused when an irregular bar would have to grow.
+(int, List<(StaffId, VoiceSlot, List<List<VoiceItem>>)>) _rippledVoices(
+  List<MeasureColumn> old,
+  Set<StaffId> part,
+  List<_Placed> Function(StaffId staff, VoiceSlot slot) moved,
+  _Ids ids,
+  Map<EventId, EventId> origins,
+) {
+  final first = old.first;
+  final length = first.length;
+  final total = length * Fraction(old.length);
+  final lanes = [
+    for (final s in first.staves)
+      if (part.contains(s.staff))
+        for (final slot in VoiceSlot.values)
+          (s.staff, slot, _fitted(moved(s.staff, slot), total)),
+  ];
+  final longest = lanes
+      .map((lane) => Length.sum(lane.$3.map((placed) => placed.span)))
+      .reduce((x, y) => x > y ? x : y);
+  final count = max(_ceil(longest / length), old.length);
+  if (count > old.length && first.irregularLength != null) {
+    throw _Refuse(WouldCrossBarline(first.id, longest - total));
+  }
+  final voices = [
+    for (final (s, slot, items) in lanes)
+      (
+        s,
+        slot,
+        _cut(
+          items,
+          count,
+          first.meter,
+          ids,
+          gaps: slot != VoiceSlot.one,
+          length: length,
+          origins: origins,
+        ),
+      ),
+  ];
+  return (count, voices);
+}
+
+/// The [count] bars of a rippled section that held [old], with [untied] in
+/// place of its last bar and [cut] the new bars of each staff of the edited
+/// part. A bar whose staves did not change is kept as it was, and bars past
+/// the old section are new, the last of them taking the section's closing
+/// barline, repeat end and closing navigation.
+List<MeasureColumn> _rippledBars(
+  List<MeasureColumn> old,
+  MeasureColumn untied,
+  Map<StaffId, List<StaffMeasure>> cut,
+  int count,
+  _Ids ids,
+) {
+  final first = old.first;
+  final closing = old.last;
+  final length = first.length;
+  final grown = count > old.length;
+  MeasureColumn column(int k) {
+    final base = k < old.length - 1
+        ? old[k]
+        : k == old.length - 1
+        ? untied
+        : null;
+    final staves = [
+      for (final s in first.staves)
+        if (!cut.containsKey(s.staff))
+          base?.staff(s.staff) ??
+              _restStaff(s.staff, closing.staff(s.staff).clefAtEnd, length, ids)
+        else if (base != null &&
+            _sameStaff(base.staff(s.staff), cut[s.staff]![k]))
+          base.staff(s.staff)
+        else
+          cut[s.staff]![k],
+    ];
+    if (base == null) {
+      final last = k == count - 1;
+      return MeasureColumn(
+        id: ids.measure(),
+        meter: first.meter,
+        key: first.key,
+        volta: first.volta,
+        staves: Seq(staves),
+        barline: last ? closing.barline : Barline.regular,
+        repeatEnd: last ? closing.repeatEnd : null,
+        navigation: Seq([
+          if (last) ...closing.navigation.where((mark) => !mark.atBarStart),
+        ]),
+      );
+    }
+    var column = base;
+    if (!_same(staves, base.staves)) {
+      column = column.copyWith(staves: Seq(staves));
+    }
+    if (grown && k == old.length - 1) {
+      column = column.copyWith(
+        barline: Barline.regular,
+        repeatEnd: () => null,
+        navigation: Seq(base.navigation.where((mark) => mark.atBarStart)),
+      );
+    }
+    return column;
+  }
+
+  return [for (var k = 0; k < count; k++) column(k)];
+}
+
+/// [cursor] and [selection] after the music under them moved: each start
+/// goes through [onset], a range's end through [close], and a range that
+/// is left empty becomes no selection. Null for what does not move: a
+/// cursor when [movesCursor] is false or [onset] gives null, and any
+/// selection that is not a range or whose range [movesRange] holds still.
+({VoicePoint? cursor, Selection? selection}) _follow(
+  Score moved,
+  VoicePoint cursor,
+  Selection selection, {
+  required ScorePoint? Function(ScorePoint) onset,
+  required ScorePoint Function(ScorePoint) close,
+  bool movesCursor = true,
+  bool movesRange = true,
+}) {
+  final at = movesCursor ? onset(cursor.at) : null;
+  return (
+    cursor: at == null
+        ? null
+        : VoicePoint(staff: cursor.staff, voice: cursor.voice, at: at),
+    selection: switch (selection) {
+      RangeSelection(:final from, :final to, :final top, :final bottom)
+          when movesRange =>
+        switch ((onset(from), close(to))) {
+          (final start?, final stop) when moved.compare(start, stop) < 0 =>
+            RangeSelection(from: start, to: stop, top: top, bottom: bottom),
+          _ => const Selection.none(),
+        },
+      _ => null,
+    },
   );
 }
 

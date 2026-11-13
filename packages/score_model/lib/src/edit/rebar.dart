@@ -75,28 +75,20 @@ _Result _setMeter(Score score, SetMeter edit, _Ids ids, EditSession session) {
                 _lastOnset(section.bars.last, spanner);
     },
   );
-  final cursor = session.cursor;
-  final at = onset(cursor.at);
-  Selection? selection;
-  if (session.selection case RangeSelection(
-    :final from,
-    :final to,
-    :final top,
-    :final bottom,
-  )) {
-    final first = onset(from);
-    final section = holding[to.measure];
-    final last = section == null ? to : section.moved(to) ?? section.end;
-    selection = first != null && rebarred.compare(first, last) < 0
-        ? RangeSelection(from: first, to: last, top: top, bottom: bottom)
-        : const Selection.none();
-  }
+  final followed = _follow(
+    rebarred,
+    session.cursor,
+    session.selection,
+    onset: onset,
+    close: (point) {
+      final section = holding[point.measure];
+      return section == null ? point : section.moved(point) ?? section.end;
+    },
+  );
   return _Result(
     rebarred.copyWith(spanners: spanners),
-    cursor: at == null
-        ? null
-        : VoicePoint(staff: cursor.staff, voice: cursor.voice, at: at),
-    selection: selection,
+    cursor: followed.cursor,
+    selection: followed.selection,
   );
 }
 
