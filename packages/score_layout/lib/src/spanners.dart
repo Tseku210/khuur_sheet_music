@@ -65,7 +65,13 @@ const double _voltaPad = 0.3;
 /// neither.
 Side curveSide(Spanner spanner) => switch (spanner.kind) {
   Slur() when !(spanner.voice ?? VoiceSlot.one).stemsUp => Side.below,
-  _ => Side.above,
+  Slur() ||
+  Hairpin() ||
+  OctaveLine() ||
+  PedalLine() ||
+  TrillLine() ||
+  TempoLine() ||
+  Glissando() => Side.above,
 };
 
 /// One end of a tie, or both, as one bar sees it.
@@ -359,7 +365,11 @@ double arrivingRoom(
             _inset(piece.kind, defaults) +
                 _rowWidth(_restatedGlyphs(piece.kind), style.font) -
                 lead,
-          _ => 0.0,
+          Hairpin() ||
+          PedalLine() ||
+          TrillLine() ||
+          TempoLine() ||
+          Glissando() => 0.0,
         },
   ].reduce(math.max);
 }
@@ -652,26 +662,26 @@ List<SpannerPiece> spannerPieces(
       segments.add((segment, staff));
     }
   }
+  final order = [
+    for (var i = 0; i < segments.length; i++)
+      (_rank(segments[i].$1.spanner.kind), i),
+  ]..sort((a, b) => a.$1 != b.$1 ? a.$1.compareTo(b.$1) : a.$2.compareTo(b.$2));
   return [
-    for (var rank = 0; rank <= _lastRank; rank++)
-      for (final (segment, staff) in segments)
-        if (_rank(segment.spanner.kind) == rank)
-          _piece(
-            segment,
-            view.staves[staff],
-            skylines[staff],
-            chords,
-            staff: staff,
-            barLength: view.column.length,
-            times: times,
-            xs: xs,
-            style: style,
-            text: text,
-          ),
+    for (final (_, index) in order)
+      _piece(
+        segments[index].$1,
+        view.staves[segments[index].$2],
+        skylines[segments[index].$2],
+        chords,
+        staff: segments[index].$2,
+        barLength: view.column.length,
+        times: times,
+        xs: xs,
+        style: style,
+        text: text,
+      ),
   ];
 }
-
-const int _lastRank = 6;
 
 /// The reservation order of the kinds.
 int _rank(SpannerKind kind) => switch (kind) {
@@ -681,7 +691,7 @@ int _rank(SpannerKind kind) => switch (kind) {
   PedalLine() => 3,
   TrillLine() => 4,
   TempoLine() => 5,
-  Glissando() => _lastRank,
+  Glissando() => 6,
 };
 
 SpannerPiece _piece(
@@ -930,7 +940,7 @@ List<Glyph> _startGlyphs(SpannerKind kind) => switch (kind) {
   OctaveLine(:final shift) => [_octaveGlyph(shift)],
   PedalLine() => const [Glyph.keyboardPedalPed],
   TrillLine() => const [Glyph.ornamentTrill],
-  _ => const [],
+  Slur() || Hairpin() || TempoLine() || Glissando() => const [],
 };
 
 /// The glyphs a line of [kind] restates when it continues onto a new system.
@@ -940,7 +950,12 @@ List<Glyph> _restatedGlyphs(SpannerKind kind) => switch (kind) {
     _octaveGlyph(shift),
     Glyph.octaveParensRight,
   ],
-  _ => const [],
+  Slur() ||
+  Hairpin() ||
+  PedalLine() ||
+  TrillLine() ||
+  TempoLine() ||
+  Glissando() => const [],
 };
 
 /// The event sounding at [at] in voice [slot] of [staff], as
