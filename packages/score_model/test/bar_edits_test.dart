@@ -14,8 +14,49 @@ Jump toCoda(String text) =>
 Spanner spannerIn(Score score, int id) =>
     score.spanners.firstWhere((s) => s.id == SpannerId(id));
 
+TempoMark tempoMark(double bpm, [Moment offset = Moment.zero]) =>
+    TempoMark(offset: offset, tempo: Tempo(bpm));
+
+/// [score] with [marks] as the tempo marks of each bar it names.
+Score withTempos(Score score, Map<int, List<TempoMark>> marks) =>
+    marks.entries.fold(
+      score,
+      (score, entry) => changeBar(
+        score,
+        entry.key,
+        (c) => c.copyWith(tempos: Seq(entry.value)),
+      ),
+    );
+
+/// The tempo in effect at the start of each bar.
+List<double> openingTempos(Score score) => [
+  for (var bar = 0; bar < score.measures.length; bar++)
+    score
+        .contextAt(score.staves.first.id, pointAt(score, bar, Moment.zero))
+        .tempo
+        .bpm,
+];
+
 void main() {
   group('InsertMeasures', () {
+    test('at the start, the opening tempo moves to the new first bar and '
+        'every old bar starts at the tempo it started at', () {
+      final half = at(1, 2);
+      final session = EditSession.start(
+        withTempos(blankScore(bars: 3), {
+          0: [tempoMark(140), tempoMark(90, half)],
+        }),
+      );
+
+      final next = applied(
+        session.run(InsertMeasures(before: idOf(session, 0))),
+      ).score;
+
+      expect(openingTempos(next), [140, 140, 90, 90]);
+      expect(next.measures[0].tempos, Seq([tempoMark(140)]));
+      expect(next.measures[1].tempos, Seq([tempoMark(90, half)]));
+    });
+
     test('inserts empty bars that carry on from the bar before', () {
       var score = blankScore(parts: const [piano], bars: 3);
       for (final i in [1, 2]) {
@@ -165,6 +206,53 @@ void main() {
   });
 
   group('DeleteMeasures', () {
+    test('the bar after the range starts at the tempo it started at', () {
+      final session = EditSession.start(
+        withTempos(blankScore(bars: 4), {
+          0: [tempoMark(140)],
+          1: [tempoMark(120)],
+        }),
+      );
+
+      final first = applied(
+        session.run(DeleteMeasures(idOf(session, 0), idOf(session, 1))),
+      ).score;
+      expect(openingTempos(first), [120, 120]);
+      expect(first.measures[0].tempos, Seq([tempoMark(120)]));
+
+      final middle = applied(
+        session.run(DeleteMeasures(idOf(session, 1), idOf(session, 1))),
+      ).score;
+      expect(openingTempos(middle), [140, 120, 120]);
+    });
+
+    test('a bar after the range keeps its own opening tempo, and one after '
+        'a range with no tempo mark gains none', () {
+      final session = EditSession.start(
+        withTempos(blankScore(bars: 4), {
+          0: [tempoMark(140)],
+          1: [tempoMark(120)],
+          2: [tempoMark(60)],
+        }),
+      );
+
+      final own = applied(
+        session.run(DeleteMeasures(idOf(session, 1), idOf(session, 1))),
+      ).score;
+      expect(own.measures[1].tempos, Seq([tempoMark(60)]));
+
+      final plain = EditSession.start(
+        withTempos(blankScore(bars: 3), {
+          0: [tempoMark(140)],
+        }),
+      );
+      final none = applied(
+        plain.run(DeleteMeasures(idOf(plain, 1), idOf(plain, 1))),
+      ).score;
+      expect(none.measures[1].tempos, isEmpty);
+      expect(openingTempos(none), [140, 140]);
+    });
+
     test('deletes a range given in either order', () {
       final session = blank(bars: 5);
       final before = barIds(session.score);
