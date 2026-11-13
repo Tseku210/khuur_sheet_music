@@ -689,6 +689,33 @@ void main() {
     },
   );
 
+  testWidgets(
+    'puts its reverb and gain back on the synthesizer before it plays '
+    'again, after another output put its own there',
+    (tester) async {
+      final first = FlutterMidiOutput(
+        reverb: const MidiReverb(roomSize: 0.5, level: 0.3),
+        gain: 0.2,
+      );
+      final second = FlutterMidiOutput();
+      await tester.runAsync(() async {
+        await first.load(soundFont);
+        await second.load(soundFont);
+      });
+      await first.program(
+        soundFont: soundFont,
+        channel: 0,
+        program: 0,
+        bank: 0,
+      );
+
+      expect(midi.reverbs.last, 'room 0.5 damping 0.0 width 0.5 level 0.3');
+      expect(midi.gains.last, 0.2);
+      first.dispose();
+      second.dispose();
+    },
+  );
+
   testWidgets('holds a reverb\'s width to 0 to 100 and its other numbers to 0 '
       'to 1', (tester) async {
     final over = FlutterMidiOutput(
