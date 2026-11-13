@@ -13,7 +13,8 @@ import 'package:khuur_sheet_music/src/paragraph_measurer.dart';
 import 'package:khuur_sheet_music/src/score_player.dart';
 import 'package:khuur_sheet_music/src/sheet_palette.dart';
 import 'package:khuur_sheet_music/src/sheet_view.dart';
-import 'package:material_ui/material_ui.dart' show ColorScheme, Theme, ThemeData;
+import 'package:material_ui/material_ui.dart'
+    show ColorScheme, Theme, ThemeData;
 import 'package:score_layout/score_layout.dart';
 import 'package:score_model/score_model.dart';
 

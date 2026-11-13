@@ -19,7 +19,9 @@ const String bravuraFile = 'fonts/Bravura.otf';
 /// Registers the font in the file at [path] under [family].
 Future<void> loadFontFile(String path, String family) async {
   final loader = FontLoader(family)
-    ..addFont(Future.syncValue(ByteData.sublistView(File(path).readAsBytesSync())));
+    ..addFont(
+      Future.syncValue(ByteData.sublistView(File(path).readAsBytesSync())),
+    );
   await loader.load();
 }
 
