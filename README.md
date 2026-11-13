@@ -8,7 +8,17 @@ One import gives the score model, the view and the player.
 import 'package:khuur_sheet_music/khuur_sheet_music.dart';
 ```
 
-The package is not on pub.dev. Depend on a checkout by path, as `example/pubspec.yaml` does. It needs Dart 3.13 and Flutter 3.47 or later.
+The package is not on pub.dev. Depend on the `main` branch of the repository through git.
+
+```yaml
+dependencies:
+  khuur_sheet_music:
+    git:
+      url: https://github.com/Tseku210/khuur_sheet_music
+      ref: main
+```
+
+`pubspec.lock` keeps the commit that pub got, and `flutter pub upgrade khuur_sheet_music` moves it to the newest commit on `main`. To work on the package and an app together, depend on a checkout by path, as `example/pubspec.yaml` does. The package needs Dart 3.13 and Flutter 3.47 or later.
 
 ## Show a score
 
@@ -404,7 +414,7 @@ The defaults are compared by value, so a style built in `build` lays nothing out
 
 ## Draw the sheet's glyphs in your own widgets
 
-A palette or a toolbar can show a value with the glyph the sheet engraves it with. Each function below returns a `Glyph`, the sheet takes its glyph for that value from the same function, and `flutterFamily` names the font the sheet draws in.
+A palette or a toolbar can show a value with the glyph the sheet engraves it with. Each function below returns the `Glyph` of a value, and `fingeringGlyphs` returns a list of them. The sheet takes its glyph for that value from the same function. `flutterFamily` names the font the sheet draws in.
 
 | Function | Glyph |
 |---|---|
