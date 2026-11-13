@@ -89,7 +89,7 @@ int _endingsEnd(Seq<MeasureColumn> measures, int i) {
 
 /// The bars of `[from, to)` in notated order, once, each with the part of
 /// it that plays.
-List<({int index, int pass, Moment from, Moment to})> _range(
+List<_Window> _range(
   Score score,
   ScorePoint? from,
   ScorePoint? to,

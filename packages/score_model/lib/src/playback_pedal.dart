@@ -27,17 +27,14 @@ final class _Pedal {
 /// The pedal of every staff of a part with a pedal line.
 Map<StaffId, _Pedal> _pedals(
   Score score,
-  List<Length> starts,
-  List<({int index, int pass, Moment from, Moment to})> windows,
+  _Timeline time,
+  List<_Window> windows,
   List<_Bar> timeline,
 ) {
   final lines = <Part, List<(Moment, Moment)>>{};
   for (final spanner in score.spanners) {
     if (spanner.kind is PedalLine) {
-      (lines[score.partOf(spanner.staff)] ??= []).add((
-        _place(score, starts, spanner.first.measure, spanner.first.offset),
-        _place(score, starts, spanner.last.measure, score.endOf(spanner)),
-      ));
+      (lines[score.partOf(spanner.staff)] ??= []).add(time.extentOf(spanner));
     }
   }
   if (lines.isEmpty) {
@@ -47,10 +44,10 @@ Map<StaffId, _Pedal> _pedals(
   // on from one to the next where the two meet.
   final played = [
     for (final (:index, :from, :to, pass: _) in windows)
-      (from + starts[index], to + starts[index]),
+      (from + time.startOf(index), to + time.startOf(index)),
   ];
   double secondsAt(int k, Moment position) =>
-      timeline[k].secondsAt(position - starts[windows[k].index]);
+      timeline[k].secondsAt(position - time.startOf(windows[k].index));
   final pedals = <StaffId, _Pedal>{};
   for (final MapEntry(key: part, value: written) in lines.entries) {
     final spans = <(Moment, Moment)>[];

@@ -46,48 +46,10 @@ final class PlaybackCompiler {
     PlaybackOptions options = const PlaybackOptions(),
   ]) {
     final measures = score.measures;
-    final starts = <Length>[];
-    var elapsed = Length.zero;
-    for (final column in measures) {
-      starts.add(elapsed);
-      elapsed += column.length;
-    }
-    final tempo = _TempoMap(score, starts);
-    final channels = <ChannelSetup>[];
-    final sounds = <StaffId, _Sound>{};
-    var melodic = 0;
-    for (final Part(:id, :instrument, :staves) in score.parts) {
-      final channel = instrument.isPercussion
-          ? 9
-          : _melodicChannels[melodic++ % _melodicChannels.length];
-      if (!options.muted.contains(id)) {
-        channels.add(
-          ChannelSetup(
-            channel: channel,
-            part: id,
-            program: instrument.program,
-            bank: instrument.bank,
-          ),
-        );
-        final loudness = _Loudness(score, staves, starts);
-        for (final staff in staves) {
-          sounds[staff.id] = (
-            channel: channel,
-            instrument: instrument,
-            loudness: loudness,
-          );
-        }
-      }
-    }
-    final trills = <StaffId, List<(Moment, Moment)>>{};
-    for (final Spanner(:kind, :staff, :first, :last) in score.spanners) {
-      if (kind is TrillLine) {
-        (trills[staff] ??= []).add((
-          _place(score, starts, first.measure, first.offset),
-          _place(score, starts, last.measure, last.offset),
-        ));
-      }
-    }
+    final time = _Timeline(score);
+    final tempo = _TempoMap(score, time);
+    final (:channels, :sounds) = _soundSetup(score, options, time);
+    final trills = _trillSpans(score, time);
     final windows = options.from == null && options.to == null
         ? [
             for (final (:index, :pass) in _playOrder(measures))
@@ -108,7 +70,7 @@ final class PlaybackCompiler {
       final fragment = _fragments[column] ??= _compileBar(column);
       final clock = _Clock(
         tempo,
-        Moment.zero + starts[index],
+        Moment.zero + time.startOf(index),
         column.length,
         fragment.holds,
       );
@@ -136,7 +98,7 @@ final class PlaybackCompiler {
       for (final chord in bar.heard) {
         final TimedEvent(:onset, :voice, ref: EventRef(:staff)) = chord.timed;
         final (:channel, :instrument, :loudness) = sounds[staff]!;
-        final position = onset + starts[index];
+        final position = onset + time.startOf(index);
         final level = loudness.at(position);
         final trilled =
             trills[staff]?.any((t) => t.$1 <= position && position <= t.$2) ??
@@ -178,7 +140,7 @@ final class PlaybackCompiler {
         }
       }
     }
-    final pedals = _pedals(score, starts, windows, timeline);
+    final pedals = _pedals(score, time, windows, timeline);
     return PlaybackScript._(
       timeline,
       stableSorted(
@@ -198,13 +160,94 @@ typedef _Sound = ({int channel, Instrument instrument, _Loudness loudness});
 /// percussion channel.
 const _melodicChannels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15];
 
-/// A point in notated time from the start of the score.
-Moment _place(
+/// A window of one played bar: the bar's index in the score, which pass it is
+/// on, and the part of it that plays.
+typedef _Window = ({int index, int pass, Moment from, Moment to});
+
+/// Where each bar of a score starts in notated time, and the points and
+/// extents that the folds over the score place on that line. Positions count
+/// from the start of the score.
+final class _Timeline {
+  _Timeline(this._score) {
+    var elapsed = Length.zero;
+    for (final column in _score.measures) {
+      _starts.add(elapsed);
+      elapsed += column.length;
+    }
+  }
+
+  final Score _score;
+
+  /// By bar index.
+  final List<Length> _starts = [];
+
+  /// How far into the score the bar at [index] starts.
+  Length startOf(int index) => _starts[index];
+
+  /// The point [offset] into [measure].
+  Moment of(MeasureId measure, Moment offset) =>
+      offset + _starts[_score.indexOf(measure)];
+
+  /// Where [spanner] starts and where it reaches to, in time.
+  (Moment, Moment) extentOf(Spanner spanner) => (
+    of(spanner.first.measure, spanner.first.offset),
+    of(spanner.last.measure, _score.endOf(spanner)),
+  );
+}
+
+/// The channel and sound of every unmuted staff, and the channel setups to
+/// send for the parts that are heard.
+({List<ChannelSetup> channels, Map<StaffId, _Sound> sounds}) _soundSetup(
   Score score,
-  List<Length> starts,
-  MeasureId measure,
-  Moment offset,
-) => offset + starts[score.indexOf(measure)];
+  PlaybackOptions options,
+  _Timeline time,
+) {
+  final channels = <ChannelSetup>[];
+  final sounds = <StaffId, _Sound>{};
+  var melodic = 0;
+  for (final Part(:id, :instrument, :staves) in score.parts) {
+    final channel = instrument.isPercussion
+        ? 9
+        : _melodicChannels[melodic++ % _melodicChannels.length];
+    if (!options.muted.contains(id)) {
+      channels.add(
+        ChannelSetup(
+          channel: channel,
+          part: id,
+          program: instrument.program,
+          bank: instrument.bank,
+        ),
+      );
+      final loudness = _Loudness(score, staves, time);
+      for (final staff in staves) {
+        sounds[staff.id] = (
+          channel: channel,
+          instrument: instrument,
+          loudness: loudness,
+        );
+      }
+    }
+  }
+  return (channels: channels, sounds: sounds);
+}
+
+/// The spans of every trill line, from its first point to its last point, by
+/// staff.
+Map<StaffId, List<(Moment, Moment)>> _trillSpans(
+  Score score,
+  _Timeline time,
+) {
+  final trills = <StaffId, List<(Moment, Moment)>>{};
+  for (final Spanner(:kind, :staff, :first, :last) in score.spanners) {
+    if (kind is TrillLine) {
+      (trills[staff] ??= []).add((
+        time.of(first.measure, first.offset),
+        time.of(last.measure, last.offset),
+      ));
+    }
+  }
+  return trills;
+}
 
 /// The MIDI key and cents [note] plays on [instrument]. A drum note plays
 /// the kit sound it names.
