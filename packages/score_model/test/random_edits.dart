@@ -52,11 +52,24 @@ String describeView(MeasureView view) => [
 T pick<T>(Random random, List<T> options) =>
     options[random.nextInt(options.length)];
 
-Score edited(Score score, Edit edit) =>
-    switch (EditSession.start(score).run(edit)) {
-      Applied(:final session) => session.score,
-      Refused() => score,
-    };
+/// [score] after [edit], or as it was when the edit is refused. Throws when
+/// the edit leaves a score that does not load from its own JSON, since an
+/// app that saved it would lose the piece.
+Score edited(Score score, Edit edit) {
+  final outcome = EditSession.start(score).run(edit);
+  if (outcome is! Applied) {
+    return score;
+  }
+  final next = outcome.session.score;
+  try {
+    reloaded(next);
+  } on ScoreFormatException catch (error) {
+    throw StateError(
+      '${edit.runtimeType} left a score that does not load: $error',
+    );
+  }
+  return next;
+}
 
 /// Every event of [score], tuplet members included, with a reference to it.
 List<(EventRef, Event)> _eventsOf(Score score) => [
