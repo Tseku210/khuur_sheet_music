@@ -34,7 +34,7 @@ final class _TempoMap {
       for (; next < marks.length && marks[next].from <= from; next++) {
         pieces.add(marks[next]);
       }
-      final end = place(spanner.last.measure, score.lineEnd(spanner));
+      final end = place(spanner.last.measure, score.endOf(spanner));
       final start = pieces.last.tempoAt(from);
       final arrival = next < marks.length && marks[next].from <= end
           ? marks[next]

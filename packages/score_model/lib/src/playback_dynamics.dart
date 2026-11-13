@@ -57,7 +57,7 @@ final class _Loudness {
     );
     final ramps = <_Ramp>[];
     for (final (:from, :spanner, :crescendo) in hairpins) {
-      final end = place(spanner.last.measure, score.lineEnd(spanner));
+      final end = place(spanner.last.measure, score.endOf(spanner));
       final start = _levelAt(levels, from);
       final arrival = written
           .where((l) => from < l.$1 && l.$1 <= end)

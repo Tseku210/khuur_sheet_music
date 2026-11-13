@@ -36,7 +36,7 @@ Map<StaffId, _Pedal> _pedals(
     if (spanner.kind is PedalLine) {
       (lines[score.partOf(spanner.staff)] ??= []).add((
         _place(score, starts, spanner.first.measure, spanner.first.offset),
-        _place(score, starts, spanner.last.measure, score.lineEnd(spanner)),
+        _place(score, starts, spanner.last.measure, score.endOf(spanner)),
       ));
     }
   }
