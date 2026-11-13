@@ -620,12 +620,16 @@ final class InsertMeasures extends Edit {
 /// the range is cleared when it would land on a different note, or on one
 /// where it landed on none. Spanners wholly inside are removed. One that
 /// starts inside moves to the start of the bar after, and one that ends
-/// inside moves to the last onset before the range. The bar after the
-/// range starts under the tempo mark it started under: without an opening
-/// tempo mark of its own, it gains the last one the range held. Tempo lines
-/// are not counted, so one that ends in the range without a mark after it
-/// leaves the bar after at the mark's tempo. Deleting every bar is refused
-/// with [WouldEmptyScore].
+/// inside moves to the last onset before the range. The bars left play at
+/// the tempo they played at, tempo lines counted. Without an opening tempo
+/// mark of its own, the bar after the range gains one for the tempo it
+/// started at, a copy of the last mark the range held when that one gives
+/// it. A tempo line cut by the range reaches the tempo it had reached where
+/// it is cut, and one still moving the tempo past the range goes on from
+/// the bar after, split in two when it started before the range. The one
+/// change is a line that now ends just as the bar after starts at another
+/// tempo: it reaches that tempo, as a line does that ends on a tempo mark.
+/// Deleting every bar is refused with [WouldEmptyScore].
 final class DeleteMeasures extends Edit {
   const DeleteMeasures(this.first, this.last);
 

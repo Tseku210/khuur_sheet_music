@@ -46,12 +46,7 @@ final class PlaybackCompiler {
     PlaybackOptions options = const PlaybackOptions(),
   ]) {
     final measures = score.measures;
-    final starts = <Length>[];
-    var elapsed = Length.zero;
-    for (final column in measures) {
-      starts.add(elapsed);
-      elapsed += column.length;
-    }
+    final starts = _starts(score);
     final tempo = _TempoMap(score, starts);
     final channels = <ChannelSetup>[];
     final sounds = <StaffId, _Sound>{};
@@ -197,6 +192,52 @@ typedef _Sound = ({int channel, Instrument instrument, _Loudness loudness});
 /// Channels for pitched parts, in order. Channel 9 is General MIDI's
 /// percussion channel.
 const _melodicChannels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15];
+
+/// The tempo playback runs at through a score, from its tempo marks and its
+/// tempo lines. Edits read it to keep the tempo of the bars they move.
+final class PlayedTempo {
+  factory PlayedTempo(Score score) {
+    final starts = _starts(score);
+    return PlayedTempo._(score, starts, _TempoMap(score, starts));
+  }
+
+  PlayedTempo._(this._score, this._barStarts, this._map);
+
+  final Score _score;
+  final List<Length> _barStarts;
+  final _TempoMap _map;
+
+  /// The tempo at [offset] into [measure].
+  Tempo at(MeasureId measure, Moment offset) =>
+      _map.tempoAt(_place(_score, _barStarts, measure, offset));
+
+  /// The tempo [line] reaches at [offset] into [measure] when no later line
+  /// takes over from it, or null when [line] is not a tempo line.
+  Tempo? alongLine(SpannerId line, MeasureId measure, Moment offset) =>
+      _map.pieceOf(line)?.tempoAt(_place(_score, _barStarts, measure, offset));
+
+  /// The tempo line still moving the tempo at [offset] into [measure], and
+  /// the tempo it moves to, or null when the tempo holds there.
+  ({SpannerId line, Tempo target})? movingAt(MeasureId measure, Moment offset) {
+    final position = _place(_score, _barStarts, measure, offset);
+    return switch (_map.pieceAt(position)) {
+      _TempoPiece(:final line?, :final to, :final target) when position < to =>
+        (line: line, target: target),
+      _ => null,
+    };
+  }
+}
+
+/// Where each bar of [score] starts, from the start of the score.
+List<Length> _starts(Score score) {
+  final starts = <Length>[];
+  var elapsed = Length.zero;
+  for (final column in score.measures) {
+    starts.add(elapsed);
+    elapsed += column.length;
+  }
+  return starts;
+}
 
 /// A point in notated time from the start of the score.
 Moment _place(
