@@ -56,7 +56,8 @@ T pick<T>(Random random, List<T> options) =>
 /// the edit leaves a score that does not load from its own JSON, since an
 /// app that saved it would lose the piece. Throws too when a rippled edit
 /// changes the dynamic in force after the bars it changed, since the rest
-/// of the piece would play at another level.
+/// of the piece would play at another level, or the clef a note starts in
+/// while the note keeps its length.
 Score edited(Score score, Edit edit) {
   final outcome = EditSession.start(score).run(edit);
   if (outcome is! Applied) {
@@ -78,6 +79,15 @@ Score edited(Score score, Edit edit) {
     _ => false,
   };
   if (rippled) {
+    final clefs = _clefsOf(next);
+    for (final MapEntry(key: note, value: (clef, length)) in _clefsOf(
+      score,
+    ).entries) {
+      if (clefs[note] case (final now, final span)
+          when span == length && now != clef) {
+        throw StateError('${edit.runtimeType} changed the clef of a note');
+      }
+    }
     for (final staff in score.staves) {
       if (_dynamicAfterChanged(score, next, staff.id)) {
         throw StateError(
@@ -87,6 +97,23 @@ Score edited(Score score, Edit edit) {
     }
   }
   return next;
+}
+
+/// The clef each note of [score] starts in, with the note's length. An
+/// erase can cut a note short from its start, and what is left may start
+/// in another clef.
+Map<(StaffId, EventId), (Clef, Length)> _clefsOf(Score score) {
+  final bars = {for (final column in score.measures) column.id: column};
+  return {
+    for (final staff in score.staves)
+      for (final slot in VoiceSlot.values)
+        for (final timed in score.laneOf(staff.id, slot))
+          if (timed.event is ChordEvent)
+            (staff.id, timed.event.id): (
+              bars[timed.ref.measure]!.staff(staff.id).clefAt(timed.onset),
+              timed.duration,
+            ),
+  };
 }
 
 /// The dynamics of [staff] in each bar of [score], in order.
