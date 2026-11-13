@@ -248,13 +248,8 @@ final class _Decoder {
         text: json.maybe('text')?.string,
       );
     }
-    return switch (json.string) {
-      'segno' => const Segno(),
-      'coda' => const Coda(),
-      'toCoda' => const ToCoda(),
-      'fine' => const Fine(),
-      _ => json.fail('expected segno, coda, toCoda, fine or a jump'),
-    };
+    return _marksByName[json.string] ??
+        json.fail('expected ${_marksByName.keys.join(', ')} or a jump');
   }
 
   /// [staff]'s slice of a bar [length] long, whose clef defaults to
@@ -523,23 +518,9 @@ final class _Decoder {
   ) {
     final id = SpannerId(_claim(_spanners, json['id']));
     final name = json['kind'];
-    final kind = switch (name.string) {
-      'slur' => Slur(dashed: json.maybe('dashed')?.flag ?? false),
-      'crescendo' => const Hairpin(crescendo: true),
-      'diminuendo' => const Hairpin(crescendo: false),
-      'octave' => OctaveLine(json['shift'].name(OctaveShift.values)),
-      'trill' => const TrillLine(),
-      'tempo' => TempoLine(
-        text: json['text'].string,
-        factor: json['factor'].number(factorProblem),
-      ),
-      'pedal' => const PedalLine(),
-      'glissando' => const Glissando(),
-      _ => name.fail(
-        'expected one of slur, crescendo, diminuendo, octave, trill, tempo, '
-        'pedal, glissando',
-      ),
-    };
+    final kind =
+        (_kindByName[name.string] ??
+        name.fail('expected one of ${_kindByName.keys.join(', ')}'))(json);
     final staff = StaffId(json['staff'].integer);
     if (!staves.contains(staff)) {
       json['staff'].fail('no such staff');
@@ -742,3 +723,39 @@ final class _In {
     return (name, match[3] == null ? null : int.parse(match[3]!));
   }
 }
+
+/// Reads the spanner kind written under each name, in the order the
+/// messages list them.
+final Map<String, SpannerKind Function(_In json)> _kindByName = {
+  for (final (sample, read) in <(SpannerKind, SpannerKind Function(_In))>[
+    (const Slur(), (json) => Slur(dashed: json.maybe('dashed')?.flag ?? false)),
+    (const Hairpin(crescendo: true), (_) => const Hairpin(crescendo: true)),
+    (const Hairpin(crescendo: false), (_) => const Hairpin(crescendo: false)),
+    (
+      const OctaveLine(OctaveShift.up8),
+      (json) => OctaveLine(json['shift'].name(OctaveShift.values)),
+    ),
+    (const TrillLine(), (_) => const TrillLine()),
+    (
+      const TempoLine(text: '', factor: 1),
+      (json) => TempoLine(
+        text: json['text'].string,
+        factor: json['factor'].number(factorProblem),
+      ),
+    ),
+    (const PedalLine(), (_) => const PedalLine()),
+    (const Glissando(), (_) => const Glissando()),
+  ])
+    _kindName(sample): read,
+};
+
+/// The navigation marks written as a bare name, by that name.
+final Map<String, NavigationMark> _marksByName = {
+  for (final mark in const <NavigationMark>[
+    Segno(),
+    Coda(),
+    ToCoda(),
+    Fine(),
+  ])
+    _navigation(mark) as String: mark,
+};
