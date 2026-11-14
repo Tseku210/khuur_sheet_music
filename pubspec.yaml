@@ -18,7 +18,7 @@ dependencies:
   khuur_synth:
     git:
       url: https://github.com/Tseku210/khuur_synth.git
-      ref: main
+      ref: feat/play-and-record
   material_ui: ^1.11.0
   score_layout:
     path: packages/score_layout

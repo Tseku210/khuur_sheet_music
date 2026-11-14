@@ -11,6 +11,7 @@
 * **Breaking:** The SoundFont types are `khuur_synth`'s, which the package exports. `AssetSoundFont.path` is now `AssetSoundFont.key`.
 * **Breaking:** `MidiOutput` has a new `rest`. The player calls it when no note comes before the next `program`, which is when the score ends, the player stops or a play fails, and not on a pause. An output of your own implements it, and may do nothing there.
 * Each `SynthOutput` is a synthesizer of its own, so two outputs no longer share a reverb or a gain. An output opens the device's audio as each play starts and closes it once the notes have rung out after `rest`.
+* The package exports `khuur_synth`'s `AudioSessionPolicy`, so an app sets how a `SynthOutput`'s synth sets the iOS audio session, `playAndRecord` among them, without depending on `khuur_synth` itself.
 * A note's cents sound through the key's own tuning, so two notes on one channel bend apart. A preset that a SoundFont lacks leaves its part silent and the other parts play.
 
 ## 0.1.0
