@@ -7,7 +7,17 @@
 library;
 
 export 'package:khuur_synth/khuur_synth.dart'
-    show AssetSoundFont, FileSoundFont, Reverb, SoundFont, Synth;
+    show
+        AssetSoundFont,
+        AudioOutputFailed,
+        FileSoundFont,
+        PresetNotFound,
+        Reverb,
+        SoundFont,
+        SoundFontLoadFailed,
+        Synth,
+        SynthException,
+        SynthUnavailable;
 export 'package:score_layout/score_layout.dart'
     show
         ChordSymbolSpelling,
