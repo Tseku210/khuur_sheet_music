@@ -1,5 +1,5 @@
 ## 0.2.0
-* **Breaking:** `ScorePlayer` plays through FluidSynth from `khuur_synth` on Android and iOS, in place of `flutter_midi_pro`, which played through Apple's sampler on iOS. The package no longer depends on `flutter_midi_pro`. It plays nothing on macOS, Linux, Windows or the web, and the example app runs on Android and iOS only.
+* **Breaking:** `ScorePlayer` plays through FluidSynth from `khuur_synth` on Android and iOS, in place of `flutter_midi_pro`, which played through Apple's sampler on iOS. The package no longer depends on `flutter_midi_pro`. On macOS, Linux, Windows and the web the future of `play` fails with `SynthUnavailable`, and the example app runs on Android and iOS only.
 * **Breaking:** `SynthOutput` replaces `FlutterMidiOutput`, and `khuur_synth`'s `Reverb` replaces `MidiReverb`. `Reverb` takes FluidSynth's numbers on both platforms. `SynthOutput.gain` runs from 0 to 10 and is `SynthOutput.defaultGain`, 0.8, unless given, at which the GeneralUser GS piano measures about -24 LUFS. `SynthOutput.reverb` can change between plays.
 
   | Before | Now |
