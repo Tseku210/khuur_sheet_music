@@ -594,6 +594,61 @@ void main() {
   });
 
   group('Review regressions', () {
+    group('keeps every id its own, so the score loads again', () {
+      test('when a bar rest is pulled back into a bar rest', () {
+        final session = barsOf([
+          [chordOf(1, 'C4', value: NoteValue.half), ...quarters(2, 'D4 E4')],
+          [],
+          [],
+          [chordOf(4, 'F4', value: NoteValue.whole)],
+        ]);
+
+        final next = applied(pull(session, [1, 2, 3]));
+
+        expect(bar(next.score, 0), ['measure-rest']);
+        expect(bar(next.score, 1), ['measure-rest']);
+        expect(bar(next.score, 2), ['F4/whole']);
+        expect(saved(reloaded(next.score)), saved(next.score));
+      });
+
+      test('when rests are pulled back into rests of their values', () {
+        List<VoiceItem> rests(int first) => [
+          for (var i = 0; i < 4; i++) rest(first + i, NoteValue.quarter),
+        ];
+        final session = barsOf([
+          [chordOf(1, 'C4', value: NoteValue.whole)],
+          rests(10),
+          rests(20),
+          [chordOf(4, 'F4', value: NoteValue.whole)],
+        ]);
+
+        final next = applied(pull(session, [1]));
+
+        expect(saved(reloaded(next.score)), saved(next.score));
+      });
+
+      test('and keeps a bar whose rests only moved inside it', () {
+        final session = barsOf([
+          [
+            chordOf(1, 'C4'),
+            rest(2, NoteValue.quarter),
+            rest(3, NoteValue.quarter),
+            rest(4, NoteValue.quarter),
+          ],
+          [for (var i = 0; i < 4; i++) rest(10 + i, NoteValue.quarter)],
+          [chordOf(20, 'F4', value: NoteValue.whole)],
+        ]);
+
+        final next = applied(pull(session, [2]));
+
+        expect(
+          next.score.measures[0].staves[0],
+          same(session.score.measures[0].staves[0]),
+        );
+        expect(saved(reloaded(next.score)), saved(next.score));
+      });
+    });
+
     test('clears the ties of other parts that a grown section cuts off', () {
       var score = blankScore(parts: const [morinKhuur, morinKhuur]);
       score = fill(score, 0, quarters(1, 'F4 G4 A4 B4'));
