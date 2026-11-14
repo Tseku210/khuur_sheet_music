@@ -213,7 +213,7 @@ A `PedalLine` plays as the sustain pedal. The notes of its part, on every staff,
 
 `tempoScale` is the speed against the written tempo, and a new value applies at once. `stop` silences the output and takes the playhead away. The future of `play` fails when the SoundFont does not load. Call `dispose` when the widget's state is disposed.
 
-Playback runs on Android and iOS, through FluidSynth from [`khuur_synth`](https://github.com/Tseku210/khuur_synth). The package plays nothing on other platforms.
+Playback runs on Android and iOS, through FluidSynth from [`khuur_synth`](https://github.com/Tseku210/khuur_synth). On other platforms the future of `play` fails with `SynthUnavailable`.
 
 ### Supply a SoundFont
 
