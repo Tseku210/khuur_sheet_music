@@ -112,15 +112,48 @@ final class MidiReverb {
 
 /// Plays through `flutter_midi_pro` (Android, iOS and macOS).
 final class FlutterMidiOutput implements MidiOutput {
-  FlutterMidiOutput({this.reverb});
+  FlutterMidiOutput({this._reverb, this._gain = 1});
 
-  /// The reverb this output asks for when it loads. Null asks for none.
+  /// The reverb this output asks for. Null asks for none.
   ///
-  /// The reverb belongs to the plugin's one synthesizer and not to an
-  /// output. So the output that loaded last decides it for every output of
-  /// the process, and one with no reverb turns off what an earlier one
-  /// turned on.
-  final MidiReverb? reverb;
+  /// The output asks for it each time it loads a SoundFont and each time
+  /// it sets a [program], which the player does as every play starts. It
+  /// also asks at once when it changes while the synthesizer runs, so a new
+  /// one sounds from the next note.
+  ///
+  /// The reverb and the [gain] belong to the plugin's one synthesizer and
+  /// not to an output. So the output that asked last decides them for every
+  /// output of the process, and one with no reverb turns off what an earlier
+  /// one turned on. An output still plays each play with its own, whatever
+  /// another output asked for before, because it asks again as the play
+  /// starts. Two outputs that sound at once share those of the later one.
+  MidiReverb? get reverb => _reverb;
+  set reverb(MidiReverb? value) {
+    if (value != _reverb) {
+      _reverb = value;
+      if (_running) {
+        unawaited(_askForReverb());
+      }
+    }
+  }
+
+  MidiReverb? _reverb;
+
+  /// How loud the synthesizer plays, as a multiple of its own level: 1 is
+  /// its level and 0 is silence. The output holds it to 0 to 4, about
+  /// 12 dB louder, the most iOS takes. It asks for it as it asks for the
+  /// [reverb].
+  double get gain => _gain;
+  set gain(double value) {
+    if (value != _gain) {
+      _gain = value;
+      if (_running) {
+        unawaited(_askForGain());
+      }
+    }
+  }
+
+  double _gain;
 
   /// The plugin's `init` while it runs, which every output waits for. The
   /// plugin is one synthesizer for the whole process. Its `isInitialized`
@@ -146,17 +179,8 @@ final class FlutterMidiOutput implements MidiOutput {
     if (_init != null || !_midi.isInitialized) {
       await (_init ??= _midi.init().whenComplete(() => _init = null));
     }
-    await switch (reverb) {
-      null => _midi.setReverb(enabled: false),
-      MidiReverb(:final roomSize, :final level, :final damping, :final width) =>
-        _midi.setReverb(
-          enabled: true,
-          roomSize: _within(roomSize, 1),
-          damping: _within(damping, 1),
-          width: _within(width, _widestReverb),
-          level: _within(level, 1),
-        ),
-    };
+    await _askForReverb();
+    await _askForGain();
     final id = await switch (soundFont) {
       AssetSoundFont(:final path) => _midi.loadSoundfontAsset(assetPath: path),
       FileSoundFont(:final path) => _midi.loadSoundfontFile(filePath: path),
@@ -167,6 +191,25 @@ final class FlutterMidiOutput implements MidiOutput {
       _ids[soundFont] = id;
     }
   }
+
+  /// Whether the synthesizer runs and no `init` is under way, so what
+  /// this output asks for now holds.
+  bool get _running => !_disposed && _init == null && _midi.isInitialized;
+
+  Future<void> _askForReverb() => switch (_reverb) {
+    null => _midi.setReverb(enabled: false),
+    MidiReverb(:final roomSize, :final level, :final damping, :final width) =>
+      _midi.setReverb(
+        enabled: true,
+        roomSize: _within(roomSize, 1),
+        damping: _within(damping, 1),
+        width: _within(width, _widestReverb),
+        level: _within(level, 1),
+      ),
+  };
+
+  Future<void> _askForGain() =>
+      _midi.setMasterGain(_within(_gain, _loudestGain));
 
   @override
   Future<void> program({
@@ -180,9 +223,17 @@ final class FlutterMidiOutput implements MidiOutput {
     // changes. Sending it to rest first keeps [_bends] true either way, and
     // clears what an earlier output left on the channel.
     _bend(id, channel, 0);
-    if (bank > _largestBank) {
-      return;
-    }
+    // Another output may have put its own reverb and gain on the one
+    // synthesizer since this one last asked. Everything is sent before the
+    // first answer comes, so the programs keep the order they were asked in.
+    await Future.wait([
+      _askForReverb(),
+      _askForGain(),
+      if (bank <= _largestBank) _select(id, channel, program, bank),
+    ]);
+  }
+
+  Future<void> _select(int id, int channel, int program, int bank) async {
     try {
       await _midi.selectInstrument(
         sfId: id,
@@ -285,6 +336,10 @@ const _largestBank = 255;
 
 /// The largest width the plugin's `setReverb` takes, which is FluidSynth's.
 const _widestReverb = 100.0;
+
+/// The largest gain iOS takes, about 12 dB above the synthesizer's level.
+/// Android takes up to 10.
+const _loudestGain = 4.0;
 
 /// [value] held to 0 to [most]. A value that is not a number is 0, where
 /// `clamp` makes it [most].
