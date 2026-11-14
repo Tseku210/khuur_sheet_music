@@ -63,8 +63,9 @@ final class ScorePlayer {
 
   /// The SoundFont each instrument plays from, by `Instrument.key`, in
   /// place of [soundFont]. A score saves its instruments and not where
-  /// their sounds are, so the app gives the files here.
-  final Map<String, SoundFont> instrumentSoundFonts;
+  /// their sounds are, so the app gives the files here. A new map holds
+  /// from the next [play], so an app can swap in a file it downloaded.
+  Map<String, SoundFont> instrumentSoundFonts;
 
   final MidiOutput _output;
   final Duration Function() _now;
