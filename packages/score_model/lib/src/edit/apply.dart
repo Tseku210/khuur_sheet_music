@@ -66,7 +66,7 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
       :final overfill,
       :final beam,
       :final appendBar,
-      ripple: Ripple.part,
+      :final ripple,
     ) =>
       _enterRippled(
         score,
@@ -79,6 +79,7 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
         ),
         ids,
         overfill,
+        ripple,
         appendBar: appendBar,
         session: session,
       ),
@@ -102,7 +103,7 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
       :final value,
       :final overfill,
       :final appendBar,
-      ripple: Ripple.part,
+      :final ripple,
     ) =>
       _enterRippled(
         score,
@@ -110,6 +111,7 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
         RestEvent(id: ids.event(), value: _checked(value)),
         ids,
         overfill,
+        ripple,
         appendBar: appendBar,
         session: session,
       ),
@@ -126,8 +128,14 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
     SetValue(:final event, :final value, ripple: Ripple.none) => _Result(
       _setValue(score, _target(score, event), _checked(value), ids),
     ),
-    SetValue(:final event, :final value, ripple: Ripple.part) =>
-      _setValueRippled(score, event, _checked(value), ids, session),
+    SetValue(:final event, :final value, :final ripple) => _setValueRippled(
+      score,
+      event,
+      _checked(value),
+      ids,
+      ripple,
+      session,
+    ),
     EnterTuplet(:final at, :final ratio, :final unit) => _enterTuplet(
       score,
       at,
@@ -147,10 +155,11 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
     Erase(:final selection, ripple: Ripple.none) => _Result(
       _erase(_unspanned(score, selection), selection, ids),
     ),
-    Erase(:final selection, ripple: Ripple.part) => _eraseRippled(
+    Erase(:final selection, :final ripple) => _eraseRippled(
       _unspanned(score, selection),
       selection,
       ids,
+      ripple,
       session,
     ),
     SetArticulation(:final event, :final articulation, :final present) =>

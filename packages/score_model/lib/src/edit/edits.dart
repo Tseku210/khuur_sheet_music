@@ -7,8 +7,8 @@
 /// Policies that shape the whole model are stated on the edits that carry
 /// them:
 /// - Note entry overwrites unless it is asked to ripple. See [EnterNote].
-/// - A ripple moves the later music of one part, inside one section. See
-///   [Ripple].
+/// - A ripple moves the later music of one part or of one staff, inside
+///   one section. See [Ripple].
 /// - Overfill splits at the barline and ties into the next bar. See
 ///   [EnterNote].
 /// - A meter change re-bars the music up to the next meter change, section
@@ -68,10 +68,11 @@ sealed class Edit {
 /// the cursor stays at [at]. The bars the overfill policy needs are appended
 /// either way.
 ///
-/// With [ripple] set to [Ripple.part] the note makes room for itself
-/// instead of writing over what follows. It first takes the time of the
-/// plain rests and gaps that start at [at], up to its own length, and pushes
-/// the music after them later by the time it still needs (see [Ripple]).
+/// With [ripple] set to [Ripple.part] or [Ripple.staff] the note makes room
+/// for itself instead of writing over what follows. It first takes the time
+/// of the plain rests and gaps that start at [at], up to its own length, and
+/// pushes the music after them later by the time it still needs, in every
+/// staff of the part or in the note's staff alone (see [Ripple]).
 /// Entered onto a rest at least as long as itself, it pushes nothing and
 /// the edit is the overwriting one. Entered inside a note, it splits that
 /// note: the head stays before the new note and the rest of it moves after.
@@ -150,23 +151,28 @@ enum Overfill {
 
 /// Whether an edit that adds or removes time moves the music after it.
 ///
-/// Ripple policy, for [Ripple.part]. An editor that works like a line of
-/// text uses it: new music makes room for itself, and deleted music closes
-/// the gap it leaves.
+/// Ripple policy, for [Ripple.part] and [Ripple.staff]. An editor that
+/// works like a line of text uses one of them: new music makes room for
+/// itself, and deleted music closes the gap it leaves.
 ///
-/// - Scope: every voice of every staff of the part that holds the edit
-///   moves together, so the part's voices stay aligned. Other parts stay
-///   where they are.
+/// - Scope: with [Ripple.part], every voice of every staff of the part that
+///   holds the edit moves together, so the part's voices stay aligned.
+///   With [Ripple.staff], every voice of the staff that holds the edit
+///   moves together, and the part's other staves stay where they are, so
+///   one hand of a piano part is edited without the other. Other parts
+///   stay where they are under both. The rest of this policy holds for the
+///   staves that move.
 /// - Sections: music moves only inside the section that holds the edit.
 ///   That is the run of bars [SetMeter] re-bars together, also ended by a
 ///   change of meter. The section's trailing rests and gaps give way
 ///   first, as in [SetMeter]. A push that still overfills the section adds
 ///   whole bars before its closing barline, and the barline, its repeat
-///   sign and its end-of-bar navigation move to the new last bar. Music
-///   never crosses that barline, so a push into the last section adds bars
-///   at the end of the score. A pull leaves rests at the end of the section
-///   and removes no bars. A pickup or other irregular bar is a section that
-///   cannot grow, and a push that overfills it is refused with
+///   sign and its end-of-bar navigation move to the new last bar. Every
+///   staff that does not move rests in the new bars. Music never crosses
+///   that barline, so a push into the last section adds bars at the end of
+///   the score. A pull leaves rests at the end of the section and removes
+///   no bars. A pickup or other irregular bar is a section that cannot
+///   grow, and a push that overfills it is refused with
 ///   [WouldCrossBarline].
 /// - Moving: the music after the edit point moves by the time added or
 ///   removed. In the other voices, an event that sounds across the point
@@ -179,12 +185,13 @@ enum Overfill {
 ///   next piece of its own note, or on a new note of its tone, and while it
 ///   ends on no head where it ended on none. Otherwise it is cleared.
 /// - Marks: articulations, fingerings and lyrics travel on their notes.
-///   The directions and clef changes of the part's staves, the ends of its
-///   spanners, a cursor on the part and a range selection over it keep
-///   their place in the music. A direction in removed time is dropped, as
-///   [DeleteMeasures] drops it. A clef change there moves to where the time
-///   was removed, so the clef that follows is kept. A spanner start there
-///   moves to the music after it and an end to the last onset before it.
+///   The directions and clef changes of the staves that move, the ends of
+///   their spanners, a cursor on one of them and a range selection over one
+///   keep their place in the music. A direction in removed time is
+///   dropped, as [DeleteMeasures] drops it. A clef change there moves to
+///   where the time was removed, so the clef that follows is kept. A
+///   spanner start there moves to the music after it and an end to the
+///   last onset before it.
 ///   Tempo marks, breaks and signature displays belong to every part, so
 ///   they stay with their bars.
 enum Ripple {
@@ -192,8 +199,11 @@ enum Ripple {
   /// shorter or deleted leaves rests.
   none,
 
-  /// The later music of the edited part moves.
+  /// The later music of the edited part moves, in all its staves.
   part,
+
+  /// The later music of the edited staff moves, and no other staff.
+  staff,
 }
 
 /// Adds [tone] to [event] (access pattern 2). A single note becomes a
@@ -244,12 +254,13 @@ final class SetTone extends Edit {
 /// it ended on before, or on none. The cursor and selection stay.
 /// Idempotent.
 ///
-/// With [ripple] set to [Ripple.part], the music after the event moves by
-/// the change instead (see [Ripple]). A longer event pushes it later and a
-/// shorter one pulls it back, so nothing after the event is written over
-/// or turned into rests. An event in a tuplet cannot change its length this
-/// way, and the edit is refused with [WouldSplitTuplet]. The cursor and a
-/// range selection on the part follow the music.
+/// With [ripple] set to [Ripple.part] or [Ripple.staff], the music after
+/// the event moves by the change instead, in every staff of the part or in
+/// the event's staff alone (see [Ripple]). A longer event pushes it later
+/// and a shorter one pulls it back, so nothing after the event is written
+/// over or turned into rests. An event in a tuplet cannot change its length
+/// this way, and the edit is refused with [WouldSplitTuplet]. The cursor
+/// and a range selection on the staves that move follow the music.
 final class SetValue extends Edit {
   const SetValue(this.event, this.value, {this.ripple = Ripple.none});
 
@@ -326,13 +337,15 @@ final class SetTie extends Edit {
 /// is cleared is cleared too. Bars are never removed; see [DeleteMeasures].
 /// Refused with [StaleReference] for a picked spanner that is gone.
 ///
-/// With [ripple] set to [Ripple.part], what is deleted gives back its time
-/// (see [Ripple]). A picked event goes, a measure rest included, and the
-/// later music of its part moves back to close the gap. Picked heads of a
-/// chord that keeps another head are removed as they are without a ripple.
-/// A range takes its time out of every part that has a staff in it, all of
-/// that part's staves, section by section. An event in a tuplet, or a range
-/// end inside one, is refused with [WouldSplitTuplet].
+/// With [ripple] set to [Ripple.part] or [Ripple.staff], what is deleted
+/// gives back its time (see [Ripple]). A picked event goes, a measure rest
+/// included, and the later music of its part, or of its staff alone, moves
+/// back to close the gap. Picked heads of a chord that keeps another head
+/// are removed as they are without a ripple. With [Ripple.part] a range
+/// takes its time out of every part that has a staff in it, all of that
+/// part's staves, section by section. With [Ripple.staff] it takes its
+/// time out of the staves in it and no others. An event in a tuplet, or a
+/// range end inside one, is refused with [WouldSplitTuplet].
 final class Erase extends Edit {
   const Erase(this.selection, {this.ripple = Ripple.none});
 
