@@ -1,910 +1,263 @@
-import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:flutter/services.dart';
-import 'package:flutter_midi_pro/flutter_midi_pro.dart';
-import 'package:flutter_midi_pro/flutter_midi_pro_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:khuur_sheet_music/src/midi_output.dart';
-import 'package:khuur_sheet_music/src/sound_font.dart';
-import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
-import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import 'package:khuur_sheet_music/khuur_sheet_music.dart';
+import 'package:khuur_synth/khuur_synth.dart' show Preset;
+import 'package:khuur_synth/testing.dart';
 
-class FakeMidiPlatform extends FlutterMidiProPlatform
-    with MockPlatformInterfaceMixin {
-  final calls = <String>[];
-  final loaded = <List<int>>[];
+const piano = AssetSoundFont('piano.sf2');
+const reed = FileSoundFont('/fonts/reed.sf2');
+const hall = Reverb(roomSize: 0.5, level: 0.3);
 
-  /// The id the next `loadSoundfont` answers with.
-  int nextId = 7;
-
-  /// What each `setReverb` asked for, in order.
-  final reverbs = <String>[];
-
-  /// What each `setMasterGain` asked for, in order.
-  final gains = <double>[];
-  String? selectError;
-
-  @override
-  Future<void> init(int sampleRate, int bufferSize, int polyphony) async {}
-
-  @override
-  Future<int> loadSoundfont(String path, int bank, int program) async {
-    loaded.add(File(path).readAsBytesSync());
-    return nextId++;
+/// A [SynthOutput] over a silent synth, and every event that synth hears.
+final class Rig {
+  Rig({Reverb? reverb, double gain = SynthOutput.defaultGain}) {
+    output = SynthOutput(
+      reverb: reverb,
+      gain: gain,
+      open: () {
+        opens++;
+        return Synth.silent(onEvent: events.add, presets: presets);
+      },
+    );
   }
 
-  @override
-  Future<void> selectInstrument(
-    int sfId,
-    int channel,
-    int bank,
-    int program,
-  ) async {
-    calls.add('select sf$sfId $channel = $bank/$program');
-    if (selectError case final code?) {
-      throw PlatformException(code: code);
-    }
-  }
+  late final SynthOutput output;
+  final List<SynthEvent> events = [];
+  int opens = 0;
 
-  @override
-  Future<void> playNote(int channel, int key, int velocity, int sfId) async =>
-      calls.add('on sf$sfId $channel:$key v$velocity');
+  /// What a load finds in each SoundFont, General MIDI's bank 0 unless a
+  /// test says otherwise.
+  List<Preset> Function(SoundFont source) presets = (_) => [
+    for (var program = 0; program < 128; program++)
+      Preset(bank: 0, program: program, name: ''),
+  ];
 
-  @override
-  Future<void> stopNote(int channel, int key, int sfId) async =>
-      calls.add('off sf$sfId $channel:$key');
-
-  @override
-  Future<void> stopAllNotes(int sfId) async => calls.add('all off sf$sfId');
-
-  @override
-  Future<void> pitchBend(int sfId, int channel, int value) async =>
-      calls.add('bend sf$sfId $channel = $value');
-
-  @override
-  Future<void> unloadSoundfont(int sfId) async => calls.add('unload sf$sfId');
-
-  @override
-  Future<void> setReverb(
-    bool enabled,
-    double roomSize,
-    double damping,
-    double width,
-    double level,
-  ) async => reverbs.add(
-    enabled
-        ? 'room $roomSize damping $damping width $width level $level'
-        : 'off',
-  );
-
-  @override
-  Future<void> setMasterGain(double gain) async => gains.add(gain);
-
-  @override
-  Future<void> dispose() async {}
-}
-
-/// A platform whose `init` waits for [endInit] and fails with [initError].
-/// Its [calls] also tell when `init` begins and ends, when the reverb and
-/// the gain are asked for and when a SoundFont is loaded.
-class GatedMidiPlatform extends FakeMidiPlatform {
-  PlatformException? initError;
-
-  // Made by `init`. A future answers in the zone it was made in, and a
-  // test's body is not in the zone its `runAsync` waits in.
-  late Completer<void> _initGate;
-
-  void endInit() => _initGate.complete();
-
-  @override
-  Future<void> init(int sampleRate, int bufferSize, int polyphony) async {
-    calls.add('init begins');
-    _initGate = Completer<void>();
-    await _initGate.future;
-    if (initError case final error?) {
-      throw error;
-    }
-    calls.add('init ends');
-  }
-
-  @override
-  Future<void> setReverb(
-    bool enabled,
-    double roomSize,
-    double damping,
-    double width,
-    double level,
-  ) {
-    final asked = super.setReverb(enabled, roomSize, damping, width, level);
-    calls.add('reverb ${reverbs.last}');
-    return asked;
-  }
-
-  @override
-  Future<void> setMasterGain(double gain) {
-    calls.add('gain $gain');
-    return super.setMasterGain(gain);
-  }
-
-  @override
-  Future<int> loadSoundfont(String path, int bank, int program) {
-    calls.add('load');
-    return super.loadSoundfont(path, bank, program);
+  /// The events since the last call.
+  List<SynthEvent> take() {
+    final taken = [...events];
+    events.clear();
+    return taken;
   }
 }
 
-class FakePathProvider extends PathProviderPlatform
-    with MockPlatformInterfaceMixin {
-  FakePathProvider(this.dir);
-  final Directory dir;
-
-  @override
-  Future<String?> getTemporaryPath() async => dir.path;
-}
+/// Long enough for a silent synth to ring out, which it does after two
+/// quiet ticks of 50 ms.
+Future<void> ringOut() =>
+    Future<void>.delayed(const Duration(milliseconds: 300));
 
 void main() {
-  late FakeMidiPlatform midi;
-  late Directory tmp;
-  late SoundFont soundFont;
+  test(
+    'the first load opens one synth at the output reverb and gain',
+    () async {
+      final rig = Rig(reverb: hall, gain: 0.5);
+      await Future.wait([rig.output.load(piano), rig.output.load(reed)]);
+      expect(rig.opens, 1);
+      expect(rig.take(), [
+        const ReverbChanged(hall),
+        const GainChanged(0.5),
+        const Loaded(piano),
+        const Loaded(reed),
+      ]);
+      rig.output.dispose();
+    },
+  );
 
-  /// The app's asset bundle, by asset key. A path that is not a key here is
-  /// not an asset.
-  late Map<String, List<int>> assets;
-
-  setUp(() {
-    assets = {};
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMessageHandler(
-          'flutter/assets',
-          (message) async => switch (assets[utf8.decode(
-            message!.buffer.asUint8List(),
-          )]) {
-            final bytes? => ByteData.sublistView(Uint8List.fromList(bytes)),
-            null => null,
-          },
-        );
-    tmp = Directory.systemTemp.createTempSync('midi_output_test');
-    final sf2 = File('${tmp.path}/piano.sf2')..writeAsBytesSync([1, 2, 3]);
-    soundFont = FileSoundFont(sf2.path);
-    midi = FakeMidiPlatform();
-    FlutterMidiProPlatform.instance = midi;
-    PathProviderPlatform.instance = FakePathProvider(tmp);
+  test('the default gain is 0.8 with no reverb', () async {
+    final rig = Rig();
+    await rig.output.load(piano);
+    expect(rig.take(), [
+      const ReverbChanged(null),
+      const GainChanged(0.8),
+      const Loaded(piano),
+    ]);
+    rig.output.dispose();
   });
 
-  tearDown(() async {
-    // The plugin is one synthesizer for the whole process, so a test shuts
-    // down the one it started.
-    if (MidiPro().isInitialized) {
-      await MidiPro().dispose();
-    }
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMessageHandler('flutter/assets', null);
-    tmp.deleteSync(recursive: true);
+  test('a gain out of 0 to 10 is refused', () {
+    expect(() => SynthOutput(gain: -0.1), throwsRangeError);
+    expect(() => SynthOutput(gain: 10.5), throwsRangeError);
+    expect(() => SynthOutput(gain: double.nan), throwsRangeError);
   });
 
-  testWidgets('loads a file SoundFont and plays through it', (tester) async {
-    final output = FlutterMidiOutput();
-    await tester.runAsync(() => output.load(soundFont));
-    await output.program(
-      soundFont: soundFont,
-      channel: 1,
-      program: 71,
-      bank: 2,
-    );
+  test('each SoundFont plays on its own 16 channels', () async {
+    final rig = Rig();
+    final output = rig.output;
+    await output.load(piano);
+    await output.load(reed);
+    rig.take();
+    await output.program(soundFont: piano, channel: 0, program: 0, bank: 0);
+    await output.program(soundFont: reed, channel: 0, program: 71, bank: 0);
     output
+      ..noteOn(soundFont: piano, channel: 0, key: 60, velocity: 80, cents: 0)
+      ..noteOn(soundFont: reed, channel: 0, key: 67, velocity: 90, cents: 50)
+      ..noteOff(soundFont: piano, channel: 0, key: 60);
+    await pumpEventQueue();
+    expect(rig.take(), [
+      const Selected(channel: 0, source: piano, bank: 0, program: 0),
+      const Started(),
+      const Selected(channel: 16, source: reed, bank: 0, program: 71),
+      const NoteOn(channel: 0, key: 60, velocity: 80, cents: 0),
+      const NoteOn(channel: 16, key: 67, velocity: 90, cents: 50),
+      const NoteOff(channel: 0, key: 60),
+    ]);
+    output.dispose();
+  });
+
+  test('a velocity outside 1 to 127 is held to it', () async {
+    final rig = Rig();
+    final output = rig.output;
+    await output.load(piano);
+    await output.program(soundFont: piano, channel: 3, program: 0, bank: 0);
+    rig.take();
+    output
+      ..noteOn(soundFont: piano, channel: 3, key: 60, velocity: 0, cents: 0)
       ..noteOn(
-        soundFont: soundFont,
-        channel: 1,
-        key: 60,
-        velocity: 80,
-        cents: 0,
-      )
-      ..noteOff(soundFont: soundFont, channel: 1, key: 60)
-      ..allNotesOff()
-      ..dispose();
-
-    expect(midi.loaded, [
-      [1, 2, 3],
-    ]);
-    expect(midi.calls, [
-      'bend sf7 1 = 8192',
-      'select sf7 1 = 2/71',
-      'on sf7 1:60 v80',
-      'off sf7 1:60',
-      'all off sf7',
-      'unload sf7',
-    ]);
-  });
-
-  testWidgets(
-    'holds several SoundFonts, and plays, bends and silences each by its '
-    'own id',
-    (tester) async {
-      final reed = FileSoundFont(
-        (File('${tmp.path}/reed.sf2')..writeAsBytesSync([4, 5])).path,
+        soundFont: piano,
+        channel: 3,
+        key: 62,
+        velocity: 200,
+        cents: -50,
       );
-      final output = FlutterMidiOutput();
-      await tester.runAsync(() async {
-        await output.load(soundFont);
-        await output.load(reed);
-      });
-      await output.program(
-        soundFont: soundFont,
-        channel: 0,
-        program: 0,
-        bank: 0,
-      );
-      await output.program(soundFont: reed, channel: 0, program: 71, bank: 0);
-      midi.calls.clear();
-      output
-        ..noteOn(soundFont: reed, channel: 0, key: 67, velocity: 80, cents: 50)
-        ..noteOn(
-          soundFont: soundFont,
-          channel: 0,
-          key: 60,
-          velocity: 80,
-          cents: 0,
-        )
-        ..noteOff(soundFont: reed, channel: 0, key: 67)
-        ..allNotesOff()
-        ..dispose();
-
-      expect(midi.loaded, [
-        [1, 2, 3],
-        [4, 5],
-      ]);
-      expect(midi.calls, [
-        'bend sf8 0 = 10240',
-        'on sf8 0:67 v80',
-        'on sf7 0:60 v80',
-        'off sf8 0:67',
-        'all off sf7',
-        'all off sf8',
-        'unload sf7',
-        'unload sf8',
-      ]);
-    },
-  );
-
-  testWidgets(
-    'on Apple platforms a program is ready only once the sampler has taken '
-    'it, so the first note sounds',
-    (tester) async {
-      final output = FlutterMidiOutput();
-      await tester.runAsync(() => output.load(soundFont));
-      var ready = false;
-      unawaited(
-        output
-            .program(soundFont: soundFont, channel: 0, program: 42, bank: 0)
-            .then((_) => ready = true),
-      );
-
-      await tester.pump(const Duration(milliseconds: 49));
-      expect(ready, isFalse);
-      await tester.pump(const Duration(milliseconds: 1));
-      expect(ready, isTrue);
-      output.dispose();
-    },
-    variant: const TargetPlatformVariant({
-      TargetPlatform.iOS,
-      TargetPlatform.macOS,
-    }),
-  );
-
-  testWidgets('on Android a program is ready as the plugin answers', (
-    tester,
-  ) async {
-    final output = FlutterMidiOutput();
-    await tester.runAsync(() => output.load(soundFont));
-    var ready = false;
-    unawaited(
-      output
-          .program(soundFont: soundFont, channel: 0, program: 42, bank: 0)
-          .then((_) => ready = true),
-    );
-
-    await tester.pump();
-    expect(ready, isTrue);
-    output.dispose();
-  });
-
-  testWidgets('loads an asset SoundFont by its app asset key', (tester) async {
-    assets['assets/soundfonts/piano.sf2'] = [4, 5, 6];
-    final output = FlutterMidiOutput();
-    await tester.runAsync(
-      () => output.load(const AssetSoundFont('assets/soundfonts/piano.sf2')),
-    );
-
-    expect(midi.loaded, [
-      [4, 5, 6],
+    await pumpEventQueue();
+    expect(rig.take(), [
+      const NoteOn(channel: 3, key: 60, velocity: 1, cents: 0),
+      const NoteOn(channel: 3, key: 62, velocity: 127, cents: -50),
     ]);
     output.dispose();
   });
 
-  testWidgets('a preset the SoundFont lacks is not a failure', (tester) async {
-    final output = FlutterMidiOutput();
-    await tester.runAsync(() => output.load(soundFont));
+  test('a preset the SoundFont lacks leaves its channel silent', () async {
+    final rig = Rig()
+      ..presets = (_) => const [Preset(bank: 0, program: 0, name: '')];
+    final output = rig.output;
+    await output.load(piano);
+    rig.take();
+    await output.program(soundFont: piano, channel: 1, program: 40, bank: 0);
+    await output.program(soundFont: piano, channel: 0, program: 0, bank: 0);
+    expect(rig.take(), [
+      const Started(),
+      const Selected(channel: 0, source: piano, bank: 0, program: 0),
+    ]);
+    output.dispose();
+  });
 
-    for (final code in ['SOUND_FONT_LOAD_FAILED', 'SOUND_FONT_LOAD_FAILED2']) {
-      midi.selectError = code;
-      await output.program(
-        soundFont: soundFont,
-        channel: 0,
-        program: 40,
-        bank: 0,
-      );
+  test('all notes off cuts every sound at once', () async {
+    final rig = Rig();
+    await rig.output.load(piano);
+    rig.take();
+    rig.output.allNotesOff();
+    await pumpEventQueue();
+    expect(rig.take(), [const AllSoundsOff()]);
+    rig.output.dispose();
+  });
+
+  test('a rest closes the device once the notes have rung out', () async {
+    final rig = Rig();
+    final output = rig.output;
+    await output.load(piano);
+    await output.program(soundFont: piano, channel: 0, program: 0, bank: 0);
+    rig.take();
+    output.rest();
+    await ringOut();
+    expect(rig.take(), [const Stopped(ringOut: true)]);
+    output.dispose();
+  });
+
+  test('a program after a rest keeps the device open', () async {
+    final rig = Rig();
+    final output = rig.output;
+    await output.load(piano);
+    final first = output.program(
+      soundFont: piano,
+      channel: 0,
+      program: 0,
+      bank: 0,
+    );
+    output.rest();
+    final second = output.program(
+      soundFont: piano,
+      channel: 0,
+      program: 0,
+      bank: 0,
+    );
+    await Future.wait([first, second]);
+    await ringOut();
+    expect(rig.events, contains(const Started()));
+    expect(rig.events, isNot(contains(const Stopped(ringOut: true))));
+
+    rig.take();
+    output.rest();
+    await ringOut();
+    expect(rig.take(), [const Stopped(ringOut: true)]);
+    output.dispose();
+  });
+
+  test('a rest before the first program does nothing', () async {
+    final rig = Rig();
+    rig.output.rest();
+    await rig.output.load(piano);
+    rig.output.rest();
+    await ringOut();
+    expect(rig.events.whereType<Stopped>(), isEmpty);
+    rig.output.dispose();
+  });
+
+  test('a new reverb reaches the synth', () async {
+    final rig = Rig();
+    final output = rig.output..reverb = hall;
+    await output.load(piano);
+    expect(rig.take().first, const ReverbChanged(hall));
+    output.reverb = null;
+    await pumpEventQueue();
+    expect(rig.take(), [const ReverbChanged(null)]);
+    expect(output.reverb, isNull);
+    output.dispose();
+  });
+
+  test('a failed open lets the next load open again', () async {
+    var opens = 0;
+    final events = <SynthEvent>[];
+    final output = SynthOutput(
+      open: () {
+        if (opens++ == 0) {
+          return Future.error(StateError('no audio'));
+        }
+        return Synth.silent(onEvent: events.add);
+      },
+    );
+    await expectLater(output.load(piano), throwsStateError);
+    await output.load(piano);
+    expect(opens, 2);
+    expect(events, contains(const Loaded(piano)));
+    output.dispose();
+  });
+
+  test('dispose closes the synth', () async {
+    final rig = Rig();
+    await rig.output.load(piano);
+    rig.take();
+    rig.output.dispose();
+    await pumpEventQueue();
+    expect(rig.take(), [const Closed()]);
+  });
+
+  test('dispose while the synth opens closes it once it is open', () async {
+    final rig = Rig();
+    final loading = rig.output.load(piano);
+    rig.output.dispose();
+    await loading;
+    await pumpEventQueue();
+    expect(rig.events, [const Closed()]);
+  });
+
+  test('an output plays from at most 16 SoundFonts', () async {
+    final rig = Rig();
+    for (var i = 0; i < 16; i++) {
+      await rig.output.load(FileSoundFont('/fonts/$i.sf2'));
     }
-
-    midi.selectError = 'NOT_INITIALIZED';
     await expectLater(
-      output.program(soundFont: soundFont, channel: 0, program: 40, bank: 0),
-      throwsA(isA<PlatformException>()),
+      rig.output.load(const FileSoundFont('/fonts/16.sf2')),
+      throwsStateError,
     );
-    output.dispose();
-  });
-
-  testWidgets(
-    'a bank the plugin cannot take is a preset the SoundFont lacks, and the '
-    'largest it can take is asked for',
-    (tester) async {
-      final output = FlutterMidiOutput();
-      await tester.runAsync(() => output.load(soundFont));
-
-      await output.program(
-        soundFont: soundFont,
-        channel: 0,
-        program: 40,
-        bank: 255,
-      );
-      await output.program(
-        soundFont: soundFont,
-        channel: 1,
-        program: 40,
-        bank: 256,
-      );
-      await output.program(
-        soundFont: soundFont,
-        channel: 2,
-        program: 40,
-        bank: 15360,
-      );
-      output
-        ..noteOn(
-          soundFont: soundFont,
-          channel: 1,
-          key: 60,
-          velocity: 80,
-          cents: 0,
-        )
-        ..dispose();
-
-      expect(midi.calls, [
-        'bend sf7 0 = 8192',
-        'select sf7 0 = 255/40',
-        'bend sf7 1 = 8192',
-        'bend sf7 2 = 8192',
-        'on sf7 1:60 v80',
-        'unload sf7',
-      ]);
-    },
-  );
-
-  testWidgets(
-    'bends a channel for a quarter tone, and back for the next note that '
-    'is not one',
-    (tester) async {
-      final output = FlutterMidiOutput();
-      await tester.runAsync(() => output.load(soundFont));
-      await output.program(
-        soundFont: soundFont,
-        channel: 0,
-        program: 0,
-        bank: 0,
-      );
-      await output.program(
-        soundFont: soundFont,
-        channel: 1,
-        program: 0,
-        bank: 0,
-      );
-      midi.calls.clear();
-      output
-        ..noteOn(
-          soundFont: soundFont,
-          channel: 0,
-          key: 60,
-          velocity: 80,
-          cents: 0,
-        )
-        ..noteOn(
-          soundFont: soundFont,
-          channel: 0,
-          key: 62,
-          velocity: 80,
-          cents: 50,
-        )
-        ..noteOn(
-          soundFont: soundFont,
-          channel: 0,
-          key: 64,
-          velocity: 80,
-          cents: 50,
-        )
-        ..noteOn(
-          soundFont: soundFont,
-          channel: 1,
-          key: 48,
-          velocity: 80,
-          cents: 0,
-        )
-        ..noteOn(
-          soundFont: soundFont,
-          channel: 0,
-          key: 65,
-          velocity: 80,
-          cents: 0,
-        )
-        ..dispose();
-
-      expect(midi.calls, [
-        'on sf7 0:60 v80',
-        'bend sf7 0 = 10240',
-        'on sf7 0:62 v80',
-        'on sf7 0:64 v80',
-        'on sf7 1:48 v80',
-        'bend sf7 0 = 8192',
-        'on sf7 0:65 v80',
-        'unload sf7',
-      ]);
-    },
-  );
-
-  testWidgets(
-    'puts a channel at rest before its first program, since an output '
-    'before it may have left it bent, and not again while it is at rest',
-    (tester) async {
-      final output = FlutterMidiOutput();
-      await tester.runAsync(() => output.load(soundFont));
-      await output.program(
-        soundFont: soundFont,
-        channel: 3,
-        program: 0,
-        bank: 0,
-      );
-      output.noteOn(
-        soundFont: soundFont,
-        channel: 3,
-        key: 60,
-        velocity: 80,
-        cents: 0,
-      );
-      await output.program(
-        soundFont: soundFont,
-        channel: 3,
-        program: 5,
-        bank: 0,
-      );
-      output.dispose();
-
-      expect(midi.calls, [
-        'bend sf7 3 = 8192',
-        'select sf7 3 = 0/0',
-        'on sf7 3:60 v80',
-        'select sf7 3 = 0/5',
-        'unload sf7',
-      ]);
-    },
-  );
-
-  testWidgets(
-    'puts a bent channel at rest before a new program, and bends it again '
-    'for the next quarter tone',
-    (tester) async {
-      final output = FlutterMidiOutput();
-      await tester.runAsync(() => output.load(soundFont));
-      await output.program(
-        soundFont: soundFont,
-        channel: 0,
-        program: 0,
-        bank: 0,
-      );
-      output.noteOn(
-        soundFont: soundFont,
-        channel: 0,
-        key: 60,
-        velocity: 80,
-        cents: 50,
-      );
-      await output.program(
-        soundFont: soundFont,
-        channel: 0,
-        program: 0,
-        bank: 0,
-      );
-      output
-        ..noteOn(
-          soundFont: soundFont,
-          channel: 0,
-          key: 60,
-          velocity: 80,
-          cents: 50,
-        )
-        ..dispose();
-
-      expect(midi.calls, [
-        'bend sf7 0 = 8192',
-        'select sf7 0 = 0/0',
-        'bend sf7 0 = 10240',
-        'on sf7 0:60 v80',
-        'bend sf7 0 = 8192',
-        'select sf7 0 = 0/0',
-        'bend sf7 0 = 10240',
-        'on sf7 0:60 v80',
-        'unload sf7',
-      ]);
-    },
-  );
-
-  testWidgets('disposed while loading, unloads the SoundFont once it arrives', (
-    tester,
-  ) async {
-    final output = FlutterMidiOutput();
-    await tester.runAsync(() async {
-      final loading = output.load(soundFont);
-      output
-        ..allNotesOff()
-        ..dispose();
-      expect(midi.calls, isEmpty);
-      await loading;
-    });
-
-    expect(midi.calls, ['unload sf7']);
-  });
-
-  testWidgets(
-    'two outputs that load at once share one init, and neither loads its '
-    'SoundFont before it ends',
-    (tester) async {
-      final gated = GatedMidiPlatform();
-      FlutterMidiProPlatform.instance = gated;
-      final first = FlutterMidiOutput();
-      final second = FlutterMidiOutput();
-
-      await tester.runAsync(() async {
-        final loading = [first.load(soundFont), second.load(soundFont)];
-        // An output that did not wait for the init would load its SoundFont
-        // in this time.
-        await Future<void>.delayed(const Duration(milliseconds: 100));
-        gated.endInit();
-        await Future.wait(loading);
-      });
-
-      expect(gated.calls, [
-        'init begins',
-        'init ends',
-        'reverb off',
-        'reverb off',
-        'gain 1.0',
-        'gain 1.0',
-        'load',
-        'load',
-      ]);
-      first.dispose();
-      second.dispose();
-    },
-  );
-
-  testWidgets('a load after an init that failed starts init again', (
-    tester,
-  ) async {
-    final gated = GatedMidiPlatform()
-      ..initError = PlatformException(code: 'INIT_FAILED');
-    FlutterMidiProPlatform.instance = gated;
-    final first = FlutterMidiOutput();
-    final second = FlutterMidiOutput();
-
-    await tester.runAsync(() async {
-      final loading = [first.load(soundFont), second.load(soundFont)];
-      gated.endInit();
-      await Future.wait([
-        for (final load in loading)
-          expectLater(load, throwsA(isA<PlatformException>())),
-      ]);
-      gated.initError = null;
-      final again = second.load(soundFont);
-      gated.endInit();
-      await again;
-    });
-
-    expect(gated.calls, [
-      'init begins',
-      'init begins',
-      'init ends',
-      'reverb off',
-      'gain 1.0',
-      'load',
-    ]);
-    first.dispose();
-    second.dispose();
-  });
-
-  testWidgets(
-    'asks for its reverb and gain after the init ends and before its '
-    'SoundFont loads',
-    (tester) async {
-      final gated = GatedMidiPlatform();
-      FlutterMidiProPlatform.instance = gated;
-      final output = FlutterMidiOutput(
-        reverb: const MidiReverb(
-          roomSize: 0.5,
-          level: 0.3,
-          damping: 0.2,
-          width: 0.9,
-        ),
-      );
-
-      await tester.runAsync(() async {
-        final loading = output.load(soundFont);
-        gated.endInit();
-        await loading;
-      });
-
-      expect(gated.calls, [
-        'init begins',
-        'init ends',
-        'reverb room 0.5 damping 0.2 width 0.9 level 0.3',
-        'gain 1.0',
-        'load',
-      ]);
-      output.dispose();
-    },
-  );
-
-  testWidgets('an output with no reverb asks for none', (tester) async {
-    final output = FlutterMidiOutput();
-    await tester.runAsync(() => output.load(soundFont));
-
-    expect(midi.reverbs, ['off']);
-    output.dispose();
-  });
-
-  testWidgets(
-    'an output with no reverb turns off what an output before it turned on, '
-    'since the process has one synthesizer',
-    (tester) async {
-      final first = FlutterMidiOutput(
-        reverb: const MidiReverb(roomSize: 0.5, level: 0.3),
-      );
-      final second = FlutterMidiOutput();
-      await tester.runAsync(() async {
-        await first.load(soundFont);
-        first.dispose();
-        await second.load(soundFont);
-      });
-
-      expect(midi.reverbs, ['room 0.5 damping 0.0 width 0.5 level 0.3', 'off']);
-      second.dispose();
-    },
-  );
-
-  testWidgets(
-    'puts its reverb and gain back on the synthesizer before it plays '
-    'again, after another output put its own there',
-    (tester) async {
-      final first = FlutterMidiOutput(
-        reverb: const MidiReverb(roomSize: 0.5, level: 0.3),
-        gain: 0.2,
-      );
-      final second = FlutterMidiOutput();
-      await tester.runAsync(() async {
-        await first.load(soundFont);
-        await second.load(soundFont);
-      });
-      await first.program(
-        soundFont: soundFont,
-        channel: 0,
-        program: 0,
-        bank: 0,
-      );
-
-      expect(midi.reverbs.last, 'room 0.5 damping 0.0 width 0.5 level 0.3');
-      expect(midi.gains.last, 0.2);
-
-      final asked = midi.reverbs.length + midi.gains.length;
-      first
-        ..noteOn(
-          soundFont: soundFont,
-          channel: 0,
-          key: 60,
-          velocity: 80,
-          cents: 0,
-        )
-        ..noteOff(soundFont: soundFont, channel: 0, key: 60);
-      expect(
-        midi.reverbs.length + midi.gains.length,
-        asked,
-        reason: 'a note asks for neither',
-      );
-      first.dispose();
-      second.dispose();
-    },
-  );
-
-  testWidgets('holds a reverb\'s width to 0 to 100 and its other numbers to 0 '
-      'to 1', (tester) async {
-    final over = FlutterMidiOutput(
-      reverb: const MidiReverb(
-        roomSize: 1.5,
-        level: 2,
-        damping: 7,
-        width: double.infinity,
-      ),
-    );
-    final under = FlutterMidiOutput(
-      reverb: const MidiReverb(
-        roomSize: -0.1,
-        level: -2,
-        damping: -7,
-        width: double.negativeInfinity,
-      ),
-    );
-    await tester.runAsync(() async {
-      await over.load(soundFont);
-      await under.load(soundFont);
-    });
-
-    expect(midi.reverbs, [
-      'room 1.0 damping 1.0 width 100.0 level 1.0',
-      'room 0.0 damping 0.0 width 0.0 level 0.0',
-    ]);
-    over.dispose();
-    under.dispose();
-  });
-
-  testWidgets('sends a width over 1 as it is', (tester) async {
-    final output = FlutterMidiOutput(
-      reverb: const MidiReverb(roomSize: 0.5, level: 0.3, width: 40),
-    );
-    await tester.runAsync(() => output.load(soundFont));
-
-    expect(midi.reverbs, ['room 0.5 damping 0.0 width 40.0 level 0.3']);
-    output.dispose();
-  });
-
-  testWidgets('sends a number that is not one as 0', (tester) async {
-    final output = FlutterMidiOutput(
-      reverb: const MidiReverb(
-        roomSize: double.nan,
-        level: double.nan,
-        damping: double.nan,
-        width: double.nan,
-      ),
-    );
-    await tester.runAsync(() => output.load(soundFont));
-
-    expect(midi.reverbs, ['room 0.0 damping 0.0 width 0.0 level 0.0']);
-    output.dispose();
-  });
-
-  testWidgets(
-    'asks for a new reverb and gain at once while the synthesizer runs',
-    (tester) async {
-      final output = FlutterMidiOutput();
-      await tester.runAsync(() async {
-        await output.load(soundFont);
-        output
-          ..reverb = const MidiReverb(roomSize: 0.5, level: 0.3)
-          ..gain = 0.2;
-        await Future<void>.delayed(Duration.zero);
-      });
-
-      expect(midi.reverbs, ['off', 'room 0.5 damping 0.0 width 0.5 level 0.3']);
-      expect(midi.gains, [1.0, 0.2]);
-      output.dispose();
-    },
-  );
-
-  testWidgets('asks for nothing when the reverb and gain stay the same', (
-    tester,
-  ) async {
-    final output = FlutterMidiOutput(
-      reverb: const MidiReverb(roomSize: 0.5, level: 0.3),
-      gain: 0.2,
-    );
-    await tester.runAsync(() async {
-      await output.load(soundFont);
-      output
-        ..reverb = const MidiReverb(roomSize: 0.5, level: 0.3)
-        ..gain = 0.2;
-      await Future<void>.delayed(Duration.zero);
-    });
-
-    expect(midi.reverbs, hasLength(1));
-    expect(midi.gains, [0.2]);
-    output.dispose();
-  });
-
-  testWidgets(
-    'a reverb and gain set while the init runs are asked for once it ends',
-    (tester) async {
-      final gated = GatedMidiPlatform();
-      FlutterMidiProPlatform.instance = gated;
-      final output = FlutterMidiOutput();
-
-      await tester.runAsync(() async {
-        final loading = output.load(soundFont);
-        output
-          ..reverb = const MidiReverb(roomSize: 0.5, level: 0.3)
-          ..gain = 0.2;
-        gated.endInit();
-        await loading;
-      });
-
-      expect(gated.calls, [
-        'init begins',
-        'init ends',
-        'reverb room 0.5 damping 0.0 width 0.5 level 0.3',
-        'gain 0.2',
-        'load',
-      ]);
-      output.dispose();
-    },
-  );
-
-  testWidgets('a disposed output asks for nothing', (tester) async {
-    final output = FlutterMidiOutput();
-    await tester.runAsync(() async {
-      await output.load(soundFont);
-      output
-        ..dispose()
-        ..gain = 0.2;
-      await Future<void>.delayed(Duration.zero);
-    });
-
-    expect(midi.gains, [1.0]);
-  });
-
-  testWidgets('holds a gain to 0 to 4, and sends one that is not a number '
-      'as 0', (tester) async {
-    final output = FlutterMidiOutput(gain: 9);
-    await tester.runAsync(() async {
-      await output.load(soundFont);
-      output.gain = -1;
-      await Future<void>.delayed(Duration.zero);
-      output.gain = double.nan;
-      await Future<void>.delayed(Duration.zero);
-    });
-
-    expect(midi.gains, [4.0, 0.0, 0.0]);
-    output.dispose();
-  });
-
-  test('two reverbs are equal when their numbers are', () {
-    const reverb = MidiReverb(
-      roomSize: 0.5,
-      level: 0.3,
-      damping: 0.2,
-      width: 0.9,
-    );
-    // Built at run time, so that it is another object than the constant.
-    final same = MidiReverb(
-      roomSize: reverb.roomSize,
-      level: reverb.level,
-      damping: reverb.damping,
-      width: reverb.width,
-    );
-
-    expect(same, reverb);
-    expect(same.hashCode, reverb.hashCode);
-    for (final other in const [
-      MidiReverb(roomSize: 0.6, level: 0.3, damping: 0.2, width: 0.9),
-      MidiReverb(roomSize: 0.5, level: 0.4, damping: 0.2, width: 0.9),
-      MidiReverb(roomSize: 0.5, level: 0.3, damping: 0.3, width: 0.9),
-      MidiReverb(roomSize: 0.5, level: 0.3, damping: 0.2, width: 0.8),
-    ]) {
-      expect(other, isNot(reverb));
-    }
+    rig.output.dispose();
   });
 }

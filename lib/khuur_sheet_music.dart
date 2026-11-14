@@ -6,6 +6,8 @@
 /// them (`SheetView`) through one import.
 library;
 
+export 'package:khuur_synth/khuur_synth.dart'
+    show AssetSoundFont, FileSoundFont, Reverb, SoundFont, Synth;
 export 'package:score_layout/score_layout.dart'
     show
         ChordSymbolSpelling,
@@ -32,9 +34,8 @@ export 'package:score_layout/score_layout.dart'
         restGlyph;
 export 'package:score_model/score_model.dart';
 
-export 'src/midi_output.dart' show FlutterMidiOutput, MidiOutput, MidiReverb;
+export 'src/midi_output.dart' show MidiOutput, SynthOutput;
 export 'src/score_player.dart';
 export 'src/sheet_palette.dart';
 export 'src/sheet_view.dart';
 export 'src/smufl_font_family.dart';
-export 'src/sound_font.dart';

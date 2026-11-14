@@ -520,7 +520,10 @@ void main() {
 
     await openSheet(tester, 'Empty sheet');
 
-    expect(output.log.last, endsWith('all off'));
+    expect(output.log.sublist(output.log.length - 2), [
+      endsWith('all off'),
+      endsWith('rest'),
+    ]);
     expect(output.held, isEmpty);
     expect(find.byTooltip('Play'), findsOneWidget);
     expect(sheetOf(tester).playback!.value, isNull);
@@ -2378,8 +2381,8 @@ void main() {
 
     expect(output.loaded, [
       isA<AssetSoundFont>().having(
-        (font) => font.path,
-        'path',
+        (font) => font.key,
+        'key',
         'assets/soundfonts/piano.sf2',
       ),
     ]);
@@ -2444,7 +2447,10 @@ void main() {
     await tester.tap(stop);
     await tester.pump();
 
-    expect(output.log.last, endsWith('all off'));
+    expect(output.log.sublist(output.log.length - 2), [
+      endsWith('all off'),
+      endsWith('rest'),
+    ]);
     expect(output.held, isEmpty);
     expect(find.byTooltip('Play'), findsOneWidget);
     expect(sheetOf(tester).playback!.value, isNull);
@@ -2483,14 +2489,14 @@ void main() {
   testWidgets('shows why Play failed and offers Play again', (tester) async {
     await pumpApp(tester);
 
-    // No synthesizer plugin runs under flutter test, so loading fails.
+    // FluidSynth does not run under flutter test, so loading fails.
     await tester.tap(find.byTooltip('Play'));
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 500)),
     );
     await tester.pump();
 
-    expect(find.textContaining('MissingPluginException'), findsOneWidget);
+    expect(find.textContaining('SynthUnavailable'), findsOneWidget);
     expect(find.byTooltip('Play'), findsOneWidget);
   });
 
