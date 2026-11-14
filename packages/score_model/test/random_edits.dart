@@ -53,8 +53,9 @@ T pick<T>(Random random, List<T> options) =>
     options[random.nextInt(options.length)];
 
 /// [score] after [edit], or as it was when the edit is refused. Throws when
-/// the edit leaves a score that does not load from its own JSON, since an
-/// app that saved it would lose the piece. Throws too when a rippled edit
+/// the edit leaves two things of a kind with one id, which no file may
+/// hold, or a score that does not load from its own JSON, since an app
+/// that saved it would lose the piece. Throws too when a rippled edit
 /// changes the dynamic in force after the bars it changed, since the rest
 /// of the piece would play at another level, or the clef a note starts in
 /// while the note keeps its length.
@@ -64,6 +65,10 @@ Score edited(Score score, Edit edit) {
     return score;
   }
   final next = outcome.session.score;
+  final repeated = repeatedIds(next);
+  if (repeated.isNotEmpty) {
+    throw StateError('${edit.runtimeType} repeats ${repeated.join(', ')}');
+  }
   try {
     reloaded(next);
   } on ScoreFormatException catch (error) {
@@ -148,6 +153,57 @@ bool _dynamicAfterChanged(Score before, Score after, StaffId staff) {
       bars.take(bars.length - kept).expand((bar) => bar).lastOrNull;
   return last(was) != last(now);
 }
+
+/// Each id of [score] that two things of its kind share, as `event 6`. The
+/// kinds are the ones `scoreFromJson` tells apart.
+List<String> repeatedIds(Score score) {
+  final events = [
+    for (final column in score.measures)
+      for (final staff in column.staves)
+        for (final voice in staff.voices) ..._flat(voice.items),
+  ];
+  final chords = events.whereType<ChordEvent>();
+  final ids = {
+    'part': [for (final part in score.parts) part.id.value],
+    'staff': [for (final staff in score.staves) staff.id.value],
+    'measure': [for (final column in score.measures) column.id.value],
+    'event': [
+      for (final event in events) event.id.value,
+      for (final chord in chords)
+        for (final grace in chord.graces) grace.id.value,
+    ],
+    'note': [
+      for (final chord in chords) ...[
+        for (final note in chord.notes) note.id.value,
+        for (final grace in chord.graces)
+          for (final note in grace.notes) note.id.value,
+      ],
+    ],
+    'tuplet': [
+      for (final column in score.measures)
+        for (final staff in column.staves)
+          for (final voice in staff.voices)
+            for (final tuplet in _tuplets(voice.items)) tuplet.id.value,
+    ],
+    'spanner': [for (final spanner in score.spanners) spanner.id.value],
+  };
+  return [
+    for (final MapEntry(key: kind, value: list) in ids.entries)
+      for (final id in _repeats(list)) '$kind $id',
+  ];
+}
+
+Set<int> _repeats(List<int> ids) {
+  final seen = <int>{};
+  return {
+    for (final id in ids)
+      if (!seen.add(id)) id,
+  };
+}
+
+Iterable<Tuplet> _tuplets(Iterable<VoiceItem> items) => items
+    .whereType<Tuplet>()
+    .expand((tuplet) => [tuplet, ..._tuplets(tuplet.members)]);
 
 /// Every event of [score], tuplet members included, with a reference to it.
 List<(EventRef, Event)> _eventsOf(Score score) => [

@@ -1359,6 +1359,24 @@ void main() {
     );
 
     testPlayer(
+      'plays from a SoundFont given between plays from the next play on',
+      (tester, rig) async {
+        await rig.player.play(duet());
+        rig.player.stop();
+        rig.player.instrumentSoundFonts = const {'clarinet-b-flat': pianoFile};
+        await rig.player.play(duet());
+        await tester.pump(second * 1.5);
+
+        expect(rig.midi.held, [
+          (soundFont: pianoFile, channel: 1, key: 67),
+          (soundFont: pianoFile, channel: 0, key: 62),
+        ]);
+        rig.player.stop();
+      },
+      instrumentSoundFonts: const {'clarinet-b-flat': reedFile},
+    );
+
+    testPlayer(
       'loads only the SoundFonts of the parts that play',
       (tester, rig) async {
         final score = duet();
