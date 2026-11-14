@@ -275,6 +275,14 @@ void _playWet(Score score) {
 
 Each `SynthOutput` is a synthesizer of its own, so two outputs share no reverb, gain or channel. An output opens the device's audio as each play starts, and closes it once the last note has rung out after the score ends or the player stops. A pause keeps it open. On iOS the output sets the audio session to playback as it opens the audio, so it plays also after the app recorded.
 
+To play while the app records, as when it listens to the microphone, open the synth with `AudioSessionPolicy.playAndRecord`, which the package exports. The synth then keeps the recording's `.playAndRecord` session, so the input stays open.
+
+```dart
+final _output = SynthOutput(
+  open: () => Synth.open(session: AudioSessionPolicy.playAndRecord),
+);
+```
+
 Each SoundFont takes 16 of FluidSynth's 256 channels, so one output plays from at most 16 SoundFonts.
 
 `output` also takes your own `MidiOutput`, to play through another synthesizer. The player calls its `rest` when no note comes before the next `program`, which is when the score ends, the player stops or a play fails. An output that sounds through a device can let the device go there.

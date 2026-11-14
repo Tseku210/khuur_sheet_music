@@ -10,6 +10,7 @@ export 'package:khuur_synth/khuur_synth.dart'
     show
         AssetSoundFont,
         AudioOutputFailed,
+        AudioSessionPolicy,
         FileSoundFont,
         PresetNotFound,
         Reverb,
