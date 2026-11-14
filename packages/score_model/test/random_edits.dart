@@ -52,11 +52,158 @@ String describeView(MeasureView view) => [
 T pick<T>(Random random, List<T> options) =>
     options[random.nextInt(options.length)];
 
-Score edited(Score score, Edit edit) =>
-    switch (EditSession.start(score).run(edit)) {
-      Applied(:final session) => session.score,
-      Refused() => score,
-    };
+/// [score] after [edit], or as it was when the edit is refused. Throws when
+/// the edit leaves two things of a kind with one id, which no file may
+/// hold, or a score that does not load from its own JSON, since an app
+/// that saved it would lose the piece. Throws too when a rippled edit
+/// changes the dynamic in force after the bars it changed, since the rest
+/// of the piece would play at another level, or the clef a note starts in
+/// while the note keeps its length.
+Score edited(Score score, Edit edit) {
+  final outcome = EditSession.start(score).run(edit);
+  if (outcome is! Applied) {
+    return score;
+  }
+  final next = outcome.session.score;
+  final repeated = repeatedIds(next);
+  if (repeated.isNotEmpty) {
+    throw StateError('${edit.runtimeType} repeats ${repeated.join(', ')}');
+  }
+  try {
+    reloaded(next);
+  } on ScoreFormatException catch (error) {
+    throw StateError(
+      '${edit.runtimeType} left a score that does not load: $error',
+    );
+  }
+  final rippled = switch (edit) {
+    EnterNote(:final ripple) ||
+    EnterRest(:final ripple) ||
+    SetValue(:final ripple) ||
+    Erase(:final ripple) => ripple != Ripple.none,
+    _ => false,
+  };
+  if (rippled) {
+    final clefs = _clefsOf(next);
+    for (final MapEntry(key: note, value: (clef, length)) in _clefsOf(
+      score,
+    ).entries) {
+      if (clefs[note] case (final now, final span)
+          when span == length && now != clef) {
+        throw StateError('${edit.runtimeType} changed the clef of a note');
+      }
+    }
+    for (final staff in score.staves) {
+      if (_dynamicAfterChanged(score, next, staff.id)) {
+        throw StateError(
+          '${edit.runtimeType} changed the dynamic in force after it',
+        );
+      }
+    }
+  }
+  return next;
+}
+
+/// The clef each note of [score] starts in, with the note's length. An
+/// erase can cut a note short from its start, and what is left may start
+/// in another clef.
+Map<(StaffId, EventId), (Clef, Length)> _clefsOf(Score score) {
+  final bars = {for (final column in score.measures) column.id: column};
+  return {
+    for (final staff in score.staves)
+      for (final slot in VoiceSlot.values)
+        for (final timed in score.laneOf(staff.id, slot))
+          if (timed.event is ChordEvent)
+            (staff.id, timed.event.id): (
+              bars[timed.ref.measure]!.staff(staff.id).clefAt(timed.onset),
+              timed.duration,
+            ),
+  };
+}
+
+/// The dynamics of [staff] in each bar of [score], in order.
+List<List<Dynamic>> _dynamicsOf(Score score, StaffId staff) => [
+  for (final column in score.measures)
+    [
+      for (final direction in column.staff(staff).directions)
+        if (direction is DynamicMark) direction.level,
+    ],
+];
+
+/// Whether [staff]'s last dynamic before the bars that [before] and [after]
+/// both end with differs between them: the one in force where those bars
+/// start. A staff that lost a dynamic is passed over, since an erase takes
+/// the marks in the time it removes.
+bool _dynamicAfterChanged(Score before, Score after, StaffId staff) {
+  final was = _dynamicsOf(before, staff);
+  final now = _dynamicsOf(after, staff);
+  if (now.expand((bar) => bar).length < was.expand((bar) => bar).length) {
+    return false;
+  }
+  var kept = 0;
+  while (kept < was.length &&
+      kept < now.length &&
+      identical(
+        before.measures[was.length - 1 - kept],
+        after.measures[now.length - 1 - kept],
+      )) {
+    kept++;
+  }
+  Dynamic? last(List<List<Dynamic>> bars) =>
+      bars.take(bars.length - kept).expand((bar) => bar).lastOrNull;
+  return last(was) != last(now);
+}
+
+/// Each id of [score] that two things of its kind share, as `event 6`. The
+/// kinds are the ones `scoreFromJson` tells apart.
+List<String> repeatedIds(Score score) {
+  final events = [
+    for (final column in score.measures)
+      for (final staff in column.staves)
+        for (final voice in staff.voices) ..._flat(voice.items),
+  ];
+  final chords = events.whereType<ChordEvent>();
+  final ids = {
+    'part': [for (final part in score.parts) part.id.value],
+    'staff': [for (final staff in score.staves) staff.id.value],
+    'measure': [for (final column in score.measures) column.id.value],
+    'event': [
+      for (final event in events) event.id.value,
+      for (final chord in chords)
+        for (final grace in chord.graces) grace.id.value,
+    ],
+    'note': [
+      for (final chord in chords) ...[
+        for (final note in chord.notes) note.id.value,
+        for (final grace in chord.graces)
+          for (final note in grace.notes) note.id.value,
+      ],
+    ],
+    'tuplet': [
+      for (final column in score.measures)
+        for (final staff in column.staves)
+          for (final voice in staff.voices)
+            for (final tuplet in _tuplets(voice.items)) tuplet.id.value,
+    ],
+    'spanner': [for (final spanner in score.spanners) spanner.id.value],
+  };
+  return [
+    for (final MapEntry(key: kind, value: list) in ids.entries)
+      for (final id in _repeats(list)) '$kind $id',
+  ];
+}
+
+Set<int> _repeats(List<int> ids) {
+  final seen = <int>{};
+  return {
+    for (final id in ids)
+      if (!seen.add(id)) id,
+  };
+}
+
+Iterable<Tuplet> _tuplets(Iterable<VoiceItem> items) => items
+    .whereType<Tuplet>()
+    .expand((tuplet) => [tuplet, ..._tuplets(tuplet.members)]);
 
 /// Every event of [score], tuplet members included, with a reference to it.
 List<(EventRef, Event)> _eventsOf(Score score) => [
