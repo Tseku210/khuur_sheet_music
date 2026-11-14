@@ -4,10 +4,7 @@ library;
 
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_midi_pro/flutter_midi_pro.dart';
-import 'package:khuur_sheet_music/src/sound_font.dart';
+import 'package:khuur_synth/khuur_synth.dart';
 
 /// Where `ScorePlayer` sends a script's notes.
 ///
@@ -22,11 +19,13 @@ abstract interface class MidiOutput {
   /// Loads [soundFont]. The player waits for it before any [program] or
   /// note from that SoundFont, and calls it again for the same SoundFont
   /// only after it failed. It may load several SoundFonts at once.
-  /// [allNotesOff] and [dispose] may come before it, or while it runs.
+  /// [allNotesOff], [rest] and [dispose] may come before it, or while it
+  /// runs.
   Future<void> load(SoundFont soundFont);
 
   /// Selects [program] of [bank] from [soundFont] for [channel], which is 0
-  /// to 15. Completes once a note on [channel] sounds with it.
+  /// to 15. Completes once a note on [channel] sounds with it, so an output
+  /// that sounds through a device opens the device here.
   Future<void> program({
     required SoundFont soundFont,
     required int channel,
@@ -54,201 +53,138 @@ abstract interface class MidiOutput {
   /// Cuts every sound on every channel of every SoundFont at once.
   void allNotesOff();
 
+  /// Says that no note comes before the next [program]. The player sends it
+  /// when the score ends, on a stop and after a play that failed, and not
+  /// on a pause. An output that sounds through a device may close the
+  /// device once what still sounds has rung out.
+  void rest();
+
   /// Frees every SoundFont. The player calls nothing after it.
   void dispose();
 }
 
-/// The reverb [FlutterMidiOutput] asks the synthesizer for.
+/// Plays through a FluidSynth synthesizer from `khuur_synth`, on iOS and
+/// Android.
 ///
-/// [width] is 0 to 100 and every other number is 0 to 1. None is refused.
-/// The output sends a number outside its range as the nearest end of it,
-/// and one that is not a number as 0.
+/// Each output is one [Synth] of its own, so two outputs share no reverb,
+/// gain or channel. The output opens it on its first [load], opens the
+/// device output on each [program], and closes the device once the notes
+/// have rung out after [rest].
 ///
-/// iOS and macOS do not read [roomSize] and [level] as Android does, so
-/// neither has a default.
-@immutable
-final class MidiReverb {
-  const MidiReverb({
-    required this.roomSize,
-    required this.level,
-    this.damping = 0,
-    this.width = 0.5,
-  });
-
-  /// The size of the room. Android takes the number. iOS and macOS have six
-  /// rooms and pick one by it: the small room under 0.15, the medium room
-  /// under 0.3, the large room under 0.45, the medium hall under 0.6, the
-  /// large hall under 0.8, and the cathedral from there.
-  final double roomSize;
-
-  /// How much reverb there is. On iOS and macOS it is the reverb's share of
-  /// the whole sound, so 1 leaves none of the dry sound. On Android it is
-  /// the output level of the reverb.
-  final double level;
-
-  /// How much the reverb is damped. Only Android reads it.
-  final double damping;
-
-  /// How far the reverb spreads between left and right, of 0 to 100. Only
-  /// Android reads it.
-  final double width;
-
-  @override
-  bool operator ==(Object other) =>
-      other is MidiReverb &&
-      other.roomSize == roomSize &&
-      other.level == level &&
-      other.damping == damping &&
-      other.width == width;
-
-  @override
-  int get hashCode => Object.hash(roomSize, level, damping, width);
-
-  @override
-  String toString() =>
-      'MidiReverb(roomSize: $roomSize, level: $level, damping: $damping, '
-      'width: $width)';
-}
-
-/// Plays through `flutter_midi_pro` (Android, iOS and macOS).
-final class FlutterMidiOutput implements MidiOutput {
-  FlutterMidiOutput({this._reverb, this._gain = 1});
-
-  /// The reverb this output asks for. Null asks for none.
+/// Each SoundFont takes the next 16 of the synth's 256 channels in the
+/// order the output loaded it, so an output plays from at most 16.
+final class SynthOutput implements MidiOutput {
+  /// An output that plays [reverb], null for none, at [gain], from 0 to 10.
   ///
-  /// The output asks for it each time it loads a SoundFont and each time
-  /// it sets a [program], which the player does as every play starts. It
-  /// also asks at once when it changes while the synthesizer runs, so a new
-  /// one sounds from the next note.
-  ///
-  /// The reverb and the [gain] belong to the plugin's one synthesizer and
-  /// not to an output. So the output that asked last decides them for every
-  /// output of the process, and one with no reverb turns off what an earlier
-  /// one turned on. An output still plays each play with its own, whatever
-  /// another output asked for before, because it asks again as the play
-  /// starts. Two outputs that sound at once share those of the later one.
-  MidiReverb? get reverb => _reverb;
-  set reverb(MidiReverb? value) {
-    if (value != _reverb) {
-      _reverb = value;
-      if (_running) {
-        unawaited(_askForReverb());
-      }
+  /// [open] makes the synth, `Synth.open` unless given. A test passes
+  /// `Synth.silent`. The output sets its own [reverb] and [gain] on the
+  /// synth it gets.
+  SynthOutput({
+    this._reverb,
+    this.gain = defaultGain,
+    Future<Synth> Function()? open,
+  }) : _open = open ?? Synth.open {
+    if (!(gain >= 0 && gain <= 10)) {
+      throw RangeError.value(gain, 'gain', 'Must be from 0 to 10');
     }
   }
 
-  MidiReverb? _reverb;
+  /// The gain at which the piano of GeneralUser GS 2.0.3 measures about
+  /// -24 LUFS. FluidSynth's own default, 0.2, plays 12 dB quieter.
+  static const defaultGain = 0.8;
 
-  /// How loud the synthesizer plays, as a multiple of its own level: 1 is
-  /// its level and 0 is silence. The output holds it to 0 to 4, about
-  /// 12 dB louder, the most iOS takes. It asks for it as it asks for the
-  /// [reverb].
-  double get gain => _gain;
-  set gain(double value) {
-    if (value != _gain) {
-      _gain = value;
-      if (_running) {
-        unawaited(_askForGain());
-      }
-    }
+  final double gain;
+
+  /// The reverb, or null for none. A new one sounds from the next note.
+  /// Its numbers must lie within the ranges `Reverb` names.
+  Reverb? get reverb => _reverb;
+  set reverb(Reverb? value) {
+    _synth?.reverb = value;
+    _reverb = value;
   }
 
-  double _gain;
+  Reverb? _reverb;
 
-  /// The plugin's `init` while it runs, which every output waits for. The
-  /// plugin is one synthesizer for the whole process. Its `isInitialized`
-  /// is true from the start of `init`, and `init` ends by emptying the
-  /// directory it keeps loaded SoundFonts in, so an output that loaded
-  /// before the end would lose its SoundFont.
-  static Future<void>? _init;
+  final Future<Synth> Function() _open;
+  Future<Synth>? _opening;
+  Synth? _synth;
 
-  final MidiPro _midi = MidiPro();
+  final Map<SoundFont, ({LoadedSoundFont font, int block})> _loaded = {};
 
-  /// The plugin's id of each SoundFont that is loaded.
-  final Map<SoundFont, int> _ids = {};
+  /// Every start and every stop of the device, one after the other. A stop
+  /// asked while a start runs comes after it, and a start after a stop
+  /// takes the device back from its ring-out, so a rest never closes the
+  /// device under the play that follows it.
+  Future<void> _device = Future.value();
 
-  /// The cents each channel of each SoundFont, by the plugin's id, was last
-  /// bent by. A channel not here was never bent by this output, and may
-  /// still hold the bend of an earlier one, because a synthesizer can
-  /// outlive the SoundFont that was unloaded.
-  final Map<(int, int), int> _bends = {};
   bool _disposed = false;
+
+  static const int _blocks = Synth.channelCount ~/ 16;
 
   @override
   Future<void> load(SoundFont soundFont) async {
-    if (_init != null || !_midi.isInitialized) {
-      await (_init ??= _midi.init().whenComplete(() => _init = null));
-    }
-    await _askForReverb();
-    await _askForGain();
-    final id = await switch (soundFont) {
-      AssetSoundFont(:final path) => _midi.loadSoundfontAsset(assetPath: path),
-      FileSoundFont(:final path) => _midi.loadSoundfontFile(filePath: path),
-    };
+    final synth = await (_opening ??= _openSynth());
     if (_disposed) {
-      unawaited(_midi.unloadSoundfont(id));
-    } else {
-      _ids[soundFont] = id;
+      return;
+    }
+    if (_loaded.length == _blocks) {
+      throw StateError('An output plays from at most $_blocks SoundFonts.');
+    }
+    final font = await synth.load(soundFont);
+    if (!_disposed) {
+      _loaded[soundFont] = (font: font, block: _loaded.length);
     }
   }
 
-  /// Whether the synthesizer runs and no `init` is under way, so what
-  /// this output asks for now holds.
-  bool get _running => !_disposed && _init == null && _midi.isInitialized;
+  Future<Synth> _openSynth() async {
+    final Synth synth;
+    try {
+      synth = await _open();
+    } on Object {
+      _opening = null;
+      rethrow;
+    }
+    if (_disposed) {
+      unawaited(synth.close());
+      return synth;
+    }
+    if (synth.reverb != _reverb) {
+      synth.reverb = _reverb;
+    }
+    if (synth.gain != gain) {
+      synth.gain = gain;
+    }
+    return _synth = synth;
+  }
 
-  Future<void> _askForReverb() => switch (_reverb) {
-    null => _midi.setReverb(enabled: false),
-    MidiReverb(:final roomSize, :final level, :final damping, :final width) =>
-      _midi.setReverb(
-        enabled: true,
-        roomSize: _within(roomSize, 1),
-        damping: _within(damping, 1),
-        width: _within(width, _widestReverb),
-        level: _within(level, 1),
-      ),
-  };
-
-  Future<void> _askForGain() =>
-      _midi.setMasterGain(_within(_gain, _loudestGain));
-
+  /// A preset that [soundFont] lacks leaves [channel] silent and is not a
+  /// failure, so the other parts of a score still play.
   @override
   Future<void> program({
     required SoundFont soundFont,
     required int channel,
     required int program,
     required int bank,
-  }) async {
-    final id = _ids[soundFont]!;
-    // A synthesizer may put a channel's bend back at rest when its program
-    // changes. Sending it to rest first keeps [_bends] true either way, and
-    // clears what an earlier output left on the channel.
-    _bend(id, channel, 0);
-    // Another output may have put its own reverb and gain on the one
-    // synthesizer since this one last asked. Everything is sent before the
-    // first answer comes, so the programs keep the order they were asked in.
-    await Future.wait([
-      _askForReverb(),
-      _askForGain(),
-      if (bank <= _largestBank) _select(id, channel, program, bank),
-    ]);
-  }
-
-  Future<void> _select(int id, int channel, int program, int bank) async {
+  }) {
+    final synth = _synth!;
+    final (:font, :block) = _loaded[soundFont]!;
     try {
-      await _midi.selectInstrument(
-        sfId: id,
-        channel: channel,
-        bank: bank,
+      synth.select(
+        channel: block * 16 + channel,
+        font: font,
         program: program,
+        bank: bank,
       );
-      if (_samplerDropsEarlyNotes.contains(defaultTargetPlatform)) {
-        await Future<void>.delayed(_instrumentTakesHold);
-      }
-    } on PlatformException catch (error) {
-      if (!_missingPreset.contains(error.code)) {
-        rethrow;
-      }
+    } on PresetNotFound {
+      // The channel plays nothing, which is what a missing preset means.
     }
+    final started = _device.then((_) {
+      if (!_disposed) {
+        return synth.start();
+      }
+    });
+    _device = started.then((_) {}, onError: (Object _) {});
+    return started;
   }
 
   @override
@@ -258,97 +194,43 @@ final class FlutterMidiOutput implements MidiOutput {
     required int key,
     required int velocity,
     required int cents,
-  }) {
-    final id = _ids[soundFont]!;
-    // MIDI bends a whole channel, not one key. A quarter tone therefore
-    // also bends what its channel still holds, until the next note that
-    // is not one.
-    _bend(id, channel, cents);
-    unawaited(
-      _midi.playNote(sfId: id, channel: channel, key: key, velocity: velocity),
-    );
-  }
+  }) => _synth!.noteOn(
+    channel: _channel(soundFont, channel),
+    key: key,
+    velocity: velocity.clamp(1, 127),
+    cents: cents.toDouble(),
+  );
 
   @override
   void noteOff({
     required SoundFont soundFont,
     required int channel,
     required int key,
-  }) => unawaited(
-    _midi.stopNote(sfId: _ids[soundFont]!, channel: channel, key: key),
-  );
+  }) => _synth!.noteOff(channel: _channel(soundFont, channel), key: key);
 
   @override
-  void allNotesOff() {
-    for (final id in _ids.values) {
-      unawaited(_midi.stopAllNotes(sfId: id));
+  void allNotesOff() => _synth?.allSoundsOff();
+
+  @override
+  void rest() {
+    if (_synth case final synth?) {
+      _device = _device.then((_) {
+        if (!_disposed) {
+          unawaited(synth.stop(ringOut: true));
+        }
+      });
     }
   }
 
   @override
   void dispose() {
     _disposed = true;
-    for (final id in _ids.values) {
-      unawaited(_midi.unloadSoundfont(id));
+    _loaded.clear();
+    if (_synth case final synth?) {
+      unawaited(synth.close());
     }
-    _ids.clear();
   }
 
-  void _bend(int id, int channel, int cents) {
-    if (_bends[(id, channel)] == cents) {
-      return;
-    }
-    _bends[(id, channel)] = cents;
-    unawaited(
-      _midi.pitchBend(
-        sfId: id,
-        channel: channel,
-        value: _bendCentre + cents * _bendCentre ~/ _bendRangeCents,
-      ),
-    );
-  }
+  int _channel(SoundFont soundFont, int channel) =>
+      _loaded[soundFont]!.block * 16 + channel;
 }
-
-/// What the plugin's `selectInstrument` fails with when the SoundFont lacks
-/// the preset, on macOS and on iOS. Android keeps the channel's sound and
-/// reports nothing. A bank over [_largestBank] is such a preset too, and
-/// is never asked for.
-const _missingPreset = {'SOUND_FONT_LOAD_FAILED', 'SOUND_FONT_LOAD_FAILED2'};
-
-/// Where the plugin plays through Apple's sampler, which takes a new
-/// instrument on its next render cycle and drops a note that comes before
-/// it. The note is silent for its whole length, so without a wait the
-/// first note of every play is lost.
-const Set<TargetPlatform> _samplerDropsEarlyNotes = {
-  TargetPlatform.iOS,
-  TargetPlatform.macOS,
-};
-
-/// How long [FlutterMidiOutput.program] waits on [_samplerDropsEarlyNotes]
-/// after the sampler loads an instrument. A render cycle is about 11 ms at
-/// 512 frames, which the iOS simulator uses, and 23 ms at 1024, the most
-/// iOS usually grants, so this holds twice that.
-const _instrumentTakesHold = Duration(milliseconds: 50);
-
-/// The largest bank the plugin's `selectInstrument` takes. On macOS and on
-/// iOS it makes a byte of the bank, and a larger one stops the app.
-const _largestBank = 255;
-
-/// The largest width the plugin's `setReverb` takes, which is FluidSynth's.
-const _widestReverb = 100.0;
-
-/// The largest gain iOS takes, about 12 dB above the synthesizer's level.
-/// Android takes up to 10.
-const _loudestGain = 4.0;
-
-/// [value] held to 0 to [most]. A value that is not a number is 0, where
-/// `clamp` makes it [most].
-double _within(double value, double most) =>
-    value.isNaN ? 0 : value.clamp(0, most);
-
-/// The pitch wheel at rest, of 0 to 16383.
-const _bendCentre = 8192;
-
-/// How far the wheel's end bends a note, which is two semitones unless a
-/// channel is told otherwise.
-const _bendRangeCents = 200;

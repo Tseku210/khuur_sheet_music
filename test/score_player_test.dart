@@ -285,6 +285,7 @@ void main() {
           '2.900 off 0:64',
           '3.000 on 0:65',
           '3.900 off 0:65',
+          '4.000 rest',
         ]);
       },
     );
@@ -415,6 +416,7 @@ void main() {
         '4.400 off 0:64',
         '4.500 on 0:65',
         '5.400 off 0:65',
+        '5.500 rest',
       ]);
       expect(rig.status, PlayerStatus.idle);
     });
@@ -455,7 +457,7 @@ void main() {
       expect(rig.status, PlayerStatus.playing);
       expect(
         rig.midi.log.take(3),
-        ['0.000 load', '0.000 load', '0.000 program 0 = 0/0'],
+        ['0.000 load', '0.000 rest', '0.000 load'],
       );
       expect(
         rig.midi.loaded,
@@ -477,6 +479,7 @@ void main() {
       expect(rig.midi.log, [
         '0.000 load',
         '0.000 program 0 = 0/0',
+        '0.000 rest',
         '0.000 program 0 = 0/0',
         '0.000 on 0:60',
       ]);
@@ -569,7 +572,10 @@ void main() {
         expect(rig.position, isNull);
         expect(rig.midi.held, isEmpty);
         await tester.pump(second * 4);
-        expect(rig.midi.log.last, '0.000 all off');
+        expect(rig.midi.log.skip(rig.midi.log.length - 2), [
+          '0.000 all off',
+          '0.000 rest',
+        ]);
       },
     );
 
@@ -757,6 +763,7 @@ void main() {
         '0.900 off 0:60',
         '1.000 on 0:62',
         '1.500 off 0:62',
+        '1.500 rest',
       ]);
       expect(rig.status, PlayerStatus.idle);
     });
@@ -786,6 +793,7 @@ void main() {
           '1.000 off 0:60',
           '1.000 on 0:60',
           '3.600 off 0:60',
+          '4.000 rest',
         ]);
       },
     );
@@ -814,6 +822,7 @@ void main() {
         '3.000 off 0:64',
         '3.000 on 0:65',
         '3.900 off 0:65',
+        '4.000 rest',
       ]);
     });
 
@@ -832,6 +841,7 @@ void main() {
           '2.900 off 0:64',
           '3.000 on 0:65',
           '3.900 off 0:65',
+          '4.000 rest',
         ]);
         expect(rig.status, PlayerStatus.idle);
       },
@@ -855,6 +865,7 @@ void main() {
           '2.900 off 0:64',
           '3.000 on 0:65',
           '3.900 off 0:65',
+          '4.000 rest',
         ]);
       },
     );
@@ -890,6 +901,7 @@ void main() {
         '4.000 off 0:65',
         '4.000 on 0:67',
         '7.600 off 0:67',
+        '8.000 rest',
       ]);
     });
 
@@ -916,6 +928,7 @@ void main() {
           '3.000 off 0:62',
           '3.000 on 0:62',
           '3.900 off 0:62',
+          '4.000 rest',
         ]);
         expect(rig.midi.held, isEmpty);
       },
@@ -938,6 +951,7 @@ void main() {
         '1.040 off 0:64',
         '1.900 off 0:60',
         '1.900 off 0:67',
+        '4.000 rest',
       ]);
     });
 
@@ -963,6 +977,7 @@ void main() {
         '3.000 on 0:65',
         '3.040 off 0:64',
         '3.900 off 0:65',
+        '4.000 rest',
       ]);
     });
 
@@ -985,6 +1000,7 @@ void main() {
         '2.000 on 0:62',
         '2.040 off 0:60',
         '3.800 off 0:62',
+        '4.000 rest',
       ]);
     });
 
@@ -1158,7 +1174,7 @@ void main() {
         expect(rig.status, PlayerStatus.idle);
         expect(rig.position, isNull);
         expect(rig.midi.held, isEmpty);
-        expect(rig.midi.log.last, endsWith('all off'));
+        expect(rig.midi.log.last, endsWith('rest'));
       });
     }
 
@@ -1243,6 +1259,7 @@ void main() {
         '0.900 off 0:60',
         '1.500 off 0:62',
       ]);
+      expect(rig.midi.log.where((call) => call.endsWith('rest')), isEmpty);
       expect(
         rig.statuses,
         [PlayerStatus.loading, PlayerStatus.playing, PlayerStatus.paused],
@@ -1257,12 +1274,16 @@ void main() {
       await tester.pump(second * 1.5);
       rig.player.stop();
 
-      expect(rig.midi.log.skip(5), ['1.500 off 0:62', '1.500 all off']);
+      expect(rig.midi.log.skip(5), [
+        '1.500 off 0:62',
+        '1.500 all off',
+        '1.500 rest',
+      ]);
       expect(rig.position, isNull);
       expect(rig.status, PlayerStatus.idle);
 
       await tester.pump(second * 10);
-      expect(rig.midi.log.last, '1.500 all off');
+      expect(rig.midi.log.last, '1.500 rest');
     });
 
     testPlayer('stop while loading leaves the player idle', (

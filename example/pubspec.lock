@@ -120,14 +120,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  flutter_midi_pro:
-    dependency: transitive
-    description:
-      name: flutter_midi_pro
-      sha256: "85ae7a5996ee861b54f468889b6c9ed9ae00d71be8ab694c4be84fe47282ca51"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.0.4"
   flutter_test:
     dependency: "direct dev"
     description: flutter
@@ -189,6 +181,15 @@ packages:
       path: ".."
       relative: true
     source: path
+    version: "0.2.0"
+  khuur_synth:
+    dependency: transitive
+    description:
+      path: "."
+      ref: "feat/play-and-record"
+      resolved-ref: a9efe8fff8f65a0bc3c840c767be5f59258d9a1d
+      url: "https://github.com/Tseku210/khuur_synth.git"
+    source: git
     version: "0.1.0"
   leak_tracker:
     dependency: transitive
