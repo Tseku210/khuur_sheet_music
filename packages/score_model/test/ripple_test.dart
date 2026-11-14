@@ -60,6 +60,73 @@ List<String> staffBar(Score score, int bar, int staff) => describe(
   score.measures[bar].staves[staff].voice(VoiceSlot.one)!.items,
 );
 
+const onePianoStaff = PartTemplate(
+  name: 'Piano',
+  instrument: Instrument(key: 'piano', program: 0),
+);
+
+const trebleNotes = 'E4 F4 G4 A4';
+const bassNotes = 'G2 A2 B2 C3';
+
+/// A piano part of [bars] bars whose first holds [trebleNotes], ids from
+/// 1, over [bassNotes], ids from 11.
+Score twoHands({int bars = 2}) => fill(
+  fill(
+    blankScore(parts: const [piano], bars: bars),
+    0,
+    quarters(1, trebleNotes),
+  ),
+  0,
+  quarters(11, bassNotes),
+  staff: 1,
+);
+
+/// One hand of [twoHands] as a part of one staff, under the same ids.
+Score oneHand(int hand) => fill(
+  blankScore(parts: const [onePianoStaff]),
+  0,
+  hand == 0 ? quarters(1, trebleNotes) : quarters(11, bassNotes),
+);
+
+/// An edit on [staff] of [score], whose notes have ids from [firstId].
+typedef HandEdit = Edit Function(
+  Score score,
+  StaffId staff,
+  int firstId,
+  Ripple ripple,
+);
+
+VoicePoint secondBeat(Score score, StaffId staff) => VoicePoint(
+  staff: staff,
+  voice: VoiceSlot.one,
+  at: pointAt(score, 0, at(1, 4)),
+);
+
+final handEdits = <String, HandEdit>{
+  'Erase': (score, staff, firstId, ripple) => Erase(
+    ItemSelection(Seq([score.locate(EventId(firstId + 1))!])),
+    ripple: ripple,
+  ),
+  'EnterNote': (score, staff, firstId, ripple) => EnterNote(
+    at: secondBeat(score, staff),
+    tone: Pitch.parse('C4'),
+    value: NoteValue.quarter,
+    appendBar: false,
+    ripple: ripple,
+  ),
+  'EnterRest': (score, staff, firstId, ripple) => EnterRest(
+    at: secondBeat(score, staff),
+    value: NoteValue.quarter,
+    appendBar: false,
+    ripple: ripple,
+  ),
+  'SetValue': (score, staff, firstId, ripple) => SetValue(
+    score.locate(EventId(firstId))!,
+    NoteValue.eighth,
+    ripple: ripple,
+  ),
+};
+
 void main() {
   group('Entry that pushes', () {
     test('pushes the later notes of the voice by the new note', () {
@@ -994,6 +1061,244 @@ void main() {
       final next = applied(revalue(session, 1, NoteValue.quarter));
 
       expect(clefChanges(next), [ClefChange(at(7, 8), Clef.alto)]);
+    });
+  });
+
+  group('A ripple scoped to one staff', () {
+    for (final MapEntry(key: name, value: edit) in handEdits.entries) {
+      for (final (hand, label) in ['treble', 'bass'].indexed) {
+        test('$name in the $label moves that staff as a part of one staff '
+            'moves, and leaves the other staff', () {
+          final score = twoHands();
+          final other = 1 - hand;
+          final firstId = hand == 0 ? 1 : 11;
+          final alone = oneHand(hand);
+
+          final next = applied(
+            EditSession.start(
+              score,
+            ).run(edit(score, score.staves[hand].id, firstId, Ripple.staff)),
+          );
+          final expected = applied(
+            EditSession.start(
+              alone,
+            ).run(edit(alone, alone.staves.first.id, firstId, Ripple.part)),
+          );
+
+          expect(next.score.measures, hasLength(2));
+          for (var i = 0; i < 2; i++) {
+            expect(staffBar(next.score, i, hand), bar(expected.score, i));
+            expect(
+              next.score.measures[i].staves[other],
+              same(score.measures[i].staves[other]),
+            );
+          }
+          expect(
+            staffBar(next.score, 0, hand),
+            isNot(staffBar(score, 0, hand)),
+          );
+        });
+      }
+    }
+
+    test('deleting a treble note keeps the bass note under it', () {
+      final session = EditSession.start(twoHands());
+
+      final next = applied(
+        session.run(
+          Erase(
+            ItemSelection(Seq([eventRef(session, 2)])),
+            ripple: Ripple.staff,
+          ),
+        ),
+      );
+
+      expect(staffBar(next.score, 0, 0), [
+        'E4/quarter',
+        'G4/quarter',
+        'A4/quarter',
+        'rest/quarter',
+      ]);
+      expect(staffBar(next.score, 0, 1), [
+        'G2/quarter',
+        'A2/quarter',
+        'B2/quarter',
+        'C3/quarter',
+      ]);
+    });
+
+    test('a shorter treble note keeps the bass note under it whole', () {
+      final session = EditSession.start(twoHands());
+
+      final next = applied(
+        session.run(
+          SetValue(
+            eventRef(session, 1),
+            NoteValue.eighth,
+            ripple: Ripple.staff,
+          ),
+        ),
+      );
+
+      expect(staffBar(next.score, 0, 0), [
+        'E4/eighth',
+        'F4/quarter',
+        'G4/quarter',
+        'A4/quarter',
+        'rest/eighth',
+      ]);
+      expect(staffBar(next.score, 0, 1), [
+        'G2/quarter',
+        'A2/quarter',
+        'B2/quarter',
+        'C3/quarter',
+      ]);
+    });
+
+    test('a note entered between treble notes puts no rest in the bass', () {
+      final score = twoHands();
+
+      final next = applied(
+        EditSession.start(score).run(
+          EnterNote(
+            at: secondBeat(score, score.staves.first.id),
+            tone: Pitch.parse('C5'),
+            value: NoteValue.quarter,
+            appendBar: false,
+            ripple: Ripple.staff,
+          ),
+        ),
+      );
+
+      expect(staffBar(next.score, 0, 0), [
+        'E4/quarter',
+        'C5/quarter',
+        'F4/quarter',
+        'G4/quarter',
+      ]);
+      expect(staffBar(next.score, 1, 0), [
+        'A4/quarter',
+        'rest/quarter',
+        'rest/half',
+      ]);
+      expect(staffBar(next.score, 0, 1), [
+        'G2/quarter',
+        'A2/quarter',
+        'B2/quarter',
+        'C3/quarter',
+      ]);
+      expect(staffBar(next.score, 1, 1), ['measure-rest']);
+    });
+
+    test('a push past the section adds a bar where the other staff rests', () {
+      final score = twoHands(bars: 1);
+
+      final next = applied(
+        EditSession.start(score).run(
+          EnterNote(
+            at: secondBeat(score, score.staves.first.id),
+            tone: Pitch.parse('C5'),
+            value: NoteValue.quarter,
+            appendBar: false,
+            ripple: Ripple.staff,
+          ),
+        ),
+      );
+
+      expect(next.score.measures, hasLength(2));
+      expect(staffBar(next.score, 1, 0), [
+        'A4/quarter',
+        'rest/quarter',
+        'rest/half',
+      ]);
+      expect(
+        next.score.measures[0].staves[1],
+        same(score.measures[0].staves[1]),
+      );
+      expect(staffBar(next.score, 1, 1), ['measure-rest']);
+      expect(next.score.measures[1].staves[1].clef, Clef.bass);
+    });
+
+    test('moves every voice of the staff together', () {
+      final score = fill(twoHands(), 0, [
+        chordOf(21, 'C4', value: NoteValue.whole),
+      ], slot: VoiceSlot.two);
+
+      final next = applied(
+        EditSession.start(score).run(
+          EnterNote(
+            at: secondBeat(score, score.staves.first.id),
+            tone: Pitch.parse('C5'),
+            value: NoteValue.quarter,
+            appendBar: false,
+            ripple: Ripple.staff,
+          ),
+        ),
+      );
+
+      expect(describe(voiceOf(next.score, 0, slot: VoiceSlot.two).items), [
+        'C4/whole~',
+      ]);
+      expect(describe(voiceOf(next.score, 1, slot: VoiceSlot.two).items), [
+        'C4/quarter',
+        'gap 3/4',
+      ]);
+      expect(
+        next.score.measures[0].staves[1],
+        same(score.measures[0].staves[1]),
+      );
+    });
+
+    test('a range takes its time out of the staves it covers only', () {
+      final score = twoHands();
+      final treble = score.staves.first.id;
+
+      final next = applied(
+        EditSession.start(score).run(
+          Erase(
+            RangeSelection(
+              from: pointAt(score, 0, at(1, 4)),
+              to: pointAt(score, 0, at(3, 4)),
+              top: treble,
+              bottom: treble,
+            ),
+            ripple: Ripple.staff,
+          ),
+        ),
+      );
+
+      expect(staffBar(next.score, 0, 0), [
+        'E4/quarter',
+        'A4/quarter',
+        'rest/half',
+      ]);
+      expect(
+        next.score.measures[0].staves[1],
+        same(score.measures[0].staves[1]),
+      );
+    });
+
+    test('a cursor and a slur on the other staff stay where they were', () {
+      final score = withSlur(
+        twoHands(),
+        pointAt(twoHands(), 0, at(1, 4)),
+        pointAt(twoHands(), 0, at(3, 4)),
+        staff: 1,
+      );
+      final cursor = secondBeat(score, score.staves[1].id);
+      final session = EditSession.start(score).placeCursor(cursor);
+
+      final next = applied(
+        session.run(
+          Erase(
+            ItemSelection(Seq([eventRef(session, 1)])),
+            ripple: Ripple.staff,
+          ),
+        ),
+      );
+
+      expect(next.cursor, cursor);
+      expect(next.score.spanners.single, same(score.spanners.single));
     });
   });
 

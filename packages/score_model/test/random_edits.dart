@@ -659,14 +659,17 @@ Score randomEdit(Score score, Random random) {
               NoteValue.quarter.dotted,
               NoteValue.half,
             ]),
-            ripple: Ripple.part,
+            ripple: pick(random, [Ripple.part, Ripple.staff]),
           ),
         );
       }
       final (event, _) = pick(random, _eventsOf(score));
       return edited(
         score,
-        Erase(ItemSelection(Seq([event])), ripple: Ripple.part),
+        Erase(
+          ItemSelection(Seq([event])),
+          ripple: pick(random, [Ripple.part, Ripple.staff]),
+        ),
       );
     default:
       return edited(
