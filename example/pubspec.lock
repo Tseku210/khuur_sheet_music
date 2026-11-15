@@ -186,8 +186,8 @@ packages:
     dependency: transitive
     description:
       path: "."
-      ref: "feat/play-and-record"
-      resolved-ref: a9efe8fff8f65a0bc3c840c767be5f59258d9a1d
+      ref: main
+      resolved-ref: "7e8c6e43d0d76630f827fd504f2bb337a28f406b"
       url: "https://github.com/Tseku210/khuur_synth.git"
     source: git
     version: "0.1.0"
