@@ -44,15 +44,35 @@ final class SystemLayout {
 
   /// The union of [owner]'s drawables, or null when it has none here (a
   /// hidden staff, or another system).
-  Box? boundsOf(Owner owner) => drawablesOf(
-    owner,
-  ).map((d) => d.bounds).fold<Box?>(null, (a, b) => a?.union(b) ?? b);
+  Box? boundsOf(Owner owner) =>
+      drawablesOf(owner)
+          .map((d) => d.bounds)
+          .fold<Box?>(null, (a, b) => a?.union(b) ?? b);
 
   PlacedBar? barOf(MeasureId measure) =>
       bars.where((bar) => bar.measure == measure).firstOrNull;
 
   PlacedStaff? staffOf(StaffId staff) =>
       staves.where((s) => s.staff == staff).firstOrNull;
+
+  /// The share of the system's height that is [staff]'s, in system space.
+  /// It reaches up halfway to the staff above and down halfway to the
+  /// staff below, and to the system's edge where there is none. Null when
+  /// [staff] is not drawn here.
+  ({double top, double bottom})? bandOf(StaffId staff) {
+    final index = staves.indexWhere((s) => s.staff == staff);
+    if (index < 0) {
+      return null;
+    }
+    double between(PlacedStaff upper, PlacedStaff lower) =>
+        (upper.top + staffHeight + lower.top) / 2;
+    return (
+      top: index == 0 ? 0 : between(staves[index - 1], staves[index]),
+      bottom: index == staves.length - 1
+          ? height
+          : between(staves[index], staves[index + 1]),
+    );
+  }
 
   /// The staff whose middle line is nearest to [y].
   PlacedStaff staffNear(double y) => staves.reduce(

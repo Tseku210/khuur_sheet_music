@@ -53,6 +53,7 @@ class SheetView extends StatefulWidget {
     this.tapGrid = DurationBase.sixteenth,
     this.followCursor = true,
     this.followPlayback = true,
+    this.playbackStaff,
     this.padding = const EdgeInsets.all(16),
     super.key,
   });
@@ -138,6 +139,13 @@ class SheetView extends StatefulWidget {
   /// While playing, scroll a system to the top of the view when the
   /// playhead enters it and it is not wholly in view.
   final bool followPlayback;
+
+  /// The staff [followPlayback] keeps in view in a system taller than the
+  /// view, as `SheetController.ensureVisible` does for its `staff`. Such a
+  /// system is scrolled to once this staff is not wholly in view, and its
+  /// top goes to the top of the view. Null, or a staff the system does not
+  /// draw, follows the system's top.
+  final StaffId? playbackStaff;
 
   /// Room around the sheet, which scrolls with it.
   final EdgeInsets padding;
@@ -267,6 +275,14 @@ class SheetController extends ChangeNotifier {
   /// shortest way. A system taller than the view shows its top. The future
   /// completes when the scroll ends or the user takes over.
   ///
+  /// A system taller than the view shows [staff] instead when it draws
+  /// that staff, which is how a view one staff high follows one part of a
+  /// score of several. It scrolls, by the shortest way, until the staff is
+  /// in view with the room that is its own, which reaches halfway to the
+  /// staves next to it and to the system's edge where there is none. When
+  /// the view is too short for that, the staff's lines go to its middle. A
+  /// system that fits the view is shown whole, whatever [staff] is.
+  ///
   /// The scroll starts when the code that calls is done and before the next
   /// frame, never inside the call. So a listener of this controller and the
   /// handler of a scroll notification of the view's may call it, and calls
@@ -294,9 +310,15 @@ class SheetController extends ChangeNotifier {
   /// app draws none, as it does in the background.
   Future<void> ensureVisible(
     ScorePoint point, {
+    StaffId? staff,
     Duration duration = const Duration(milliseconds: 250),
   }) =>
-      _view?._scrollTo(point.measure, toTop: false, duration: duration) ??
+      _view?._scrollTo(
+        point.measure,
+        staff: staff,
+        toTop: false,
+        duration: duration,
+      ) ??
       Future.value();
 
   /// Systems [from] up to [to] as one image, without the overlay and
@@ -399,17 +421,20 @@ typedef _Shown = ({
 /// its system sits in the sheet, in logical pixels.
 typedef _ScrollAnchor = ({MeasureId bar, double top});
 
-/// An animated scroll of the view's own, to the system holding `bar`. It
-/// goes to the system's top when `toTop`, else the shortest way that shows
-/// the whole system. `done` completes when the scroll ends.
+/// An animated scroll of the view's own, to the system holding `bar`, or
+/// to `staff` of it when the system is taller than the view. It goes to
+/// the top of that when `toTop`, else the shortest way that shows it whole.
+/// `done` completes when the scroll ends.
 typedef _OwnScroll = ({
   MeasureId bar,
+  StaffId? staff,
   bool toTop,
   Duration duration,
   Completer<void> done,
 });
 
-/// Where a system is in the scroll content, and how much of the content the
+/// Where what a scroll shows is in the scroll content, which is a system
+/// or the part of one that holds a staff, and how much of the content the
 /// view shows, in logical pixels.
 typedef _Place = ({double top, double bottom, double viewport});
 
@@ -732,11 +757,11 @@ class _SheetViewState extends State<SheetView> {
     if (last != null && shown.layout.systemOf(last) == index) {
       return;
     }
-    final place = _placeOf(bar);
+    final place = _placeOf(bar, widget.playbackStaff);
     if (widget.followPlayback &&
         place != null &&
         !_showsAll(place, slack: _slack)) {
-      _scrollTo(bar, toTop: true);
+      _scrollTo(bar, staff: widget.playbackStaff, toTop: true);
     }
   }
 
@@ -750,20 +775,25 @@ class _SheetViewState extends State<SheetView> {
   /// when the scroll starts, like what it changed before.
   Future<void> _scrollTo(
     MeasureId bar, {
+    StaffId? staff,
     required bool toTop,
     Duration duration = const Duration(milliseconds: 250),
   }) => Future.microtask(
-    () => mounted ? _scrollNow(bar, toTop: toTop, duration: duration) : null,
+    () => mounted
+        ? _scrollNow(bar, staff: staff, toTop: toTop, duration: duration)
+        : null,
   );
 
   Future<void> _scrollNow(
     MeasureId bar, {
+    required StaffId? staff,
     required bool toTop,
     required Duration duration,
   }) {
     final running = _scrollingTo;
     if (running != null &&
         running.bar == bar &&
+        running.staff == staff &&
         running.toTop == toTop &&
         running.duration == duration) {
       // The same scroll, asked for again. Starting it over would take its
@@ -775,6 +805,7 @@ class _SheetViewState extends State<SheetView> {
     _stopScrolling();
     final scroll = (
       bar: bar,
+      staff: staff,
       toTop: toTop,
       duration: duration,
       done: Completer<void>(),
@@ -803,22 +834,41 @@ class _SheetViewState extends State<SheetView> {
 
   /// Where the system holding [bar] is. Null when the sheet on screen has no
   /// such bar, or the view has no scroll position yet.
-  _Place? _placeOf(MeasureId bar) {
+  ///
+  /// For a system taller than the view that draws [staff], it is where the
+  /// staff's share of the system is, or when the view is too short for
+  /// that too, what the view shows with the staff's lines at its middle.
+  _Place? _placeOf(MeasureId bar, [StaffId? staff]) {
     final shown = _shown;
     final index = shown?.layout.systemOf(bar);
     if (shown == null || index == null || !_scroll.hasClients) {
       return null;
     }
-    final (:top, :bottom) = _spanOf(
-      shown.layout,
-      index,
-      shown.spacePx,
-      shown.padding,
-    );
+    final (:layout, :spacePx, :padding, palette: _) = shown;
+    final (:top, :bottom) = _spanOf(layout, index, spacePx, padding);
+    final viewport = _scroll.position.viewportDimension;
+    final system = (top: top, bottom: bottom, viewport: viewport);
+    if (staff == null || bottom - top <= viewport) {
+      return system;
+    }
+    final placed = layout.systemAt(index);
+    final band = placed.bandOf(staff);
+    final lines = placed.staffOf(staff);
+    if (band == null || lines == null) {
+      return system;
+    }
+    if ((band.bottom - band.top) * spacePx <= viewport) {
+      return (
+        top: top + band.top * spacePx,
+        bottom: top + band.bottom * spacePx,
+        viewport: viewport,
+      );
+    }
+    final middle = top + (lines.top + staffHeight / 2) * spacePx;
     return (
-      top: top,
-      bottom: bottom,
-      viewport: _scroll.position.viewportDimension,
+      top: middle - viewport / 2,
+      bottom: middle + viewport / 2,
+      viewport: viewport,
     );
   }
 
@@ -896,7 +946,7 @@ class _SheetViewState extends State<SheetView> {
   /// end at once, before the frame the scroll has to look after, and the
   /// jump would take a drag from the user.
   void _drive(_OwnScroll scroll, {bool hold = false, bool anew = false}) {
-    final place = _placeOf(scroll.bar);
+    final place = _placeOf(scroll.bar, scroll.staff);
     final target = place == null ? null : _targetOf(scroll, place);
     if (!anew && target != null && target == _animating?.target) {
       return;
@@ -935,7 +985,7 @@ class _SheetViewState extends State<SheetView> {
       }
       if (hold && _frameAhead) {
         afterFrame(() {
-          if (_placeOf(scroll.bar) == place && !_movedSilently) {
+          if (_placeOf(scroll.bar, scroll.staff) == place && !_movedSilently) {
             end();
           } else {
             _drive(scroll);
