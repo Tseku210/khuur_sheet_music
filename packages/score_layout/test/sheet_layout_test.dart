@@ -42,6 +42,24 @@ double inkRightOf(SheetLayout layout, int index) => layout
     .reduce((a, b) => a > b ? a : b);
 
 void main() {
+  test('the staves of a system share its height between them, each from '
+      'halfway to the staff above to halfway to the staff below', () {
+    final score = ensemble(2);
+    final system = sheetOf(score).systemAt(0);
+    final [clarinet, treble, bass] = system.staves;
+    final bands = [
+      for (final staff in system.staves) system.bandOf(staff.staff)!,
+    ];
+
+    expect(bands.first.top, 0);
+    expect(bands.last.bottom, system.height);
+    expect(bands[0].bottom, (clarinet.top + 4 + treble.top) / 2);
+    expect(bands[1].top, bands[0].bottom);
+    expect(bands[1].bottom, (treble.top + 4 + bass.top) / 2);
+    expect(bands[2].top, bands[1].bottom);
+    expect(system.bandOf(const StaffId(999999)), isNull);
+  });
+
   group('an update of the 500-bar score', () {
     final score = denseScore();
     const width = 100.0;
