@@ -19,7 +19,8 @@ import 'package:score_layout/score_layout.dart';
 import 'package:score_model/score_model.dart';
 
 import '../packages/score_model/test/support.dart';
-import 'sheet_picture_test.dart' show edit, inkOf, pictured, sheetWidth, violin;
+import 'sheet_picture_test.dart'
+    show edit, grand, inkOf, pictured, sheetWidth, violin;
 import 'support/draw.dart';
 import 'support/glyph_gate.dart';
 
@@ -50,6 +51,19 @@ Score tune({int bars = 40, Set<int> high = const {}}) {
     score = fill(score, bar, [
       for (final (beat, pitch) in const ['G4', 'A4', 'B4', 'C5'].indexed)
         chordOf(eventOf(bar, beat), high.contains(bar) ? 'C7' : pitch),
+    ]);
+  }
+  return score;
+}
+
+/// [bars] bars of quarter notes for a violin under a piano, so a system
+/// has three staves and the violin's is the last.
+Score duo({int bars = 40}) {
+  var score = blankScore(parts: const [grand, violin], bars: bars);
+  for (var bar = 0; bar < bars; bar++) {
+    score = fill(score, bar, staff: 2, [
+      for (final (beat, pitch) in const ['G4', 'A4', 'B4', 'C5'].indexed)
+        chordOf(eventOf(bar, beat), pitch),
     ]);
   }
   return score;
@@ -135,6 +149,36 @@ Finder tileOf(int index) => find.byWidgetPredicate(
 /// The top on screen of the system that holds [bar].
 double topOf(WidgetTester tester, MeasureId bar) =>
     spanOf(tester, shown(tester).systemOf(bar)!).top;
+
+/// The top and the bottom on screen of the lines of [staff] in the system
+/// that holds [bar].
+({double top, double bottom}) linesOf(
+  WidgetTester tester,
+  MeasureId bar,
+  StaffId staff,
+) {
+  final index = shown(tester).systemOf(bar)!;
+  final top =
+      spanOf(tester, index).top +
+      shown(tester).systemAt(index).staffOf(staff)!.top * staffSpace;
+  return (top: top, bottom: top + staffHeight * staffSpace);
+}
+
+/// The top and the bottom on screen of the share [staff] has of the system
+/// that holds [bar].
+({double top, double bottom}) bandOf(
+  WidgetTester tester,
+  MeasureId bar,
+  StaffId staff,
+) {
+  final index = shown(tester).systemOf(bar)!;
+  final system = spanOf(tester, index).top;
+  final band = shown(tester).systemAt(index).bandOf(staff)!;
+  return (
+    top: system + band.top * staffSpace,
+    bottom: system + band.bottom * staffSpace,
+  );
+}
 
 /// The systems with a tile, which are those in view and those near it.
 Iterable<int> built(WidgetTester tester) => [
@@ -740,6 +784,106 @@ void main() {
       unawaited(controller.ensureVisible(startOf(30)));
       await tester.pumpAndSettle();
       expect(systemOf(30).top, closeTo(0, 1e-6));
+    },
+  );
+
+  testWidgets(
+    'ensureVisible with a staff shows that staff of a system taller than '
+    'the view, and does not scroll while the staff is in view',
+    (tester) async {
+      final score = duo();
+      final staff = score.staves.last.id;
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      const size = Size(400, 120);
+      await tester.pumpWidget(
+        host(
+          SheetView(score: score, controller: controller),
+          size: size,
+        ),
+      );
+      ScorePoint startOf(int bar) =>
+          ScorePoint(score.measures[bar].id, Moment.zero);
+      Future<void> show(int bar, {StaffId? staff}) async {
+        unawaited(controller.ensureVisible(startOf(bar), staff: staff));
+        await tester.pumpAndSettle();
+      }
+
+      await show(20, staff: staff);
+      final lines = linesOf(tester, score.measures[20].id, staff);
+      final band = bandOf(tester, score.measures[20].id, staff);
+      expect(band.bottom - band.top, lessThanOrEqualTo(size.height));
+      expect(band.bottom, closeTo(size.height, 1e-6));
+      expect(lines.top, greaterThan(0));
+      expect(lines.bottom, lessThan(size.height));
+
+      final offset = scrollOf(tester).pixels;
+      await show(20, staff: staff);
+      expect(scrollOf(tester).pixels, offset);
+      final layout = shown(tester);
+      final system = layout.systemOf(score.measures[20].id)!;
+      final beside = score.measures.indexWhere(
+        (bar) =>
+            bar.id != score.measures[20].id &&
+            layout.systemOf(bar.id) == system,
+      );
+      await show(beside, staff: staff);
+      expect(scrollOf(tester).pixels, offset);
+
+      await show(4, staff: staff);
+      expect(
+        bandOf(tester, score.measures[4].id, staff).top,
+        closeTo(0, 1e-6),
+        reason: 'the shortest way up puts the top of the staff at the top',
+      );
+
+      await show(20);
+      expect(topOf(tester, score.measures[20].id), closeTo(0, 1e-6));
+      await show(4);
+      await show(20, staff: score.staves.first.id);
+      expect(
+        bandOf(tester, score.measures[20].id, score.staves.first.id).bottom,
+        closeTo(size.height, 1e-6),
+        reason: 'the first staff comes up no further than it must',
+      );
+    },
+  );
+
+  testWidgets(
+    'ensureVisible with a staff puts its lines at the middle of a view too '
+    'short for the staff, and shows a system that fits the view whole',
+    (tester) async {
+      final score = duo();
+      final staff = score.staves.last.id;
+      final bar = score.measures[20].id;
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      Widget view(Size size) => host(
+        SheetView(score: score, controller: controller),
+        size: size,
+      );
+      Future<void> show() async {
+        unawaited(
+          controller.ensureVisible(ScorePoint(bar, Moment.zero), staff: staff),
+        );
+        await tester.pumpAndSettle();
+      }
+
+      await tester.pumpWidget(view(const Size(400, 24)));
+      await show();
+      final lines = linesOf(tester, bar, staff);
+      expect((lines.top + lines.bottom) / 2, closeTo(12, 1e-6));
+      final offset = scrollOf(tester).pixels;
+      await show();
+      expect(scrollOf(tester).pixels, offset);
+
+      await tester.pumpWidget(view(const Size(400, 600)));
+      scrollOf(tester).jumpTo(0);
+      await tester.pump();
+      await show();
+      final system = spanOf(tester, shown(tester).systemOf(bar)!);
+      expect(system.bottom - system.top, lessThan(600));
+      expect(system.bottom, closeTo(600, 1e-6));
     },
   );
 
@@ -2658,6 +2802,44 @@ void main() {
       playback.value = playingIn(score, 35);
       await tester.pumpAndSettle();
       expect(scrollOf(tester).pixels, 0);
+    },
+  );
+
+  testWidgets(
+    'playback brings playbackStaff to the top of the view when it enters a '
+    'system taller than the view, and leaves a staff in view where it is',
+    (tester) async {
+      final score = duo();
+      final staff = score.staves.last.id;
+      final playback = ValueNotifier<PlaybackPosition?>(null);
+      addTearDown(playback.dispose);
+      await tester.pumpWidget(
+        host(
+          SheetView(score: score, playback: playback, playbackStaff: staff),
+          size: const Size(400, 120),
+        ),
+      );
+      playback.value = playingIn(score, 20);
+      await tester.pumpAndSettle();
+      expect(
+        bandOf(tester, score.measures[20].id, staff).top,
+        closeTo(0, 1e-6),
+      );
+
+      final layout = shown(tester);
+      final next = layout.firstBarOf(
+        layout.systemOf(score.measures[20].id)! + 1,
+      );
+      final lower = bandOf(tester, next, staff);
+      scrollOf(tester).jumpTo(scrollOf(tester).pixels + lower.top - 10);
+      await tester.pump();
+      final offset = scrollOf(tester).pixels;
+      playback.value = playingIn(
+        score,
+        score.measures.indexWhere((bar) => bar.id == next),
+      );
+      await tester.pumpAndSettle();
+      expect(scrollOf(tester).pixels, offset);
     },
   );
 
