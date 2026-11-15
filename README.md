@@ -213,7 +213,7 @@ A `PedalLine` plays as the sustain pedal. The notes of its part, on every staff,
 
 `tempoScale` is the speed against the written tempo, and a new value applies at once. `stop` silences the output and takes the playhead away. The future of `play` fails when the SoundFont does not load. Call `dispose` when the widget's state is disposed.
 
-Playback runs on Android, iOS and macOS, through `flutter_midi_pro`.
+Playback runs on Android and iOS, through FluidSynth from [`khuur_synth`](https://github.com/Tseku210/khuur_synth). On other platforms the future of `play` fails with `SynthUnavailable`.
 
 ### Supply a SoundFont
 
@@ -239,28 +239,28 @@ The map can change between plays. Set `instrumentSoundFonts` to a new map, for e
 
 The example app ships a 57 MB piano, `example/assets/soundfonts/piano.sf2`. It is [Upright Piano KW](https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html#UprightKW) from FreePats, a Kawai upright sampled in stereo at two loudnesses and released under CC0. Its readme and license are next to it. FreePats also has a 9.5 MB version in mono at one loudness, for an app that has to stay small.
 
-### Add reverb
+### Add reverb and set the gain
 
-The player asks the synthesizer for no reverb. To play with one, pass the output yourself.
+The player plays through a `SynthOutput` with no reverb. To play with one, pass the output yourself.
 
 ```dart
 late final _player = ScorePlayer(
   soundFont: const AssetSoundFont('assets/soundfonts/piano.sf2'),
   vsync: this,
-  output: FlutterMidiOutput(
-    reverb: const MidiReverb(roomSize: 0.5, level: 0.3),
+  output: SynthOutput(
+    reverb: const Reverb(roomSize: 0.5, level: 0.3),
   ),
 );
 ```
 
-The two numbers do not mean the same on every platform, so neither has a default. iOS and macOS have six rooms, from a small room to a cathedral, and pick one by `roomSize`. They take `level` as the reverb's share of the whole sound. Android gives `roomSize`, `level`, `damping` and `width` to FluidSynth, where `level` is the reverb's own output level. Listen on each platform your app ships to.
+`Reverb` takes FluidSynth's own numbers, so they sound the same on Android and iOS. `Reverb()` is FluidSynth's default reverb.
 
-The output also takes a `gain`, how loud the synthesizer plays as a multiple of its own level. It is 1 unless given, and the output holds it to 0 to 4. One SoundFont can play louder on one platform than another, so an app may lower it for that file there.
+The output also takes a `gain`, how loud FluidSynth plays, from 0 to 10. It is `SynthOutput.defaultGain`, 0.8, unless given. At 0.8 the piano of GeneralUser GS 2.0.3 measures about -24 LUFS. FluidSynth's own default, 0.2, plays it 12 dB quieter.
 
-Both can change between plays. Keep the output, and set `reverb` or `gain` on it. The output asks the synthesizer for them at once while it runs, each time it loads a SoundFont, and again as every play starts.
+The reverb can change between plays. Keep the output, and set `reverb` on it. A new reverb sounds from the next note.
 
 ```dart
-final _output = FlutterMidiOutput();
+final _output = SynthOutput();
 late final _player = ScorePlayer(
   soundFont: const AssetSoundFont('assets/soundfonts/piano.sf2'),
   vsync: this,
@@ -268,14 +268,24 @@ late final _player = ScorePlayer(
 );
 
 void _playWet(Score score) {
-  _output.reverb = const MidiReverb(roomSize: 0.5, level: 0.3);
+  _output.reverb = const Reverb(roomSize: 0.5, level: 0.3);
   _player.play(score);
 }
 ```
 
-`flutter_midi_pro` is one synthesizer for the whole process. The output that asked last decides the reverb and the gain for every output, and an output with no reverb turns it off. An output asks again as each of its plays starts, so a play has its own reverb and gain whatever another output asked for before it. Two outputs that sound at once share those of the one that started later.
+Each `SynthOutput` is a synthesizer of its own, so two outputs share no reverb, gain or channel. An output opens the device's audio as each play starts, and closes it once the last note has rung out after the score ends or the player stops. A pause keeps it open. On iOS the output sets the audio session to playback as it opens the audio, so it plays also after the app recorded.
 
-`output` also takes your own `MidiOutput`, to play through another synthesizer.
+To play while the app records, as when it listens to the microphone, open the synth with `AudioSessionPolicy.playAndRecord`, which the package exports. The synth then keeps the recording's `.playAndRecord` session, so the input stays open.
+
+```dart
+final _output = SynthOutput(
+  open: () => Synth.open(session: AudioSessionPolicy.playAndRecord),
+);
+```
+
+Each SoundFont takes 16 of FluidSynth's 256 channels, so one output plays from at most 16 SoundFonts.
+
+`output` also takes your own `MidiOutput`, to play through another synthesizer. The player calls its `rest` when no note comes before the next `program`, which is when the score ends, the player stops or a play fails. An output that sounds through a device can let the device go there.
 
 ## Place widgets over the sheet
 
@@ -488,10 +498,10 @@ The code is under the MIT License. See [LICENSE](LICENSE).
 
 ```bash
 cd example
-flutter run -d macos
+flutter run
 ```
 
-The example is one page, `example/lib/main.dart`. It shows the tune of `demo_score.dart`, enters a note on a tap, selects a note, a slur or a hairpin on a tap on it, zooms through the controller, and plays through `ScorePlayer` with a tempo slider. Two switches under the sheet turn off the bars and the beams that entry adds by itself. A row of actions works on the selected notes, and `example/lib/selection_actions.dart` builds it as one table.
+The example runs on Android and iOS. It is one page, `example/lib/main.dart`. It shows the tune of `demo_score.dart`, enters a note on a tap, selects a note, a slur or a hairpin on a tap on it, zooms through the controller, and plays through `ScorePlayer` with a tempo slider. Two switches under the sheet turn off the bars and the beams that entry adds by itself. A row of actions works on the selected notes, and `example/lib/selection_actions.dart` builds it as one table.
 
 ## Work on the package
 

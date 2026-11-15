@@ -1,5 +1,20 @@
-## Unreleased
-* `FlutterMidiOutput.reverb` can change after the output is made, and the new `FlutterMidiOutput.gain` sets how loud the synthesizer plays. The output asks for both each time it loads a SoundFont, as every play starts, and at once when either changes while the synthesizer runs. So an output's reverb and gain hold whenever it plays, whatever another output asked the synthesizer for before.
+## 0.2.0
+* **Breaking:** `ScorePlayer` plays through FluidSynth from `khuur_synth` on Android and iOS, in place of `flutter_midi_pro`, which played through Apple's sampler on iOS. The package no longer depends on `flutter_midi_pro`. On macOS, Linux, Windows and the web the future of `play` fails with `SynthUnavailable`, and the example app runs on Android and iOS only.
+* **Breaking:** `SynthOutput` replaces `FlutterMidiOutput`, and `khuur_synth`'s `Reverb` replaces `MidiReverb`. `Reverb` takes FluidSynth's numbers on both platforms. `SynthOutput.gain` runs from 0 to 10 and is `SynthOutput.defaultGain`, 0.8, unless given, at which the GeneralUser GS piano measures about -24 LUFS. `SynthOutput.reverb` can change between plays.
+
+  | Before | Now |
+  |---|---|
+  | `FlutterMidiOutput(reverb: ..., gain: ...)` | `SynthOutput(reverb: ..., gain: ...)` |
+  | `MidiReverb(roomSize: 0.5, level: 0.3)` | `Reverb(roomSize: 0.5, level: 0.3)`, in FluidSynth's numbers |
+  | `gain` from 0 to 4, 1 unless given | `gain` from 0 to 10, 0.8 unless given |
+
+* **Breaking:** The SoundFont types are `khuur_synth`'s, which the package exports. `AssetSoundFont.path` is now `AssetSoundFont.key`.
+* **Breaking:** `MidiOutput` has a new `rest`. The player calls it when no note comes before the next `program`, which is when the score ends, the player stops or a play fails, and not on a pause. An output of your own implements it, and may do nothing there.
+* Each `SynthOutput` is a synthesizer of its own, so two outputs no longer share a reverb or a gain. An output opens the device's audio as each play starts and closes it once the notes have rung out after `rest`.
+* The package exports `khuur_synth`'s `AudioSessionPolicy`, so an app sets how a `SynthOutput`'s synth sets the iOS audio session, `playAndRecord` among them, without depending on `khuur_synth` itself.
+* A note's cents sound through the key's own tuning, so two notes on one channel bend apart. A preset that a SoundFont lacks leaves its part silent and the other parts play.
+
+## 0.1.0
 * `ScorePlayer.instrumentSoundFonts` can change between plays, so an app can play from a SoundFont it downloaded once the download ends. A new map holds from the next `play`.
 * **Breaking:** The package uses `package:material_ui` in place of `package:flutter/material.dart`, which Flutter 3.50 deprecates. `SheetPalette.of` reads the `Theme` of `material_ui`. An app that still builds its `MaterialApp` from `flutter/material.dart` gives the sheet no theme, and the sheet draws in the light default colours. Move the app to `material_ui` to keep the sheet in its colours and in dark mode.
 * **Breaking:** The package is renamed `khuur_sheet_music`. Name it so in `pubspec.yaml` and import `package:khuur_sheet_music/khuur_sheet_music.dart`. Its assets are under `packages/khuur_sheet_music/`.
