@@ -4,15 +4,15 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:khuur_sheet_music/src/midi_output.dart';
-import 'package:khuur_sheet_music/src/sound_font.dart';
+import 'package:khuur_synth/khuur_synth.dart';
 import 'package:score_model/score_model.dart';
 
 /// Plays a score over MIDI and reports where it is, for the sheet to show.
 ///
 /// It owns the `PlaybackCompiler` (whose fragment cache makes recompiling
-/// after an edit cheap), the SoundFonts, the MIDI output through
-/// `flutter_midi_pro` (Android, iOS and macOS), and one script clock that
-/// two readers share.
+/// after an edit cheap), the SoundFonts, the MIDI output, a [SynthOutput]
+/// unless the app passes its own, and one script clock that two readers
+/// share.
 ///
 /// The clock maps wall time to script seconds from one anchor. A one-shot
 /// timer reads it to sleep until the script's next note starts or ends, and
@@ -21,8 +21,8 @@ import 'package:score_model/score_model.dart';
 /// cannot drift apart.
 ///
 /// The timer does not wait for a frame to be drawn, so sound goes on when
-/// nothing repaints. It does run on the UI isolate, as the plugin's
-/// `playNote` takes no timestamp. A note is therefore late by as long as
+/// nothing repaints. It does run on the UI isolate, as a [MidiOutput]'s
+/// `noteOn` takes no timestamp. A note is therefore late by as long as
 /// the isolate is busy when the note is due, which is at most one build or
 /// one layout. A note that both starts and ends while the isolate is busy
 /// is not sent.
@@ -48,7 +48,7 @@ final class ScorePlayer {
     this.instrumentSoundFonts = const {},
     MidiOutput? output,
     Duration Function()? now,
-  }) : _output = output ?? FlutterMidiOutput(),
+  }) : _output = output ?? SynthOutput(),
        _now = now ?? _stopwatch() {
     _ticker = vsync.createTicker((_) {
       if (_phase case _Playing(:final run)) {
@@ -59,6 +59,14 @@ final class ScorePlayer {
 
   /// The SoundFont a part plays from when [instrumentSoundFonts] has none
   /// for its instrument.
+  ///
+  /// The package bundles no SoundFont. The app gives an [AssetSoundFont]
+  /// it declares, or a [FileSoundFont] on the device, such as one it
+  /// downloaded. Each part plays the program and the bank of its
+  /// `Instrument`, so the SoundFont a part plays from needs every program
+  /// the part names. A SoundFont keeps its drum kits in bank 128, so the
+  /// `Instrument` of a kit names that bank. Two SoundFonts of the same kind
+  /// and name are equal, and the player loads them once.
   final SoundFont soundFont;
 
   /// The SoundFont each instrument plays from, by `Instrument.key`, in
@@ -158,6 +166,7 @@ final class ScorePlayer {
         return;
       }
       _enter(const _Idle());
+      _output.rest();
       rethrow;
     }
     if (!identical(_phase, loading)) {
@@ -212,7 +221,9 @@ final class ScorePlayer {
   /// Stops sound, clears [position] and goes idle.
   void stop() {
     _goIdle();
-    _output.allNotesOff();
+    _output
+      ..allNotesOff()
+      ..rest();
   }
 
   /// Stops sound and frees every SoundFont. Notifies no listener. Not to be
@@ -274,6 +285,7 @@ final class ScorePlayer {
     if (at >= total) {
       if (!run.loop) {
         _goIdle();
+        _output.rest();
         return;
       }
       _silence(run);

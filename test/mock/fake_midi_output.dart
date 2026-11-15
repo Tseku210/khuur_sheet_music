@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:khuur_sheet_music/src/midi_output.dart';
-import 'package:khuur_sheet_music/src/sound_font.dart';
+import 'package:khuur_synth/khuur_synth.dart';
 
 /// A note on as [FakeMidiOutput] received it, with the wall second it
 /// arrived at.
@@ -130,6 +130,9 @@ final class FakeMidiOutput implements MidiOutput {
     _record('all off');
     held.clear();
   }
+
+  @override
+  void rest() => _record('rest');
 
   @override
   void dispose() => _record('dispose');
