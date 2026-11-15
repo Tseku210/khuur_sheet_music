@@ -287,6 +287,25 @@ Each SoundFont takes 16 of FluidSynth's 256 channels, so one output plays from a
 
 `output` also takes your own `MidiOutput`, to play through another synthesizer. The player calls its `rest` when no note comes before the next `program`, which is when the score ends, the player stops or a play fails. An output that sounds through a device can let the device go there.
 
+## Keep one staff in view
+
+A short view, such as a phone held sideways, may be lower than one system of a score with several parts. `ensureVisible` then shows the top of the system, which is the first part. Pass `staff` to show another one.
+
+```dart
+await _sheet.ensureVisible(point, staff: soloStaff);
+
+SheetView(
+  score: widget.score,
+  controller: _sheet,
+  playback: _player.position,
+  playbackStaff: soloStaff,
+)
+```
+
+The view scrolls by the shortest way until the staff is in view with the room that is its own. That room reaches halfway to the staves next to it, and to the edge of the system where there is none. It does not scroll while the staff is in view already. When the view is too short for that room, the lines of the staff go to the middle of the view. `playbackStaff` does the same for a view that follows playback, and puts the top of the staff's room at the top of the view when the playhead enters a system.
+
+Both apply only to a system that is taller than the view. A system that fits is shown whole, as without a staff, and so is a system that does not draw the staff.
+
 ## Place widgets over the sheet
 
 The controller reports geometry in the view's local pixels, with scrolling applied. It notifies when a scroll, a zoom or a new layout moves that geometry. So an app can place its own widgets over the sheet, such as a delete badge at the selected note.
