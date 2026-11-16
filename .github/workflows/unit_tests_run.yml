@@ -17,7 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - flutter: 3.47.5
+          - flutter: oldest supported
             version: 3.47.5
           - flutter: newest stable
             version: ""
