@@ -1,6 +1,14 @@
 name: khuur_score_model
-description: Immutable, measure-major score model for a notation editor. Pure Dart, no Flutter.
-publish_to: none
+description: Immutable score model for sheet music, with undoable edits, MusicXML import and export, MIDI export and a timed playback script. Pure Dart.
+version: 0.3.0
+repository: https://github.com/Tseku210/khuur_sheet_music/tree/main/packages/khuur_score_model
+issue_tracker: https://github.com/Tseku210/khuur_sheet_music/issues
+topics:
+  - music
+  - sheet-music
+  - music-notation
+  - musicxml
+  - midi
 
 environment:
   sdk: ^3.13.0

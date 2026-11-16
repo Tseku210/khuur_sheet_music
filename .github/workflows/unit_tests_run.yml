@@ -58,3 +58,44 @@ jobs:
         if: ${{ !cancelled() }}
         run: flutter test
         working-directory: example
+
+  packages:
+    name: Package checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v7
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      # Fails on any validation error or warning, such as a missing file or a
+      # file that .pubignore hides.
+      - name: Publish dry run, khuur_score_model
+        if: ${{ !cancelled() }}
+        run: dart pub publish --dry-run
+        working-directory: packages/khuur_score_model
+
+      - name: Publish dry run, khuur_score_layout
+        if: ${{ !cancelled() }}
+        run: dart pub publish --dry-run
+        working-directory: packages/khuur_score_layout
+
+      - name: Publish dry run, khuur_sheet_music
+        if: ${{ !cancelled() }}
+        run: flutter pub publish --dry-run
+
+      # pana scores a package the way pub.dev does, resolving its dependencies
+      # from pub.dev. Until khuur_score_model is published, the other two
+      # cannot resolve there, so only the model is scored here. Fails below
+      # 140 of 160 points.
+      - name: pana, khuur_score_model
+        if: ${{ !cancelled() }}
+        run: |
+          dart pub global activate pana
+          dart pub global run pana --no-warning --exit-code-threshold 20 packages/khuur_score_model

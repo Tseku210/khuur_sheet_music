@@ -8,7 +8,7 @@ One import gives the score model, the view and the player.
 import 'package:khuur_sheet_music/khuur_sheet_music.dart';
 ```
 
-The package is not on pub.dev. Depend on the `main` branch of the repository through git.
+The package is not on pub.dev yet. Depend on the `main` branch of the repository through git. The library depends on its two pure-Dart packages by version, as pub.dev needs, so until they are published, point them at the same repository.
 
 ```yaml
 dependencies:
@@ -16,9 +16,21 @@ dependencies:
     git:
       url: https://github.com/Tseku210/khuur_sheet_music
       ref: main
+
+dependency_overrides:
+  khuur_score_model:
+    git:
+      url: https://github.com/Tseku210/khuur_sheet_music
+      ref: main
+      path: packages/khuur_score_model
+  khuur_score_layout:
+    git:
+      url: https://github.com/Tseku210/khuur_sheet_music
+      ref: main
+      path: packages/khuur_score_layout
 ```
 
-`pubspec.lock` keeps the commit that pub got, and `flutter pub upgrade khuur_sheet_music` moves it to the newest commit on `main`. To work on the package and an app together, depend on a checkout by path, as `example/pubspec.yaml` does. The package needs Dart 3.13 and Flutter 3.47.5 or later.
+`pubspec.lock` keeps the commit that pub got, and `flutter pub upgrade` moves all three to the newest commit on `main`. To work on the package and an app together, depend on a checkout by path, as `example/pubspec.yaml` does. The package needs Dart 3.13 and Flutter 3.47.5 or later.
 
 The sheet takes its colours from the `Theme` of [`material_ui`](https://pub.dev/packages/material_ui), the package that replaces `package:flutter/material.dart`. The two libraries keep separate themes. Under a `MaterialApp` of `flutter/material.dart` the sheet finds no theme and draws in the light default colours. To move an app to `material_ui`, follow the migration steps in the README of `material_ui`.
 
