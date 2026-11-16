@@ -68,6 +68,8 @@ final class EditSession {
   /// staff's first bar, nothing selected, and empty history. The id
   /// counter starts one past the largest id in [score], so ids loaded from
   /// JSON are never reissued.
+  /// History keeps at most [historyLimit] undo steps and drops the oldest past
+  /// that.
   factory EditSession.start(Score score, {int historyLimit = 200}) =>
       EditSession._(
         score,
@@ -83,12 +85,15 @@ final class EditSession {
         historyLimit,
       );
 
+  /// The current score.
   final Score score;
 
   /// Where the next entered note goes. Always a valid point in [score]
   /// (offset strictly inside its bar).
   final VoicePoint cursor;
 
+  /// What is selected. After each edit it is checked against the new score, and
+  /// references that no longer resolve are dropped.
   final Selection selection;
 
   final Seq<_Snapshot> _past;
@@ -98,9 +103,16 @@ final class EditSession {
   final int _nextId;
   final int _historyLimit;
 
+  /// Whether there is an edit to undo.
   bool get canUndo => _past.isNotEmpty;
+  /// Whether there is an undone edit to redo. Any edit that changes the score
+  /// clears the redo stack.
   bool get canRedo => _future.isNotEmpty;
+  /// The [Edit.label] of the edit [undo] would revert, or null when there is
+  /// none.
   String? get undoLabel => canUndo ? _past.last.label : null;
+  /// The [Edit.label] of the edit [redo] would restore, or null when there is
+  /// none.
   String? get redoLabel => canRedo ? _future.last.label : null;
 
   /// Applies [edit] as one undo step.
@@ -188,6 +200,8 @@ final class EditSession {
     );
   }
 
+  /// Restores the score, cursor and selection that the last undone edit left.
+  /// No-op when [canRedo] is false.
   EditSession redo() {
     if (!canRedo) {
       return this;
@@ -493,12 +507,25 @@ ElementRef? _resolve(ElementRef item, Score score) {
   };
 }
 
+/// A step for [EditSession.moveCursor]. Event and bar moves keep the staff and
+/// voice, and staff moves keep the time and voice. At the edge of the score the
+/// cursor stays.
 enum CursorMove {
+  /// To the next event onset in the cursor's voice. Past the last one, to the
+  /// start of the next bar.
   nextEvent,
+  /// To the previous event onset in the cursor's voice, or to the bar start
+  /// when that is later. From a bar start, to the last onset in the previous
+  /// bar.
   previousEvent,
+  /// To the start of the next bar.
   nextMeasure,
+  /// To the start of the cursor's bar, or of the previous bar when the cursor
+  /// is already at a bar start.
   previousMeasure,
+  /// To the nearest shown staff above.
   staffUp,
+  /// To the nearest shown staff below.
   staffDown,
 }
 
@@ -514,32 +541,45 @@ final class _Snapshot {
 /// The result of [EditSession.run]. Both cases carry a session, so a caller
 /// that does not care about the reason can read `.session` directly.
 sealed class EditOutcome {
+  /// Lets every outcome be a const value.
   const EditOutcome();
 
+  /// The session to keep after the run. It is unchanged when the edit was
+  /// refused.
   EditSession get session;
 }
 
+/// The outcome of an edit that applied.
 final class Applied extends EditOutcome {
+  /// Wraps the [session] the edit produced.
   const Applied(this.session);
 
   @override
   final EditSession session;
 }
 
+/// The outcome of an edit that was refused.
 final class Refused extends EditOutcome {
+  /// Wraps the unchanged [session] and the [reason].
   const Refused(this.session, this.reason);
 
   /// The session the edit was run on, unchanged.
   @override
   final EditSession session;
+  /// Why the edit did not apply.
   final EditRefusal reason;
 }
 
+/// What an [EditSession] has selected. It is nothing, picked items, or a time
+/// range across staves.
 sealed class Selection {
+  /// Lets every selection be a const value.
   const Selection();
 
+  /// Selects nothing.
   const factory Selection.none() = NoSelection;
 
+  /// Selects one event.
   factory Selection.event(EventRef event) => ItemSelection(Seq([event]));
 
   /// One slur, hairpin or other line, as a tap on it picks.
@@ -550,10 +590,14 @@ sealed class Selection {
   /// chord) is selected.
   EventRef? get singleEvent;
 
+  /// Whether nothing is selected. A range is never empty, even when it holds no
+  /// music.
   bool get isEmpty;
 }
 
+/// Nothing is selected.
 final class NoSelection extends Selection {
+  /// Selects nothing.
   const NoSelection();
 
   @override
@@ -565,6 +609,7 @@ final class NoSelection extends Selection {
 
 /// Individually picked events, note heads and spanners (tap, shift-tap).
 final class ItemSelection extends Selection {
+  /// Picks [items] and [spanners].
   const ItemSelection(this.items, {this.spanners = const Seq.empty()});
 
   /// The picked events and heads.
@@ -592,6 +637,7 @@ final class ItemSelection extends Selection {
 /// (exclusive). [to] may sit at the very end of its bar (offset equal to
 /// the bar length) so a range can end at the end of the score.
 final class RangeSelection extends Selection {
+  /// Selects from [from] to [to] on the staves from [top] to [bottom].
   const RangeSelection({
     required this.from,
     required this.to,
@@ -599,9 +645,13 @@ final class RangeSelection extends Selection {
     required this.bottom,
   });
 
+  /// The start of the range, inclusive.
   final ScorePoint from;
+  /// The end of the range, exclusive. It may sit at the end of its bar.
   final ScorePoint to;
+  /// The first staff of the range, in system order.
   final StaffId top;
+  /// The last staff of the range, inclusive.
   final StaffId bottom;
 
   @override
