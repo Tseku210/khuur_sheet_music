@@ -514,11 +514,6 @@ final List<Refusal> refusals = [
     at: '/score-partwise/part/measure[2]/attributes/transpose',
   ),
   refuses(
-    'a chord note lasts as long as its chord',
-    [(d5, note('D5', 6, 'eighth', '<chord/>'))],
-    at: '$bar0/note[2]/duration',
-  ),
-  refuses(
     'a bar holds a whole number of 128th notes',
     [(e5, '$e5${forward(1)}')],
     at: bar0,
@@ -791,6 +786,22 @@ void main() {
       ]);
     });
 
+    test('gives a chord the duration of its first note', () {
+      final score = imported(
+        flute([
+          [
+            opening(),
+            note('G5', 12, 'half', '<dot/>'),
+            note('C5', 8, 'half', '<chord/><dot/>'),
+            note('D5', 4, 'quarter'),
+            note('F5', 6, 'quarter', '<chord/>'),
+          ],
+        ]),
+      );
+
+      expect(items(score, 0), ['C5+G5/half.', 'D5+F5/quarter']);
+    });
+
     test('fills a missing voice one with hidden rests', () {
       final score = imported(
         flute([
@@ -804,54 +815,60 @@ void main() {
       expect(items(score, 0, slot: VoiceSlot.two), ['E4/whole']);
     });
 
-    test('reads nested tuplets as MuseScore writes them', () {
-      const nine =
-          '<time-modification><actual-notes>9</actual-notes>'
-          '<normal-notes>4</normal-notes></time-modification>';
-      final score = imported(
-        flute([
-          [
-            opening(divisions: 9),
-            note(
-              'A4',
-              3,
-              'eighth',
-              '$triplet<notations><tuplet type="start" bracket="yes"/></notations>',
-            ),
-            note('rest', 3, 'eighth', triplet),
-            note(
-              'Bb4',
-              1,
-              '16th',
-              '$nine<notations><tuplet type="start" number="2"/></notations>',
-            ),
-            note('C5', 1, '16th', nine),
-            note(
-              'rest',
-              1,
-              '16th',
-              '$nine<notations><tuplet type="stop" number="2"/>'
-                  '<tuplet type="stop" number="1"/></notations>',
-            ),
-            note('C5', 27, 'half', '<dot/>'),
-          ],
-        ]),
-      );
-      final outer =
-          score.measures[0].staves.single.voices.single.items.first as Tuplet;
+    for (final (order, stops) in [
+      ('inner first', ['2', '1']),
+      ('outer first', ['1', '2']),
+    ]) {
+      test('reads nested tuplets whose stops list the $order', () {
+        const nine =
+            '<time-modification><actual-notes>9</actual-notes>'
+            '<normal-notes>4</normal-notes></time-modification>';
+        final score = imported(
+          flute([
+            [
+              opening(divisions: 9),
+              note(
+                'A4',
+                3,
+                'eighth',
+                '$triplet<notations><tuplet type="start" bracket="yes"/></notations>',
+              ),
+              note('rest', 3, 'eighth', triplet),
+              note(
+                'Bb4',
+                1,
+                '16th',
+                '$nine<notations><tuplet type="start" number="2"/></notations>',
+              ),
+              note('C5', 1, '16th', nine),
+              note(
+                'rest',
+                1,
+                '16th',
+                '$nine<notations>'
+                    '${stops.map((n) => '<tuplet type="stop" number="$n"/>').join()}'
+                    '</notations>',
+              ),
+              note('C5', 27, 'half', '<dot/>'),
+            ],
+          ]),
+        );
+        final outer =
+            score.measures[0].staves.single.voices.single.items.first as Tuplet;
 
-      expect(items(score, 0), [
-        '3:2[A4/eighth, rest/eighth, 3:2[Bb4/sixteenth, C5/sixteenth, rest/sixteenth]]',
-        'C5/half.',
-      ]);
-      expect(
-        (outer.bracket, (outer.members.last as Tuplet).bracket),
-        (
-          TupletBracket.shown,
-          TupletBracket.auto,
-        ),
-      );
-    });
+        expect(items(score, 0), [
+          '3:2[A4/eighth, rest/eighth, 3:2[Bb4/sixteenth, C5/sixteenth, rest/sixteenth]]',
+          'C5/half.',
+        ]);
+        expect(
+          (outer.bracket, (outer.members.last as Tuplet).bracket),
+          (
+            TupletBracket.shown,
+            TupletBracket.auto,
+          ),
+        );
+      });
+    }
 
     test('groups notes with only a time modification into tuplets', () {
       final score = imported(

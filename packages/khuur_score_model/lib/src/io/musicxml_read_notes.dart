@@ -7,12 +7,9 @@ sealed class _Last {
 }
 
 final class _LastChord extends _Last {
-  const _LastChord(this.record, this.raw);
+  const _LastChord(this.record);
 
   final ChordRecord record;
-
-  /// The `<duration>` its first note writes.
-  final Fraction raw;
 }
 
 final class _LastRest extends _Last {
@@ -111,12 +108,9 @@ extension on _BarReader {
           return;
         case _LastRest():
           Source(chord).refuse('a chord note follows a rest');
-        case _LastChord(:final record, :final raw):
-          if (duration.raw != raw) {
-            Source(
-              duration.element,
-            ).refuse('a chord note lasts as long as its chord');
-          }
+        // The chord lasts as long as its first note. Exporters such as
+        // Sibelius write the other notes' durations without dots or tuplets.
+        case _LastChord(:final record):
           if (note.getElement('rest') == null) {
             _addNote(record, note, index);
           }
@@ -258,7 +252,7 @@ extension on _BarReader {
         joins[id] = beam == 'continue' || beam == 'end';
       }
       _addNote(chord, note, index);
-      last = _LastChord(chord, duration.raw);
+      last = _LastChord(chord);
       event = chord;
     }
 
@@ -280,10 +274,19 @@ extension on _BarReader {
         when written == unit.length * Fraction(ratio.actual)) {
       _close(lane, unit);
     }
-    for (final mark in marks) {
-      if (mark.name.local == 'tuplet' && mark.getAttribute('type') == 'stop') {
-        _stop(lane, mark);
-      }
+    // A note that ends nested tuplets may list their stops in any order,
+    // so they close innermost first.
+    final depths = {
+      for (final mark in marks)
+        if (mark.name.local == 'tuplet' && mark.getAttribute('type') == 'stop')
+          mark: lane.frames.lastIndexWhere(
+            (frame) => frame.number == (mark.getAttribute('number') ?? '1'),
+          ),
+    };
+    final stops = depths.keys.toList()
+      ..sort((a, b) => depths[b]!.compareTo(depths[a]!));
+    for (final stop in stops) {
+      _stop(lane, stop);
     }
   }
 
