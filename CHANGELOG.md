@@ -1,3 +1,6 @@
+## Unreleased
+* MusicXML import reads a note that ends nested tuplets whatever order it lists their stops in, and gives a chord the duration of its first note. Debussy's String Quartet from OpenScore and a Sibelius export of Schubert's *Der Lindenbaum* were refused before.
+
 ## 0.3.0
 * **Breaking:** The two pure-Dart packages are renamed `khuur_score_model` and `khuur_score_layout`, the names they get on pub.dev. An app that imports only `package:khuur_sheet_music/khuur_sheet_music.dart` changes nothing. An app or package that imports them directly changes its imports:
 
