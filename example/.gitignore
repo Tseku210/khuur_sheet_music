@@ -49,3 +49,9 @@ app.*.map.json
 
 # The piano SoundFont. tool/fetch_soundfont.dart downloads it.
 /assets/soundfonts/*.sf2
+
+# The example runs on Android and iOS only. Running it on a desktop leaves
+# generated plugin files and build output in these folders.
+/linux/
+/macos/
+/windows/
