@@ -237,7 +237,7 @@ Here the piano part plays from `piano.sf2` and the cello part from `cello.sf2`. 
 
 The map can change between plays. Set `instrumentSoundFonts` to a new map, for example once a better SoundFont an app downloaded is on the device, and the next `play` plays from it.
 
-The example app ships a 57 MB piano, `example/assets/soundfonts/piano.sf2`. It is [Upright Piano KW](https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html#UprightKW) from FreePats, a Kawai upright sampled in stereo at two loudnesses and released under CC0. Its readme and license are next to it. FreePats also has a 9.5 MB version in mono at one loudness, for an app that has to stay small.
+The example app plays a 57 MB piano, which `example/tool/fetch_soundfont.dart` downloads to `example/assets/soundfonts/piano.sf2`. It is [Upright Piano KW](https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html#UprightKW) from FreePats, a Kawai upright sampled in stereo at two loudnesses and released under CC0. Its readme and license are next to it. FreePats also has a 9.5 MB version in mono at one loudness, for an app that has to stay small.
 
 ### Add reverb and set the gain
 
@@ -517,10 +517,11 @@ The code is under the MIT License. See [LICENSE](LICENSE).
 
 ```bash
 cd example
+dart run tool/fetch_soundfont.dart
 flutter run
 ```
 
-The example runs on Android and iOS. It is one page, `example/lib/main.dart`. It shows the tune of `demo_score.dart`, enters a note on a tap, selects a note, a slur or a hairpin on a tap on it, zooms through the controller, and plays through `ScorePlayer` with a tempo slider. Two switches under the sheet turn off the bars and the beams that entry adds by itself. A row of actions works on the selected notes, and `example/lib/selection_actions.dart` builds it as one table.
+The first command downloads the example's piano SoundFont, which the repository does not keep. Run it once. The example runs on Android and iOS. It is one page, `example/lib/main.dart`. It shows the tune of `demo_score.dart`, enters a note on a tap, selects a note, a slur or a hairpin on a tap on it, zooms through the controller, and plays through `ScorePlayer` with a tempo slider. Two switches under the sheet turn off the bars and the beams that entry adds by itself. A row of actions works on the selected notes, and `example/lib/selection_actions.dart` builds it as one table.
 
 ## Work on the package
 
