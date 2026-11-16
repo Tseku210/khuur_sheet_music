@@ -404,7 +404,9 @@ final class SheetLayout {
   /// their onsets compare. The column reaches across what the events that
   /// started last draw, on every staff, and down the whole system as the
   /// playhead does. So it keeps one height from note to rest to note, and
-  /// an event held from earlier does not stretch it back. Events on another
+  /// an event held from earlier does not stretch it back. A `MeasureRest` is
+  /// centred in its bar, not drawn at its onset, so it gives the column its
+  /// width only when nothing else started with it. Events on another
   /// system or a hidden staff have no part in it.
   Box? playingIn(int index, Iterable<EventRef> events) {
     final system = systemAt(index);
@@ -425,8 +427,9 @@ final class SheetLayout {
     final latest = drawn
         .map((d) => d.timed.onset)
         .reduce((a, b) => a > b ? a : b);
-    final across = drawn
-        .where((d) => d.timed.onset == latest)
+    final started = drawn.where((d) => d.timed.onset == latest);
+    final timed = started.where((d) => d.timed.event is! MeasureRest);
+    final across = (timed.isEmpty ? started : timed)
         .map((d) => d.bounds)
         .reduce((a, b) => a.union(b));
     return Box(across.left, 0, across.right, heightOf(index));
