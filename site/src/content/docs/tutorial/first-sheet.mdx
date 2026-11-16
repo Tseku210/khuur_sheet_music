@@ -5,6 +5,8 @@ sidebar:
   order: 1
 ---
 
+import SheetImage from '../../../components/SheetImage.astro';
+
 In this tutorial you build a one-page Flutter app. It shows a C major scale on a staff, enters a quarter note where you tap, undoes the last entry, and plays the score through a SoundFont.
 
 ## Before you start
@@ -120,6 +122,8 @@ flutter run
 
 You see the title "First sheet" over a staff with a treble clef. The staff has four bars, and each bar holds a rest.
 
+<SheetImage name="first-sheet-blank" alt="A sheet titled First sheet: one treble staff labelled Piano, in 4/4 at a quarter note of 100, with four bars that each hold a whole-bar rest." />
+
 ## Write notes in code
 
 A `Score` is immutable. You change it through an `EditSession`, which holds a score, a cursor and the undo history. `run` takes an edit and gives `Applied` with a new session, or `Refused` with the reason.
@@ -156,6 +160,8 @@ A `Score` is immutable. You change it through an `EditSession`, which holds a sc
 3. Press `R` in the terminal where `flutter run` runs, for a hot restart.
 
 The first two bars now hold the scale in quarter notes, from middle C up to the C above it. The last two bars still rest.
+
+<SheetImage name="first-sheet-scale" alt="The First sheet staff with the C major scale in quarter notes across bars 1 and 2, from middle C to the C above, and whole-bar rests in bars 3 and 4." />
 
 ## Enter notes by tap
 
@@ -228,13 +234,18 @@ Now the page keeps the session in its state, and a tap enters a note.
 
 2. Press `R` for a hot restart.
 
-A caret now marks the cursor at the start of the third bar.
+A caret now marks the cursor at the start of the first bar, before the middle C.
+
+<SheetImage name="first-sheet-cursor" alt="The scale on the First sheet staff, with a thin coloured caret just before the middle C at the start of bar 1." />
 
 The view calls `onTap` with a `SheetHit`, which names the staff, the voice, the time and the staff step under the tap. `toneForStaffStep` turns the staff step into a pitch from the clef and the key at that time. `tapGrid` snaps the tap to a quarter-note beat.
 
 Try these taps:
 
 1. Tap the third bar on the second line from the bottom, about a quarter of the way into the bar. A quarter note G appears on the second beat, after a quarter rest and before a half rest.
+
+   <SheetImage name="first-sheet-tap" alt="The scale, and in bar 3 a quarter rest, a quarter note G on the second line from the bottom and a half rest, with the caret after the G." />
+
 2. Tap a note of the scale, higher or lower than it is. A note at the height of your tap replaces it, because entry writes over the music under it.
 3. Tap **Undo** in the app bar. The last entry goes away. The button is off when there is nothing to undo.
 
@@ -371,7 +382,11 @@ A tap on a note or a rest takes the time where that note or rest starts. The res
 
 6. Tap **Play** in the app bar.
 
-The scale plays. The sheet marks each beat as it plays and draws the notes that start there in the playback colour. The button turns into **Pause** while the score plays, and back into **Play** when the score ends. The player plays the score as it is when you tap **Play**, so enter a few notes and play again to hear them.
+The scale plays. The sheet marks each beat as it plays and draws the notes that start there in the playback colour.
+
+<SheetImage name="first-sheet-playing" alt="The scale while it plays: a tinted box stands behind the third note, the E of bar 1, and the E is drawn in the box's colour." />
+
+The button turns into **Pause** while the score plays, and back into **Play** when the score ends. The player plays the score as it is when you tap **Play**, so enter a few notes and play again to hear them.
 
 The player needs a ticker to publish its position each frame, so the state class mixes in `SingleTickerProviderStateMixin`. The button reads `_player.status`, so the page keeps no play state of its own. `dispose` stops the sound and frees the SoundFont.
 
