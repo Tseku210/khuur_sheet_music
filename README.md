@@ -16,27 +16,10 @@ Sheet music for Flutter. `SheetView` shows a `Score` as a scrolling sheet. An ap
 
 ## Install
 
-The package is not on pub.dev yet. Depend on the `main` branch of the repository through git. The library depends on its two pure-Dart packages by version, so until they are published, point them at the same repository.
+Add the package and `material_ui` to the app.
 
-```yaml
-dependencies:
-  khuur_sheet_music:
-    git:
-      url: https://github.com/Tseku210/khuur_sheet_music
-      ref: main
-  material_ui: ^1.11.0
-
-dependency_overrides:
-  khuur_score_model:
-    git:
-      url: https://github.com/Tseku210/khuur_sheet_music
-      ref: main
-      path: packages/khuur_score_model
-  khuur_score_layout:
-    git:
-      url: https://github.com/Tseku210/khuur_sheet_music
-      ref: main
-      path: packages/khuur_score_layout
+```bash
+flutter pub add khuur_sheet_music material_ui
 ```
 
 The package needs Dart 3.13 and Flutter 3.47.5 or later.
