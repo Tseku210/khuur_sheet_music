@@ -534,6 +534,46 @@ void main() {
     expect(keysOf(output), hasLength(sent));
   });
 
+  testWidgets('Play starts at the selected note', (tester) async {
+    final output = fakeOutput();
+    await pumpApp(tester, output: output);
+    await tapNoteAt(tester, beatOf(scoreOf(tester), 0, 2, bar: 1));
+
+    await tester.tap(find.byTooltip('Play'));
+    await tester.pump();
+
+    expect(
+      keysOf(output),
+      unorderedEquals([72, 45, 48, 52]),
+      reason: 'the C5 on beat 3 of bar 2, over the Am chord struck with it',
+    );
+    await tester.tap(find.byTooltip('Stop'));
+    await tester.pump();
+  });
+
+  testWidgets('Play and Resume clear the selection', (tester) async {
+    await pumpApp(tester, output: fakeOutput());
+    await tapFirstNote(tester);
+    expect(sheetOf(tester).selection.isEmpty, isFalse);
+
+    await tester.tap(find.byTooltip('Play'));
+    await tester.pump();
+
+    expect(sheetOf(tester).selection.isEmpty, isTrue);
+
+    await tester.tap(find.byTooltip('Pause'));
+    await tester.pump();
+    await tapFirstNote(tester);
+    expect(sheetOf(tester).selection.isEmpty, isFalse);
+
+    await tester.tap(find.byTooltip('Resume'));
+    await tester.pump();
+
+    expect(sheetOf(tester).selection.isEmpty, isTrue);
+    await tester.tap(find.byTooltip('Stop'));
+    await tester.pump();
+  });
+
   testWidgets('a new sheet has nothing to undo and shows its top', (
     tester,
   ) async {
