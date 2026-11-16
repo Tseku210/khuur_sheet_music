@@ -23,7 +23,14 @@ import 'spanners.dart';
 import 'style.dart';
 import 'value_glyphs.dart';
 
-enum StemSide { up, down }
+/// The way a stem points from its heads.
+enum StemSide {
+  /// Up, with the stem on the heads' right.
+  up,
+
+  /// Down, with the stem on the heads' left.
+  down,
+}
 
 /// Length of a stem beyond its far head, in staff spaces.
 const double stemLength = 3.5;
@@ -49,6 +56,7 @@ enum _Stemming { none, drawn, byBeam }
 
 /// One notehead as planned.
 final class HeadPlan {
+  /// Plans one head. [accidental] defaults to none and [cautionary] to false.
   const HeadPlan({
     required this.id,
     required this.glyph,
@@ -59,7 +67,10 @@ final class HeadPlan {
     required this.ink,
   });
 
+  /// The note this head draws.
   final NoteId id;
+
+  /// The notehead glyph.
   final Glyph glyph;
 
   /// Staff step, 0 at the bottom line. A pitched note takes it from
@@ -73,6 +84,7 @@ final class HeadPlan {
   /// head in each of those in column 2, beyond column 1, and so on outward.
   final int column;
 
+  /// The accidental printed before the head, or null for none.
   final Glyph? accidental;
 
   /// Print the accidental in parentheses.
@@ -96,8 +108,14 @@ final class ChordPlan {
     required this.graces,
   });
 
+  /// The chord with its onset in its voice.
   final TimedEvent timed;
+
+  /// The chord itself, which is [timed]'s event.
   final ChordEvent chord;
+
+  /// The side the stem points to. A beam group sets one side for all its
+  /// chords, and [stemSideFor] decides the rest.
   final StemSide stem;
 
   /// Sorted by step, lowest first.
@@ -128,6 +146,7 @@ final class GracePlan {
     required this.x,
   });
 
+  /// The grace chord from the model.
   final GraceChord source;
 
   /// Where the grace's own slice line sits, left of the principal's.

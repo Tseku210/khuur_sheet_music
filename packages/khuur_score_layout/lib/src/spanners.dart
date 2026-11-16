@@ -83,11 +83,13 @@ sealed class TieEnd {
   /// on.
   final Owner owner;
 
+  /// The side the tie's arc bulges to.
   final Side side;
 }
 
 /// Both heads are in this bar.
 final class TieWithin extends TieEnd {
+  /// Makes a tie between two heads of this bar.
   const TieWithin({
     required this.from,
     required this.to,
@@ -95,7 +97,10 @@ final class TieWithin extends TieEnd {
     required super.side,
   });
 
+  /// Where the tie starts, beside its first head.
   final BarAnchor from;
+
+  /// Where the tie ends, beside its second head.
   final BarAnchor to;
 
   @override
@@ -112,6 +117,7 @@ final class TieWithin extends TieEnd {
 
 /// The tie leaves for note [to] in the next bar (`TieView.crossesBarline`).
 final class TieLeaving extends TieEnd {
+  /// Makes a tie that leaves this bar.
   const TieLeaving({
     required this.from,
     required this.to,
@@ -119,7 +125,10 @@ final class TieLeaving extends TieEnd {
     required super.side,
   });
 
+  /// Where the tie starts, beside its head in this bar.
   final BarAnchor from;
+
+  /// The note in the next bar that the tie lands on.
   final NoteId to;
 
   @override
@@ -136,6 +145,7 @@ final class TieLeaving extends TieEnd {
 
 /// A tie from the previous bar lands on [note] (`StaffView.tiedIn`).
 final class TieArriving extends TieEnd {
+  /// Makes a tie that arrives in this bar.
   const TieArriving({
     required this.note,
     required this.to,
@@ -143,7 +153,10 @@ final class TieArriving extends TieEnd {
     required super.side,
   });
 
+  /// The note the tie lands on.
   final NoteId note;
+
+  /// Where the tie ends, beside [note]'s head.
   final BarAnchor to;
 
   @override
@@ -160,12 +173,14 @@ final class TieArriving extends TieEnd {
 
 /// No head to land on, which is a let-ring tie of [letRingLength].
 final class TieOpen extends TieEnd {
+  /// Makes a let-ring tie.
   const TieOpen({
     required this.from,
     required super.owner,
     required super.side,
   });
 
+  /// Where the tie starts, beside its head.
   final BarAnchor from;
 
   @override
@@ -573,6 +588,7 @@ CurveDraw _tie(
 /// The part of one spanner inside one bar, resolved from the bar's
 /// `SpannerSegment` alone.
 final class SpannerPiece {
+  /// Makes a piece.
   const SpannerPiece({
     required this.owner,
     required this.kind,
@@ -586,7 +602,10 @@ final class SpannerPiece {
     required this.textExtent,
   });
 
+  /// The spanner the piece is part of.
   final SpannerOwner owner;
+
+  /// The spanner's kind, which says how the piece is drawn.
   final SpannerKind kind;
 
   /// Where the piece starts in this bar, by [pieceStart].
@@ -595,7 +614,12 @@ final class SpannerPiece {
   /// Where the piece ends in this bar, by [pieceEnd].
   final BarAnchor until;
 
+  /// Whether the spanner starts in this bar. Otherwise it runs in from the
+  /// bar before.
   final bool startsHere;
+
+  /// Whether the spanner ends in this bar. Otherwise it runs on past the
+  /// barline.
   final bool endsHere;
 
   /// The same in every bar the spanner crosses.

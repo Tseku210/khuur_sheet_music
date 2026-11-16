@@ -27,6 +27,7 @@ const double _maxSlope = 0.5;
 
 /// A beam decided in bar space.
 final class BeamPlan {
+  /// Makes a beam plan.
   const BeamPlan({
     required this.stem,
     required this.events,
@@ -37,6 +38,7 @@ final class BeamPlan {
     required this.boxes,
   });
 
+  /// The side every stem of the group points to.
   final StemSide stem;
 
   /// The group's events in time order. Each owns its stem and its hooks. A
@@ -48,6 +50,8 @@ final class BeamPlan {
 
   /// Ends of the primary beam's outer edge, at the first and last stem.
   final BarAnchor first;
+
+  /// The end at the last stem. See [first].
   final BarAnchor last;
 
   /// Per event, per level, how it joins.

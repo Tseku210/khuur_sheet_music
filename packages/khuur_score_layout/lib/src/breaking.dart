@@ -26,18 +26,26 @@ import 'text.dart';
 sealed class BreakUnit {
   const BreakUnit();
 
+  /// The bars the unit covers, in score order. One for a [SingleBar].
   List<BarLayout> get bars;
 
+  /// The unit's first bar, whose head the unit prints.
   BarLayout get first => bars.first;
+
+  /// The unit's last bar, whose end barline the unit prints.
   BarLayout get last => bars.last;
 
+  /// The first bar's `breakBefore`. No later bar of a unit has one, since a
+  /// rest run ends before such a bar.
   LayoutBreak? get breakBefore => first.breakBefore;
 
+  /// The unit's widths, which line breaking reads as it reads one bar's.
   BarWidths get widths;
 
   /// Clear space between the unit's head and its first slice.
   double get lead;
 
+  /// The unit's time slices, ending with its last bar's end.
   List<Slice> get slices;
 
   /// Per visible staff, how far the unit reaches outside it.
@@ -52,9 +60,12 @@ sealed class BreakUnit {
   );
 }
 
+/// One bar that a system takes as it is.
 final class SingleBar extends BreakUnit {
+  /// Wraps [bar] as a unit.
   const SingleBar(this.bar);
 
+  /// The bar the unit holds.
   final BarLayout bar;
 
   @override
@@ -83,6 +94,8 @@ final class SingleBar extends BreakUnit {
 /// Two or more rest-only bars drawn as one H-bar rest with their count
 /// above. It prints the first bar's head and the last bar's barline.
 final class RestRun extends BreakUnit {
+  /// Folds [bars] into one H-bar slice [body] staff spaces wide. [countRise]
+  /// is how far the count reaches above each staff's top line.
   RestRun(this.bars, {required double body, required double countRise})
     : slices = [
         Slice(at: Moment.zero, ideal: body, rod: body),
@@ -187,6 +200,7 @@ List<BreakUnit> foldBars(List<BarLayout> bars, EngravingStyle style) {
 /// Bars are compared by identity, because a BarLayout is replaced exactly when
 /// its bar was laid out again. [carry] and [carryOut] are compared by value.
 final class SystemKey {
+  /// Makes the key of a system of [units].
   SystemKey({
     required this.units,
     required this.next,
@@ -198,6 +212,7 @@ final class SystemKey {
     required this.carryOut,
   });
 
+  /// The system's units, in score order.
   final List<BreakUnit> units;
 
   /// The first bar of the next system. The system ends with that bar's
@@ -205,7 +220,10 @@ final class SystemKey {
   /// lane starts. Null on the last system.
   final BarLayout? next;
 
+  /// The sheet's width in staff spaces.
   final double width;
+
+  /// What stands before the system's first bar. Compared by identity.
   final SystemLead lead;
 
   /// The first system prints full part names and has its own indent.
@@ -271,6 +289,7 @@ typedef PlannedStaff = ({
 /// at system time clamp to that room. The sheet stacks systems by
 /// [height] alone, so a breach would overlap the next system.
 final class SystemPlan {
+  /// Makes a plan from what [planSystem] decided.
   const SystemPlan({
     required this.key,
     required this.width,
@@ -280,6 +299,7 @@ final class SystemPlan {
     required this.labelAt,
   });
 
+  /// The inputs the plan is a function of.
   final SystemKey key;
 
   /// The sheet's width, or the width of the system's rods when one bar
@@ -289,7 +309,11 @@ final class SystemPlan {
   /// The one factor every spring of the system is scaled by.
   final double stretch;
 
+  /// The visible staves, top to bottom.
   final List<PlannedStaff> staves;
+
+  /// From the system's top to the bottom of its last staff's lyric rows, in
+  /// staff spaces. The sheet stacks systems by it.
   final double height;
 
   /// Where the bar number's baseline starts, in system space. The number
@@ -303,6 +327,7 @@ final class SystemPlan {
       for (final bar in unit.bars) bar.measure,
   ];
 
+  /// y of each staff's top line in system space, top to bottom.
   List<double> get staffTops => [for (final staff in staves) staff.top];
 
   /// x where the staves start.

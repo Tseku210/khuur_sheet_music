@@ -29,7 +29,17 @@ typedef LyricLane = ({StaffId staff, VoiceSlot voice, int verse});
 
 /// What a lane does at a bar's first event. The system before reads it to
 /// decide whether an open extender runs to its end.
-enum LaneStart { syllable, rest, held }
+enum LaneStart {
+  /// The bar opens on a chord that sings a syllable of the lane.
+  syllable,
+
+  /// The bar opens on a rest or a gap, which ends an open extender.
+  rest,
+
+  /// The bar opens on a chord that sings nothing in the lane, so an open
+  /// extender runs on under it.
+  held,
+}
 
 /// What a lane leaves open at a bar's end.
 enum LaneEnd {
@@ -75,6 +85,7 @@ typedef BarLane = ({
 /// One measured syllable, placed against its slice. Its y comes from its
 /// lane's row, which only the system knows.
 final class Syllable {
+  /// Makes a measured syllable.
   const Syllable({
     required this.lane,
     required this.slice,
@@ -90,7 +101,10 @@ final class Syllable {
     required this.pad,
   });
 
+  /// The lyric line the syllable belongs to.
   final LyricLane lane;
+
+  /// Index of the slice of the syllable's chord.
   final int slice;
 
   /// x of the text's origin from the slice line. A syllable is centred on
@@ -98,8 +112,13 @@ final class Syllable {
   /// left with it.
   final double dx;
 
+  /// The syllable's text.
   final String text;
+
+  /// The text as measured in the lyric text style.
   final TextExtent extent;
+
+  /// The chord event that sings the syllable. The drawn text belongs to it.
   final Owner owner;
 
   /// Whether this syllable is the middle or the end of a word, so a hyphen
@@ -171,12 +190,15 @@ final class Syllable {
 
 /// A bar's lyrics, which are its syllables and how every lane flows through it.
 final class BarLyrics {
+  /// Makes a bar's lyrics.
   const BarLyrics({
     required this.syllables,
     required this.lanes,
     required this.voices,
   });
 
+  /// Every syllable of the bar, staff by staff and voice by voice, in time
+  /// order within a voice.
   final List<Syllable> syllables;
 
   /// Every lane with a syllable in this bar.
@@ -187,6 +209,8 @@ final class BarLyrics {
   /// [LaneEnd.hyphenAsBefore]. A voice missing here counts as resting.
   final Map<(StaffId, VoiceSlot), BarLane> voices;
 
+  /// How [lane] flows through this bar. A lane with no syllable here takes
+  /// its voice's flow from [voices], and a voice missing there rests.
   BarLane laneOf(LyricLane lane) =>
       lanes[lane] ?? voices[(lane.staff, lane.voice)] ?? _resting;
 
@@ -246,10 +270,13 @@ const BarLane _resting = (
 /// [closing] to what a later bar closes. So it needs no assembled system.
 /// Compared by value in the system's key.
 final class LyricCarry {
+  /// Makes a carry with [open] open.
   const LyricCarry(this.open);
 
+  /// Nothing open.
   static const none = LyricCarry({});
 
+  /// What is open on each lane. A lane missing here has nothing open.
   final Map<LyricLane, OpenLyric> open;
 
   /// This carry without the hyphens no later syllable joins and the
@@ -298,7 +325,14 @@ final class LyricCarry {
   }
 }
 
-enum OpenLyric { hyphen, extender }
+/// What a syllable leaves open after it.
+enum OpenLyric {
+  /// A hyphen, open until the word's next syllable.
+  hyphen,
+
+  /// An extender line, open until a rest or the lane's next syllable.
+  extender,
+}
 
 /// One lyric row of a staff on a system.
 typedef LyricRow = ({LyricLane lane, double ascent, double descent});

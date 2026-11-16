@@ -17,6 +17,8 @@ import 'geometry.dart';
 ///
 /// Immutable.
 final class SystemLayout {
+  /// Makes a system from placed parts. A sheet's systems come from
+  /// `SheetLayout.systemAt`.
   const SystemLayout({
     required this.drawables,
     required this.bars,
@@ -25,6 +27,7 @@ final class SystemLayout {
     required this.height,
   });
 
+  /// Everything the system draws, in system space.
   final List<Drawable> drawables;
 
   /// In time order.
@@ -33,7 +36,11 @@ final class SystemLayout {
   /// Visible staves, top to bottom.
   final List<PlacedStaff> staves;
 
+  /// The system's width in staff spaces. It is the sheet's width, or more
+  /// when one bar alone is wider.
   final double width;
+
+  /// The system's height in staff spaces, as planned when lines were broken.
   final double height;
 
   /// The drawables [owner] owns in this system. A note owns its head. An
@@ -49,9 +56,12 @@ final class SystemLayout {
           .map((d) => d.bounds)
           .fold<Box?>(null, (a, b) => a?.union(b) ?? b);
 
+  /// The placed bar of [measure], or null when the bar is not on this
+  /// system.
   PlacedBar? barOf(MeasureId measure) =>
       bars.where((bar) => bar.measure == measure).firstOrNull;
 
+  /// The placed staff of [staff], or null when it is not drawn here.
   PlacedStaff? staffOf(StaffId staff) =>
       staves.where((s) => s.staff == staff).firstOrNull;
 
@@ -120,7 +130,9 @@ int _rank(Owner owner) => switch (owner) {
   SpannerOwner() => 2,
 };
 
+/// Where one bar landed on its system, with its time axis.
 final class PlacedBar {
+  /// Makes a placed bar.
   const PlacedBar({
     required this.measure,
     required this.left,
@@ -129,6 +141,7 @@ final class PlacedBar {
     required this.length,
   });
 
+  /// Which bar of the score this is.
   final MeasureId measure;
 
   /// x where the bar starts, after the barline before it or at the system's
@@ -140,6 +153,7 @@ final class PlacedBar {
   /// Its barline starts here, or after a clef that stands before it.
   final double right;
 
+  /// Maps time in the bar to x in system space.
   final TimeAxis time;
 
   /// The bar's length, the end of [time].
@@ -153,10 +167,14 @@ final class PlacedBar {
 /// linear in time, so every Moment has an x. The caret, a range end at the
 /// bar end, a direction inside a held note and the playhead all use it.
 final class TimeAxis {
+  /// Makes an axis through [stops].
   const TimeAxis(this.stops);
 
+  /// Each slice's onset and x, ending with the bar's length. See [TimeAxis].
   final List<(Moment, double)> stops;
 
+  /// The x of [offset] from the bar's start. An offset past the bar's
+  /// length gives the x where the content ends.
   double xAt(Moment offset) => xAtWholeNotes(offset.wholeNotes.toDouble());
 
   /// For the playhead, whose position is continuous.
@@ -179,13 +197,16 @@ final class TimeAxis {
   );
 }
 
+/// Where one visible staff landed on its system.
 final class PlacedStaff {
+  /// Makes a placed staff.
   const PlacedStaff({
     required this.staff,
     required this.top,
     required this.lines,
   });
 
+  /// Which staff of the score this is.
   final StaffId staff;
 
   /// y of the top line of a five-line staff in system space. A one-line
@@ -195,7 +216,10 @@ final class PlacedStaff {
   /// 5 or 1, from `Staff.lines`.
   final int lines;
 
+  /// The y of [staffStep] in system space, with steps as [yOfStep] counts
+  /// them.
   double yOf(int staffStep) => top + yOfStep(staffStep);
 
+  /// The staff step nearest to [y], a y in system space.
   int stepAt(double y) => stepAtY(y - top);
 }
