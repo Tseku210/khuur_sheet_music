@@ -41,9 +41,10 @@ flutter test
 (cd packages/khuur_score_model && dart test)
 (cd packages/khuur_score_layout && dart test)
 (cd example && flutter test)
+flutter test --platform chrome test/web
 ```
 
-`flutter analyze` must report no issues. The lints come from `pedantic_mono`.
+The last line runs the web tests in Chrome, so it needs Chrome installed. `flutter analyze` must report no issues. The lints come from `pedantic_mono`.
 
 After a change to the layout engine, also run the layout benchmark. It exits with code 1 when a layout is over its budget.
 

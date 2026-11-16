@@ -17,7 +17,7 @@ sidebar:
 
 Playback runs through FluidSynth from [`khuur_synth`](https://github.com/Tseku210/khuur_synth). On a platform other than Android and iOS, the future of `ScorePlayer.play` fails with `SynthUnavailable`. A `ScorePlayer` that is given a `MidiOutput` of the app's own plays through that output instead.
 
-On the web the library builds with both compilers, dart2js and dart2wasm. CI runs the browser tests in `test/web/` under each.
+On the web the library builds with both compilers, dart2js and dart2wasm. CI builds the example app with each, and runs the tests in `test/web/` in Chrome.
 
 `khuur_score_model` and `khuur_score_layout` are pure Dart. They run anywhere Dart runs, the web included.
 

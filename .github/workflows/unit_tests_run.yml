@@ -74,14 +74,25 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      # The library compiles for the web and runs in Chrome, with each web
-      # compiler. A new import of dart:ffi or dart:io fails both.
-      - name: Browser tests, dart2js
+      # The tests in test/web run in Chrome, compiled by the development
+      # compiler and then by dart2wasm.
+      - name: Browser tests
         run: flutter test --platform chrome test/web
 
       - name: Browser tests, dart2wasm
         if: ${{ !cancelled() }}
         run: flutter test --platform chrome --wasm test/web
+
+      # A release build of the example app with dart2js and with dart2wasm.
+      # The example keeps no web folder, so flutter create adds one here. A
+      # new import of dart:ffi or dart:io fails both builds.
+      - name: Build the example for the web
+        if: ${{ !cancelled() }}
+        working-directory: example
+        run: |
+          flutter create --platforms web .
+          flutter build web
+          flutter build web --wasm
 
   packages:
     name: Package checks
