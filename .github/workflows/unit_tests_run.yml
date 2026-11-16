@@ -59,6 +59,36 @@ jobs:
         run: flutter test
         working-directory: example
 
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v7
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Browser tests
+        run: flutter test --platform chrome test/web
+
+      - name: Browser tests, dart2wasm
+        if: ${{ !cancelled() }}
+        run: flutter test --platform chrome --wasm test/web
+
+      - name: Add a web folder to the example and build it
+        if: ${{ !cancelled() }}
+        working-directory: example
+        run: |
+          flutter create --platforms web .
+          flutter build web
+          flutter build web --wasm
+
   packages:
     name: Package checks
     runs-on: ubuntu-latest

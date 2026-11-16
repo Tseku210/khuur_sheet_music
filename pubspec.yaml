@@ -23,7 +23,7 @@ dependencies:
     sdk: flutter
   khuur_score_layout: ^0.3.0
   khuur_score_model: ^0.3.0
-  khuur_synth: ^0.1.0
+  khuur_synth: ^0.1.1
   material_ui: ^1.11.0
 
 dev_dependencies:
