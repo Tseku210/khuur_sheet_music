@@ -1,5 +1,5 @@
-import 'package:material_ui/material_ui.dart';
 import 'package:khuur_sheet_music/khuur_sheet_music.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The selected events in time order, which is what every button of the
 /// action row but Delete works on. Each event names its staff in its `ref`

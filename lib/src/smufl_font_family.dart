@@ -1,4 +1,4 @@
-import 'package:score_layout/score_layout.dart';
+import 'package:khuur_score_layout/khuur_score_layout.dart';
 
 /// The name Flutter knows a [SmuflFont] by.
 extension SmuflFontFamily on SmuflFont {

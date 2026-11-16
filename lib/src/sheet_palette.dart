@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:khuur_score_layout/khuur_score_layout.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:score_layout/score_layout.dart';
 
 /// A line drawn over the sheet, which is the caret or the playhead.
 @immutable

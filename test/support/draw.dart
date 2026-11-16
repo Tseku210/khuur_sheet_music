@@ -6,9 +6,9 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/services.dart';
+import 'package:khuur_score_layout/khuur_score_layout.dart';
 import 'package:khuur_sheet_music/src/painting.dart';
 import 'package:khuur_sheet_music/src/smufl_font_family.dart';
-import 'package:score_layout/score_layout.dart';
 
 const ui.Color black = ui.Color(0xFF000000);
 

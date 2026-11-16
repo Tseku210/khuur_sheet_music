@@ -8,6 +8,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khuur_score_layout/khuur_score_layout.dart';
+import 'package:khuur_score_model/khuur_score_model.dart';
 import 'package:khuur_sheet_music/src/painting.dart';
 import 'package:khuur_sheet_music/src/paragraph_measurer.dart';
 import 'package:khuur_sheet_music/src/score_player.dart';
@@ -15,10 +17,8 @@ import 'package:khuur_sheet_music/src/sheet_palette.dart';
 import 'package:khuur_sheet_music/src/sheet_view.dart';
 import 'package:material_ui/material_ui.dart'
     show ColorScheme, Theme, ThemeData;
-import 'package:score_layout/score_layout.dart';
-import 'package:score_model/score_model.dart';
 
-import '../packages/score_model/test/support.dart';
+import '../packages/khuur_score_model/test/support.dart';
 import 'sheet_picture_test.dart'
     show edit, grand, inkOf, pictured, sheetWidth, violin;
 import 'support/draw.dart';

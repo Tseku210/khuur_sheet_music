@@ -2,16 +2,16 @@ import 'dart:typed_data';
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khuur_score_layout/khuur_score_layout.dart';
+import 'package:khuur_score_model/khuur_score_model.dart';
 import 'package:khuur_sheet_music/src/painting.dart';
 import 'package:khuur_sheet_music/src/paragraph_measurer.dart';
 import 'package:khuur_sheet_music/src/score_player.dart';
 import 'package:khuur_sheet_music/src/sheet_palette.dart';
 import 'package:khuur_sheet_music/src/sheet_view.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:score_layout/score_layout.dart';
-import 'package:score_model/score_model.dart';
 
-import '../packages/score_layout/test/support/role_scores.dart';
+import '../packages/khuur_score_layout/test/support/role_scores.dart';
 import 'sheet_picture_test.dart' show inkOf, layoutOf, sheetWidth;
 import 'sheet_view_test.dart'
     show

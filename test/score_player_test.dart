@@ -2,11 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khuur_score_model/khuur_score_model.dart';
 import 'package:khuur_sheet_music/khuur_sheet_music.dart'
     show AssetSoundFont, PlaybackPosition, PlayerStatus, ScorePlayer, SoundFont;
-import 'package:score_model/score_model.dart';
 
-import '../packages/score_model/test/support.dart'
+import '../packages/khuur_score_model/test/support.dart'
     show
         at,
         blankScore,
