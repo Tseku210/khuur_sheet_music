@@ -390,6 +390,41 @@ final class SheetLayout {
     return Box(x, staff.top, x, staff.top + staffHeight);
   }
 
+  /// The column over the playing [events] in the space of system [index],
+  /// or null when none of them is drawn here.
+  ///
+  /// [events] are of one bar, as `PlaybackScript.playingAt` gives them, so
+  /// their onsets compare. The column reaches across what the events that
+  /// started last draw, on every staff, and down the whole system as the
+  /// playhead does. So it keeps one height from note to rest to note, and
+  /// an event held from earlier does not stretch it back. Events on another
+  /// system or a hidden staff have no part in it.
+  Box? playingIn(int index, Iterable<EventRef> events) {
+    final system = systemAt(index);
+    final drawn = [
+      for (final ref in events)
+        if (score.lookup(ref) case final timed?
+            when systemOf(timed.ref.measure) == index)
+          if (system.boundsOf(ElementOwner(ref)) case final bounds?)
+            (timed: timed, bounds: bounds),
+    ];
+    if (drawn.isEmpty) {
+      return null;
+    }
+    assert(
+      drawn.map((d) => d.timed.ref.measure).toSet().length == 1,
+      'the playing events are of one bar',
+    );
+    final latest = drawn
+        .map((d) => d.timed.onset)
+        .reduce((a, b) => a > b ? a : b);
+    final across = drawn
+        .where((d) => d.timed.onset == latest)
+        .map((d) => d.bounds)
+        .reduce((a, b) => a.union(b));
+    return Box(across.left, 0, across.right, heightOf(index));
+  }
+
   /// The box of what is drawn for [preview], in sheet space: its head, its
   /// ledger lines, its stem and its flag. Null when it is drawn nowhere (a
   /// hidden staff, or a bar the score lacks).

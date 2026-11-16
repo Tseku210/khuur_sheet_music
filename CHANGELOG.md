@@ -50,7 +50,7 @@
   | `MidiPlayer`, `MidiPlayerStatus` | `ScorePlayer`, `PlayerStatus` |
   | `MidiPlayerStatus.stopped` | `PlayerStatus.idle`. `PlayerStatus.loading` is new |
   | `MidiPlayer.isPlaying` | `status.value == PlayerStatus.playing`. `status` is now a `ValueListenable` |
-  | `MidiPlayer.highlightedSymbolId` | `position.value?.sounding`, the `EventRef`s that sound now. `SheetView(playback: player.position)` highlights them |
+  | `MidiPlayer.highlightedSymbolId` | `position.value?.playing`, the `EventRef`s that play now, rests too. `SheetView(playback: player.position)` marks them with one column down the system |
   | `MidiPlayer.loadMeasures` | Nothing. `play(score)` takes the score each time |
   | `MidiPlayer.jumpToMeasure(index)` | Nothing that seeks. `play(score, startAt: ScorePoint(score.measures[index].id, Moment.zero))` starts at that bar |
   | `SoundFont`, `AssetSoundFont`, `FileSoundFont` | Unchanged |

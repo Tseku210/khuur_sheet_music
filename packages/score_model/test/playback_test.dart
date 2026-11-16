@@ -84,7 +84,7 @@ List<(double, double, int, int, int)> notes(
 ];
 
 List<int> sources(PlaybackScript script, double seconds) => [
-  for (final ref in script.sourcesAt(seconds)) ref.id.value,
+  for (final ref in script.playingAt(seconds)) ref.id.value,
 ];
 
 ChordEvent quarters(int id, String pitches) => chordOf(id, pitches);
@@ -848,7 +848,7 @@ void main() {
       expect(notes(script, 2.4), isEmpty);
     });
 
-    test('says which event sounds in each voice', () {
+    test('says which event plays in each voice, a rest too', () {
       var score = blankScore(parts: const [morinKhuur, clarinet]);
       score = fill(score, 0, [
         halves(1, 'C4 E4', tie: true),
@@ -867,20 +867,25 @@ void main() {
       );
 
       expect(sources(script, 0.3), [1]);
-      expect(sources(script, 1.5), [2]);
+      expect(sources(script, 1.5), [2, 3]);
       expect(sources(script, 2.1), [2, 4]);
       expect(sources(script, 2.4), [6]);
       expect(sources(script, 4.8), isEmpty);
       expect(sources(compiled(score), 0.3), [1, 5]);
     });
 
-    test('says which event sounds on a hidden staff too', () {
+    test('says which event plays on a hidden staff too', () {
       var score = blankScore(parts: const [clarinet, piano], bars: 1);
       score = fill(score, 0, [wholes(1, 'C4')]);
       score = fill(score, 0, [wholes(2, 'D4')], staff: 1);
       score = hidePart(score, 1);
 
-      expect(sources(compiled(score), 1), [1, 2]);
+      // 9 is the bar rest of the piano's lower staff.
+      expect(sources(compiled(score), 1), [1, 2, 9]);
+      expect(
+        score.measures[0].staves[2].voices.first.items.single,
+        isA<MeasureRest>(),
+      );
     });
   });
 

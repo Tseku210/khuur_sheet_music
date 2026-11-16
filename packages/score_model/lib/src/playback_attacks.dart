@@ -1,6 +1,7 @@
 part of 'playback.dart';
 
 _Fragment _compileBar(MeasureColumn column) {
+  final events = <TimedEvent>[];
   final chords = <_Chord>[];
   final holds = <(Moment, Moment)>[];
   for (final measure in column.staves) {
@@ -10,6 +11,7 @@ _Fragment _compileBar(MeasureColumn column) {
         measure: column.id,
         staff: measure.staff,
       )) {
+        events.add(timed);
         final TimedEvent(:event, :onset, :duration) = timed;
         if (event.articulations.contains(Articulation.fermata)) {
           holds.add((onset, onset + duration));
@@ -20,7 +22,7 @@ _Fragment _compileBar(MeasureColumn column) {
       }
     }
   }
-  return _Fragment(chords, holds);
+  return _Fragment(events, chords, holds);
 }
 
 /// What [chord] plays, in whole-note time from the bar's downbeat. Its

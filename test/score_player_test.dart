@@ -655,23 +655,21 @@ void main() {
       expect(rig.status, PlayerStatus.idle);
     });
 
-    testPlayer('publishes the events that sound at its position', (
-      tester,
-      rig,
-    ) async {
-      List<int> sounding() => [
-        for (final ref in rig.position!.sounding) ref.id.value,
+    testPlayer('publishes the events that play at its position, the '
+        "piano's bar rest too", (tester, rig) async {
+      List<int> playing() => [
+        for (final ref in rig.position!.playing) ref.id.value,
       ];
 
       await rig.player.play(duet());
-      expect(sounding(), [11, 1]);
+      expect(playing(), [11, 8, 1]);
       rig.player.tempoScale = 0.5;
       await tester.pump(second * 3);
-      expect(sounding(), [12, 1]);
+      expect(playing(), [12, 8, 1]);
       await tester.pump(second * 0.9);
-      expect(sounding(), [12, 1], reason: 'for its written length');
+      expect(playing(), [12, 8, 1], reason: 'for its written length');
       rig.player.pause();
-      expect(sounding(), [12, 1]);
+      expect(playing(), [12, 8, 1]);
     });
 
     testPlayer('loops a range until stop, releasing what the end cuts short', (
