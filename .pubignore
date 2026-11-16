@@ -45,3 +45,6 @@ skills-lock.json
 # Not part of the khuur_sheet_music package
 /.github/
 /CLAUDE.md
+
+# The docs site, deployed to GitHub Pages
+/site/

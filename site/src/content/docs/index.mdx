@@ -1,0 +1,32 @@
+---
+title: khuur_sheet_music
+description: Sheet music for Flutter. Show a score as a scrolling sheet, edit it by tap, and play it back over MIDI.
+template: splash
+hero:
+  tagline: Sheet music for Flutter. Show a score as a scrolling sheet, edit it by tap, and play it back over MIDI while the sheet follows the sound.
+  actions:
+    - text: Your first sheet
+      link: /khuur_sheet_music/tutorial/first-sheet/
+      icon: right-arrow
+    - text: GitHub
+      link: https://github.com/Tseku210/khuur_sheet_music
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<CardGrid>
+  <Card title="Show" icon="document">
+    `SheetView` lays out a `Score` in systems that fit the width and draws it with the Bravura font.
+  </Card>
+  <Card title="Edit" icon="pencil">
+    An `EditSession` changes the score through edits that undo and redo. A tap on the sheet enters or selects a note.
+  </Card>
+  <Card title="Play" icon="rocket">
+    `ScorePlayer` plays the score through FluidSynth on Android and iOS, and the sheet scrolls to the bar that sounds.
+  </Card>
+  <Card title="Three packages" icon="puzzle">
+    The score model and the layout engine are pure Dart, so a server or a command-line tool can use them without Flutter.
+  </Card>
+</CardGrid>
