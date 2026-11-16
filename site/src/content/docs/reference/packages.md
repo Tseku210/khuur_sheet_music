@@ -5,7 +5,7 @@ sidebar:
   order: 1
 ---
 
-The repository is a pub workspace of three packages, all at version 0.3.0. The root package is the Flutter library. The two packages under `packages/` are pure Dart.
+The repository is a pub workspace of three packages, all at version 0.3.1. The root package is the Flutter library. The two packages under `packages/` are pure Dart.
 
 | Package | Kind | Holds | Depends on |
 | --- | --- | --- | --- |
