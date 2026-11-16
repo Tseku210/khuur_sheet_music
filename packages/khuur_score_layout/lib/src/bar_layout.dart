@@ -292,16 +292,22 @@ BarLayout layoutBar(
     style: style,
     text: text,
   );
+  final directions = BarDirections(
+    view,
+    times: times,
+    style: style,
+    text: text,
+  );
   reach.setAll(
     0,
     markReach(
       view,
       chords,
       marks,
+      directions,
       reach,
       times: times,
       style: style,
-      text: text,
     ),
   );
 
@@ -417,15 +423,7 @@ BarLayout layoutBar(
       );
     }
     items.addAll(
-      directionItems(
-        staffView,
-        skyline,
-        staff: staff,
-        times: times,
-        xs: xs,
-        style: style,
-        text: text,
-      ),
+      directionItems(directions, skyline, staff: staff, xs: xs),
     );
   }
   final spanners = spannerPieces(
@@ -439,15 +437,7 @@ BarLayout layoutBar(
   );
   if (skylines.isNotEmpty) {
     items.addAll(
-      systemMarkItems(
-        view,
-        skylines.first,
-        times: times,
-        xs: xs,
-        left: -lead,
-        style: style,
-        text: text,
-      ),
+      systemMarkItems(directions, skylines.first, xs: xs, left: -lead),
     );
   }
   final volta = skylines.isEmpty
