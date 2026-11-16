@@ -8,7 +8,8 @@
 
 * The library depends on `khuur_score_model` and `khuur_score_layout` by version, so all three packages can go to pub.dev. Until they do, an app that gets the library through git overrides the two packages with the same repository. The README shows how.
 * Every public member of the three packages has a doc comment, and the `public_member_api_docs` lint is on in each. Some existing comments were wrong and are corrected, among them `Jump.text`, `ScoreContext.octaveShift` and `EditSession.select`.
-* The documentation moves to a site, https://tseku210.github.io/khuur_sheet_music/, with a tutorial, how-to guides, explanations of the design, and reference pages. The README is now a short front page. It says what the old README did not: the library does not compile for the web, because `khuur_synth` uses `dart:ffi`.
+* The documentation moves to a site, https://tseku210.github.io/khuur_sheet_music/, with a tutorial, how-to guides, explanations of the design, and reference pages. The README is now a short front page.
+* The library compiles and runs on the web, with dart2js and dart2wasm, where before `flutter build web` failed with "Dart library 'dart:ffi' is not available on this platform". It needs `khuur_synth` 0.1.1, which no longer imports `dart:ffi` on the web. There, as on macOS, `ScorePlayer.play` with the default output fails with `SynthUnavailable`, and a `MidiOutput` of the app's own plays.
 * The README, the docs site and the pub.dev page show pictures of sheets that the library drew. `example/tool/render_docs_images.dart` draws them from the code on each page, in the light and the dark theme.
 
 ## 0.2.1

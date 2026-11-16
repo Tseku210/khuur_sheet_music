@@ -91,9 +91,9 @@ The app shows a piano staff with the four notes in the first bar and a rest in e
 | iOS | Yes | Yes |
 | macOS | Yes | No |
 | Linux, Windows | Not tested | No |
-| Web | No | No |
+| Web | Yes | No |
 
-Playback runs through FluidSynth from [`khuur_synth`](https://github.com/Tseku210/khuur_synth). The library does not compile for the web, because `khuur_synth` uses `dart:ffi`. `khuur_score_model` and `khuur_score_layout` are pure Dart and run anywhere Dart runs. [Platforms and limits](https://tseku210.github.io/khuur_sheet_music/reference/platforms-and-limits/) gives the version floors and what the library does not do.
+Playback runs through FluidSynth from [`khuur_synth`](https://github.com/Tseku210/khuur_synth), on Android and iOS. Elsewhere, the web included, `ScorePlayer.play` with the default output fails with `SynthUnavailable`, and a `ScorePlayer` given a `MidiOutput` of the app's own plays through it. `khuur_score_model` and `khuur_score_layout` are pure Dart and run anywhere Dart runs. [Platforms and limits](https://tseku210.github.io/khuur_sheet_music/reference/platforms-and-limits/) gives the version floors and what the library does not do.
 
 ## Run the example
 
