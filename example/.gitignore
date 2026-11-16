@@ -46,3 +46,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# The piano SoundFont. tool/fetch_soundfont.dart downloads it.
+/assets/soundfonts/*.sf2
