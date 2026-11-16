@@ -1,6 +1,6 @@
 name: khuur_score_model
 description: Immutable score model for sheet music, with undoable edits, MusicXML import and export, MIDI export and a timed playback script. Pure Dart.
-version: 0.3.2
+version: 0.3.3
 repository: https://github.com/Tseku210/khuur_sheet_music/tree/main/packages/khuur_score_model
 issue_tracker: https://github.com/Tseku210/khuur_sheet_music/issues
 topics:
