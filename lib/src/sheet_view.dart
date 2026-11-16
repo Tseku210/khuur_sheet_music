@@ -382,25 +382,16 @@ class SheetController extends ChangeNotifier {
       canvas.drawColor(paper, BlendMode.src);
     }
     canvas.scale(pixelRatio);
-    SheetScale below(double y) =>
-        SheetScale(spacePx: spacePx, origin: Offset(0, (y - top) * spacePx));
-    if (from == 0) {
-      HeaderPainter(
-        header: layout.header,
-        glyphs: view._glyphs,
-        palette: palette,
-        scale: below(0),
-      ).paint(canvas, Size.zero);
-    }
-    for (var index = from; index < end; index++) {
-      SystemPainter(
-        system: layout.systemAt(index),
-        label: layout.labelOf(index),
-        glyphs: view._glyphs,
-        palette: palette,
-        scale: below(layout.tops[index]),
-      ).paint(canvas, Size.zero);
-    }
+    paintSystems(
+      canvas,
+      layout,
+      from: from,
+      end: end,
+      top: top,
+      spacePx: spacePx,
+      glyphs: view._glyphs,
+      palette: palette,
+    );
     final picture = recorder.endRecording();
     return picture.toImage(width, height).whenComplete(picture.dispose);
   }

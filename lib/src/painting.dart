@@ -378,6 +378,55 @@ final class GlyphPainter {
   );
 }
 
+/// Paints [drawables], each in the colour [palette] gives its [InkRole].
+void _paintInked(
+  Canvas canvas,
+  Iterable<Drawable> drawables,
+  GlyphPainter glyphs,
+  SheetScale scale,
+  SheetPalette palette,
+) {
+  for (final drawable in drawables) {
+    paintDrawable(
+      canvas,
+      drawable,
+      glyphs,
+      scale,
+      palette.colorOf(drawable.ink),
+    );
+  }
+}
+
+/// Paints the systems of [layout] from [from] up to [end], with sheet y
+/// [top] at the canvas's top and [spacePx] logical pixels to a staff space.
+/// The header comes first when [from] is 0. No highlight and no overlay is
+/// painted, so this is the sheet as printed.
+void paintSystems(
+  Canvas canvas,
+  SheetLayout layout, {
+  required int from,
+  required int end,
+  required double top,
+  required double spacePx,
+  required GlyphPainter glyphs,
+  required SheetPalette palette,
+}) {
+  SheetScale below(double y) =>
+      SheetScale(spacePx: spacePx, origin: Offset(0, (y - top) * spacePx));
+  if (from == 0) {
+    _paintInked(canvas, layout.header, glyphs, below(0), palette);
+  }
+  for (var index = from; index < end; index++) {
+    _paintInked(
+      canvas,
+      layout.systemAt(index).drawables.followedBy([?layout.labelOf(index)]),
+      glyphs,
+      below(layout.tops[index]),
+      palette,
+    );
+  }
+}
+
 /// Paints one drawable in [color]. A line of no thickness is not drawn.
 void paintDrawable(
   Canvas canvas,
@@ -471,17 +520,8 @@ final class HeaderPainter extends CustomPainter {
   final SheetScale scale;
 
   @override
-  void paint(Canvas canvas, Size size) {
-    for (final drawable in header) {
-      paintDrawable(
-        canvas,
-        drawable,
-        glyphs,
-        scale,
-        palette.colorOf(drawable.ink),
-      );
-    }
-  }
+  void paint(Canvas canvas, Size size) =>
+      _paintInked(canvas, header, glyphs, scale, palette);
 
   @override
   bool shouldRepaint(HeaderPainter oldDelegate) =>
@@ -531,17 +571,8 @@ final class SystemPainter extends CustomPainter {
   Iterable<Drawable> get _drawables => system.drawables.followedBy([?label]);
 
   @override
-  void paint(Canvas canvas, Size size) {
-    for (final drawable in _drawables) {
-      paintDrawable(
-        canvas,
-        drawable,
-        glyphs,
-        scale,
-        palette.colorOf(drawable.ink),
-      );
-    }
-  }
+  void paint(Canvas canvas, Size size) =>
+      _paintInked(canvas, _drawables, glyphs, scale, palette);
 
   @override
   bool shouldRepaint(SystemPainter oldDelegate) =>
