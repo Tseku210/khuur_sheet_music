@@ -1,3 +1,6 @@
+## Unreleased
+* The playback highlight of a `SheetView` covers only the notes that are sounding when another staff holds a bar rest. On the bar's first beat it reached the middle of the bar and covered notes that had not started.
+
 ## 0.3.0
 * **Breaking:** The two pure-Dart packages are renamed `khuur_score_model` and `khuur_score_layout`, the names they get on pub.dev. An app that imports only `package:khuur_sheet_music/khuur_sheet_music.dart` changes nothing. An app or package that imports them directly changes its imports:
 
