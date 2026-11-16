@@ -336,6 +336,12 @@ final class ChordRecord extends EventRecord {
   /// The first ornament a note states, or null. A `trill-mark` beside the start
   /// of a `wavy-line` does not count.
   Ornament? ornament;
+  /// The alteration of the first `<accidental-mark>` above [ornament] in
+  /// its `<ornaments>`, which is where one without a placement goes.
+  Alter? ornamentAbove;
+  /// The alteration of the first `<accidental-mark placement="below">`
+  /// after [ornament].
+  Alter? ornamentBelow;
   /// The first up-bow or down-bow a note states, or null.
   Bowing? bowing;
   /// The first `<stem>` of up or down a note states, else auto.

@@ -439,6 +439,23 @@ void main() {
       expect(changesNothing(session, SetOrnament(rested, null)), isTrue);
     });
 
+    test('a new sign takes off the accidentals of the old one', () {
+      final flat = sessionWith([
+        [
+          chordOf(30, 'F4', value: NoteValue.whole).copyWith(
+            ornament: () => Ornament.turn,
+            ornamentAbove: () => Alter.flat,
+          ),
+        ],
+      ]);
+      final turn = eventRef(flat, 30);
+      final mordent = applied(flat.run(SetOrnament(turn, Ornament.mordent)));
+
+      expect(changesNothing(flat, SetOrnament(turn, Ornament.turn)), isTrue);
+      expect(chordIn(mordent, 30).ornament, Ornament.mordent);
+      expect(chordIn(mordent, 30).ornamentAbove, isNull);
+    });
+
     test('set, replace and clear a bowing; a rest takes none', () {
       final up = applied(session.run(SetBowing(chord, Bowing.up)));
       final down = applied(up.run(SetBowing(chord, Bowing.down)));

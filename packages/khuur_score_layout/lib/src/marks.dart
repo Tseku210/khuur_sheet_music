@@ -397,7 +397,7 @@ Map<EventId, EventMarks> eventMarks(
           plan == null
               ? const []
               : [
-                  ?_ornament(
+                  ..._ornament(
                     plan,
                     voices,
                     style,
@@ -715,35 +715,63 @@ _Hung? _fermata(TimedEvent timed, int voices, EngravingStyle style) {
   );
 }
 
-_Hung? _ornament(
+/// The ornament's sign, with the accidental printed below it nearer the
+/// head and the one above it farther when the sign is above, and the other
+/// way round when it is below. An accidental is smaller than the staff's.
+List<_Hung> _ornament(
   ChordPlan plan,
   int voices,
   EngravingStyle style, {
   required bool lineStarts,
 }) {
-  final ornament = plan.chord.ornament;
+  final chord = plan.chord;
+  final ornament = chord.ornament;
   if (ornament == null || (lineStarts && ornament == Ornament.trill)) {
-    return null;
+    return const [];
   }
-  return (
-    row:
-        _Row(
-          style.font,
-          ink: InkRole.ornament,
-          owner: ElementOwner(plan.timed.ref),
-        )..glyph(
-          switch (ornament) {
-            Ornament.trill => Glyph.ornamentTrill,
-            Ornament.mordent => Glyph.ornamentMordent,
-            Ornament.invertedMordent => Glyph.ornamentShortTrill,
-            Ornament.turn => Glyph.ornamentTurn,
-            Ornament.invertedTurn => Glyph.ornamentTurnInverted,
-          },
-        ),
-    side: _sideOf(plan.timed.voice, voices, Side.above),
-    gap: _markGap,
+  final side = _sideOf(plan.timed.voice, voices, Side.above);
+  _Row row() => _Row(
+    style.font,
+    ink: InkRole.ornament,
+    owner: ElementOwner(plan.timed.ref),
   );
+  _Hung? accidental(Alter? alter, double gap) => alter == null
+      ? null
+      : (
+          row: row()
+            ..glyph(
+              accidentalGlyph(alter, style.quarterTones),
+              scale: _ornamentAccidentalScale,
+            ),
+          side: side,
+          gap: gap,
+        );
+  final (near, far) = side == Side.above
+      ? (chord.ornamentBelow, chord.ornamentAbove)
+      : (chord.ornamentAbove, chord.ornamentBelow);
+  return [
+    ?accidental(near, _markGap),
+    (
+      row: row()
+        ..glyph(switch (ornament) {
+          Ornament.trill => Glyph.ornamentTrill,
+          Ornament.mordent => Glyph.ornamentMordent,
+          Ornament.invertedMordent => Glyph.ornamentShortTrill,
+          Ornament.turn => Glyph.ornamentTurn,
+          Ornament.invertedTurn => Glyph.ornamentTurnInverted,
+        }),
+      side: side,
+      gap: near == null ? _markGap : _ornamentAccidentalGap,
+    ),
+    ?accidental(far, _ornamentAccidentalGap),
+  ];
 }
+
+/// The size of an ornament's accidental against the staff's.
+const double _ornamentAccidentalScale = 0.6;
+
+/// Staff spaces between an ornament's sign and its accidentals.
+const double _ornamentAccidentalGap = 0.2;
 
 /// The events a trill line starts on. Such a chord leaves its trill sign to
 /// the line, which draws one.

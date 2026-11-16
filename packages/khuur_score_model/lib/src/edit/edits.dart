@@ -424,7 +424,8 @@ final class SetArticulation extends Edit {
   String get label => 'Articulation';
 }
 
-/// Sets or clears the ornament sign on a chord. Idempotent.
+/// Sets or clears the ornament sign on a chord. Idempotent. A new sign, or
+/// none, takes off the accidentals of the old one.
 final class SetOrnament extends Edit {
   /// Sets [event]'s ornament to [ornament].
   const SetOrnament(this.event, this.ornament);

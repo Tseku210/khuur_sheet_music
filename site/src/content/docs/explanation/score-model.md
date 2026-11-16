@@ -100,7 +100,7 @@ A tie is a flag on the `Note` where it starts. Its end is derived. It is the hea
 
 Marks that cross barlines belong to no single bar, so a `Spanner` sits in `Score.spanners`, beside the bars. Its ends are `ScorePoint`s, a bar id and a `Moment` in that bar, not events. Overwriting a note under a slur keeps the slur, and inserting bars inside a hairpin stretches it. When an overwrite leaves no event starting at an end, the view attaches that end to the event sounding there. Voice one fills every bar, so such an event always exists.
 
-A single note is a `ChordEvent` with one head, so stem, flag and accidental logic exists once. Grace notes hang off the chord they ornament and take no time in the voice. Marks split by whether they stack. `Event.articulations` is a set, so a note can carry staccato, accent and fermata at once. Marks that exclude each other are single fields. `ChordEvent.ornament` holds at most one ornament, and `ChordEvent.bowing` holds up-bow or down-bow, never both.
+A single note is a `ChordEvent` with one head, so stem, flag and accidental logic exists once. Grace notes hang off the chord they ornament and take no time in the voice. Marks split by whether they stack. `Event.articulations` is a set, so a note can carry staccato, accent and fermata at once. Marks that exclude each other are single fields. `ChordEvent.ornament` holds at most one ornament. `ornamentAbove` and `ornamentBelow` hold the accidentals printed over and under its sign, which alter the upper and the lower note it plays, and are null without a sign. `ChordEvent.bowing` holds up-bow or down-bow, never both.
 
 ## Edits are data, and the session is a value
 

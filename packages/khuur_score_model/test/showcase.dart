@@ -119,6 +119,7 @@ Score showcase() => Score(
               ]),
               articulations: const {Articulation.accent, Articulation.staccato},
               ornament: Ornament.trill,
+              ornamentAbove: Alter.sharp,
               bowing: Bowing.down,
               graces: Seq([
                 GraceChord(

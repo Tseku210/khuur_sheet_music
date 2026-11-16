@@ -281,6 +281,38 @@ void main() {
       expect(bar(byHead.score, 0), ['D4+E4/whole']);
     });
 
+    test('moves an ornament\'s accidentals with the notes they alter', () {
+      final session = EditSession.start(
+        withKey(
+          sessionWith([
+            [
+              chordOf(1, 'C5', value: NoteValue.whole).copyWith(
+                ornament: () => Ornament.turn,
+                ornamentAbove: () => Alter.flat,
+                ornamentBelow: () => Alter.natural,
+              ),
+            ],
+          ]).score,
+          0,
+          -3,
+        ),
+      );
+      ChordEvent moved(Transposition by) =>
+          chordIn(transposed(session, events(session, [1]), by), 1);
+
+      final second = moved(up);
+      final third = moved(const Transposition.interval(Interval.minorThird));
+
+      expect((second.ornamentAbove, second.ornamentBelow), (
+        Alter.flat,
+        Alter.sharp,
+      ));
+      expect((third.ornamentAbove, third.ornamentBelow), (
+        Alter.flat,
+        Alter.natural,
+      ));
+    });
+
     test('moves the chord symbols in a range', () {
       var score = sessionWith([
         [chordOf(1, 'C4', value: NoteValue.whole)],

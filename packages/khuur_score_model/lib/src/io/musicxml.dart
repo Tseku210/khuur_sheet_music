@@ -504,8 +504,17 @@ final class _Export {
         (mark) => mark.$1.kind is TrillLine && mark.$2,
       );
       final ornaments = [
-        if (chord?.ornament case final Ornament ornament when first)
+        if (chord?.ornament case final Ornament ornament when first) ...[
           _el(ornamentName(ornament)),
+          if (chord?.ornamentAbove case final above?)
+            _text('accidental-mark', accidentalNames[above.quarterTones + 4], {
+              'placement': 'above',
+            }),
+          if (chord?.ornamentBelow case final below?)
+            _text('accidental-mark', accidentalNames[below.quarterTones + 4], {
+              'placement': 'below',
+            }),
+        ],
         if (trillStarts && chord?.ornament != Ornament.trill) _el('trill-mark'),
         for (final (spanner, start) in onEvent)
           if (spanner.kind is TrillLine) _spannerMark(spanner, start: start),

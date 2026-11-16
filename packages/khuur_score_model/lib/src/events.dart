@@ -55,13 +55,16 @@ sealed class Event extends Content {
 /// One or more simultaneous note heads sharing a stem and a duration.
 final class ChordEvent extends Event {
   /// Asserts that [notes] is not empty, that the chord and its graces are
-  /// all pitched or all drums, and that [tremolo] is in 0 to 4.
+  /// all pitched or all drums, that [ornamentAbove] and [ornamentBelow] are
+  /// null without an [ornament], and that [tremolo] is in 0 to 4.
   ChordEvent({
     required super.id,
     required this.value,
     required this.notes,
     super.articulations,
     this.ornament,
+    this.ornamentAbove,
+    this.ornamentBelow,
     this.bowing,
     this.graces = const Seq.empty(),
     this.stem = StemDirection.auto,
@@ -73,6 +76,10 @@ final class ChordEvent extends Event {
          _oneKind([...notes, for (final grace in graces) ...grace.notes]),
          'a chord and its graces are all pitched or all drums',
        ),
+       assert(
+         ornament != null || (ornamentAbove == null && ornamentBelow == null),
+         'an ornament accidental needs an ornament',
+       ),
        assert(tremolo >= 0 && tremolo <= 4, 'tremolo strokes in 0..4');
 
   /// Written value. An enclosing [Tuplet] scales the time it sounds.
@@ -81,6 +88,35 @@ final class ChordEvent extends Event {
   /// At most one ornament sign per chord. A trill that continues over
   /// several notes is a `TrillLine` spanner, not this field.
   final Ornament? ornament;
+
+  /// The alteration of the [ornament]'s upper note, from an accidental
+  /// printed above the sign. Null where none is printed, and the note is the
+  /// one the key gives. A trill and an inverted mordent use only this one.
+  final Alter? ornamentAbove;
+
+  /// The alteration of the [ornament]'s lower note, from an accidental
+  /// printed below the sign. Null where none is printed. A mordent uses only
+  /// this one.
+  final Alter? ornamentBelow;
+
+  /// The note [steps] scale steps from [pitch] in [key], one of the notes
+  /// the [ornament] plays: above for a positive [steps], with
+  /// [ornamentAbove] in place of the key's alteration, and below for a
+  /// negative one, with [ornamentBelow].
+  Pitch ornamentNote(Pitch pitch, int steps, KeySignature key) {
+    final diatonic = pitch.diatonic + steps;
+    final step = Step.values[diatonic % 7];
+    final alter = switch (steps) {
+      > 0 => ornamentAbove,
+      < 0 => ornamentBelow,
+      _ => null,
+    };
+    return Pitch(
+      step,
+      (diatonic - step.index) ~/ 7,
+      alter ?? key.alterFor(step),
+    );
+  }
 
   /// Bow direction for this stroke. One field, so up-bow and down-bow
   /// cannot both be set.
@@ -128,6 +164,8 @@ final class ChordEvent extends Event {
     Seq<Note>? notes,
     Set<Articulation>? articulations,
     Ornament? Function()? ornament,
+    Alter? Function()? ornamentAbove,
+    Alter? Function()? ornamentBelow,
     Bowing? Function()? bowing,
     Seq<GraceChord>? graces,
     StemDirection? stem,
@@ -140,6 +178,8 @@ final class ChordEvent extends Event {
     notes: notes ?? this.notes,
     articulations: articulations ?? this.articulations,
     ornament: ornament == null ? this.ornament : ornament(),
+    ornamentAbove: ornamentAbove == null ? this.ornamentAbove : ornamentAbove(),
+    ornamentBelow: ornamentBelow == null ? this.ornamentBelow : ornamentBelow(),
     bowing: bowing == null ? this.bowing : bowing(),
     graces: graces ?? this.graces,
     stem: stem ?? this.stem,
@@ -476,7 +516,9 @@ enum Articulation {
 }
 
 /// An ornament sign on one chord. Playback plays its figure from scale
-/// steps of the key.
+/// steps of the key, where an accidental above or below the sign
+/// ([ChordEvent.ornamentAbove], [ChordEvent.ornamentBelow]) alters the note
+/// on that side.
 enum Ornament {
   /// Alternates with the note above in 32nds.
   trill,

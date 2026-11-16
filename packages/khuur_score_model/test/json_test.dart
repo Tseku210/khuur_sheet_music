@@ -66,6 +66,16 @@ const tuplet1 = r'$.measures[1].staves[0].voices[0].items[0]';
 
 final broken = <Broken>[
   bad(r'$', <Object?>[], 'expected an object'),
+  bad(
+    r'$.measures[0].staves[0].voices[0].items[0].ornamentBelow',
+    'sharpish',
+    'expected one of doubleFlat, threeQuarterFlat, flat, quarterFlat, natural, quarterSharp, sharp, threeQuarterSharp, doubleSharp',
+  ),
+  badAt(
+    r'$.measures[0].staves[0].voices[0].items[0].ornamentAbove',
+    'an ornament accidental needs an ornament',
+    {r'$.measures[0].staves[0].voices[0].items[0].ornament': missing},
+  ),
   bad(r'$.schema', 2, 'written by a newer version'),
   bad(r'$.schema', 0, 'no such version'),
   bad(r'$.schema', missing, 'missing'),

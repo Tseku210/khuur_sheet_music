@@ -1372,6 +1372,49 @@ void main() {
       expect(ms(script.notesBetween(0.1, 0.2).single.duration), 0.506);
     });
 
+    test('an accidental above or below the sign alters that neighbour', () {
+      final score = at80(
+        [
+          [
+            ornamented(quarters(1, 'C5'), Ornament.turn).copyWith(
+              ornamentAbove: () => Alter.flat,
+              ornamentBelow: () => Alter.natural,
+            ),
+            ornamented(quarters(2, 'C5'), Ornament.invertedTurn).copyWith(
+              ornamentBelow: () => Alter.natural,
+            ),
+            ornamented(quarters(3, 'F5'), Ornament.mordent).copyWith(
+              ornamentAbove: () => Alter.sharp,
+              ornamentBelow: () => Alter.natural,
+            ),
+            ornamented(
+              chordOf(4, 'G5', value: NoteValue.sixteenth),
+              Ornament.trill,
+            ).copyWith(ornamentAbove: () => Alter.flat),
+            rest(5, NoteValue.eighth),
+            rest(6, NoteValue.sixteenth),
+          ],
+        ],
+        key: const KeySignature(-3),
+      );
+
+      expect(attacks(compiled(score)), [
+        (0.0, 73, 1),
+        (0.094, 72, 1),
+        (0.188, 71, 1),
+        (0.281, 72, 1),
+        (0.75, 71, 2),
+        (0.844, 72, 2),
+        (0.938, 74, 2),
+        (1.031, 72, 2),
+        (1.5, 77, 3),
+        (1.594, 76, 3),
+        (1.688, 77, 3),
+        (2.25, 79, 4),
+        (2.344, 80, 4),
+      ]);
+    });
+
     test('a note plays without an ornament that reaches past MIDI keys 0 '
         'to 127, and the notes under it keep theirs', () {
       final score = at80([

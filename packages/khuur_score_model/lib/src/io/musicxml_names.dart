@@ -57,6 +57,15 @@ const accidentalNames = [
   'double-sharp',
 ];
 
+/// The alteration each `<accidental-mark>` name reads as, for the ones the
+/// model holds.
+final Map<String, Alter> accidentalByName = {
+  for (final (i, name) in accidentalNames.indexed)
+    name: Alter.fromQuarterTones(i - 4),
+  'sharp-sharp': Alter.doubleSharp,
+  'double-flat': Alter.doubleFlat,
+};
+
 /// The `<notehead>` for [head], or null for the normal head, which export
 /// leaves out.
 String? noteheadName(NoteHead head) => switch (head) {

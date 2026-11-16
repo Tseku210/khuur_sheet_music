@@ -655,7 +655,9 @@ void main() {
           <note><pitch><step>F</step><alter>1</alter><octave>4</octave></pitch>
           <duration>18</duration><voice>1</voice><type>quarter</type>
           <stem>up</stem>
-          <notations><ornaments><trill-mark/><tremolo type="single">2</tremolo></ornaments>
+          <notations><ornaments><trill-mark/>
+          <accidental-mark placement="above">sharp</accidental-mark>
+          <tremolo type="single">2</tremolo></ornaments>
           <technical><down-bow/><fingering>1</fingering><string>3</string></technical>
           <articulations><staccato/><accent/></articulations></notations>
           <lyric number="1"><syllabic>begin</syllabic><text>la</text><extend/></lyric>
