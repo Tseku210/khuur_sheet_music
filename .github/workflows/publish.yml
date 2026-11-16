@@ -1,0 +1,67 @@
+# Publishes one of the three packages to pub.dev when its tag is pushed, with
+# pub.dev's automated publishing through GitHub's OIDC token. No secret is
+# stored in the repository.
+#
+#   Tag                          Package              Folder
+#   v0.4.0                       khuur_sheet_music    .
+#   khuur_score_model-v0.4.0     khuur_score_model    packages/khuur_score_model
+#   khuur_score_layout-v0.4.0    khuur_score_layout   packages/khuur_score_layout
+#
+# It relies on these settings:
+#
+# - On each package's admin page on pub.dev, under Automated publishing,
+#   publishing from GitHub Actions is enabled for the repository
+#   Tseku210/khuur_sheet_music, with the tag pattern from the table above
+#   (v{{version}}, khuur_score_model-v{{version}} or
+#   khuur_score_layout-v{{version}}), and requires the GitHub environment
+#   pub.dev. pub.dev refuses a tag whose version is not the pubspec's.
+# - The repository has the environment pub.dev, which only the three tag
+#   patterns may deploy from.
+# - The repository variable PUB_AUTOMATED_PUBLISHING is true. Setting it to
+#   anything else turns this workflow off.
+#
+# CONTRIBUTING.md says how to cut a release.
+
+name: Publish to pub.dev
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+      - 'khuur_score_model-v[0-9]+.[0-9]+.[0-9]+*'
+      - 'khuur_score_layout-v[0-9]+.[0-9]+.[0-9]+*'
+
+jobs:
+  publish:
+    if: vars.PUB_AUTOMATED_PUBLISHING == 'true'
+    runs-on: ubuntu-latest
+    environment: pub.dev
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # Sets up the OIDC token that pub.dev accepts.
+      - uses: dart-lang/setup-dart@v1
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Find the package of the tag
+        id: package
+        run: |
+          case "$GITHUB_REF_NAME" in
+            khuur_score_model-v*)  echo "folder=packages/khuur_score_model" >> "$GITHUB_OUTPUT"; echo "test=dart test" >> "$GITHUB_OUTPUT" ;;
+            khuur_score_layout-v*) echo "folder=packages/khuur_score_layout" >> "$GITHUB_OUTPUT"; echo "test=dart test" >> "$GITHUB_OUTPUT" ;;
+            v*)                    echo "folder=." >> "$GITHUB_OUTPUT"; echo "test=flutter test" >> "$GITHUB_OUTPUT" ;;
+            *) echo "No package for the tag $GITHUB_REF_NAME"; exit 1 ;;
+          esac
+
+      - run: flutter pub get
+
+      - run: ${{ steps.package.outputs.test }}
+        working-directory: ${{ steps.package.outputs.folder }}
+
+      - run: flutter pub publish --force
+        working-directory: ${{ steps.package.outputs.folder }}

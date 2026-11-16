@@ -93,6 +93,27 @@ The types are `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf` and `ci
 
 `main` is protected. Nobody pushes to it directly, and nothing merges before CI passes.
 
+## How a release goes out
+
+The maintainer releases each package on its own. A pushed tag publishes it to pub.dev through `.github/workflows/publish.yml`.
+
+1. In a pull request, raise the `version` in the package's `pubspec.yaml` and add its entry to the package's `CHANGELOG.md`. If the package needs a new version of another package of this repository, release that one first and raise the dependency.
+2. Merge the pull request.
+3. Tag the merge commit on `main` and push the tag. The tag names the package and the new version.
+
+   | Package | Tag |
+   | --- | --- |
+   | `khuur_sheet_music` | `v0.4.0` |
+   | `khuur_score_model` | `khuur_score_model-v0.4.0` |
+   | `khuur_score_layout` | `khuur_score_layout-v0.4.0` |
+
+   ```bash
+   git tag v0.4.0
+   git push origin v0.4.0
+   ```
+
+4. The workflow runs the package's tests and publishes it. pub.dev refuses the upload when the tag's version is not the one in the pubspec.
+
 ## Code of conduct
 
 Everyone who takes part follows the [code of conduct](CODE_OF_CONDUCT.md).
