@@ -224,6 +224,8 @@ List<TupletView> _tuplets(Voice voice, List<TimedEvent> events) {
   ];
 }
 
+/// One note head as the accidental rules read it, with its chord's `onset`
+/// in the bar and whether it is a `grace` note.
 typedef AccidentalHead = ({Moment onset, bool grace, Note note});
 
 /// Every note head of a staff's [lanes], each lane's events in time order,
