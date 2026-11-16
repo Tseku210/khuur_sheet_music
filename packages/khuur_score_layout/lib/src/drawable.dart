@@ -15,8 +15,10 @@ sealed class Owner {
 /// A note or an event. A grace head is owned by its principal's event,
 /// because a grace chord has no reference of its own.
 final class ElementOwner extends Owner {
+  /// The owner for the note or event [ref] names.
   const ElementOwner(this.ref);
 
+  /// A `NoteRef` for a notehead, an `EventRef` for the rest of an event.
   final ElementRef ref;
 
   @override
@@ -29,8 +31,10 @@ final class ElementOwner extends Owner {
 /// A spanner. Every drawable of a slur or a line is owned by the spanner's
 /// id, so the whole run is one thing to hit and to highlight.
 final class SpannerOwner extends Owner {
+  /// The owner for the spanner [id] names.
   const SpannerOwner(this.id);
 
+  /// The spanner every drawable of the run belongs to.
   final SpannerId id;
 
   @override
@@ -45,28 +49,47 @@ final class SpannerOwner extends Owner {
 /// lays out. Every part of one mark has that mark's role.
 enum InkRole {
   // The staff and what frames it.
+
+  /// A staff line.
   staffLine,
 
   /// A barline, a repeat's dots and the line that joins the staves at a
   /// system's start.
   barline,
 
+  /// The brace before a part of two staves or more.
   brace,
+
+  /// A clef.
   clef,
+
+  /// A key signature.
   keySignature,
+
+  /// A time signature.
   timeSignature,
 
   // The parts of a chord or a rest.
+
+  /// A notehead that [outOfRange] does not mark.
   notehead,
 
   /// A notehead outside its instrument's `lowest` to `highest` range.
   outOfRange,
+
+  /// A stem.
   stem,
 
   /// A flag, and the slash through a grace note's stem.
   flag,
+
+  /// A beam or a beam hook.
   beam,
+
+  /// A ledger line above or below the staff.
   ledgerLine,
+
+  /// An accidental before a notehead.
   accidental,
 
   /// An augmentation dot, of a chord or of a rest.
@@ -79,39 +102,83 @@ enum InkRole {
   tuplet,
 
   // Marks on a chord.
+
+  /// An articulation such as a staccato or an accent.
   articulation,
 
   /// An ornament sign, a trill line and a tremolo's strokes.
   ornament,
+
+  /// A bowing mark.
   bowing,
+
+  /// A fingering.
   fingering,
+
+  /// A string number, circled or roman.
   stringNumber,
 
   // Directions over a staff.
+
+  /// A dynamic.
   dynamics,
+
+  /// A text direction.
   expression,
 
   /// A tempo mark, and the text and the dashes of a tempo line.
   tempo,
+
+  /// A rehearsal mark and its enclosure.
   rehearsal,
+
+  /// A segno or coda sign, and the words of a To Coda, Fine or jump.
   navigation,
+
+  /// A chord symbol, its accidentals included.
   chordSymbol,
 
   // Lines over several notes or bars.
+
+  /// A tie.
   tie,
+
+  /// A slur.
   slur,
+
+  /// A hairpin.
   hairpin,
+
+  /// An octave line, its number included.
   octaveLine,
+
+  /// A pedal mark and its line.
   pedal,
+
+  /// A glissando line.
   glissando,
+
+  /// A volta bracket and its label.
   volta,
 
   // Text under and around the music.
+
+  /// A lyric syllable, a hyphen or an extender.
   lyric,
+
+  /// A bar number.
   barNumber,
+
+  /// A part's name or short name.
   partName,
+
+  /// The score's title.
   title,
+
+  /// The score's subtitle.
   subtitle,
+
+  /// The lyricist or the composer in the header.
   credit,
 }
 
@@ -128,6 +195,8 @@ sealed class Drawable {
   /// signatures, for a beam between two stems, and for a tuplet's number
   /// and bracket.
   final Owner? owner;
+
+  /// The kind of mark, which picks the colour.
   final InkRole ink;
 
   /// The ink's box, in the drawable's own space.
@@ -144,6 +213,8 @@ sealed class Drawable {
 
 /// A SMuFL glyph with its origin on the baseline.
 final class GlyphDraw extends Drawable {
+  /// A [glyph] at [origin] whose ink is [bounds], which the producer
+  /// computes from the font.
   const GlyphDraw(
     this.glyph,
     this.origin, {
@@ -154,7 +225,10 @@ final class GlyphDraw extends Drawable {
     super.owner,
   });
 
+  /// The glyph to draw.
   final Glyph glyph;
+
+  /// Where the glyph's origin lies, on its baseline.
   final SpPoint origin;
 
   /// 1 for normal size; the style's grace scale for grace notes.
@@ -196,11 +270,21 @@ final class GlyphDraw extends Drawable {
 }
 
 /// How a [LineDraw] is stroked. The painter picks the dash and dot lengths.
-enum LineDash { solid, dashed, dotted }
+enum LineDash {
+  /// One unbroken stroke.
+  solid,
+
+  /// Dashes with gaps between them.
+  dashed,
+
+  /// Dots with gaps between them.
+  dotted,
+}
 
 /// Staff and ledger lines, stems, barlines, brackets, hairpin arms, octave,
 /// pedal and volta lines, tuplet brackets and lyric extenders.
 final class LineDraw extends Drawable {
+  /// A line from [from] to [to], [thickness] thick.
   const LineDraw(
     this.from,
     this.to, {
@@ -210,9 +294,16 @@ final class LineDraw extends Drawable {
     super.owner,
   });
 
+  /// One end of the line's centre segment.
   final SpPoint from;
+
+  /// The other end of the line's centre segment.
   final SpPoint to;
+
+  /// The width of the stroke across the line, in staff spaces.
   final double thickness;
+
+  /// How the line is stroked.
   final LineDash dash;
 
   /// The line's ink, which is the segment widened by half its [thickness]
@@ -280,6 +371,7 @@ final class LineDraw extends Drawable {
 
 /// A filled polygon, which is one beam or a beam hook.
 final class PolygonDraw extends Drawable {
+  /// A polygon filled between [points].
   const PolygonDraw(this.points, {required super.ink, super.owner});
 
   /// Three corners or more.
@@ -322,6 +414,7 @@ final class PolygonDraw extends Drawable {
 /// Text with its origin at the start of the baseline. [bounds] was measured
 /// by the layout's `TextMeasurer`, so the painter never measures.
 final class TextDraw extends Drawable {
+  /// [text] set as [spec] from [origin], whose measured ink is [bounds].
   const TextDraw(
     this.text,
     this.origin, {
@@ -332,8 +425,13 @@ final class TextDraw extends Drawable {
     super.owner,
   });
 
+  /// The text to draw.
   final String text;
+
+  /// The start of the text's baseline.
   final SpPoint origin;
+
+  /// The size, style and family the text is set in.
   final TextSpec spec;
 
   /// Draw a box around the text, as for a rehearsal mark. The box's outer
@@ -377,6 +475,7 @@ final class TextDraw extends Drawable {
 /// that sum. A [dashed] curve is the centreline alone, stroked
 /// [midThickness] thick.
 final class CurveDraw extends Drawable {
+  /// A cubic from [start] to [end] pulled toward [control1] and [control2].
   const CurveDraw({
     required this.start,
     required this.control1,
@@ -389,12 +488,27 @@ final class CurveDraw extends Drawable {
     super.owner,
   });
 
+  /// The first end of the centreline.
   final SpPoint start;
+
+  /// The control point nearer [start].
   final SpPoint control1;
+
+  /// The control point nearer [end].
   final SpPoint control2;
+
+  /// The last end of the centreline.
   final SpPoint end;
+
+  /// The thickness of the outline, which is the ink at each end, in staff
+  /// spaces.
   final double endThickness;
+
+  /// The thickness added at the middle, in staff spaces. A [dashed] curve
+  /// is stroked this thick.
   final double midThickness;
+
+  /// Whether the curve is drawn as a dashed centreline instead of filled.
   final bool dashed;
 
   /// The exact box of the centreline, grown on every side by half of the
@@ -532,6 +646,8 @@ double _distanceToSegment(SpPoint point, SpPoint a, SpPoint b) {
 /// `from.x + i * (to.x - from.x) / count`. [bounds] is the glyph's box over
 /// the run, set by the producer, which knows the font.
 final class GlyphRunDraw extends Drawable {
+  /// [count] copies of [glyph] spread from [from] to [to], whose ink is
+  /// [bounds].
   const GlyphRunDraw(
     this.glyph, {
     required this.from,
@@ -542,9 +658,16 @@ final class GlyphRunDraw extends Drawable {
     super.owner,
   });
 
+  /// The glyph to repeat.
   final Glyph glyph;
+
+  /// The origin of the first copy, on the baseline.
   final SpPoint from;
+
+  /// Where the run ends. The last copy sits one step before it.
   final SpPoint to;
+
+  /// How many copies the run draws.
   final int count;
 
   @override

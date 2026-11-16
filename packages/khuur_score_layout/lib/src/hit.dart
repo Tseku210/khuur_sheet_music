@@ -12,6 +12,8 @@ import 'system_layout.dart';
 /// [voice] and [at] are its event's, so they agree with it wherever its
 /// ink lies. Otherwise [at] is snapped in [voice].
 final class SheetHit {
+  /// A hit at [at] on [staffStep] of [staff] in [voice], over [target] if
+  /// the tap reached one.
   const SheetHit({
     required this.staff,
     required this.voice,
@@ -56,6 +58,7 @@ final class SheetHit {
 /// An app makes one from a [SheetHit] while a finger is down on the sheet,
 /// and enters the note when the finger lifts.
 final class NotePreview {
+  /// A note of [base] and [head] at [at] on [staffStep] of [staff].
   const NotePreview({
     required this.staff,
     required this.at,
@@ -77,7 +80,10 @@ final class NotePreview {
          head: head,
        );
 
+  /// The staff the note is drawn on.
   final StaffId staff;
+
+  /// The onset the note would be entered at.
   final ScorePoint at;
 
   /// In the convention of [SheetHit.staffStep].

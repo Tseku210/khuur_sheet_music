@@ -34,6 +34,9 @@ void main(List<String> arguments) {
     ..writeln("import 'geometry.dart';")
     ..writeln("import 'glyphs.dart';")
     ..writeln()
+    ..writeln(
+      "/// Bravura's engraving defaults from its metadata, in staff spaces.",
+    )
     ..writeln('const bravuraDefaults = EngravingDefaults(');
   for (final MapEntry(key: name, :value) in defaults.entries) {
     out.writeln('  $name: ${_number(value)},');
@@ -41,6 +44,9 @@ void main(List<String> arguments) {
   out
     ..writeln(');')
     ..writeln()
+    ..writeln(
+      "/// Bravura's metrics for every [Glyph], in staff spaces with y down.",
+    )
     ..writeln('const bravuraGlyphs = <Glyph, GlyphMetrics>{');
   for (final MapEntry(key: glyph, value: metrics) in glyphs.entries) {
     final box = metrics.box;

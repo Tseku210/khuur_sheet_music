@@ -8,6 +8,7 @@ import 'text.dart';
 /// Each convention the library's owner has not settled is a field here with
 /// the default the library ships.
 final class EngravingStyle {
+  /// A style with every convention at the library's default.
   const EngravingStyle({
     this.font = SmuflFont.bravura,
     this.spacing = const SpacingPolicy(),
@@ -27,9 +28,13 @@ final class EngravingStyle {
     this.chordSymbols = ChordSymbolSpelling.asStored,
   });
 
+  /// The style with every default.
   static const standard = EngravingStyle();
 
+  /// The music font whose glyphs and metrics the layout uses.
   final SmuflFont font;
+
+  /// The horizontal spacing rules.
   final SpacingPolicy spacing;
 
   /// Overrides of [TextRole.standard]. A role not listed keeps its default.
@@ -77,10 +82,17 @@ final class EngravingStyle {
   /// Number the first bar of every system.
   final bool barNumbers;
 
+  /// Which glyph family spells quarter-tone accidentals.
   final QuarterToneGlyphs quarterTones;
+
+  /// How string numbers print.
   final StringNumbers stringNumbers;
+
+  /// How chord symbols on a transposing staff are spelled.
   final ChordSymbolSpelling chordSymbols;
 
+  /// The text spec for [role], from [text] when it overrides the role and
+  /// from [TextRole.standard] otherwise.
   TextSpec specOf(TextRole role) => text[role] ?? role.standard;
 
   /// This style with the given parts replaced. A map of [text] replaces
@@ -175,6 +187,7 @@ bool _sameText(Map<TextRole, TextSpec> a, Map<TextRole, TextSpec> b) =>
 /// scale does not depend on other bars, which is what lets a bar be laid out
 /// and cached alone.
 final class SpacingPolicy {
+  /// A policy with the library's default spacing.
   const SpacingPolicy({
     this.quarterSpace = 3.5,
     this.ratio = 1.41,
@@ -189,14 +202,16 @@ final class SpacingPolicy {
   /// Space multiplier per doubling of duration.
   final double ratio;
 
-  /// Least clear space between glyphs of neighbouring slices.
+  /// Least clear space between glyphs of neighbouring slices, in staff
+  /// spaces.
   final double minGap;
 
   /// Clear space between a bar's head, or the barline before it, and what
-  /// the bar's first slice reaches to the left.
+  /// the bar's first slice reaches to the left, in staff spaces.
   final double barPad;
 
-  /// Width of a folded run of rest-only bars before justification.
+  /// Width of a folded run of rest-only bars before justification, in staff
+  /// spaces.
   final double restRunWidth;
 
   @override
@@ -235,4 +250,11 @@ enum StringNumbers {
 
 /// Whether chord symbols on a transposing staff print as stored or as the
 /// staff's written key spells them.
-enum ChordSymbolSpelling { asStored, written }
+enum ChordSymbolSpelling {
+  /// The root and bass print as the score stores them, in concert pitch.
+  asStored,
+
+  /// The root and bass print transposed by the staff's instrument and
+  /// spelled in the staff's written key.
+  written,
+}

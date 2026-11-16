@@ -16,13 +16,19 @@ import 'dart:math' as math;
 
 /// A point in staff spaces.
 final class SpPoint {
+  /// The point at [x] across and [y] down.
   const SpPoint(this.x, this.y);
 
+  /// The origin of whichever space the point is read in.
   static const zero = SpPoint(0, 0);
 
+  /// The horizontal position, growing to the right.
   final double x;
+
+  /// The vertical position, growing downward.
   final double y;
 
+  /// This point moved by [dx] across and [dy] down.
   SpPoint shift(double dx, double dy) => SpPoint(x + dx, y + dy);
 
   @override
@@ -37,17 +43,30 @@ final class SpPoint {
 ///
 /// Invariant: `left <= right` and `top <= bottom`.
 final class Box {
+  /// The box between [left] and [right] across and [top] and [bottom] down.
+  /// Asserts that it is not inverted.
   const Box(this.left, this.top, this.right, this.bottom)
     : assert(left <= right && top <= bottom, 'a box is never inverted');
 
+  /// The x of the left edge.
   final double left;
+
+  /// The y of the top edge, the smaller y.
   final double top;
+
+  /// The x of the right edge.
   final double right;
+
+  /// The y of the bottom edge, the larger y.
   final double bottom;
 
+  /// The horizontal extent, never negative.
   double get width => right - left;
+
+  /// The vertical extent, never negative.
   double get height => bottom - top;
 
+  /// This box moved by [dx] across and [dy] down.
   Box shift(double dx, double dy) =>
       Box(left + dx, top + dy, right + dx, bottom + dy);
 
@@ -56,6 +75,7 @@ final class Box {
       ? this
       : Box(left * scale, top * scale, right * scale, bottom * scale);
 
+  /// The smallest box that holds both this box and [other].
   Box union(Box other) => Box(
     left < other.left ? left : other.left,
     top < other.top ? top : other.top,
@@ -71,6 +91,7 @@ final class Box {
     return math.sqrt(dx * dx + dy * dy);
   }
 
+  /// Whether [point] lies inside this box or on its edge.
   bool contains(SpPoint point) =>
       left <= point.x &&
       point.x <= right &&
