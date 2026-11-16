@@ -17,7 +17,11 @@ Three values of `SheetView` set the look. Each has a default, so you change only
 
 ## Change the colours
 
-When `palette` is null, the view derives one from the ambient `Theme` of `material_ui` with `SheetPalette.of`, so the sheet follows light and dark mode. To change some colours, call `copyWith` on that palette. It keeps the parts you do not pass.
+When `palette` is null, the view derives one from the ambient `Theme` of `material_ui` with `SheetPalette.of`, so the sheet follows light and dark mode.
+
+![Four quarter notes, C E G C, in the light palette above and the dark palette below. In each, a caret stands before the first note, a box in the theme's tertiary colour marks the E that plays, and a lighter box marks the selected G.](../../../assets/sheets/change-the-look.png)
+
+To change some colours, call `copyWith` on that palette. It keeps the parts you do not pass.
 
 ```dart
 SheetView(

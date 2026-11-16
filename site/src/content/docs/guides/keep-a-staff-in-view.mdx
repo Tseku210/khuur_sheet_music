@@ -5,6 +5,8 @@ sidebar:
   order: 4
 ---
 
+import SheetImage from '../../../components/SheetImage.astro';
+
 This guide keeps one staff on screen when a system of several staves is taller than the view. A short view, such as a phone held sideways, can be lower than one system of a score with several parts.
 
 Without a staff, `SheetController.ensureVisible` shows the top of such a system, which is the first part. Playback that follows the sound does the same.
@@ -26,6 +28,8 @@ await _sheet.ensureVisible(point, staff: soloStaff);
 ```
 
 `point` is a `ScorePoint`, such as `_session.cursor.at`. The future completes when the scroll ends or the user takes over.
+
+<SheetImage name="keep-a-staff-in-view" alt="Two short views of the same system of Flute, Violin and Cello. With ensureVisible(point), the view shows the flute at the top and cuts the violin's notes at the bottom edge. With ensureVisible(point, staff: soloStaff), the view has scrolled until the violin staff and its notes are whole, with the flute above it." />
 
 The view scrolls by the shortest way until the staff is in view with the room that is its own. That room reaches halfway to the staves next to the staff, and to the edge of the system where there is no staff next to it. The view does not scroll while the staff is in view already. When the view is too short for that room, the lines of the staff go to the middle of the view.
 

@@ -4,6 +4,8 @@ Sheet music for Flutter. `SheetView` shows a `Score` as a scrolling sheet. An ap
 
 **[Documentation](https://tseku210.github.io/khuur_sheet_music/)** · [Your first sheet](https://tseku210.github.io/khuur_sheet_music/tutorial/first-sheet/) · [How-to guides](https://tseku210.github.io/khuur_sheet_music/guides/show-a-score/) · [Architecture](https://tseku210.github.io/khuur_sheet_music/explanation/architecture/)
 
+![The opening of Beethoven's Für Elise for piano on a treble and a bass staff, drawn by SheetView, with its title, the tempo Poco moto, pp, sixteenth-note runs and pedal marks, in two systems.](doc/hero.png)
+
 ## Features
 
 - A sheet that breaks systems at its width, scrolls vertically, and draws with the Bravura music font.
@@ -74,6 +76,10 @@ void main() {
   runApp(MaterialApp(home: Scaffold(body: SheetView(score: session.score))));
 }
 ```
+
+The app shows a piano staff with the four notes in the first bar and a rest in each of the other three.
+
+![A treble staff labelled Piano, in 4/4 at a quarter note of 100, with the quarter notes C, E, G and C in bar 1 and whole-bar rests in bars 2 to 4.](doc/quick-start.png)
 
 [Your first sheet](https://tseku210.github.io/khuur_sheet_music/tutorial/first-sheet/) goes on from here to entry by tap and playback.
 

@@ -5,6 +5,8 @@ sidebar:
   order: 1
 ---
 
+import SheetImage from '../../../components/SheetImage.astro';
+
 This guide shows a `Score` on screen in a `SheetView`, builds a score in code, and saves and loads it as JSON.
 
 ## Show a saved score
@@ -88,6 +90,10 @@ session = session
     )
     .session;
 ```
+
+The code above gives the following sheet. The key of one flat starts at the first bar, and bar 5 starts the second system.
+
+<SheetImage name="show-a-score" alt="A piano part on a treble and a bass staff joined by a brace, with one flat in the key and 4/4 in two systems of four bars. Bar 1 holds a quarter note E on the treble staff, then rests. Every other bar holds a whole-bar rest." />
 
 The example app's [`demo_score.dart`](https://github.com/Tseku210/khuur_sheet_music/blob/main/example/lib/demo_score.dart) builds the opening of Beethoven's "Für Elise" from these edits.
 
