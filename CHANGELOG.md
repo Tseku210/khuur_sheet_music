@@ -1,5 +1,6 @@
-## Unreleased
+## 0.3.2
 * The playback highlight of a `SheetView` covers only the chord on the beat: its heads, accidentals and dots. It reached left over the chord's grace notes and right along its ties, so a note tied into the next bar lit a column across the barline.
+* A `SheetView` lays out a score in about 12% less time, from the faster first layout of `khuur_score_layout` 0.3.2 and `khuur_score_model` 0.3.2. What it draws does not change.
 
 ## 0.3.1
 * The playback highlight of a `SheetView` covers only the notes that are sounding when another staff holds a bar rest. On the bar's first beat it reached the middle of the bar and covered notes that had not started.
