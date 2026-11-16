@@ -175,6 +175,20 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.0"
+  khuur_score_layout:
+    dependency: transitive
+    description:
+      path: "../packages/khuur_score_layout"
+      relative: true
+    source: path
+    version: "0.0.0"
+  khuur_score_model:
+    dependency: transitive
+    description:
+      path: "../packages/khuur_score_model"
+      relative: true
+    source: path
+    version: "0.0.0"
   khuur_sheet_music:
     dependency: "direct main"
     description:
@@ -382,20 +396,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.6.0"
-  score_layout:
-    dependency: transitive
-    description:
-      path: "../packages/score_layout"
-      relative: true
-    source: path
-    version: "0.0.0"
-  score_model:
-    dependency: transitive
-    description:
-      path: "../packages/score_model"
-      relative: true
-    source: path
-    version: "0.0.0"
   sky_engine:
     dependency: transitive
     description: flutter

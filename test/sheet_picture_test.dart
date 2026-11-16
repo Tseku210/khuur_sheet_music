@@ -2,12 +2,12 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:khuur_score_layout/khuur_score_layout.dart';
+import 'package:khuur_score_model/khuur_score_model.dart';
 import 'package:khuur_sheet_music/src/painting.dart';
 import 'package:khuur_sheet_music/src/paragraph_measurer.dart';
-import 'package:score_layout/score_layout.dart';
-import 'package:score_model/score_model.dart';
 
-import '../packages/score_model/test/support.dart';
+import '../packages/khuur_score_model/test/support.dart';
 import 'support/draw.dart';
 import 'support/glyph_gate.dart';
 

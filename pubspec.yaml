@@ -9,18 +9,18 @@ environment:
   flutter: ">=3.47.5"
 
 workspace:
-  - packages/score_layout
-  - packages/score_model
+  - packages/khuur_score_layout
+  - packages/khuur_score_model
 
 dependencies:
   flutter:
     sdk: flutter
+  khuur_score_layout:
+    path: packages/khuur_score_layout
+  khuur_score_model:
+    path: packages/khuur_score_model
   khuur_synth: ^0.1.0
   material_ui: ^1.11.0
-  score_layout:
-    path: packages/score_layout
-  score_model:
-    path: packages/score_model
 
 dev_dependencies:
   flutter_test:

@@ -47,12 +47,12 @@ jobs:
       - name: Score model tests
         if: ${{ !cancelled() }}
         run: dart test
-        working-directory: packages/score_model
+        working-directory: packages/khuur_score_model
 
       - name: Layout engine tests
         if: ${{ !cancelled() }}
         run: dart test
-        working-directory: packages/score_layout
+        working-directory: packages/khuur_score_layout
 
       - name: Example tests
         if: ${{ !cancelled() }}

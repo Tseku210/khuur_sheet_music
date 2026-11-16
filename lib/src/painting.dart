@@ -5,11 +5,11 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
+import 'package:khuur_score_layout/khuur_score_layout.dart';
+import 'package:khuur_score_model/khuur_score_model.dart';
 import 'package:khuur_sheet_music/src/score_player.dart';
 import 'package:khuur_sheet_music/src/sheet_palette.dart';
 import 'package:khuur_sheet_music/src/smufl_font_family.dart';
-import 'package:score_layout/score_layout.dart';
-import 'package:score_model/score_model.dart';
 
 /// The one conversion between staff spaces and logical pixels.
 ///

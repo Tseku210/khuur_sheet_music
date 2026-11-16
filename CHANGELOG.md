@@ -1,3 +1,11 @@
+## 0.3.0
+* **Breaking:** The two pure-Dart packages are renamed `khuur_score_model` and `khuur_score_layout`, the names they get on pub.dev. An app that imports only `package:khuur_sheet_music/khuur_sheet_music.dart` changes nothing. An app or package that imports them directly changes its imports:
+
+  | Before | Now |
+  |---|---|
+  | `package:score_model/score_model.dart` | `package:khuur_score_model/khuur_score_model.dart` |
+  | `package:score_layout/score_layout.dart` | `package:khuur_score_layout/khuur_score_layout.dart` |
+
 ## 0.2.1
 * `SheetController.ensureVisible` takes a `staff`. In a system taller than the view it scrolls until that staff is in view, with the room up to halfway to the staves next to it, where it showed the top of the system. A view too short for that room gets the lines of the staff at its middle. A system that fits the view is shown whole, as before.
 * `SheetView.playbackStaff` names the staff a view that follows playback keeps in view the same way.

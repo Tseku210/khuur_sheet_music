@@ -29,8 +29,8 @@ body:
       label: Package
       options:
         - khuur_sheet_music (view, painter or player)
-        - score_layout
-        - score_model
+        - khuur_score_layout
+        - khuur_score_model
         - Not sure
     validations:
       required: true

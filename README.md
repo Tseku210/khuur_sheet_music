@@ -525,11 +525,11 @@ The first command downloads the example's piano SoundFont, which the repository 
 
 ## Work on the package
 
-The repository is a pub workspace of three packages. `packages/score_model` is the score model, `packages/score_layout` is the layout engine, and the root package is the Flutter view and the player. Both packages under `packages/` are pure Dart.
+The repository is a pub workspace of three packages. `packages/khuur_score_model` is the score model, `packages/khuur_score_layout` is the layout engine, and the root package is the Flutter view and the player. Both packages under `packages/` are pure Dart.
 
 The diagram shows how the packages connect. `SheetView` and its painters draw a score through `SheetLayout`. `ScorePlayer` compiles the score into a `PlaybackScript`, sends its notes to `khuur_synth`, and tells the painters which events are playing.
 
-![The architecture of khuur_sheet_music: the app gives a score to SheetView and ScorePlayer. SheetView and the painters draw through SheetLayout in score_layout, which reads the Score in score_model. ScorePlayer compiles the score into a PlaybackScript, sends notes through SynthOutput to khuur_synth, and sends the playing position to the painters.](doc/architecture.png)
+![The architecture of khuur_sheet_music: the app gives a score to SheetView and ScorePlayer. SheetView and the painters draw through SheetLayout in khuur_score_layout, which reads the Score in khuur_score_model. ScorePlayer compiles the score into a PlaybackScript, sends notes through SynthOutput to khuur_synth, and sends the playing position to the painters.](doc/architecture.png)
 
 [CONTRIBUTING.md](CONTRIBUTING.md) lists the checks that a change must pass and explains how a pull request lands.
 

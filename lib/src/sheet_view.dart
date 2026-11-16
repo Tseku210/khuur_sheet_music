@@ -7,12 +7,12 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:khuur_score_layout/khuur_score_layout.dart';
+import 'package:khuur_score_model/khuur_score_model.dart';
 import 'package:khuur_sheet_music/src/painting.dart';
 import 'package:khuur_sheet_music/src/paragraph_measurer.dart';
 import 'package:khuur_sheet_music/src/score_player.dart';
 import 'package:khuur_sheet_music/src/sheet_palette.dart';
-import 'package:score_layout/score_layout.dart';
-import 'package:score_model/score_model.dart';
 
 /// A score as a vertical, scrolling stack of systems at a fixed staff size.
 ///

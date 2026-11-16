@@ -1,25 +1,12 @@
 /// Sheet music for Flutter. A scrolling, editable view of a `Score` from
-/// `score_model`, and MIDI playback.
+/// `khuur_score_model`, and MIDI playback.
 ///
 /// Import this library alone. It re-exports the score model, so an app
 /// builds and edits scores (`Score`, `EditSession`, the edits) and shows
 /// them (`SheetView`) through one import.
 library;
 
-export 'package:khuur_synth/khuur_synth.dart'
-    show
-        AssetSoundFont,
-        AudioOutputFailed,
-        AudioSessionPolicy,
-        FileSoundFont,
-        PresetNotFound,
-        Reverb,
-        SoundFont,
-        SoundFontLoadFailed,
-        Synth,
-        SynthException,
-        SynthUnavailable;
-export 'package:score_layout/score_layout.dart'
+export 'package:khuur_score_layout/khuur_score_layout.dart'
     show
         ChordSymbolSpelling,
         ElementOwner,
@@ -43,7 +30,20 @@ export 'package:score_layout/score_layout.dart'
         fingeringGlyphs,
         noteGlyph,
         restGlyph;
-export 'package:score_model/score_model.dart';
+export 'package:khuur_score_model/khuur_score_model.dart';
+export 'package:khuur_synth/khuur_synth.dart'
+    show
+        AssetSoundFont,
+        AudioOutputFailed,
+        AudioSessionPolicy,
+        FileSoundFont,
+        PresetNotFound,
+        Reverb,
+        SoundFont,
+        SoundFontLoadFailed,
+        Synth,
+        SynthException,
+        SynthUnavailable;
 
 export 'src/midi_output.dart' show MidiOutput, SynthOutput;
 export 'src/score_player.dart';

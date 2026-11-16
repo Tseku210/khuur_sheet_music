@@ -25,8 +25,8 @@ The repository is a pub workspace of three packages:
 
 | Folder | Package | Depends on |
 |---|---|---|
-| `packages/score_model` | The score model, MusicXML and MIDI, and the playback script. Pure Dart. | `xml` |
-| `packages/score_layout` | The layout engine. Pure Dart. | `score_model` |
+| `packages/khuur_score_model` | The score model, MusicXML and MIDI, and the playback script. Pure Dart. | `xml` |
+| `packages/khuur_score_layout` | The layout engine. Pure Dart. | `khuur_score_model` |
 | the root | `SheetView`, the painter and `ScorePlayer`. Flutter. | both, and `khuur_synth` |
 
 Keep Flutter out of `packages/`. The compiler enforces it, because neither package depends on Flutter.
@@ -38,8 +38,8 @@ Run these from the repository root before you push. `flutter test` at the root d
 ```bash
 flutter analyze
 flutter test
-(cd packages/score_model && dart test)
-(cd packages/score_layout && dart test)
+(cd packages/khuur_score_model && dart test)
+(cd packages/khuur_score_layout && dart test)
 (cd example && flutter test)
 ```
 
@@ -48,13 +48,13 @@ flutter test
 After a change to the layout engine, also run the layout benchmark. It exits with code 1 when a layout is over its budget.
 
 ```bash
-cd packages/score_layout
+cd packages/khuur_score_layout
 mkdir -p build
 dart compile exe benchmark/layout_benchmark.dart -o build/layout_benchmark
 build/layout_benchmark
 ```
 
-The glyph table `packages/score_layout/lib/src/bravura.g.dart` is generated. Do not edit it by hand. Change `tool/bravura_metadata.json` or the generator, then run `dart run tool/generate_bravura.dart` in `packages/score_layout`.
+The glyph table `packages/khuur_score_layout/lib/src/bravura.g.dart` is generated. Do not edit it by hand. Change `tool/bravura_metadata.json` or the generator, then run `dart run tool/generate_bravura.dart` in `packages/khuur_score_layout`.
 
 ## Write the change
 
