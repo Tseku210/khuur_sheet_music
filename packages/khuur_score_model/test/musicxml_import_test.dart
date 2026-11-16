@@ -1792,6 +1792,60 @@ void main() {
       },
     );
 
+    test('reads the accidental marks that follow an ornament\'s sign', () {
+      String ornaments(String children) =>
+          '<notations><ornaments>$children</ornaments></notations>';
+      final score = imported(
+        flute([
+          [
+            opening(),
+            note(
+              'C5',
+              4,
+              'quarter',
+              ornaments(
+                '<turn/><accidental-mark>flat</accidental-mark>'
+                '<accidental-mark placement="below">natural</accidental-mark>',
+              ),
+            ),
+            note(
+              'C5',
+              4,
+              'quarter',
+              ornaments(
+                '<accidental-mark>sharp</accidental-mark><mordent/>'
+                '<accidental-mark placement="below">sharp-sharp</accidental-mark>',
+              ),
+            ),
+            note(
+              'C5',
+              4,
+              'quarter',
+              ornaments(
+                '<trill-mark/><wavy-line type="start"/>'
+                '<accidental-mark>sharp</accidental-mark>'
+                '<wavy-line type="stop"/>',
+              ),
+            ),
+            note('C5', 4, 'quarter'),
+          ],
+        ]),
+      );
+
+      expect(
+        [
+          for (final chord in chordsIn(score, 0))
+            (chord.ornament, chord.ornamentAbove, chord.ornamentBelow),
+        ],
+        [
+          (Ornament.turn, Alter.flat, Alter.natural),
+          (Ornament.mordent, null, Alter.doubleSharp),
+          (null, null, null),
+          (null, null, null),
+        ],
+      );
+    });
+
     test('gives the words of a jump to the jump, not to its tempo', () {
       final score = imported(
         flute([

@@ -150,6 +150,7 @@
                     "accent"
                   ],
                   "ornament": "trill",
+                  "ornamentAbove": "sharp",
                   "bowing": "down",
                   "graces": [
                     {

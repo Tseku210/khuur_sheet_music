@@ -1,3 +1,8 @@
+## Unreleased
+* `ChordEvent.ornamentAbove` and `ornamentBelow` hold the accidentals of an ornament's upper and lower notes. Playback plays those notes with them, `ChordEvent.ornamentNote` names them, and each is null unless the chord has an ornament. `SetOrnament` clears them when the sign changes, and `Transpose` moves them with the notes.
+* JSON writes them as `ornamentAbove` and `ornamentBelow` when set. Readers before this release skip the keys and play the key's notes.
+* `scoreFromMusicXml` reads the `<accidental-mark>` after an ornament's sign, by its `placement`, and `scoreToMusicXml` writes it.
+
 ## 0.3.2
 * `Score.measureView` times a voice's events and tuplets in one walk of the voice, where it walked it twice. The view it returns does not change.
 

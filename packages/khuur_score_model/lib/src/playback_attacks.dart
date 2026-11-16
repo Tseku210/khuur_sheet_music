@@ -67,7 +67,7 @@ List<_Attack> _attacks(
     duration - steal,
   );
   for (final note in chord.notes) {
-    final pieces = _canPlay(note, figure, key)
+    final pieces = _canPlay(note, chord, figure, key)
         ? figure
         : _figure(null, chord, duration - steal);
     var at = onset + steal;
@@ -79,7 +79,7 @@ List<_Attack> _attacks(
           length: length,
           note: switch (note) {
             PitchedNote(:final pitch) when steps != 0 => note.copyWith(
-              pitch: _neighbour(pitch, steps, key),
+              pitch: chord.ornamentNote(pitch, steps, key),
               tie: false,
             ),
             _ => note.copyWith(tie: last && note.tie),
@@ -145,20 +145,19 @@ final Length _thirtySecond = NoteValue.thirtySecond.length;
 
 Length _shorter(Length a, Length b) => a < b ? a : b;
 
-/// The note [steps] scale steps from [pitch] in [key].
-Pitch _neighbour(Pitch pitch, int steps, KeySignature key) {
-  final diatonic = pitch.diatonic + steps;
-  final step = Step.values[diatonic % 7];
-  return Pitch(step, (diatonic - step.index) ~/ 7, key.alterFor(step));
-}
-
-/// Whether every neighbour [figure] asks of [note] in [key] is a MIDI key.
-bool _canPlay(Note note, List<(int, Length)> figure, KeySignature key) =>
+/// Whether every neighbour [figure] asks of [note] of [chord] in [key] is
+/// a MIDI key.
+bool _canPlay(
+  Note note,
+  ChordEvent chord,
+  List<(int, Length)> figure,
+  KeySignature key,
+) =>
     note is! PitchedNote ||
     figure.every(
       (piece) =>
           piece.$1 == 0 ||
-          pitchProblem(_neighbour(note.pitch, piece.$1, key)) == null,
+          pitchProblem(chord.ornamentNote(note.pitch, piece.$1, key)) == null,
     );
 
 /// The share of its time a note sounds, by the marks on the last note of

@@ -178,6 +178,7 @@
         <notations>
           <ornaments>
             <trill-mark/>
+            <accidental-mark placement="above">sharp</accidental-mark>
             <tremolo type="single">2</tremolo>
           </ornaments>
           <technical>

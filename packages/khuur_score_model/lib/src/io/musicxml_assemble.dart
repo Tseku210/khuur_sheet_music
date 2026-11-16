@@ -483,6 +483,8 @@ final class _Voices {
     notes: Seq(_notes(chord.notes, tiesTo: _tieTarget(chord, lane))),
     articulations: chord.articulations,
     ornament: chord.ornament,
+    ornamentAbove: chord.ornamentAbove,
+    ornamentBelow: chord.ornamentBelow,
     bowing: chord.bowing,
     graces: Seq([
       for (final grace in chord.graces)

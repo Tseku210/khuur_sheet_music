@@ -643,6 +643,63 @@ void main() {
       });
     }
 
+    test('an accidental above the sign stands over it and one below it '
+        'between it and the note, and the other way round for a sign below the '
+        'staff', () {
+      ChordEvent turned(ChordEvent chord) => chord.copyWith(
+        ornament: () => Ornament.turn,
+        ornamentAbove: () => Alter.flat,
+        ornamentBelow: () => Alter.natural,
+      );
+      final placed = place(
+        barWith(
+          [turned(chordOf(1, 'C5'))],
+          two: [turned(chordOf(2, 'E4'))],
+        ),
+      );
+      // Lowest on the page first.
+      List<GlyphDraw> ofEvent(int event) =>
+          glyphsOf(placed)
+              .where(
+                (draw) =>
+                    draw.owner == eventOwner(event) &&
+                    (draw.glyph.name.startsWith('ornament') ||
+                        draw.glyph.name.startsWith('accidental')),
+              )
+              .toList()
+            ..sort((a, b) => b.bounds.top.compareTo(a.bounds.top));
+
+      expect(
+        [for (final draw in ofEvent(1)) draw.glyph],
+        [
+          Glyph.accidentalNatural,
+          Glyph.ornamentTurn,
+          Glyph.accidentalFlat,
+        ],
+      );
+      expect(
+        [for (final draw in ofEvent(2)) draw.glyph],
+        [
+          Glyph.accidentalNatural,
+          Glyph.ornamentTurn,
+          Glyph.accidentalFlat,
+        ],
+      );
+      for (final event in [1, 2]) {
+        final [low, sign, high] = ofEvent(event);
+        expect(low.bounds.top, greaterThanOrEqualTo(sign.bounds.bottom));
+        expect(sign.bounds.top, greaterThanOrEqualTo(high.bounds.bottom));
+        for (final draw in [low, high]) {
+          expect(
+            centreOf(draw.bounds),
+            closeTo(centreOf(sign.bounds), hair),
+          );
+        }
+      }
+      expectAbove(ofEvent(1)[0].bounds, stemOf(placed, 1), 'over the stem');
+      expectBelow(ofEvent(2)[2].bounds, stemOf(placed, 2), 'under the stem');
+    });
+
     test('a trill on the chord a trill line starts on is drawn once', () {
       Iterable<GlyphDraw> trillsOf(Score score) =>
           SheetLayout(

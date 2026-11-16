@@ -104,9 +104,14 @@ _Result _transpose(Score score, Selection selection, Transposition by) {
     transposed = _replace(
       transposed,
       timed,
-      chord.copyWith(
-        notes: _pitched(chord.notes, (note) => moved[note.id] ?? note.pitch),
-        graces: graces[chord.id],
+      _ornamentMoved(
+        chord,
+        chord.copyWith(
+          notes: _pitched(chord.notes, (note) => moved[note.id] ?? note.pitch),
+          graces: graces[chord.id],
+        ),
+        by,
+        score.column(timed.ref.measure).key,
       ),
     );
   }
@@ -117,6 +122,44 @@ _Result _transpose(Score score, Selection selection, Transposition by) {
     }),
   );
 }
+
+/// [to], the moved [from], with the accidentals of its ornament moved as
+/// the notes they alter move, so the ornament plays the same notes against
+/// its lowest head. An accidental whose note would no longer be the next
+/// scale step is taken off.
+ChordEvent _ornamentMoved(
+  ChordEvent from,
+  ChordEvent to,
+  Transposition by,
+  KeySignature key,
+) {
+  final (before, after) = (_lowestPitch(from), _lowestPitch(to));
+  if ((from.ornamentAbove == null && from.ornamentBelow == null) ||
+      before == null ||
+      after == null ||
+      before == after) {
+    return to;
+  }
+  Alter? moved(Alter? alter, int steps) {
+    if (alter == null) {
+      return null;
+    }
+    final note = by.apply(from.ornamentNote(before, steps, key), key);
+    return note != null && note.diatonic == after.diatonic + steps
+        ? note.alter
+        : null;
+  }
+
+  return to.copyWith(
+    ornamentAbove: () => moved(from.ornamentAbove, 1),
+    ornamentBelow: () => moved(from.ornamentBelow, -1),
+  );
+}
+
+Pitch? _lowestPitch(ChordEvent chord) => switch (chord.notes.first) {
+  PitchedNote(:final pitch) => pitch,
+  _ => null,
+};
 
 Pitch _moved(Pitch pitch, Transposition by, KeySignature key) {
   final moved =

@@ -530,8 +530,22 @@ extension on _BarReader {
           ornament.name.local == 'wavy-line' &&
           ornament.getAttribute('type') == 'start',
     );
+    // Accidental marks after a sign belong to it.
+    var marked = false;
     for (final ornament in ornaments) {
       final name = ornament.name.local;
+      if (name == 'accidental-mark') {
+        final alter = marked
+            ? accidentalByName[ornament.innerText.trim()]
+            : null;
+        if (alter != null && ornament.getAttribute('placement') == 'below') {
+          chord.ornamentBelow ??= alter;
+        } else if (alter != null) {
+          chord.ornamentAbove ??= alter;
+        }
+        continue;
+      }
+      marked = false;
       if (name == 'tremolo') {
         if ((ornament.getAttribute('type') ?? 'single') != 'single') {
           continue;
@@ -545,8 +559,11 @@ extension on _BarReader {
         if (chord.tremolo == 0 && strokes > 0) {
           chord.tremolo = strokes;
         }
-      } else if (!(lined && name == 'trill-mark')) {
-        chord.ornament ??= ornamentByName[name];
+      } else if (!(lined && name == 'trill-mark') &&
+          chord.ornament == null &&
+          ornamentByName[name] != null) {
+        chord.ornament = ornamentByName[name];
+        marked = true;
       }
     }
     for (final mark in marks) {

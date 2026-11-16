@@ -120,6 +120,22 @@ const Map<String, Alter> _alters = {
   'x': Alter.doubleSharp,
 };
 
+/// How the file names an alteration that stands alone, as an ornament's
+/// accidental does, from double flat to double sharp.
+const List<String> _accidentals = [
+  'doubleFlat',
+  'threeQuarterFlat',
+  'flat',
+  'quarterFlat',
+  'natural',
+  'quarterSharp',
+  'sharp',
+  'threeQuarterSharp',
+  'doubleSharp',
+];
+
+String _accidental(Alter alter) => _accidentals[alter.quarterTones + 4];
+
 final Map<Alter, String> _alterNames = {
   for (final MapEntry(:key, :value) in _alters.entries) value: key,
 };

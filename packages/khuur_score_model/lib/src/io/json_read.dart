@@ -373,12 +373,24 @@ final class _Decoder {
         _ => _tuplet(json, instrument, around),
       };
 
+  /// The accidental [chord] holds under [key], refused where the chord has
+  /// no ornament for it to alter.
+  Alter? _ornamentAccidental(_In chord, String key) {
+    final accidental = chord.maybe(key);
+    if (accidental != null && chord.maybe('ornament') == null) {
+      accidental.fail('an ornament accidental needs an ornament');
+    }
+    return accidental?.accidental;
+  }
+
   ChordEvent _chord(_In json, Instrument instrument) => ChordEvent(
     id: _event(json['chord']),
     value: json['value'].noteValue,
     notes: _heads(json['notes'], instrument),
     articulations: _articulationsOf(json),
     ornament: json.maybe('ornament')?.name(Ornament.values),
+    ornamentAbove: _ornamentAccidental(json, 'ornamentAbove'),
+    ornamentBelow: _ornamentAccidental(json, 'ornamentBelow'),
     bowing: json.maybe('bowing')?.name(Bowing.values),
     graces: Seq([
       for (final grace in json.maybe('graces')?.list ?? const <_In>[])
@@ -662,6 +674,11 @@ final class _In {
       check(_as<num>('a number').toDouble(), rule);
 
   int get midi => kept(midiProblem);
+
+  Alter get accidental => switch (_accidentals.indexOf(string)) {
+    -1 => fail('expected one of ${_accidentals.join(', ')}'),
+    final index => Alter.fromQuarterTones(index - 4),
+  };
 
   VoiceSlot get voice => VoiceSlot
       .values[integerWhere((n) => n >= 1 && n <= 4, 'a voice is 1 to 4') - 1];

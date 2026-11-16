@@ -167,6 +167,10 @@ Map<String, Object?> _chord(ChordEvent chord) => {
   'notes': [for (final note in chord.notes) _note(note)],
   ..._articulations(chord.articulations),
   if (chord.ornament case final ornament?) 'ornament': ornament.name,
+  if (chord.ornamentAbove case final above?)
+    'ornamentAbove': _accidental(above),
+  if (chord.ornamentBelow case final below?)
+    'ornamentBelow': _accidental(below),
   if (chord.bowing case final bowing?) 'bowing': bowing.name,
   if (chord.graces.isNotEmpty)
     'graces': [

@@ -1,3 +1,6 @@
+## Unreleased
+* `ChordEvent.ornamentAbove` and `ornamentBelow` draw as small accidentals over and under the ornament's sign, centred on it. Above the staff the one below sits between the sign and the note. Below the staff the order flips.
+
 ## 0.3.2
 * `SheetLayout.playingIn` builds the column from the playing chords' heads, accidentals and dots, and from rests. It took the whole of what each event draws, so a grace note widened it to the left, and a tie or a mark widened it to the right, past the barline when the tie crossed it. Ledger lines, stems and flags are left out too.
 * A first layout takes about 12% less time on the layout benchmark's 500-bar and 2000-bar scores, and an update after an edit about 4 to 9% less. Lyric rows and system plans no longer store records that hold records or lists, which compiled code checks with a slow type test on each store. The layout does not change.

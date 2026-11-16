@@ -133,7 +133,11 @@ _Result _setOrnament(Score score, EventRef event, Ornament? ornament) {
       clears: ornament == null,
       change: (chord) => chord.ornament == ornament
           ? chord
-          : chord.copyWith(ornament: () => ornament),
+          : chord.copyWith(
+              ornament: () => ornament,
+              ornamentAbove: () => null,
+              ornamentBelow: () => null,
+            ),
     ),
   );
 }
