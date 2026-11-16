@@ -1,0 +1,28 @@
+name: Feature request
+description: Suggest a new feature or a change to the API.
+labels: [enhancement, khuur_sheet]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you want to do with the library and cannot do today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Your proposal
+      description: How the feature could work. An example of the API you want to call helps.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Other ways you considered, or how you work around it today.
+  - type: textarea
+    id: notation
+    attributes:
+      label: Notation
+      description: For a new mark or symbol, a picture of how it is engraved, and where it comes from.
