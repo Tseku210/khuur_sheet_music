@@ -13,6 +13,7 @@ cd packages/khuur_score_layout && dart test  # layout engine tests (not run by f
 cd packages/khuur_score_layout && mkdir -p build && dart compile exe benchmark/layout_benchmark.dart -o build/layout_benchmark && build/layout_benchmark   # layout cost benchmark, compiled; exits 1 when over budget
 cd packages/khuur_score_layout && dart run tool/generate_bravura.dart   # rewrites lib/src/bravura.g.dart from tool/bravura_metadata.json
 cd example && flutter test   # the example app's tests (not run by the root's flutter test)
+flutter test verification/score_player/orders_test.dart   # every order of up to 7 steps on ScorePlayer, checked against its promises (not run by flutter test)
 cd example && flutter run            # the example app, Android or iOS
 ```
 
