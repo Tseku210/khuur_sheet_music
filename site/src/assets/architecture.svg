@@ -1,0 +1,102 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 870 650" role="img" aria-labelledby="arch-title arch-desc">
+<title id="arch-title">How a score is drawn and played</title>
+<desc id="arch-desc">Your app gives a Score to SheetView and calls ScorePlayer.play. SheetView updates a SheetLayout, which reads Score.measureView and Score.changesSince in khuur_score_model, and the painters draw each system that SheetLayout assembles. ScorePlayer compiles the Score into a PlaybackScript, sends its notes through SynthOutput to FluidSynth in khuur_synth, and publishes the playing position back to SheetView.</desc>
+<style>
+.arch-lane { stroke: var(--sl-color-hairline, #c8c8c8); stroke-width: 1; }
+.arch-lane-name { fill: var(--sl-color-white, #1a1a1a); font: 600 13px var(--sl-font, system-ui, sans-serif); }
+.arch-lane-note { fill: var(--sl-color-gray-3, #6b6b6b); font: 12px var(--sl-font, system-ui, sans-serif); }
+.arch-box { fill: var(--sl-color-gray-6, #f2f2f2); stroke: var(--sl-color-gray-3, #6b6b6b); stroke-width: 1.25; }
+.arch-entry { stroke: var(--sl-color-accent, #3b62d6); stroke-width: 2; }
+.arch-external { fill: none; stroke-dasharray: 5 4; }
+.arch-name { fill: var(--sl-color-white, #1a1a1a); font: 600 14px var(--sl-font-mono, ui-monospace, monospace); }
+.arch-sub { fill: var(--sl-color-gray-3, #6b6b6b); font: 12px var(--sl-font, system-ui, sans-serif); }
+.arch-flow { fill: none; stroke: var(--sl-color-gray-2, #444); stroke-width: 1.5; }
+.arch-head { fill: var(--sl-color-gray-2, #444); }
+.arch-label { fill: var(--sl-color-gray-2, #444); font: 12px var(--sl-font-mono, ui-monospace, monospace); }
+</style>
+<defs>
+<marker id="arch-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+<path class="arch-head" d="M0 0 L10 5 L0 10 Z"/>
+</marker>
+</defs>
+
+<line class="arch-lane" x1="0" y1="90" x2="870" y2="90"/>
+<line class="arch-lane" x1="0" y1="330" x2="870" y2="330"/>
+<line class="arch-lane" x1="0" y1="430" x2="870" y2="430"/>
+<line class="arch-lane" x1="0" y1="540" x2="870" y2="540"/>
+
+<text class="arch-lane-name" x="12" y="50">Your app</text>
+<text class="arch-lane-name" x="12" y="146">khuur_sheet_music</text>
+<text class="arch-lane-note" x="12" y="164">Flutter</text>
+<text class="arch-lane-name" x="12" y="378">khuur_score_layout</text>
+<text class="arch-lane-note" x="12" y="396">pure Dart</text>
+<text class="arch-lane-name" x="12" y="490">khuur_score_model</text>
+<text class="arch-lane-note" x="12" y="508">pure Dart</text>
+<text class="arch-lane-name" x="12" y="588">khuur_synth</text>
+<text class="arch-lane-note" x="12" y="606">Android and iOS</text>
+
+<rect class="arch-box" x="160" y="18" width="490" height="54" rx="6"/>
+<text class="arch-name" x="405" y="41" text-anchor="middle">Your app</text>
+<text class="arch-sub" x="405" y="60" text-anchor="middle">holds an EditSession and a SheetController</text>
+
+<rect class="arch-box arch-entry" x="160" y="120" width="210" height="56" rx="6"/>
+<text class="arch-name" x="265" y="144" text-anchor="middle">SheetView</text>
+<text class="arch-sub" x="265" y="163" text-anchor="middle">one tile per system</text>
+
+<rect class="arch-box arch-entry" x="440" y="120" width="210" height="56" rx="6"/>
+<text class="arch-name" x="545" y="144" text-anchor="middle">ScorePlayer</text>
+<text class="arch-sub" x="545" y="163" text-anchor="middle">one script clock</text>
+
+<rect class="arch-box arch-entry" x="700" y="120" width="150" height="56" rx="6"/>
+<text class="arch-name" x="775" y="144" text-anchor="middle">SynthOutput</text>
+<text class="arch-sub" x="775" y="163" text-anchor="middle">a MidiOutput</text>
+
+<rect class="arch-box" x="210" y="250" width="160" height="56" rx="6"/>
+<text class="arch-name" x="290" y="274" text-anchor="middle">painters</text>
+<text class="arch-sub" x="290" y="293" text-anchor="middle">staff spaces to pixels</text>
+
+<rect class="arch-box" x="160" y="354" width="210" height="56" rx="6"/>
+<text class="arch-name" x="265" y="378" text-anchor="middle">SheetLayout</text>
+<text class="arch-sub" x="265" y="397" text-anchor="middle">bars, systems, drawables</text>
+
+<rect class="arch-box" x="160" y="466" width="210" height="56" rx="6"/>
+<text class="arch-name" x="265" y="490" text-anchor="middle">Score</text>
+<text class="arch-sub" x="265" y="509" text-anchor="middle">immutable, changed by edits</text>
+
+<rect class="arch-box" x="440" y="466" width="210" height="56" rx="6"/>
+<text class="arch-name" x="545" y="490" text-anchor="middle">PlaybackScript</text>
+<text class="arch-sub" x="545" y="509" text-anchor="middle">notes in seconds</text>
+
+<rect class="arch-box arch-external" x="700" y="564" width="150" height="56" rx="6"/>
+<text class="arch-name" x="775" y="588" text-anchor="middle">FluidSynth</text>
+<text class="arch-sub" x="775" y="607" text-anchor="middle">SoundFonts</text>
+
+<line class="arch-flow" x1="230" y1="72" x2="230" y2="118" marker-end="url(#arch-arrow)"/>
+<text class="arch-label" x="238" y="100">Score</text>
+<line class="arch-flow" x1="320" y1="120" x2="320" y2="74" marker-end="url(#arch-arrow)"/>
+<text class="arch-label" x="328" y="100">SheetHit</text>
+<line class="arch-flow" x1="545" y1="72" x2="545" y2="118" marker-end="url(#arch-arrow)"/>
+<text class="arch-label" x="553" y="100">play(Score)</text>
+
+<line class="arch-flow" x1="440" y1="148" x2="372" y2="148" marker-end="url(#arch-arrow)"/>
+<text class="arch-label" x="406" y="140" text-anchor="middle">position</text>
+<line class="arch-flow" x1="650" y1="148" x2="698" y2="148" marker-end="url(#arch-arrow)"/>
+<text class="arch-label" x="675" y="140" text-anchor="middle">notes</text>
+
+<line class="arch-flow" x1="180" y1="176" x2="180" y2="352" marker-end="url(#arch-arrow)"/>
+<text class="arch-label" x="188" y="230">update(Score)</text>
+<line class="arch-flow" x1="300" y1="354" x2="300" y2="308" marker-end="url(#arch-arrow)"/>
+<text class="arch-label" x="308" y="346">systemAt(i)</text>
+
+<line class="arch-flow" x1="265" y1="410" x2="265" y2="464" marker-end="url(#arch-arrow)"/>
+<text class="arch-label" x="273" y="452">measureView, changesSince</text>
+
+<line class="arch-flow" x1="370" y1="494" x2="438" y2="494" marker-end="url(#arch-arrow)"/>
+<text class="arch-label" x="405" y="486" text-anchor="middle">compile</text>
+<line class="arch-flow" x1="545" y1="466" x2="545" y2="178" marker-end="url(#arch-arrow)"/>
+<text class="arch-label" x="553" y="300">notesBetween,</text>
+<text class="arch-label" x="553" y="316">playingAt</text>
+
+<line class="arch-flow" x1="775" y1="176" x2="775" y2="562" marker-end="url(#arch-arrow)"/>
+<text class="arch-label" x="783" y="360">MIDI</text>
+</svg>
