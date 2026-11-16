@@ -39,6 +39,12 @@ Editions beam each run of sixteenths whole. The meter alone starts a new beam at
 
 ## The SoundFont
 
-`assets/soundfonts/piano.sf2` is Upright Piano KW from FreePats, in its full version of 2022-02-21, released under CC0. It is 57 MB. Its readme and its licence are beside it.
+The page plays Upright Piano KW from FreePats, in its full version of 2022-02-21, released under CC0. It is 57 MB, so the repository does not keep it. Download it once before you run the app:
+
+```bash
+dart run tool/fetch_soundfont.dart
+```
+
+The script downloads FreePats' archive, unpacks it with `tar` or 7-Zip, checks the SHA-256 of the SoundFont, and writes `assets/soundfonts/piano.sf2`. Its readme and its licence are beside it. Without the file the page still shows and edits the sheet, but Play fails with an error that names the missing asset.
 
 The page plays through a reverb, `_reverb` in `lib/main.dart`, in FluidSynth's numbers, which sound the same on Android and iOS.
