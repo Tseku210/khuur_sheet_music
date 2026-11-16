@@ -5,14 +5,18 @@ import 'package:material_ui/material_ui.dart';
 /// A line drawn over the sheet, which is the caret or the playhead.
 @immutable
 final class SheetLine {
+  /// A line in [color], [width] staff spaces wide. Asserts that [width] is
+  /// not under zero.
   const SheetLine({required this.color, this.width = 0.2})
     : assert(width >= 0, 'a line has no width under zero');
 
+  /// The colour of the line.
   final Color color;
 
   /// In staff spaces, so the line grows with the zoom. Zero draws no line.
   final double width;
 
+  /// This line with the given parts replaced. A null leaves a part as it is.
   SheetLine copyWith({Color? color, double? width}) =>
       SheetLine(color: color ?? this.color, width: width ?? this.width);
 
@@ -38,6 +42,8 @@ final class SheetLine {
 /// Lengths are in staff spaces, so the mark grows with the zoom.
 @immutable
 final class SheetHighlight {
+  /// A style that draws only the parts it is given, so with none it draws
+  /// nothing. Asserts that [borderWidth] and [radius] are not under zero.
   const SheetHighlight({
     this.fill,
     this.border,
@@ -120,6 +126,8 @@ final class SheetHighlight {
 /// playback have styles of their own.
 @immutable
 final class SheetPalette {
+  /// A palette with each colour and style given. [SheetPalette.of] derives
+  /// one from the theme.
   const SheetPalette({
     required this.ink,
     required this.staffLines,

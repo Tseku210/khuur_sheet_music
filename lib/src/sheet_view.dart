@@ -36,6 +36,7 @@ import 'package:khuur_sheet_music/src/sheet_palette.dart';
 /// Each system is one node for a screen reader, labelled with the bars it
 /// holds.
 class SheetView extends StatefulWidget {
+  /// A view of [score] with nothing drawn over it unless given.
   const SheetView({
     required this.score,
     this.cursor,
@@ -58,6 +59,7 @@ class SheetView extends StatefulWidget {
     super.key,
   });
 
+  /// The score to show. A new one lays out again only the bars that changed.
   final Score score;
 
   /// The edit cursor, drawn as a caret. Usually `EditSession.cursor`.
@@ -108,6 +110,8 @@ class SheetView extends StatefulWidget {
   /// cancelled.
   final ValueChanged<SheetHit>? onRelease;
 
+  /// Zoom, geometry queries and export. Null gives the view a controller of
+  /// its own at zoom 1.
   final SheetController? controller;
 
   /// What changes layout. A style that is not equal to the previous one
@@ -157,6 +161,7 @@ class SheetView extends StatefulWidget {
 /// A finger held on a [SheetView], and where a note entered there would go.
 @immutable
 final class EntryHold {
+  /// A hold of [finger] that would enter at [entry].
   const EntryHold({required this.finger, required this.entry});
 
   /// Where the finger is, in the view's local logical pixels.

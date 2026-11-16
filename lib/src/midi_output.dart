@@ -93,6 +93,8 @@ final class SynthOutput implements MidiOutput {
   /// -24 LUFS. FluidSynth's own default, 0.2, plays 12 dB quieter.
   static const defaultGain = 0.8;
 
+  /// How loud the synth plays, as a linear factor from 0 to 10, set on the
+  /// synth when the output opens it. See [defaultGain].
   final double gain;
 
   /// The reverb, or null for none. A new one sounds from the next note.

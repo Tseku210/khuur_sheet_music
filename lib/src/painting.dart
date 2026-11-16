@@ -18,6 +18,8 @@ import 'package:khuur_sheet_music/src/smufl_font_family.dart';
 /// added pixel margins to font-unit widths) has one place to happen.
 @immutable
 final class SheetScale {
+  /// A scale of [spacePx] logical pixels per staff space, with sheet (0, 0)
+  /// at [origin].
   const SheetScale({required this.spacePx, this.origin = Offset.zero});
 
   /// Logical pixels per staff space, the view's staff size times zoom.
@@ -26,9 +28,11 @@ final class SheetScale {
   /// Where sheet (0, 0) sits in the target's pixel space.
   final Offset origin;
 
+  /// The pixel position of [point], a point in staff spaces.
   Offset toPx(SpPoint point) =>
       origin + Offset(point.x * spacePx, point.y * spacePx);
 
+  /// The pixel rect of [box], a box in staff spaces.
   Rect rectOf(Box box) => Rect.fromLTRB(
     origin.dx + box.left * spacePx,
     origin.dy + box.top * spacePx,
@@ -36,6 +40,7 @@ final class SheetScale {
     origin.dy + box.bottom * spacePx,
   );
 
+  /// The point in staff spaces at [px], the inverse of [toPx].
   SpPoint toSheet(Offset px) => SpPoint(
     (px.dx - origin.dx) / spacePx,
     (px.dy - origin.dy) / spacePx,
@@ -230,8 +235,11 @@ ui.Paragraph textParagraph(
 /// be trusted (a new style, a font that loaded late). The system painters
 /// compare it by identity, so a new one repaints them.
 final class GlyphPainter {
+  /// A painter for the glyphs of [font], with no paragraph built yet.
   GlyphPainter(this.font);
 
+  /// The font the glyphs are drawn in. Its defaults give the line of a text
+  /// enclosure.
   final SmuflFont font;
 
   /// At most [_capacity] paragraphs, the oldest dropped first and freed.
@@ -434,6 +442,7 @@ bool _sameInk(Iterable<Drawable> drawables, SheetPalette a, SheetPalette b) {
 /// the scale changes. The layout hands out the same list while the sheet
 /// width and `score.meta` are unchanged.
 final class HeaderPainter extends CustomPainter {
+  /// A painter for [header] in the colours of [palette], at [scale].
   HeaderPainter({
     required this.header,
     required this.glyphs,
@@ -443,8 +452,11 @@ final class HeaderPainter extends CustomPainter {
 
   /// In sheet space.
   final List<Drawable> header;
+  /// Draws the glyphs and the text. Compared by identity.
   final GlyphPainter glyphs;
+  /// Gives each drawable the colour of its [InkRole].
   final SheetPalette palette;
+  /// Maps sheet space to the painter's pixels.
   final SheetScale scale;
 
   @override
@@ -482,6 +494,8 @@ final class HeaderPainter extends CustomPainter {
 /// not do that, because a `CustomPaint` paints its painter and its
 /// foreground painter together.
 final class SystemPainter extends CustomPainter {
+  /// A painter for [system] and its [label] in the colours of [palette], at
+  /// [scale].
   SystemPainter({
     required this.system,
     required this.label,
@@ -490,12 +504,17 @@ final class SystemPainter extends CustomPainter {
     required this.scale,
   });
 
+  /// The system whose drawables it paints, in system space. Compared by
+  /// identity.
   final SystemLayout system;
 
   /// The bar number at the start of the system, in system space.
   final TextDraw? label;
+  /// Draws the glyphs and the text. Compared by identity.
   final GlyphPainter glyphs;
+  /// Gives each drawable the colour of its [InkRole].
   final SheetPalette palette;
+  /// Maps system space to the tile's pixels.
   final SheetScale scale;
 
   Iterable<Drawable> get _drawables => system.drawables.followedBy([?label]);
@@ -529,6 +548,8 @@ final class SystemPainter extends CustomPainter {
 /// A tick paints with the same painter, so the selection's outline is made
 /// once, on the first paint.
 final class HighlightPainter extends CustomPainter {
+  /// A painter for the boxes under system [index] of [layout]. It repaints
+  /// when [playback] changes, with no build.
   HighlightPainter({
     required this.layout,
     required this.index,
@@ -538,13 +559,21 @@ final class HighlightPainter extends CustomPainter {
     required this.scale,
   }) : super(repaint: playback);
 
+  /// The sheet the system and its boxes come from. Compared by identity.
   final SheetLayout layout;
 
   /// Which system of [layout] this tile shows.
   final int index;
+  /// What is selected, boxed in the palette's selection style. Compared by
+  /// identity.
   final Selection selection;
+  /// Where playback is. Its playing events get the column. Null draws no
+  /// column.
   final ValueListenable<PlaybackPosition?>? playback;
+  /// Gives the style of the selection and of playback. Its other parts are
+  /// not read.
   final SheetPalette palette;
+  /// Maps system space to the tile's pixels.
   final SheetScale scale;
 
   late final Path _selected = _outlineOf(
@@ -669,6 +698,8 @@ final class HighlightPainter extends CustomPainter {
 /// and the tinted drawables of its system once, on its first paint, and a
 /// tick costs the playing events and the playhead.
 final class OverlayPainter extends CustomPainter {
+  /// A painter for what lies over system [index] of [layout]. It repaints
+  /// when [playback] changes, with no build.
   OverlayPainter({
     required this.layout,
     required this.index,
@@ -682,17 +713,31 @@ final class OverlayPainter extends CustomPainter {
     this.preview,
   }) : super(repaint: playback);
 
+  /// The sheet the system and its geometry come from. Compared by identity.
   final SheetLayout layout;
 
   /// Which system of [layout] this tile shows.
   final int index;
+  /// The edit cursor, drawn as a caret in the palette's cursor style. Null
+  /// draws no caret.
   final VoicePoint? cursor;
+  /// A note that is not in the score, as `SheetView.preview` describes.
+  /// Null draws none.
   final NotePreview? preview;
+  /// What is selected. Its items and spanners are drawn again in the
+  /// selection's ink, when the palette gives one. Compared by identity.
   final Selection selection;
+  /// A colour each note or event is drawn again in. Compared by identity.
   final Map<ElementRef, Color> tints;
+  /// Where playback is. Its playing events take playback's ink, and its
+  /// point places the playhead. Null draws neither.
   final ValueListenable<PlaybackPosition?>? playback;
+  /// Draws the glyphs and the text. Compared by identity.
   final GlyphPainter glyphs;
+  /// Gives the inks of the selection and of playback, the caret, the
+  /// playhead and the preview's colour.
   final SheetPalette palette;
+  /// Maps system space to the tile's pixels.
   final SheetScale scale;
 
   late final SystemLayout _system = layout.systemAt(index);

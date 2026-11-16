@@ -550,6 +550,8 @@ enum PlayerStatus {
 /// One frame's playback position.
 @immutable
 final class PlaybackPosition {
+  /// The position at [seconds] of script time, with the playhead at [point]
+  /// and [playing] sounding.
   const PlaybackPosition({
     required this.seconds,
     required this.point,
