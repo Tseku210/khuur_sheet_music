@@ -185,7 +185,7 @@ Seq<MeasureColumn> _withRestStaves(
     column.copyWith(
       staves: column.staves.insertAllAt(row, [
         for (final (staff, clef) in staves)
-          _restStaff(staff, clef, column.length, ids),
+          restStaff(staff, clef, column.length, ids.event),
       ]),
     ),
 ]);

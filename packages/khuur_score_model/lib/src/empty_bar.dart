@@ -25,15 +25,24 @@ MeasureColumn emptyBar({
   tempos: tempos,
   staves: Seq([
     for (final (staff, clef) in clefs)
-      StaffMeasure(
-        staff: staff,
-        clef: clef,
-        voices: Seq([
-          Voice(
-            slot: VoiceSlot.one,
-            items: Seq([MeasureRest(id: restId(), span: meter.length)]),
-          ),
-        ]),
-      ),
+      restStaff(staff, clef, meter.length, restId),
+  ]),
+);
+
+/// [staff]'s bar in [clef], [length] long, holding one [MeasureRest] whose
+/// id [restId] mints.
+StaffMeasure restStaff(
+  StaffId staff,
+  Clef clef,
+  Length length,
+  EventId Function() restId,
+) => StaffMeasure(
+  staff: staff,
+  clef: clef,
+  voices: Seq([
+    Voice(
+      slot: VoiceSlot.one,
+      items: Seq([MeasureRest(id: restId(), span: length)]),
+    ),
   ]),
 );

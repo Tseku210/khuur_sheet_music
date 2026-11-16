@@ -600,7 +600,12 @@ List<MeasureColumn> _rippledBars(
       for (final s in first.staves)
         if (!cut.containsKey(s.staff))
           base?.staff(s.staff) ??
-              _restStaff(s.staff, closing.staff(s.staff).clefAtEnd, length, ids)
+              restStaff(
+                s.staff,
+                closing.staff(s.staff).clefAtEnd,
+                length,
+                ids.event,
+              )
         else if (base != null &&
             _sameStaff(
               base.staff(s.staff),
@@ -847,18 +852,6 @@ _Placed _blank(Length span, VoiceSlot slot, MeasureId origin, _Ids ids) => (
   span: span,
   origin: origin,
 );
-
-StaffMeasure _restStaff(StaffId staff, Clef clef, Length length, _Ids ids) =>
-    StaffMeasure(
-      staff: staff,
-      clef: clef,
-      voices: Seq([
-        Voice(
-          slot: VoiceSlot.one,
-          items: Seq([MeasureRest(id: ids.event(), span: length)]),
-        ),
-      ]),
-    );
 
 /// The ids of the events at the top of [bar]'s voices.
 Set<EventId> _eventIds(StaffMeasure bar) => {
