@@ -35,6 +35,7 @@ part 'playback_tempo.dart';
 /// Long-lived. Keep one per composer screen so its fragment cache survives
 /// across edits.
 final class PlaybackCompiler {
+  /// Makes a compiler with an empty fragment cache.
   PlaybackCompiler();
 
   /// Fragments keyed by column identity. A column that an edit did not touch
@@ -42,6 +43,10 @@ final class PlaybackCompiler {
   /// die with their columns.
   final Expando<_Fragment> _fragments = Expando('playback fragments');
 
+  /// Compiles [score] into a script, playing what [options] asks.
+  ///
+  /// A bar whose column an edit did not replace reuses the fragment cached from
+  /// an earlier compile.
   PlaybackScript compile(
     Score score, [
     PlaybackOptions options = const PlaybackOptions(),
@@ -181,6 +186,7 @@ const _melodicChannels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15];
 /// The tempo playback runs at through a score, from its tempo marks and its
 /// tempo lines. Edits read it to keep the tempo of the bars they move.
 final class PlayedTempo {
+  /// Reads the tempo of every point of [score].
   factory PlayedTempo(Score score) {
     final time = _Timeline(score);
     return PlayedTempo._(time, _TempoMap(score, time));
@@ -358,14 +364,24 @@ final class _Bar {
       clock.wholesAt(seconds - played.start + clock.at(from));
 }
 
+/// What part of a score to play, and which parts to leave silent.
 final class PlaybackOptions {
+  /// By default the whole score plays, repeats unrolled, with every part heard.
   const PlaybackOptions({this.from, this.to, this.muted = const {}});
 
-  /// Play only `[from, to)` in notated order, ignoring repeats. The player
-  /// loops the returned script when the user asked for a loop.
+  /// The start of the range. Null starts at the first bar.
+  ///
+  /// Once [from] or [to] is set, only `[from, to)` plays, in notated order,
+  /// with repeats and jumps ignored. With both null the whole score plays
+  /// with its repeats unrolled. The player loops the returned script when
+  /// the user asked for a loop.
   final ScorePoint? from;
+  /// The end of the range, which does not play. Null plays to the end of the
+  /// last bar.
   final ScorePoint? to;
 
+  /// The parts that get no channel and no notes. Their events do not count in
+  /// [PlaybackScript.playingAt] either.
   final Set<PartId> muted;
 }
 
@@ -380,6 +396,7 @@ final class PlaybackScript {
     required this.bars,
   });
 
+  /// How long the script plays, in seconds.
   final double totalSeconds;
 
   /// Program to load on each channel before playing.
@@ -482,6 +499,7 @@ final class BarClock {
 
   final _Bar _bar;
 
+  /// The played bar this clock times.
   PlayedBar get played => _bar.played;
 
   /// How much of the bar plays: all of it, or the part a range keeps.
@@ -511,6 +529,7 @@ final class BarClock {
 
 /// Where playback is at one moment of a script.
 final class PlaybackPoint {
+  /// A point [offset] whole notes into [bar], with the [next] bar to play.
   const PlaybackPoint({required this.bar, required this.offset, this.next});
 
   /// The bar being played, with its pass.
@@ -525,7 +544,9 @@ final class PlaybackPoint {
   final double offset;
 }
 
+/// One note for the player to send, timed in seconds of the script.
 final class PlaybackNote {
+  /// A note of [key] on [channel], [start] seconds into the script.
   const PlaybackNote({
     required this.start,
     required this.duration,
@@ -554,7 +575,10 @@ final class PlaybackNote {
   /// 0 or 50 (quarter tones). The player applies pitch bend.
   final int cents;
 
+  /// The MIDI velocity, from the dynamic at the note and its accents. It is
+  /// 12 to 127, from [Dynamic.pppp] up to the cap.
   final int velocity;
+  /// The MIDI channel, 0 to 15. Channel 9 plays percussion parts.
   final int channel;
 
   /// The event that produced this note. A tie chain reports its first
@@ -562,7 +586,9 @@ final class PlaybackNote {
   final EventRef source;
 }
 
+/// The program and bank one part plays with on its channel.
 final class ChannelSetup {
+  /// The setup of [channel] for [part].
   const ChannelSetup({
     required this.channel,
     required this.part,
@@ -570,13 +596,20 @@ final class ChannelSetup {
     this.bank = 0,
   });
 
+  /// The MIDI channel, 0 to 15. A percussion part plays on 9, and pitched parts
+  /// share channels in turn when there are more than 15.
   final int channel;
+  /// The part it plays.
   final PartId part;
+  /// The MIDI program, 0 to 127, of the part's instrument.
   final int program;
+  /// The sound bank, 0 or more, of the part's instrument.
   final int bank;
 }
 
+/// One pass through a bar, and when in the script it plays.
 final class PlayedBar {
+  /// A pass through [measure] from [start] to [end] seconds.
   const PlayedBar({
     required this.measure,
     required this.pass,
@@ -584,12 +617,16 @@ final class PlayedBar {
     required this.end,
   });
 
+  /// The bar that plays.
   final MeasureId measure;
 
   /// How many times the bar has played, counting this time: 1 for the
   /// first time through.
   final int pass;
+  /// Seconds from the script start to where the bar starts playing.
   final double start;
+  /// Seconds from the script start to where the bar stops playing, which is
+  /// where the next played bar starts.
   final double end;
 }
 

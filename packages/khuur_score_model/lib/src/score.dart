@@ -68,6 +68,10 @@ String? _shapeProblem(
 /// Equality is identity. Two scores are "the same" only if they are the same
 /// object; comparing subtrees by identity is how [changesSince] works.
 final class Score {
+  /// A score from its children. Debug builds assert that it has a part and
+  /// a bar, that bar ids are unique, that every bar lists the staves of
+  /// [parts] in system order, and that every spanner names a bar and staff
+  /// of the score and does not end before it starts.
   Score({
     required this.meta,
     required this.parts,
@@ -145,7 +149,10 @@ final class Score {
     );
   }
 
+  /// Title and credits.
   final ScoreMeta meta;
+
+  /// The parts, top to bottom in system order. Never empty.
   final Seq<Part> parts;
 
   /// The global, ordered list of bars. Bar *numbers* are derived from
@@ -181,6 +188,7 @@ final class Score {
       _indexById[id] ??
       (throw ArgumentError.value(id, 'id', 'no such measure'));
 
+  /// Whether bar [id] is in this score.
   bool contains(MeasureId id) => _indexById.containsKey(id);
 
   /// The printed number of bar [id]. Bars count from 1. A first bar shorter
@@ -191,8 +199,10 @@ final class Score {
     return indexOf(id) + (first.length < first.meter.length ? 0 : 1);
   }
 
+  /// Bar [id]. Throws if [id] is not in this score.
   MeasureColumn column(MeasureId id) => measures[indexOf(id)];
 
+  /// The part that holds [staff]. Throws if no part does.
   Part partOf(StaffId staff) {
     for (final part in parts) {
       if (part.staves.any((s) => s.id == staff)) {
@@ -593,7 +603,10 @@ final class Score {
       _spannersByBar[indexOf(id)] ?? const [];
 }
 
+/// The title and credits of a score. An empty string means the score has
+/// none of that kind, and layout prints nothing for it.
 final class ScoreMeta {
+  /// Credits that default to empty.
   const ScoreMeta({
     this.title = '',
     this.subtitle = '',
@@ -602,14 +615,25 @@ final class ScoreMeta {
     this.copyright = '',
   });
 
+  /// Printed centred above the first system.
   final String title;
+
+  /// Printed centred under [title].
   final String subtitle;
+
+  /// Printed flush right on the line under the titles.
   final String composer;
+
+  /// Printed flush left on the line of [composer].
   final String lyricist;
+
+  /// Saved and exported to MusicXML. Layout does not print it.
   final String copyright;
 }
 
+/// One player's part: its names, its instrument and its staves.
 final class Part {
+  /// A part, shown and with no short name unless told otherwise.
   const Part({
     required this.id,
     required this.name,
@@ -619,10 +643,16 @@ final class Part {
     this.hidden = false,
   });
 
+  /// The part's identity.
   final PartId id;
 
+  /// Printed before the first system. Empty prints none.
   final String name;
+
+  /// Printed before every system after the first. Empty prints none.
   final String shortName;
+
+  /// What the part plays: its sound, transposition, clef and kit.
   final Instrument instrument;
 
   /// One for most instruments, two for piano.
@@ -631,6 +661,7 @@ final class Part {
   /// Hidden parts stay in the score and play, but layout skips them.
   final bool hidden;
 
+  /// This part with [hidden] replaced when given.
   Part copyWith({bool? hidden}) => Part(
     id: id,
     name: name,
@@ -641,9 +672,13 @@ final class Part {
   );
 }
 
+/// One staff of a part. Its music lives in the bars, one `StaffMeasure` per
+/// bar.
 final class Staff {
+  /// A staff of [lines] lines, five unless given.
   const Staff({required this.id, this.lines = 5});
 
+  /// The staff's identity.
   final StaffId id;
 
   /// 5 for pitched staves, 1 for one-line percussion.
@@ -653,6 +688,8 @@ final class Staff {
 /// A playable instrument. Parts copy it by value; the app's catalogue of
 /// 100+ instruments is a list of these constants.
 final class Instrument {
+  /// An instrument that, unless told otherwise, sounds as written in bank
+  /// 0, reads treble clef, and has no strings, kit or known range.
   const Instrument({
     required this.key,
     required this.program,
@@ -670,12 +707,16 @@ final class Instrument {
 
   /// General MIDI program 0–127. The app's SoundFont decides the sound.
   final int program;
+
+  /// The SoundFont bank [program] is in, 0 or more. 0 is the melodic bank,
+  /// and 128 is a SoundFont's percussion bank.
   final int bank;
 
   /// Written to sounding: B♭ clarinet is (−1 step, −2 semitones). Unison for
   /// concert-pitch instruments. Display only; pitches are stored concert.
   final Interval transposition;
 
+  /// The clef a new staff of this instrument starts in.
   final Clef clef;
 
   /// Open strings, lowest first. Violin: G3, D4, A4, E5.
@@ -685,12 +726,17 @@ final class Instrument {
   /// [Drum] names its sound.
   final List<DrumSound> drums;
 
-  /// Comfortable range, for out-of-range colouring. Null when unknown.
+  /// Bottom of the comfortable range, in concert pitch, for out-of-range
+  /// colouring. Null when unknown.
   final Pitch? lowest;
+
+  /// Top of the comfortable range, in concert pitch. Null when unknown.
   final Pitch? highest;
 
+  /// Whether this is a drum kit, an instrument with [drums].
   bool get isPercussion => drums.isNotEmpty;
 
+  /// The kit sound that [drum] names, or null when the kit has none.
   DrumSound? soundOf(Drum drum) =>
       drums.where((sound) => sound.name == drum.name).firstOrNull;
 
@@ -703,6 +749,7 @@ final class Instrument {
 /// One sound of a drum kit: where it sits on the staff, the head it is
 /// drawn with and which MIDI key plays it.
 final class DrumSound {
+  /// A sound drawn with a normal head unless [head] says otherwise.
   const DrumSound({
     required this.name,
     required this.position,
@@ -710,15 +757,25 @@ final class DrumSound {
     this.head = NoteHead.normal,
   });
 
+  /// The name a [Drum] uses to pick this sound. Unique within a kit.
   final String name;
+
+  /// Where the sound's notes print, given as the written pitch that sits
+  /// there in the staff's clef.
   final Pitch position;
+
+  /// The MIDI note number that plays the sound, 0 to 127.
   final int midiKey;
+
+  /// The notehead the sound's notes are drawn with.
   final NoteHead head;
 }
 
 /// What `Score.blank` and `AddPart` need to create a part. Ids are minted by
 /// the caller of the template, never by the template.
 final class PartTemplate {
+  /// A template for a part of one staff with no short name, unless told
+  /// otherwise.
   const PartTemplate({
     required this.name,
     required this.instrument,
@@ -727,9 +784,16 @@ final class PartTemplate {
     this.clefs,
   });
 
+  /// The new part's [Part.name].
   final String name;
+
+  /// The new part's [Part.shortName].
   final String shortName;
+
+  /// The new part's instrument.
   final Instrument instrument;
+
+  /// How many staves the new part gets, 1 or more.
   final int staves;
 
   /// Initial clef per staff; defaults to the instrument's clef on each.
@@ -749,6 +813,8 @@ final class PartTemplate {
 /// offset in [voice], or in voice one where [voice] holds a gap. Voice one
 /// fills every bar, so such an event always exists.
 final class Spanner {
+  /// A spanner of the whole staff unless [voice] is given. It checks
+  /// nothing itself; [Score] asserts its anchors in debug builds.
   const Spanner({
     required this.id,
     required this.kind,
@@ -758,14 +824,23 @@ final class Spanner {
     this.voice,
   });
 
+  /// The spanner's identity.
   final SpannerId id;
+
+  /// What the spanner is and draws.
   final SpannerKind kind;
+
+  /// The staff it is written on.
   final StaffId staff;
 
   /// Slurs and glissandi belong to a voice; lines and hairpins to the staff.
   final VoiceSlot? voice;
 
+  /// The start anchor, the onset of the first event covered.
   final ScorePoint first;
+
+  /// The end anchor, the onset of the last event covered. A spanner of
+  /// [SpannerReach.time] runs on to the end of that event.
   final ScorePoint last;
 }
 
@@ -780,7 +855,9 @@ enum SpannerReach {
   time,
 }
 
+/// The kind of a [Spanner]: what it draws and the fields of that kind.
 sealed class SpannerKind {
+  /// Lets the subclasses be constant.
   const SpannerKind();
 
   /// Whether the spanner joins notes of one voice, as a slur or glissando
@@ -805,9 +882,12 @@ sealed class SpannerKind {
   int get hashCode => runtimeType.hashCode;
 }
 
+/// A slur over notes of one voice.
 final class Slur extends SpannerKind {
+  /// A solid slur, or a dashed one when [dashed].
   const Slur({this.dashed = false});
 
+  /// Draw the curve as a dashed line.
   final bool dashed;
 
   @override
@@ -820,9 +900,13 @@ final class Slur extends SpannerKind {
   int get hashCode => dashed.hashCode;
 }
 
+/// A crescendo or diminuendo wedge.
 final class Hairpin extends SpannerKind {
+  /// A crescendo when [crescendo], else a diminuendo.
   const Hairpin({required this.crescendo});
 
+  /// The wedge opens toward its end (crescendo) rather than closing
+  /// (diminuendo).
   final bool crescendo;
 
   @override
@@ -837,8 +921,11 @@ final class Hairpin extends SpannerKind {
 /// pitch; layout prints them [OctaveShift.octaves] octaves lower (8va) or
 /// higher (8vb).
 final class OctaveLine extends SpannerKind {
+  /// A line for [shift].
   const OctaveLine(this.shift);
 
+  /// How many octaves, and which way, the music sounds from where it
+  /// prints.
   final OctaveShift shift;
 
   @override
@@ -848,7 +935,10 @@ final class OctaveLine extends SpannerKind {
   int get hashCode => shift.hashCode;
 }
 
+/// A trill sign with a wavy line, for a trill held over several notes.
+/// Playback trills the notes under it.
 final class TrillLine extends SpannerKind {
+  /// The trill line, which has no fields.
   const TrillLine();
 }
 
@@ -856,10 +946,15 @@ final class TrillLine extends SpannerKind {
 /// line. It sets the tempo for every part, whichever staff it is written on,
 /// as a fermata holds every part.
 final class TempoLine extends SpannerKind {
+  /// A line printing [text] that moves the tempo to [factor] of its start.
+  /// Asserts that [factor] is positive.
   const TempoLine({required this.text, required this.factor})
     : assert(factor > 0, 'factor is positive');
 
+  /// "rit.", slowing to three quarters of the tempo at its start.
   static const ritardando = TempoLine(text: 'rit.', factor: 0.75);
+
+  /// "accel.", speeding up to four thirds of the tempo at its start.
   static const accelerando = TempoLine(text: 'accel.', factor: 4 / 3);
 
   /// What prints, as "rit." or "poco accel.".
@@ -877,26 +972,44 @@ final class TempoLine extends SpannerKind {
   int get hashCode => Object.hash(text, factor);
 }
 
+/// A sustain pedal line. Playback holds the pedal down for the whole part
+/// under it, whichever of the part's staves it is written on.
 final class PedalLine extends SpannerKind {
+  /// The pedal line, which has no fields.
   const PedalLine();
 }
 
+/// A glissando line between notes of one voice.
 final class Glissando extends SpannerKind {
+  /// The glissando, which has no fields.
   const Glissando();
 
   @override
   bool get joinsNotes => true;
 }
 
+/// How far an [OctaveLine] moves the sound from the print.
 enum OctaveShift {
+  /// 8va: sounds one octave above where it prints.
   up8(1),
+
+  /// 8vb: sounds one octave below where it prints.
   down8(-1),
+
+  /// 15ma: sounds two octaves above where it prints.
   up15(2),
+
+  /// 15mb: sounds two octaves below where it prints.
   down15(-2),
+
+  /// 22ma: sounds three octaves above where it prints.
   up22(3),
+
+  /// 22mb: sounds three octaves below where it prints.
   down22(-3);
 
   OctaveShift(this.octaves);
 
+  /// Octaves the sound lies above the print, negative for below.
   final int octaves;
 }

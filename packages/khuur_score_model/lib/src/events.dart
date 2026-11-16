@@ -27,6 +27,7 @@ sealed class VoiceItem {
 /// this voice"). MusicXML calls this `<forward>`. Voice one never holds a gap;
 /// it holds rests. Not selectable, not played, not drawn.
 final class Gap extends VoiceItem {
+  /// A gap of [span]. Asserts that [span] is positive.
   Gap(this.span) : assert(span.isPositive, 'gap is positive');
 
   @override
@@ -42,6 +43,7 @@ sealed class Content extends VoiceItem {
 sealed class Event extends Content {
   const Event({required this.id, this.articulations = const {}});
 
+  /// Identity of this event, unique within the score.
   final EventId id;
 
   /// Stackable marks; order does not matter. Includes fermata, which is
@@ -52,6 +54,8 @@ sealed class Event extends Content {
 
 /// One or more simultaneous note heads sharing a stem and a duration.
 final class ChordEvent extends Event {
+  /// Asserts that [notes] is not empty, that the chord and its graces are
+  /// all pitched or all drums, and that [tremolo] is in 0 to 4.
   ChordEvent({
     required super.id,
     required this.value,
@@ -71,6 +75,7 @@ final class ChordEvent extends Event {
        ),
        assert(tremolo >= 0 && tremolo <= 4, 'tremolo strokes in 0..4');
 
+  /// Written value. An enclosing [Tuplet] scales the time it sounds.
   final NoteValue value;
 
   /// At most one ornament sign per chord. A trill that continues over
@@ -89,7 +94,10 @@ final class ChordEvent extends Event {
   /// Grace chords played before this chord, in order.
   final Seq<GraceChord> graces;
 
+  /// Stem direction. [StemDirection.auto] lets layout choose.
   final StemDirection stem;
+
+  /// This event's override of the meter's default beaming.
   final BeamMode beam;
 
   /// Single-note tremolo strokes through the stem. 0 for none.
@@ -101,6 +109,8 @@ final class ChordEvent extends Event {
   @override
   Length get span => value.length;
 
+  /// The head in [notes] with [id], or null when there is none. Grace
+  /// notes are not searched.
   Note? note(NoteId id) {
     for (final note in notes) {
       if (note.id == id) {
@@ -110,6 +120,8 @@ final class ChordEvent extends Event {
     return null;
   }
 
+  /// A copy with the given fields replaced. A nullable field takes a
+  /// function so that it can be set to null.
   ChordEvent copyWith({
     EventId? id,
     NoteValue? value,
@@ -143,6 +155,7 @@ bool _oneKind(List<Note> notes) =>
 
 /// A rest of a written value.
 final class RestEvent extends Event {
+  /// A rest of [value].
   const RestEvent({
     required super.id,
     required this.value,
@@ -150,6 +163,7 @@ final class RestEvent extends Event {
     this.hidden = false,
   });
 
+  /// Written value. An enclosing [Tuplet] scales the time it lasts.
   final NoteValue value;
 
   /// Present in the timeline but not printed.
@@ -164,6 +178,8 @@ final class RestEvent extends Event {
 /// A voice that holds a [MeasureRest] holds nothing else. A blank measure is
 /// one [MeasureRest] per staff in voice one.
 final class MeasureRest extends Event {
+  /// A rest that spans [span], which the enclosing column checks against
+  /// its length.
   const MeasureRest({
     required super.id,
     required this.span,
@@ -181,6 +197,8 @@ final class MeasureRest extends Event {
 /// `unit.length × ratio.actual`. A tuplet is created full of rests, so it is
 /// never partially filled. Tuplets nest.
 final class Tuplet extends Content {
+  /// Throws [ArgumentError] unless [members] span exactly
+  /// `unit.length × ratio.actual`.
   Tuplet({
     required this.id,
     required this.ratio,
@@ -197,25 +215,42 @@ final class Tuplet extends Content {
     }
   }
 
+  /// Identity of this tuplet, unique within the score.
   final TupletId id;
+
+  /// Actual notes in the time of normal ones, as 3:2 for a triplet.
   final TupletRatio ratio;
 
   /// The value the ratio counts in: a triplet of eighths has unit eighth.
   final NoteValue unit;
 
+  /// Events and nested tuplets in time order, at their written spans.
   final Seq<Content> members;
+
+  /// Whether layout draws a bracket. See [TupletBracket].
   final TupletBracket bracket;
 
   @override
   Length get span => unit.length * Fraction(ratio.normal);
 }
 
-enum TupletBracket { auto, shown, hidden }
+/// Whether a tuplet's bracket is drawn. Its number prints either way.
+enum TupletBracket {
+  /// Drawn unless the tuplet's events are exactly one beam group.
+  auto,
+
+  /// Always drawn.
+  shown,
+
+  /// Never drawn.
+  hidden,
+}
 
 /// One note head.
 sealed class Note {
   const Note({required this.id, this.tie = false});
 
+  /// Identity of this head, unique within the score.
   final NoteId id;
 
   /// Tied to the head of the same [tone] in the next event of the same
@@ -228,11 +263,13 @@ sealed class Note {
   /// What it plays. A chord never holds one tone twice.
   Tone get tone;
 
+  /// A copy with [id] or [tie] replaced.
   Note copyWith({NoteId? id, bool? tie});
 }
 
 /// A head on a pitched staff.
 final class PitchedNote extends Note {
+  /// A head that sounds [pitch].
   const PitchedNote({
     required super.id,
     required this.pitch,
@@ -246,7 +283,10 @@ final class PitchedNote extends Note {
   /// Concert (sounding) pitch. What is printed is derived per staff.
   final Pitch pitch;
 
+  /// Whether an accidental prints on this head. See [AccidentalRequest].
   final AccidentalRequest accidental;
+
+  /// Shape of the head.
   final NoteHead head;
 
   /// Finger number, 0 for an open string. The upper bound depends on the
@@ -283,8 +323,10 @@ final class PitchedNote extends Note {
 /// A head on a percussion staff. It is drawn where its part's kit places
 /// [drum], with the kit's head.
 final class DrumNote extends Note {
+  /// A head that plays [drum].
   const DrumNote({required super.id, required this.drum, super.tie});
 
+  /// The drum it plays.
   final Drum drum;
 
   @override
@@ -303,6 +345,7 @@ final class DrumNote extends Note {
 /// the principal: a 32nd for each acciaccatura, or half the principal when
 /// any is an appoggiatura, and never more than half.
 final class GraceChord {
+  /// Asserts that [notes] is not empty.
   GraceChord({
     required this.id,
     required this.kind,
@@ -310,24 +353,86 @@ final class GraceChord {
     required this.notes,
   }) : assert(notes.isNotEmpty, 'a grace chord has at least one note');
 
+  /// Identity of this grace chord, drawn from the same ids as events.
   final EventId id;
+
+  /// Which kind of grace, which sets how long it plays.
   final GraceKind kind;
+
+  /// Written value, which sets its flags and beams. Playback times graces
+  /// by [kind], not by this.
   final NoteValue value;
+
+  /// Heads, all pitched or all drums like the principal chord's.
   final Seq<Note> notes;
 }
 
-enum GraceKind { acciaccatura, appoggiatura }
+/// How a grace chord is drawn and how much time it takes from its
+/// principal. See [GraceChord].
+enum GraceKind {
+  /// A short grace, drawn with a slash through the stem. Each takes a 32nd,
+  /// and all of them together at most half the principal.
+  acciaccatura,
+
+  /// A leaning grace, drawn without the slash. With any appoggiatura among
+  /// them, a chord's graces take half its time.
+  appoggiatura,
+}
 
 /// Whether to print an accidental. [auto] defers to
 /// `StaffView.accidentals`, which applies key, bar and tie rules.
-enum AccidentalRequest { auto, always, cautionary, never }
+enum AccidentalRequest {
+  /// Prints where the key, bar and tie rules call for one.
+  auto,
 
-enum NoteHead { normal, cross, diamond, slash, triangle, circleCross }
+  /// Prints even where the rules would not.
+  always,
 
-enum StemDirection { auto, up, down }
+  /// Prints in parentheses, even where the rules would not.
+  cautionary,
+
+  /// Never prints. The head also leaves the alteration in force at its
+  /// staff position unchanged for later heads in the bar.
+  never,
+}
+
+/// Shape of a pitched note head.
+enum NoteHead {
+  /// The usual oval.
+  normal,
+
+  /// An x.
+  cross,
+
+  /// A diamond, as for a harmonic.
+  diamond,
+
+  /// A slash, as for rhythm notation.
+  slash,
+
+  /// A triangle pointing up.
+  triangle,
+
+  /// An x inside a circle.
+  circleCross,
+}
+
+/// Which way a chord's stem points.
+enum StemDirection {
+  /// Layout decides. With two or more voices on the staff it follows
+  /// [VoiceSlot.stemsUp], and otherwise the heads' places on the staff.
+  auto,
+
+  /// Stem up.
+  up,
+
+  /// Stem down.
+  down,
+}
 
 /// Per-event override of default beaming (which comes from the meter).
 enum BeamMode {
+  /// Follows the meter's default grouping.
   auto,
 
   /// Start a new beam group here.
@@ -344,20 +449,63 @@ enum BeamMode {
 /// accent and trill at once, through [ChordEvent.bowing],
 /// [Event.articulations] and [ChordEvent.ornament].
 enum Articulation {
+  /// A dot. The note sounds for half its time, or three quarters under a
+  /// [tenuto].
   staccato,
+
+  /// A wedge. The note sounds for a quarter of its time.
   staccatissimo,
+
+  /// An accent. The note strikes harder.
   accent,
+
+  /// A marcato. The note strikes harder than under an [accent], and both
+  /// together stack.
   marcato,
+
+  /// A line. The note sounds for its full time.
   tenuto,
+
+  /// A pause. Time under it passes at half speed in every part. The only
+  /// mark a rest may carry.
   fermata,
+
+  /// A small circle above the chord, for a string harmonic. Playback
+  /// ignores it.
   harmonic,
 }
 
-enum Ornament { trill, mordent, invertedMordent, turn, invertedTurn }
+/// An ornament sign on one chord. Playback plays its figure from scale
+/// steps of the key.
+enum Ornament {
+  /// Alternates with the note above in 32nds.
+  trill,
 
-enum Bowing { up, down }
+  /// The note, the one below, then the note again.
+  mordent,
 
+  /// The note, the one above, then the note again.
+  invertedMordent,
+
+  /// The note above, the note, the note below, then the note.
+  turn,
+
+  /// The note below, the note, the note above, then the note.
+  invertedTurn,
+}
+
+/// Bow direction for a string stroke.
+enum Bowing {
+  /// Up-bow.
+  up,
+
+  /// Down-bow.
+  down,
+}
+
+/// One verse's syllable under a chord.
 final class Lyric {
+  /// The syllable [text] of [verse].
   const Lyric({
     required this.verse,
     required this.text,
@@ -367,7 +515,12 @@ final class Lyric {
 
   /// 1-based verse number.
   final int verse;
+
+  /// The syllable as it prints. Hyphens come from [syllabic].
   final String text;
+
+  /// Where the syllable sits in its word, which decides the hyphens drawn
+  /// after it.
   final Syllabic syllabic;
 
   /// Draw a melisma extender line after the syllable.
@@ -385,4 +538,17 @@ final class Lyric {
   int get hashCode => Object.hash(verse, text, syllabic, extend);
 }
 
-enum Syllabic { single, begin, middle, end }
+/// Where a [Lyric] syllable sits in its word.
+enum Syllabic {
+  /// A whole word.
+  single,
+
+  /// The first syllable. A hyphen follows it.
+  begin,
+
+  /// A syllable inside the word. A hyphen follows it.
+  middle,
+
+  /// The last syllable.
+  end,
+}

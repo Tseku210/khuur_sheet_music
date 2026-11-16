@@ -18,11 +18,13 @@ import '../time.dart';
 /// part. Import takes a note without one as the first voice of its staff.
 int voiceNumber(int staff, VoiceSlot slot) => staff * 4 + slot.index + 1;
 
+/// The slot a `<voice>` number gives on its staff. It undoes [voiceNumber].
 VoiceSlot slotOfVoice(int voice) => VoiceSlot.values[(voice - 1) % 4];
 
 /// The `size` of an octave shift: 8, 15 or 22.
 int octaveShiftSize(OctaveShift shift) => shift.octaves.abs() * 7 + 1;
 
+/// The `<type>` name of [base].
 String typeName(DurationBase base) => switch (base) {
   DurationBase.breve => 'breve',
   DurationBase.whole => 'whole',
@@ -35,6 +37,7 @@ String typeName(DurationBase base) => switch (base) {
   DurationBase.oneTwentyEighth => '128th',
 };
 
+/// The duration base each `<type>` name reads as.
 final Map<String, DurationBase> baseByTypeName = {
   for (final base in DurationBase.values) typeName(base): base,
 };
@@ -74,6 +77,7 @@ final Map<String, NoteHead> headByName = {
     if (noteheadName(head) case final String name) name: head,
 };
 
+/// The `<ornaments>` child for [ornament].
 String ornamentName(Ornament ornament) => switch (ornament) {
   Ornament.trill => 'trill-mark',
   Ornament.mordent => 'mordent',
@@ -100,6 +104,7 @@ String? articulationName(Articulation articulation) => switch (articulation) {
   Articulation.fermata || Articulation.harmonic => null,
 };
 
+/// The articulation each `<articulations>` child reads as.
 final Map<String, Articulation> articulationByName = {
   for (final articulation in Articulation.values)
     if (articulationName(articulation) case final String name)
@@ -112,6 +117,7 @@ String bowingName(Bowing bowing) => switch (bowing) {
   Bowing.down => 'down-bow',
 };
 
+/// The bowing each `<technical>` child reads as.
 final Map<String, Bowing> bowingByName = {
   for (final bowing in Bowing.values) bowingName(bowing): bowing,
 };
@@ -146,6 +152,7 @@ const chordKinds = {
   '5': 'power',
 };
 
+/// The chord quality each `<kind>` of [chordKinds] reads as.
 final Map<String, String> qualityByKind = {
   for (final MapEntry(:key, :value) in chordKinds.entries) value: key,
 };
@@ -191,6 +198,7 @@ JumpThen jumpEndingIn(String words) {
       : JumpThen.toEnd;
 }
 
+/// The clef `<sign>` for [sign].
 String clefSignName(ClefSign sign) => switch (sign) {
   ClefSign.g => 'G',
   ClefSign.f => 'F',

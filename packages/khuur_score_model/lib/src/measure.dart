@@ -26,6 +26,9 @@ import 'time.dart';
 /// explicit: a pickup bar sets [irregularLength], and a secondary voice with
 /// nothing to say uses [Gap]s.
 final class MeasureColumn {
+  /// Throws [ArgumentError] when a voice does not span [length], a clef
+  /// change is not strictly inside the bar, or a tempo mark lies outside
+  /// `[0, length)`.
   MeasureColumn({
     required this.id,
     required this.meter,
@@ -66,6 +69,7 @@ final class MeasureColumn {
     }
   }
 
+  /// Stable identity of this bar. See [MeasureId].
   final MeasureId id;
 
   /// Meter in effect for this bar. Printed where it differs from the
@@ -80,11 +84,14 @@ final class MeasureColumn {
   /// (longer). Null for a regular bar.
   final Length? irregularLength;
 
-  /// Barline at the end of this bar.
+  /// Barline at the end of this bar. An end repeat draws its own barline
+  /// in place of this one.
   final Barline barline;
 
+  /// Whether a start repeat barline opens this bar.
   final bool repeatStart;
 
+  /// The end repeat that closes this bar, or null for none.
   final RepeatEnd? repeatEnd;
 
   /// The ending bracket this bar belongs to, if any. Consecutive columns
@@ -109,13 +116,17 @@ final class MeasureColumn {
   /// lets layout choose. The first bar starts both anyway.
   final LayoutBreak? breakBefore;
 
+  /// How the key signature prints at this bar. See [SignatureDisplay].
   final SignatureDisplay keyDisplay;
 
+  /// How the time signature prints at this bar. See [SignatureDisplay].
   final SignatureDisplay meterDisplay;
 
   /// Capacity every voice must fill.
   Length get length => irregularLength ?? meter.length;
 
+  /// The slice of staff [id]. Throws [ArgumentError] when the bar has no
+  /// such staff.
   StaffMeasure staff(StaffId id) {
     for (final staff in staves) {
       if (staff.staff == id) {
@@ -129,6 +140,9 @@ final class MeasureColumn {
     );
   }
 
+  /// A copy with the given fields replaced and the same [id]. A nullable
+  /// field takes a function so that it can be set to null. The copy is
+  /// checked like a new column.
   MeasureColumn copyWith({
     Meter? meter,
     KeySignature? key,
@@ -164,6 +178,8 @@ final class MeasureColumn {
     meterDisplay: meterDisplay ?? this.meterDisplay,
   );
 
+  /// A copy with [staff] in place of the slice of the same staff. Throws
+  /// [ArgumentError] when the bar has no such staff.
   MeasureColumn withStaff(StaffMeasure staff) {
     final index = staves.indexWhere((s) => s.staff == staff.staff);
     if (index < 0) {
@@ -175,6 +191,8 @@ final class MeasureColumn {
 
 /// One staff's slice of a column.
 final class StaffMeasure {
+  /// Asserts that voice one comes first and that voice slots are unique
+  /// and ascending.
   StaffMeasure({
     required this.staff,
     required this.clef,
@@ -187,6 +205,7 @@ final class StaffMeasure {
        ),
        assert(_ascendingSlots(voices), 'voice slots unique and ascending');
 
+  /// The staff this slice belongs to.
   final StaffId staff;
 
   /// Clef in effect at the start of this bar. Printed at the barline where
@@ -204,8 +223,11 @@ final class StaffMeasure {
   /// staff, ascending by offset.
   final Seq<StaffDirection> directions;
 
+  /// Clef in effect at the end of this bar, after its last clef change.
   Clef get clefAtEnd => clefChanges.isEmpty ? clef : clefChanges.last.clef;
 
+  /// Clef in effect at [offset] from the start of the bar. A change at
+  /// exactly [offset] already applies.
   Clef clefAt(Moment offset) {
     var current = clef;
     for (final change in clefChanges) {
@@ -217,6 +239,7 @@ final class StaffMeasure {
     return current;
   }
 
+  /// The voice in [slot], or null when that slot holds nothing in this bar.
   Voice? voice(VoiceSlot slot) {
     for (final voice in voices) {
       if (voice.slot == slot) {
@@ -226,6 +249,7 @@ final class StaffMeasure {
     return null;
   }
 
+  /// A copy with the given fields replaced and the same [staff].
   StaffMeasure copyWith({
     Clef? clef,
     Seq<ClefChange>? clefChanges,
@@ -267,6 +291,7 @@ bool _ascendingSlots(Seq<Voice> voices) {
 
 /// One voice lane of one staff in one bar.
 final class Voice {
+  /// Asserts that [items] is not empty and that voice one holds no [Gap].
   Voice({required this.slot, required this.items})
     : assert(items.isNotEmpty, 'a stored voice has items'),
       assert(
@@ -274,7 +299,10 @@ final class Voice {
         'voice one has no gaps',
       );
 
+  /// The lane this voice fills.
   final VoiceSlot slot;
+
+  /// Events, tuplets and gaps in time order.
   final Seq<VoiceItem> items;
 
   /// Sum of the items' spans. The enclosing column requires this to equal
@@ -282,10 +310,15 @@ final class Voice {
   Length get length => Length.sum(items.map((i) => i.span));
 }
 
+/// A clef change inside a bar. See [StaffMeasure.clefChanges].
 final class ClefChange {
+  /// A change to [clef] at [offset].
   const ClefChange(this.offset, this.clef);
 
+  /// Whole notes from the start of the bar, strictly inside it.
   final Moment offset;
+
+  /// Clef in effect from [offset] on.
   final Clef clef;
 
   @override
@@ -296,7 +329,29 @@ final class ClefChange {
   int get hashCode => Object.hash(offset, clef);
 }
 
-enum Barline { regular, doubleBar, finalBar, dashed, dotted, heavy, invisible }
+/// The line drawn at the end of a bar.
+enum Barline {
+  /// One thin line.
+  regular,
+
+  /// Two thin lines.
+  doubleBar,
+
+  /// A thin line then a thick one, as at the end of a piece.
+  finalBar,
+
+  /// One dashed line.
+  dashed,
+
+  /// One dotted line.
+  dotted,
+
+  /// One thick line.
+  heavy,
+
+  /// No line.
+  invisible,
+}
 
 /// A break that layout must make before a bar.
 enum LayoutBreak {
@@ -321,7 +376,11 @@ enum SignatureDisplay {
   noCourtesy,
 }
 
+/// An end repeat barline at the end of a bar. Playback returns to the last
+/// start repeat, or to the bar after the previous repeated section, or to
+/// the start of the score.
 final class RepeatEnd {
+  /// Asserts that [times] is at least 2.
   const RepeatEnd({this.times = 2})
     : assert(times >= 2, 'a repeat plays twice or more');
 
@@ -338,8 +397,10 @@ final class RepeatEnd {
 /// An ending bracket ("1.", "2.", "1.–3."). [endings] lists the passes on
 /// which bars under this bracket play, ascending.
 final class Volta {
+  /// A bracket over the passes in [endings].
   const Volta(this.endings, {this.open = false});
 
+  /// Pass numbers, counting from 1, on which these bars play.
   final List<int> endings;
 
   /// No downward hook at the right end (typical for the last ending).
@@ -364,8 +425,11 @@ final class Volta {
 ///
 /// Playback honours all of them, codas included.
 sealed class NavigationMark {
+  /// Base constructor for the mark kinds.
   const NavigationMark();
 
+  /// Whether the mark takes effect at the start of its bar rather than at
+  /// its end.
   bool get atBarStart => switch (this) {
     Segno() || Coda() => true,
     ToCoda() || Fine() || Jump() => false,
@@ -379,17 +443,22 @@ sealed class NavigationMark {
   int get hashCode => runtimeType.hashCode;
 }
 
+/// The bar a D.S. [Jump] returns to. A D.S. in a score with no segno goes
+/// to the start.
 final class Segno extends NavigationMark {
+  /// The segno sign.
   const Segno();
 }
 
 /// The coda section starts at this bar.
 final class Coda extends NavigationMark {
+  /// The coda sign.
   const Coda();
 }
 
 /// After a jump, leave for the [Coda] at the end of this bar.
 final class ToCoda extends NavigationMark {
+  /// The "To Coda" mark.
   const ToCoda();
 
   /// What prints.
@@ -398,6 +467,7 @@ final class ToCoda extends NavigationMark {
 
 /// After a jump, stop at the end of this bar.
 final class Fine extends NavigationMark {
+  /// The "Fine" mark.
   const Fine();
 
   /// What prints.
@@ -406,12 +476,17 @@ final class Fine extends NavigationMark {
 
 /// D.C. or D.S., with what happens after the jump.
 final class Jump extends NavigationMark {
+  /// A jump back to [target] that then follows [then].
   const Jump(this.target, {this.then = JumpThen.toEnd, this.text});
 
+  /// Where the jump goes back to.
   final JumpTarget target;
+
+  /// What playback does after the jump.
   final JumpThen then;
 
-  /// Printed text override ("D.C. al Fine" is the default rendering).
+  /// Printed text in place of the words [label] builds, or null to print
+  /// those words.
   final String? text;
 
   /// What prints. It is [text], or else the words for [target] and [then],
@@ -436,11 +511,34 @@ final class Jump extends NavigationMark {
   int get hashCode => Object.hash(target, then, text);
 }
 
-enum JumpTarget { start, segno }
+/// Where a [Jump] goes back to.
+enum JumpTarget {
+  /// D.C., the first bar of the score.
+  start,
 
-enum JumpThen { toEnd, toFine, toCoda }
+  /// D.S., the bar marked [Segno], or the first bar when no bar is.
+  segno,
+}
 
+/// What playback does after a [Jump]. Repeats are not taken again either
+/// way.
+enum JumpThen {
+  /// Play on to the end of the score. [Fine] and [ToCoda] are ignored.
+  toEnd,
+
+  /// Stop at the end of the first bar marked [Fine] that plays after the
+  /// jump.
+  toFine,
+
+  /// At the end of the first bar marked [ToCoda] that plays after the
+  /// jump, leave for the bar marked [Coda], once.
+  toCoda,
+}
+
+/// A tempo change at a time inside a bar. Playback takes [tempo] from
+/// [offset] on.
 final class TempoMark {
+  /// A mark that sets [tempo] at [offset].
   const TempoMark({
     required this.offset,
     required this.tempo,
@@ -448,12 +546,18 @@ final class TempoMark {
     this.showMetronome = true,
   });
 
+  /// Whole notes from the start of the bar, in `[0, length)`.
   final Moment offset;
+
+  /// The tempo from [offset] on.
   final Tempo tempo;
 
-  /// "Allegro", "Тайван".
+  /// Words printed before the metronome mark, such as "Allegro" or
+  /// "Тайван". Null prints none.
   final String? text;
 
+  /// Whether the metronome mark prints. Playback follows [tempo] either
+  /// way.
   final bool showMetronome;
 
   @override
@@ -471,14 +575,20 @@ final class TempoMark {
 /// Things anchored to a time on one staff (not to an event), like MusicXML
 /// `<direction>`s.
 sealed class StaffDirection {
+  /// Base constructor for a direction at [offset].
   const StaffDirection(this.offset);
 
+  /// Whole notes from the start of the bar.
   final Moment offset;
 }
 
+/// A dynamic marking such as p or sfz. It applies to every staff of its
+/// part. See [Dynamic.velocity].
 final class DynamicMark extends StaffDirection {
+  /// A [level] marking at [offset].
   const DynamicMark(super.offset, this.level);
 
+  /// The marking, which sets the loudness playback uses.
   final Dynamic level;
 
   @override
@@ -489,10 +599,15 @@ final class DynamicMark extends StaffDirection {
   int get hashCode => Object.hash(offset, level);
 }
 
+/// Expression text such as "dolce" or "pizz.". Playback ignores it.
 final class TextMark extends StaffDirection {
+  /// [text] at [offset], above the staff unless [above] is false.
   const TextMark(super.offset, this.text, {this.above = true});
 
+  /// The words that print.
   final String text;
+
+  /// Whether the text prints above the staff. False prints it below.
   final bool above;
 
   @override
@@ -509,6 +624,7 @@ final class TextMark extends StaffDirection {
 /// A chord symbol. Root and bass are spelled so transposition moves them
 /// correctly; [quality] is free text ("m7", "sus4").
 final class ChordSymbol extends StaffDirection {
+  /// A symbol on [root] at [offset].
   const ChordSymbol(
     super.offset, {
     required this.root,
@@ -516,8 +632,13 @@ final class ChordSymbol extends StaffDirection {
     this.bass,
   });
 
+  /// The chord's root, as the "C" of "Cm7".
   final PitchName root;
+
+  /// Text printed after the root. Empty for a major triad.
   final String quality;
+
+  /// The bass of a slash chord, as the "G" of "C/G". Null for none.
   final PitchName? bass;
 
   @override
@@ -532,20 +653,48 @@ final class ChordSymbol extends StaffDirection {
   int get hashCode => Object.hash(offset, root, quality, bass);
 }
 
+/// A dynamic marking, with the MIDI velocity playback gives it.
 enum Dynamic {
+  /// Quadruple piano.
   pppp(12),
+
+  /// Pianississimo.
   ppp(20),
+
+  /// Pianissimo.
   pp(31),
+
+  /// Piano.
   p(42),
+
+  /// Mezzo-piano.
   mp(53),
+
+  /// Mezzo-forte.
   mf(64),
+
+  /// Forte.
   f(80),
+
+  /// Fortissimo.
   ff(96),
+
+  /// Fortississimo.
   fff(112),
+
+  /// Quadruple forte.
   ffff(127),
+
+  /// Sforzando, a sudden accent on the chords at its time.
   sf(100),
+
+  /// Sforzato, a sudden accent on the chords at its time.
   sfz(110),
+
+  /// Forte-piano, a loud attack that then drops to [p].
   fp(80),
+
+  /// Rinforzando, a sudden accent on the chords at its time.
   rfz(100);
 
   Dynamic(this.velocity);

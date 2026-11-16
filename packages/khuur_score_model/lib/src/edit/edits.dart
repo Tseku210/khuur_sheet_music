@@ -25,7 +25,10 @@ import '../seq.dart';
 import '../time.dart';
 import 'session.dart' show ScoreClip, Selection;
 
+/// One change to a score, as plain data. `EditSession.run` applies it as one
+/// undo step, or refuses it with an [EditRefusal].
 sealed class Edit {
+  /// Lets every edit be a const value.
   const Edit();
 
   /// Short English label for the undo menu. The app localizes by edit type.
@@ -86,6 +89,7 @@ sealed class Edit {
 /// [appendBar] for the bar after the score's end work as they do for
 /// overwriting entry.
 final class EnterNote extends Edit {
+  /// Enters [tone] at [at] as a note of [value].
   const EnterNote({
     required this.at,
     required this.tone,
@@ -96,12 +100,15 @@ final class EnterNote extends Edit {
     this.ripple = Ripple.none,
   });
 
+  /// Where the note starts: the staff, the voice and the point in the bar.
   final VoicePoint at;
 
   /// A pitch on a pitched staff, or a drum of the part's kit on a
   /// percussion staff. Anything else is refused with [InvalidValue].
   final Tone tone;
+  /// The written value. Inside a tuplet it is read in the tuplet's time.
   final NoteValue value;
+  /// What happens when the note runs past the barline. See [EnterNote].
   final Overfill overfill;
 
   /// How the chord beams. Every piece of a note split at a barline carries
@@ -122,6 +129,7 @@ final class EnterNote extends Edit {
 /// a gap with [Erase]. A rest that ripples pushes later music as a note
 /// does.
 final class EnterRest extends Edit {
+  /// Enters a rest of [value] at [at].
   const EnterRest({
     required this.at,
     required this.value,
@@ -130,10 +138,17 @@ final class EnterRest extends Edit {
     this.ripple = Ripple.none,
   });
 
+  /// Where the rest starts: the staff, the voice and the point in the bar.
   final VoicePoint at;
+  /// The written value. Inside a tuplet it is read in the tuplet's time.
   final NoteValue value;
+  /// What happens when the rest runs past the barline, as for
+  /// [EnterNote.overfill].
   final Overfill overfill;
+  /// Whether a rest that ends the score gets an empty bar after it, as for
+  /// [EnterNote.appendBar].
   final bool appendBar;
+  /// Whether the music after the rest moves to make room for it. See [Ripple].
   final Ripple ripple;
 
   @override
@@ -212,9 +227,12 @@ enum Ripple {
 /// the next event, the new note is tied too when the next event has the
 /// same tone. The tone must suit the staff, as for [EnterNote].
 final class AddToChord extends Edit {
+  /// Adds [tone] to [event].
   const AddToChord({required this.event, required this.tone});
 
+  /// The chord or rest that gets the new head.
   final EventRef event;
+  /// What the new head plays.
   final Tone tone;
 
   @override
@@ -224,8 +242,10 @@ final class AddToChord extends Edit {
 /// Removes one head from a chord. Removing the last head leaves a rest of
 /// the same value.
 final class RemoveNote extends Edit {
+  /// Removes [note] from its chord.
   const RemoveNote(this.note);
 
+  /// The head to remove.
   final NoteRef note;
 
   @override
@@ -236,9 +256,12 @@ final class RemoveNote extends Edit {
 /// of a tie chain, the whole chain changes so the tie stays valid. The tone
 /// must suit the staff, as for [EnterNote].
 final class SetTone extends Edit {
+  /// Makes [note] play [tone].
   const SetTone(this.note, this.tone);
 
+  /// The head to change. The tie chain through it changes with it.
   final NoteRef note;
+  /// The new pitch or drum.
   final Tone tone;
 
   @override
@@ -262,10 +285,15 @@ final class SetTone extends Edit {
 /// this way, and the edit is refused with [WouldSplitTuplet]. The cursor
 /// and a range selection on the staves that move follow the music.
 final class SetValue extends Edit {
+  /// Changes [event]'s written value to [value].
   const SetValue(this.event, this.value, {this.ripple = Ripple.none});
 
+  /// The chord, rest or measure rest to change.
   final EventRef event;
+  /// The new written value. It must last a whole number of 128th notes, or the
+  /// edit is refused with [InvalidValue].
   final NoteValue value;
+  /// Whether the music after the event moves by the change. See [Ripple].
   final Ripple ripple;
 
   @override
@@ -279,14 +307,21 @@ final class SetValue extends Edit {
 /// one more is refused with [InvalidValue]. The cursor stays at [at] and
 /// the first rest is selected, so the notes entered next fill the tuplet.
 final class EnterTuplet extends Edit {
+  /// Enters a tuplet of [ratio] at [at], filled with rests of [unit].
   const EnterTuplet({
     required this.at,
     required this.ratio,
     required this.unit,
   });
 
+  /// Where the tuplet starts: the staff, the voice and the point in the bar.
   final VoicePoint at;
+  /// How many notes the tuplet holds in the time of how many.
+  /// [TupletRatio.triplet] is 3 in the time of 2. A term of 0 or less is
+  /// refused with [InvalidValue].
   final TupletRatio ratio;
+  /// The written value of each rest, and the value the ratio counts in. The
+  /// tuplet holds `ratio.actual` rests of it and lasts `ratio.normal` of it.
   final NoteValue unit;
 
   @override
@@ -296,6 +331,7 @@ final class EnterTuplet extends Edit {
 /// Adds a grace chord of [tone] before [event], nearest the principal. The
 /// tone must suit the staff, as for [EnterNote]; a drum grace is a flam.
 final class AddGrace extends Edit {
+  /// Adds a grace chord of [tone] before [event].
   const AddGrace({
     required this.event,
     required this.tone,
@@ -303,9 +339,16 @@ final class AddGrace extends Edit {
     this.value = NoteValue.eighth,
   });
 
+  /// The principal chord the grace leads into. A rest is refused with
+  /// [InvalidValue].
   final EventRef event;
+  /// What the grace plays.
   final Tone tone;
+  /// An acciaccatura, the default, or an appoggiatura. Playback times the two
+  /// differently. See [GraceChord].
   final GraceKind kind;
+  /// The grace's written value, an eighth by default. It must last a whole
+  /// number of 128th notes, or the edit is refused with [InvalidValue].
   final NoteValue value;
 
   @override
@@ -315,9 +358,12 @@ final class AddGrace extends Edit {
 /// Sets or clears the tie from [note] to the same tone in the next event.
 /// Idempotent.
 final class SetTie extends Edit {
+  /// Sets the tie from [note] when [tied] is true and clears it when false.
   const SetTie(this.note, {required this.tied});
 
+  /// The head the tie starts on.
   final NoteRef note;
+  /// Whether the tie is there after the edit.
   final bool tied;
 
   @override
@@ -347,9 +393,12 @@ final class SetTie extends Edit {
 /// time out of the staves in it and no others. An event in a tuplet, or a
 /// range end inside one, is refused with [WouldSplitTuplet].
 final class Erase extends Edit {
+  /// Clears [selection].
   const Erase(this.selection, {this.ripple = Ripple.none});
 
+  /// What to clear: picked events, heads and spanners, or a range.
   final Selection selection;
+  /// Whether the time of what is deleted is taken out. See [Ripple].
   final Ripple ripple;
 
   @override
@@ -359,10 +408,16 @@ final class Erase extends Edit {
 /// Adds or removes one articulation. Idempotent, so "toggle" is decided by
 /// the caller from what it sees.
 final class SetArticulation extends Edit {
+  /// Adds [articulation] to [event] when [present] is true and removes it when
+  /// false.
   const SetArticulation(this.event, this.articulation, {required this.present});
 
+  /// The chord or rest that carries the mark. A rest holds only a fermata, and
+  /// adding another mark to one is refused with [InvalidValue].
   final EventRef event;
+  /// The mark to add or remove.
   final Articulation articulation;
+  /// Whether the mark is there after the edit.
   final bool present;
 
   @override
@@ -371,9 +426,13 @@ final class SetArticulation extends Edit {
 
 /// Sets or clears the ornament sign on a chord. Idempotent.
 final class SetOrnament extends Edit {
+  /// Sets [event]'s ornament to [ornament].
   const SetOrnament(this.event, this.ornament);
 
+  /// The chord that carries the sign. Setting a sign on a rest is refused with
+  /// [InvalidValue], and clearing one there changes nothing.
   final EventRef event;
+  /// The sign to set, or null to clear it.
   final Ornament? ornament;
 
   @override
@@ -382,9 +441,13 @@ final class SetOrnament extends Edit {
 
 /// Sets or clears the bow direction on a chord. Idempotent.
 final class SetBowing extends Edit {
+  /// Sets [event]'s bow direction to [bowing].
   const SetBowing(this.event, this.bowing);
 
+  /// The chord that carries the bowing. Setting a bowing on a rest is refused
+  /// with [InvalidValue], and clearing one there changes nothing.
   final EventRef event;
+  /// The bow direction to set, or null to clear it.
   final Bowing? bowing;
 
   @override
@@ -394,21 +457,30 @@ final class SetBowing extends Edit {
 /// Sets how a chord beams. [BeamMode.auto] hands it back to the meter.
 /// Idempotent.
 final class SetBeam extends Edit {
+  /// Sets how [event] beams.
   const SetBeam(this.event, this.mode);
 
+  /// The chord to change. Setting a mode other than [BeamMode.auto] on a rest
+  /// is refused with [InvalidValue].
   final EventRef event;
+  /// The beam mode to set.
   final BeamMode mode;
 
   @override
   String get label => 'Beam';
 }
 
+/// Sets or clears the finger number of one head. Idempotent.
 /// Refused with [InvalidValue] on a drum note, as are [SetString] and
 /// [SetAccidental].
 final class SetFingering extends Edit {
+  /// Sets [note]'s finger number to [finger].
   const SetFingering(this.note, this.finger);
 
+  /// The head to mark.
   final NoteRef note;
+  /// The finger number, 0 for an open string, or null to clear it. A negative
+  /// number is refused with [InvalidValue].
   final int? finger;
 
   @override
@@ -417,19 +489,29 @@ final class SetFingering extends Edit {
 
 /// Which string plays [note]: an index into the instrument's `strings`.
 final class SetString extends Edit {
+  /// Sets the string that plays [note] to [string].
   const SetString(this.note, this.string);
 
+  /// The head to mark.
   final NoteRef note;
+  /// The index into the instrument's `strings`, lowest-tuned string first, or
+  /// null to clear it. An index the instrument does not have is refused with
+  /// [InvalidValue].
   final int? string;
 
   @override
   String get label => 'String';
 }
 
+/// Sets when one head prints its accidental. Idempotent.
 final class SetAccidental extends Edit {
+  /// Sets [note]'s accidental request to [request].
   const SetAccidental(this.note, this.request);
 
+  /// The head to change.
   final NoteRef note;
+  /// When the accidental prints. [AccidentalRequest.auto] leaves it to the key,
+  /// bar and tie rules.
   final AccidentalRequest request;
 
   @override
@@ -438,10 +520,16 @@ final class SetAccidental extends Edit {
 
 /// Sets or clears (null) verse [verse] of [event]'s lyrics.
 final class SetLyric extends Edit {
+  /// Sets verse [verse] of [event]'s lyrics to [lyric].
   const SetLyric(this.event, this.verse, this.lyric);
 
+  /// The chord that carries the lyric. Setting a lyric on a rest is refused
+  /// with [InvalidValue], and clearing one there changes nothing.
   final EventRef event;
+  /// The verse number, counted from 1. It must match [Lyric.verse] of [lyric],
+  /// or the edit is refused with [InvalidValue].
   final int verse;
+  /// The syllable to set, or null to clear the verse.
   final Lyric? lyric;
 
   @override
@@ -454,14 +542,19 @@ final class SetLyric extends Edit {
 /// Refused with [StaleReference] for a bar or staff that is gone and
 /// [OutsideMeasure] for a direction outside the bar.
 final class SetDirections extends Edit {
+  /// Replaces [staff]'s directions in [measure] with [directions].
   const SetDirections({
     required this.staff,
     required this.measure,
     required this.directions,
   });
 
+  /// The staff that holds the directions.
   final StaffId staff;
+  /// The bar that holds the directions.
   final MeasureId measure;
+  /// The staff's complete directions for the bar, each at its offset in the
+  /// bar. An empty list removes them all.
   final Seq<StaffDirection> directions;
 
   @override
@@ -476,6 +569,7 @@ final class SetDirections extends Edit {
 /// gone, [OutsideMeasure] for an end outside its bar, and [InvalidValue]
 /// for ends out of order.
 final class AddSpanner extends Edit {
+  /// Adds a spanner of [kind] from [first] to [last] on [staff].
   const AddSpanner({
     required this.kind,
     required this.staff,
@@ -484,10 +578,17 @@ final class AddSpanner extends Edit {
     this.voice,
   });
 
+  /// What the spanner draws: a slur, hairpin, octave line, trill line, tempo
+  /// line, pedal line or glissando.
   final SpannerKind kind;
+  /// The staff the spanner is drawn on.
   final StaffId staff;
+  /// The voice a slur or glissando joins, voice one when null. Ignored for the
+  /// other kinds.
   final VoiceSlot? voice;
+  /// Where the spanner starts.
   final ScorePoint first;
+  /// Where the spanner ends.
   final ScorePoint last;
 
   @override
@@ -496,8 +597,10 @@ final class AddSpanner extends Edit {
 
 /// Removes one spanner. Refused with [StaleReference] when it is gone.
 final class RemoveSpanner extends Edit {
+  /// Removes [spanner].
   const RemoveSpanner(this.spanner);
 
+  /// The id of the spanner to remove.
   final SpannerId spanner;
 
   @override
@@ -540,14 +643,19 @@ final class RemoveSpanner extends Edit {
 /// first; a bar that is still too long refuses the edit with
 /// [WouldCrossBarline], and a short bar is padded.
 final class SetMeter extends Edit {
+  /// Sets [meter] from bar [from] onward.
   const SetMeter({
     required this.from,
     required this.meter,
     this.content = MeterContent.rebar,
   });
 
+  /// The first bar that takes the new meter.
   final MeasureId from;
+  /// The new meter.
   final Meter meter;
+  /// Whether the music is re-barred or each bar keeps its content. See
+  /// [SetMeter].
   final MeterContent content;
 
   @override
@@ -567,9 +675,12 @@ enum MeterContent {
 /// from [from]'s. Notes keep their spelled, sounding pitch; only printed
 /// accidentals change. Idempotent.
 final class SetKey extends Edit {
+  /// Sets [key] from bar [from] onward.
   const SetKey({required this.from, required this.key});
 
+  /// The first bar that takes the new key.
   final MeasureId from;
+  /// The new key signature.
   final KeySignature key;
 
   @override
@@ -586,10 +697,15 @@ final class SetKey extends Edit {
 /// [StaleReference] for a bar or staff that is gone and [OutsideMeasure]
 /// for a time outside the bar. Idempotent.
 final class SetClef extends Edit {
+  /// Puts [clef] on [staff] at [at].
   const SetClef({required this.staff, required this.at, required this.clef});
 
+  /// The staff that gets the clef.
   final StaffId staff;
+  /// The bar and offset where the clef takes effect. Offset 0 sets the bar's
+  /// starting clef.
   final ScorePoint at;
+  /// The new clef.
   final Clef clef;
 
   @override
@@ -600,9 +716,13 @@ final class SetClef extends Edit {
 /// [OutsideMeasure] for a mark outside the bar and [InvalidValue] for two
 /// marks at one time. Idempotent.
 final class SetTempoMarks extends Edit {
+  /// Replaces [measure]'s tempo marks with [marks].
   const SetTempoMarks(this.measure, this.marks);
 
+  /// The bar that holds the marks.
   final MeasureId measure;
+  /// The bar's complete tempo marks, each at its offset in the bar. An empty
+  /// list removes them all.
   final Seq<TempoMark> marks;
 
   @override
@@ -620,9 +740,13 @@ final class SetTempoMarks extends Edit {
 /// Refused with
 /// [InvalidValue] for a [count] under 1.
 final class InsertMeasures extends Edit {
+  /// Inserts [count] bars before [before].
   const InsertMeasures({this.before, this.count = 1});
 
+  /// The bar the new bars go before, or null to append them at the end of the
+  /// score.
   final MeasureId? before;
+  /// How many bars to insert, 1 by default.
   final int count;
 
   @override
@@ -644,39 +768,56 @@ final class InsertMeasures extends Edit {
 /// tempo: it reaches that tempo, as a line does that ends on a tempo mark.
 /// Deleting every bar is refused with [WouldEmptyScore].
 final class DeleteMeasures extends Edit {
+  /// Deletes the bars from [first] to [last].
   const DeleteMeasures(this.first, this.last);
 
+  /// One end of the range, inclusive.
   final MeasureId first;
+  /// The other end of the range, inclusive.
   final MeasureId last;
 
   @override
   String get label => 'Delete measures';
 }
 
+/// Sets the barline at the end of [measure]. Idempotent.
 final class SetBarline extends Edit {
+  /// Sets [measure]'s closing barline to [barline].
   const SetBarline(this.measure, this.barline);
 
+  /// The bar whose closing barline changes.
   final MeasureId measure;
+  /// The new barline.
   final Barline barline;
 
   @override
   String get label => 'Barline';
 }
 
+/// Sets or clears the start-repeat sign at the start of [measure]. Idempotent.
 final class SetRepeatStart extends Edit {
+  /// Shows the start-repeat sign on [measure] when [start] is true and removes
+  /// it when false.
   const SetRepeatStart(this.measure, {required this.start});
 
+  /// The bar the repeated section starts at.
   final MeasureId measure;
+  /// Whether the bar starts a repeat after the edit.
   final bool start;
 
   @override
   String get label => 'Start repeat';
 }
 
+/// Sets or clears the end-repeat sign at the end of [measure]. Refused with
+/// [InvalidValue] for a repeat of fewer than two passes. Idempotent.
 final class SetRepeatEnd extends Edit {
+  /// Sets [measure]'s end repeat to [end].
   const SetRepeatEnd(this.measure, this.end);
 
+  /// The bar the repeated section ends at.
   final MeasureId measure;
+  /// The repeat and its pass count, or null to clear it.
   final RepeatEnd? end;
 
   @override
@@ -686,20 +827,29 @@ final class SetRepeatEnd extends Edit {
 /// Puts bars [first]..[last] under [volta], or clears them (null). Refused
 /// with [InvalidValue] unless the endings count passes from 1, ascending.
 final class SetVolta extends Edit {
+  /// Puts bars [first] to [last] under [volta].
   const SetVolta(this.first, this.last, this.volta);
 
+  /// One end of the range, inclusive. The ends may come in either order.
   final MeasureId first;
+  /// The other end of the range, inclusive.
   final MeasureId last;
+  /// The ending bracket, or null to clear it from the bars.
   final Volta? volta;
 
   @override
   String get label => 'Ending';
 }
 
+/// Replaces the navigation marks of [measure], such as segno, coda, fine and
+/// jumps. Idempotent.
 final class SetNavigation extends Edit {
+  /// Replaces [measure]'s navigation marks with [marks].
   const SetNavigation(this.measure, this.marks);
 
+  /// The bar that holds the marks.
   final MeasureId measure;
+  /// The bar's complete navigation marks. An empty list removes them all.
   final Seq<NavigationMark> marks;
 
   @override
@@ -708,9 +858,12 @@ final class SetNavigation extends Edit {
 
 /// Sets the rehearsal mark of [measure]. Null or empty text clears it.
 final class SetRehearsal extends Edit {
+  /// Sets [measure]'s rehearsal mark to [text].
   const SetRehearsal(this.measure, this.text);
 
+  /// The bar the mark sits on.
   final MeasureId measure;
+  /// The text of the mark, such as "A". Null or empty clears it.
   final String? text;
 
   @override
@@ -727,9 +880,13 @@ final class SetRehearsal extends Edit {
 /// cuts a tuplet, and with [InvalidValue] for a length that is not a whole
 /// number of 128th notes.
 final class SetBarLength extends Edit {
+  /// Sets [measure]'s length to [length].
   const SetBarLength(this.measure, this.length);
 
+  /// The bar to resize.
   final MeasureId measure;
+  /// The bar's new length, or null to restore the meter's length. It must be
+  /// above zero and at most 64 whole notes.
   final Length? length;
 
   @override
@@ -739,9 +896,12 @@ final class SetBarLength extends Edit {
 /// Makes [measure] start a new system or page, or lets layout choose
 /// (null). Idempotent.
 final class SetBreak extends Edit {
+  /// Sets the break before [measure] to [layoutBreak].
   const SetBreak(this.measure, this.layoutBreak);
 
+  /// The bar that starts the new system or page.
   final MeasureId measure;
+  /// The break layout must make before the bar, or null to let layout choose.
   final LayoutBreak? layoutBreak;
 
   @override
@@ -753,9 +913,12 @@ final class SetBreak extends Edit {
 /// bar when keys change around it, so a courtesy turned off applies again
 /// whenever the key changes there. Idempotent.
 final class SetKeyDisplay extends Edit {
+  /// Sets how [measure] prints its key signature.
   const SetKeyDisplay(this.measure, this.display);
 
+  /// The bar whose key signature display changes.
   final MeasureId measure;
+  /// How the key signature prints at the bar.
   final SignatureDisplay display;
 
   @override
@@ -765,9 +928,12 @@ final class SetKeyDisplay extends Edit {
 /// Sets how [measure] prints its time signature, as [SetKeyDisplay] does
 /// for the key. Idempotent.
 final class SetMeterDisplay extends Edit {
+  /// Sets how [measure] prints its time signature.
   const SetMeterDisplay(this.measure, this.display);
 
+  /// The bar whose time signature display changes.
   final MeasureId measure;
+  /// How the time signature prints at the bar.
   final SignatureDisplay display;
 
   @override
@@ -792,14 +958,19 @@ final class SetMeterDisplay extends Edit {
 /// [InvalidValue] for a note that does not suit the staff it lands on, as
 /// for [EnterNote], or for a tuplet that would nest more than 16 deep.
 final class Paste extends Edit {
+  /// Pastes [clip] at [at].
   const Paste(
     this.clip, {
     required this.at,
     this.overfill = Overfill.splitAndTie,
   });
 
+  /// The music to paste, as `EditSession.copy` made it.
   final ScoreClip clip;
+  /// Where the clip's start and its top staff land. Each voice of the clip
+  /// keeps its own slot.
   final VoicePoint at;
+  /// What happens when a pasted note runs past a barline. See [Paste].
   final Overfill overfill;
 
   @override
@@ -818,9 +989,12 @@ final class Paste extends Edit {
 /// with [StaleReference] for a gone event, head, bar or staff, and with
 /// [OutsideMeasure] for a range end outside its bar.
 final class Transpose extends Edit {
+  /// Transposes [selection] by [by].
   const Transpose(this.selection, this.by);
 
+  /// The picked heads, or a range whose heads all move.
   final Selection selection;
+  /// How far the pitches move, and by which kind of step.
   final Transposition by;
 
   @override
@@ -833,9 +1007,13 @@ final class Transpose extends Edit {
 /// to the part count, a template with no staff or a clef list of another
 /// length, or a kit that names a sound twice.
 final class AddPart extends Edit {
+  /// Adds a part made from [template] at [index].
   const AddPart(this.template, {this.index});
 
+  /// The instrument, name and staves of the new part.
   final PartTemplate template;
+  /// The new part's position among the parts, from 0 at the top, or null for
+  /// the bottom.
   final int? index;
 
   @override
@@ -847,8 +1025,10 @@ final class AddPart extends Edit {
 /// it, or else above it. Refused with [WouldEmptyScore] when no other part
 /// is shown, and with [StaleReference] for a gone part.
 final class RemovePart extends Edit {
+  /// Removes [part].
   const RemovePart(this.part);
 
+  /// The part to remove.
   final PartId part;
 
   @override
@@ -860,9 +1040,12 @@ final class RemovePart extends Edit {
 /// [RemovePart] does. Refused with [WouldEmptyScore] when hiding the last
 /// shown part, and with [StaleReference] for a gone part.
 final class SetPartHidden extends Edit {
+  /// Hides [part] when [hidden] is true and shows it when false.
   const SetPartHidden(this.part, {required this.hidden});
 
+  /// The part to hide or show.
   final PartId part;
+  /// Whether the part is hidden after the edit.
   final bool hidden;
 
   @override
@@ -884,9 +1067,12 @@ final class SetPartHidden extends Edit {
 /// and a drum kit, a kit that lacks a drum the part plays, or a template
 /// [AddPart] refuses, and with [StaleReference] for a gone part.
 final class SetInstrument extends Edit {
+  /// Gives [part] the instrument of [template].
   const SetInstrument(this.part, this.template);
 
+  /// The part to change.
   final PartId part;
+  /// The instrument, name and staff count the part takes.
   final PartTemplate template;
 
   @override
@@ -900,8 +1086,10 @@ final class SetInstrument extends Edit {
 /// Ids are minted as the batch runs, so an edit cannot name a bar, event or
 /// spanner that an earlier edit in the same batch created.
 final class Batch extends Edit {
+  /// Groups [edits] into one undo step named [label].
   const Batch(this.edits, {this.label = 'Edit'});
 
+  /// The edits to run, in order.
   final List<Edit> edits;
 
   @override
@@ -911,28 +1099,36 @@ final class Batch extends Edit {
 /// Why an edit did not apply. Expected outcomes, not errors: the app shows
 /// them as a message and the session is unchanged.
 sealed class EditRefusal {
+  /// Lets every refusal be a const value.
   const EditRefusal();
 }
 
 /// The target no longer exists in the current score (a stale selection).
 final class StaleReference extends EditRefusal {
+  /// Names the [target] that is gone.
   const StaleReference(this.target);
 
+  /// The ref, id or point that no longer resolves.
   final Object target;
 }
 
 /// The edit would cut a tuplet with a barline or cover part of it.
 final class WouldSplitTuplet extends EditRefusal {
+  /// Names the [tuplet] the edit would cut and its [measure].
   const WouldSplitTuplet(this.tuplet, this.measure);
 
+  /// The tuplet the edit would cut.
   final TupletId tuplet;
+  /// The bar that holds the tuplet.
   final MeasureId measure;
 }
 
 /// A point that does not lie inside its measure.
 final class OutsideMeasure extends EditRefusal {
+  /// Names the point [at] that lies outside its bar.
   const OutsideMeasure(this.at);
 
+  /// The point that lies outside its bar.
   final ScorePoint at;
 }
 
@@ -940,14 +1136,18 @@ final class OutsideMeasure extends EditRefusal {
 /// [Overfill.refuse], or a bar too full for the new meter under
 /// [MeterContent.keepBars]. [excess] is how much sounding time did not fit.
 final class WouldCrossBarline extends EditRefusal {
+  /// Names the [measure] the music would run past and the [excess].
   const WouldCrossBarline(this.measure, this.excess);
 
+  /// The bar the music would run past.
   final MeasureId measure;
+  /// How much sounding time did not fit.
   final Length excess;
 }
 
 /// The edit would leave the score with no bars or no shown parts.
 final class WouldEmptyScore extends EditRefusal {
+  /// Makes the refusal, which carries no detail.
   const WouldEmptyScore();
 }
 
@@ -955,7 +1155,10 @@ final class WouldEmptyScore extends EditRefusal {
 /// instrument does not have, a pitch outside the alteration range after
 /// transposition.
 final class InvalidValue extends EditRefusal {
+  /// Carries the [message] that names the broken rule.
   const InvalidValue(this.message);
 
+  /// The rule the value broke, in short English for developers, such as 'a bar
+  /// count is 1 or more'.
   final String message;
 }

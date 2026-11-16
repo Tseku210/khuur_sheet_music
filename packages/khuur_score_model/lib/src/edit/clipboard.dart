@@ -15,6 +15,9 @@ final class ScoreClip {
   /// the last event taken when that is later.
   final Length length;
 
+  /// How many staves the clip spans, from the top staff of the copied range
+  /// down. Paste fills that many staves from its target staff, and drops those
+  /// past the bottom of the score.
   final int staffCount;
 
   final List<_ClipLane> _lanes;
