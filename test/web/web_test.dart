@@ -8,8 +8,7 @@ import 'package:khuur_sheet_music/khuur_sheet_music.dart';
 import '../mock/fake_midi_output.dart';
 import '../mock/fake_wall_time.dart';
 
-/// Four bars for a piano, with C4 E4 G4 C5 entered in the first.
-Score scale() {
+Score arpeggio() {
   var session = EditSession.start(
     Score.blank(
       parts: const [
@@ -42,7 +41,7 @@ void main() {
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
-        child: SheetView(score: scale()),
+        child: SheetView(score: arpeggio()),
       ),
     );
     expect(find.bySemanticsLabel('Bars 1 to 4'), findsOneWidget);
@@ -54,7 +53,7 @@ void main() {
   ) async {
     final player = ScorePlayer(soundFont: piano, vsync: tester);
     await expectLater(
-      player.play(scale()),
+      player.play(arpeggio()),
       throwsA(isA<SynthUnavailable>()),
     );
     player.dispose();
@@ -71,7 +70,7 @@ void main() {
       output: midi,
       now: time.now,
     );
-    await player.play(scale());
+    await player.play(arpeggio());
     await tester.pump(const Duration(seconds: 3));
     expect([for (final note in midi.ons) note.key], [60, 64, 67, 72]);
     player.dispose();

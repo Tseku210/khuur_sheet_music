@@ -74,8 +74,6 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      # The tests in test/web run in Chrome, compiled by the development
-      # compiler and then by dart2wasm.
       - name: Browser tests
         run: flutter test --platform chrome test/web
 
@@ -83,10 +81,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: flutter test --platform chrome --wasm test/web
 
-      # A release build of the example app with dart2js and with dart2wasm.
-      # The example keeps no web folder, so flutter create adds one here. A
-      # new import of dart:ffi or dart:io fails both builds.
-      - name: Build the example for the web
+      - name: Add a web folder to the example and build it
         if: ${{ !cancelled() }}
         working-directory: example
         run: |
