@@ -16,6 +16,8 @@ export default defineConfig({
       social: [{ icon: 'github', label: 'GitHub', href: repo }],
       editLink: { baseUrl: `${repo}/edit/main/site/` },
       lastUpdated: true,
+      // src/content/docs/404.md is the 404 page, built to 404.html for Pages.
+      disable404Route: true,
       plugins: [starlightLinksValidator()],
       sidebar: [
         { label: 'Tutorial', items: [{ autogenerate: { directory: 'tutorial' } }] },
