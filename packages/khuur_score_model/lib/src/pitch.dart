@@ -8,16 +8,30 @@ library;
 
 /// The seven letter names. [semitones] is the offset above C.
 enum Step {
+  /// C, 0 semitones above C.
   c(0),
+
+  /// D, 2 semitones above C.
   d(2),
+
+  /// E, 4 semitones above C.
   e(4),
+
+  /// F, 5 semitones above C.
   f(5),
+
+  /// G, 7 semitones above C.
   g(7),
+
+  /// A, 9 semitones above C.
   a(9),
+
+  /// B, 11 semitones above C.
   b(11);
 
   Step(this.semitones);
 
+  /// Semitones above C in the same octave, 0 to 11.
   final int semitones;
 }
 
@@ -33,23 +47,44 @@ extension type const Alter._(int quarterTones) {
     return Alter._(quarterTones);
   }
 
+  /// Double flat, −4 quarter tones.
   static const doubleFlat = Alter._(-4);
+
+  /// Three-quarter-tone flat, −3 quarter tones.
   static const threeQuarterFlat = Alter._(-3);
+
+  /// Flat, −2 quarter tones.
   static const flat = Alter._(-2);
+
+  /// Quarter-tone flat, −1 quarter tone.
   static const quarterFlat = Alter._(-1);
+
+  /// No alteration, 0 quarter tones.
   static const natural = Alter._(0);
+
+  /// Quarter-tone sharp, +1 quarter tone.
   static const quarterSharp = Alter._(1);
+
+  /// Sharp, +2 quarter tones.
   static const sharp = Alter._(2);
+
+  /// Three-quarter-tone sharp, +3 quarter tones.
   static const threeQuarterSharp = Alter._(3);
+
+  /// Double sharp, +4 quarter tones.
   static const doubleSharp = Alter._(4);
 }
 
 /// A letter plus alteration, without octave. Roots and basses of chord
 /// symbols, and key-signature members.
 final class PitchName {
+  /// [step] with [alter], natural by default.
   const PitchName(this.step, [this.alter = Alter.natural]);
 
+  /// The letter.
   final Step step;
+
+  /// The alteration of the letter.
   final Alter alter;
 
   @override
@@ -70,6 +105,7 @@ sealed class Tone implements Comparable<Tone> {
 /// pitch. Written pitch (after instrument transposition and 8va lines) is
 /// derived for display in `StaffView.writtenPitches`.
 final class Pitch extends Tone {
+  /// [step] in [octave] with [alter], natural by default.
   const Pitch(this.step, this.octave, [this.alter = Alter.natural]);
 
   /// Parses scientific pitch notation: `C4`, `Bb3`, `F#5`, `Ebb2`, `C+4`
@@ -96,8 +132,14 @@ final class Pitch extends Tone {
     return Pitch(step, int.parse(match[3]!), alter);
   }
 
+  /// The letter.
   final Step step;
+
+  /// The octave in scientific numbering. Middle C is C4, and each octave
+  /// starts at C, so B3 is the step below C4. Can be negative.
   final int octave;
+
+  /// The alteration of the letter.
   final Alter alter;
 
   /// Position on the diatonic ladder: C4 is 28, D4 is 29. Staff positions
@@ -129,6 +171,7 @@ final class Pitch extends Tone {
         _spell(quarterTones, key);
   }
 
+  /// The letter and alteration, without the octave.
   PitchName get name => PitchName(step, alter);
 
   /// By sounding height, then by letter, and before any drum.
@@ -172,8 +215,10 @@ final class Pitch extends Tone {
 /// drawn where the kit places it, with the kit's head, and plays the kit's
 /// MIDI key.
 final class Drum extends Tone {
+  /// The kit sound named [name].
   const Drum(this.name);
 
+  /// The sound's name in its part's kit, as in `Instrument.drums`.
   final String name;
 
   /// By name, and after any pitch.
@@ -196,25 +241,48 @@ final class Drum extends Tone {
 /// A spelled interval: [steps] letter names and [semitones] half steps. An
 /// augmented second (1, 3) and a minor third (2, 3) are different intervals.
 final class Interval {
+  /// An interval of [steps] letters and [semitones] half steps. Negative
+  /// values go down.
   const Interval(this.steps, this.semitones);
 
+  /// The same pitch, (0, 0).
   static const unison = Interval(0, 0);
+
+  /// A minor second, (1, 1).
   static const minorSecond = Interval(1, 1);
+
+  /// A major second, (1, 2).
   static const majorSecond = Interval(1, 2);
+
+  /// A minor third, (2, 3).
   static const minorThird = Interval(2, 3);
+
+  /// A major third, (2, 4).
   static const majorThird = Interval(2, 4);
+
+  /// A perfect fourth, (3, 5).
   static const perfectFourth = Interval(3, 5);
+
+  /// A perfect fifth, (4, 7).
   static const perfectFifth = Interval(4, 7);
+
+  /// An octave, (7, 12).
   static const octave = Interval(7, 12);
 
+  /// Letter names moved. Negative is downward.
   final int steps;
+
+  /// Half steps moved. Negative is downward.
   final int semitones;
 
+  /// The same interval in the other direction.
   Interval operator -() => Interval(-steps, -semitones);
 
+  /// The two intervals stacked, letters and half steps added.
   Interval operator +(Interval other) =>
       Interval(steps + other.steps, semitones + other.semitones);
 
+  /// This interval stacked [times] times.
   Interval operator *(int times) => Interval(steps * times, semitones * times);
 
   @override
@@ -225,18 +293,34 @@ final class Interval {
   int get hashCode => Object.hash(steps, semitones);
 }
 
-enum KeyMode { none, major, minor }
+/// The mode a key signature names, if any.
+enum KeyMode {
+  /// No mode stated. The signature gives only its sharps or flats.
+  none,
+
+  /// Major.
+  major,
+
+  /// Minor.
+  minor,
+}
 
 /// A conventional key signature, as a position on the circle of fifths:
 /// −7 (7 flats) to +7 (7 sharps). Stored in concert pitch on the measure
 /// column; a transposing part's written key is derived.
 final class KeySignature {
+  /// [fifths] on the circle of fifths in [mode], unstated by default.
+  /// Asserts that [fifths] is −7 to 7.
   const KeySignature(this.fifths, [this.mode = KeyMode.none])
     : assert(fifths >= -7 && fifths <= 7, 'fifths in -7..7');
 
+  /// C major, no sharps or flats.
   static const cMajor = KeySignature(0, KeyMode.major);
 
+  /// Sharps when positive, flats when negative, −7 to 7.
   final int fifths;
+
+  /// The mode, or [KeyMode.none] when the key does not state one.
   final KeyMode mode;
 
   static const List<Step> _sharpOrder = [
@@ -292,7 +376,20 @@ final class KeySignature {
   String toString() => fifths >= 0 ? '$fifths#' : '${-fifths}b';
 }
 
-enum ClefSign { g, f, c, percussion }
+/// The symbol a [Clef] draws, which fixes the pitch on its line.
+enum ClefSign {
+  /// The G clef. Its line is G4.
+  g,
+
+  /// The F clef. Its line is F3.
+  f,
+
+  /// The C clef. Its line is middle C, C4.
+  c,
+
+  /// The neutral percussion clef. Its line reads as B4, as in treble.
+  percussion,
+}
 
 /// A clef maps staff steps to written pitch. Staff step 0 is the bottom line
 /// of the staff, 1 the first space, and so on; negative steps are below the
@@ -301,21 +398,45 @@ enum ClefSign { g, f, c, percussion }
 /// A drum staff and a one-line percussion staff both use [percussion]; the
 /// line count lives on `Staff.lines`.
 enum Clef {
+  /// G clef on the second line.
   treble(ClefSign.g, 2),
+
+  /// Treble clef with an 8 below, so the staff reads an octave lower.
   treble8vb(ClefSign.g, 2, octave: -1),
+
+  /// Treble clef with an 8 above, so the staff reads an octave higher.
   treble8va(ClefSign.g, 2, octave: 1),
+
+  /// F clef on the fourth line.
   bass(ClefSign.f, 4),
+
+  /// Bass clef with an 8 below, so the staff reads an octave lower.
   bass8vb(ClefSign.f, 4, octave: -1),
+
+  /// C clef on the first line.
   soprano(ClefSign.c, 1),
+
+  /// C clef on the second line.
   mezzoSoprano(ClefSign.c, 2),
+
+  /// C clef on the third line.
   alto(ClefSign.c, 3),
+
+  /// C clef on the fourth line.
   tenor(ClefSign.c, 4),
+
+  /// C clef on the fifth line.
   baritoneC(ClefSign.c, 5),
+
+  /// F clef on the third line. Reads the same as [baritoneC].
   baritoneF(ClefSign.f, 3),
+
+  /// Percussion clef on the middle line. The staff reads like treble.
   percussion(ClefSign.percussion, 3);
 
   Clef(this.sign, this.line, {this.octave = 0});
 
+  /// The symbol drawn.
   final ClefSign sign;
 
   /// Staff line the clef sits on, 1 = bottom line.
@@ -341,6 +462,8 @@ enum Clef {
   Pitch naturalAt(int staffStep) =>
       _natural(_anchor + staffStep - 2 * (line - 1));
 
+  /// The staff step of [written], the inverse of [naturalAt]. Ignores the
+  /// alteration.
   int staffStepOf(Pitch written) => written.diatonic - _anchor + 2 * (line - 1);
 }
 
@@ -414,20 +537,30 @@ Pitch _spell(int quarterTones, KeySignature key) {
       : _spelledAt(below + 1, quarterTones)!;
 }
 
+/// A move by a fixed spelled interval. See [Transposition.interval].
 final class ByInterval extends Transposition {
+  /// Moves every note by [interval].
   const ByInterval(this.interval);
 
+  /// The interval every note moves by.
   final Interval interval;
 }
 
+/// A move by steps of the key in effect. See [Transposition.diatonic].
 final class ByScaleSteps extends Transposition {
+  /// Moves every note [steps] scale steps.
   const ByScaleSteps(this.steps);
 
+  /// Scale steps to move. Negative is downward.
   final int steps;
 }
 
+/// A move by half steps, spelled for the key. See
+/// [Transposition.chromatic].
 final class BySemitones extends Transposition {
+  /// Moves every note [semitones] half steps.
   const BySemitones(this.semitones);
 
+  /// Half steps to move. Negative is downward.
   final int semitones;
 }

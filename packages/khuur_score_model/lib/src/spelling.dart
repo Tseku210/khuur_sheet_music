@@ -5,6 +5,8 @@ import 'time.dart';
 
 /// A beat grid: the beat starts inside one [period], repeated.
 final class BeatGrid {
+  /// A grid that repeats [beats] every [period]. Asserts that [beats] is
+  /// non-empty and starts at zero.
   BeatGrid({required this.period, required this.beats, required this.strict})
     : assert(beats.isNotEmpty && beats.first.isZero, 'first beat at zero');
 
@@ -32,6 +34,7 @@ final class BeatGrid {
   /// half note across its two dotted-quarter beats.
   final bool strict;
 
+  /// Whether [m] falls on a beat of its period.
   bool isBeat(Moment m) => beats.contains(m - _periodStart(m));
 
   /// The first beat strictly after [m].
