@@ -665,6 +665,74 @@ void main() {
     );
   });
 
+  group('the playing column', () {
+    EventRef bassRef(int id) =>
+        EventRef(measure: barId(0), staff: staffId(1), id: EventId(id));
+
+    test('reaches across a note and a rest that start together, on both '
+        'staves, and down the whole system', () {
+      final layout = sheetOf(
+        scoreOf([
+          [
+            staffOf([chordOf(1, 'C6'), chordOf(2, 'B4')]),
+            staffOf([
+              restOf(21, NoteValue.quarter),
+              chordOf(22, 'G3'),
+            ], clef: Clef.bass),
+          ],
+        ]),
+      );
+      final system = layout.systemAt(0);
+      final high = system.boundsOf(ElementOwner(eventRef(1)))!;
+      final rest = system.boundsOf(ElementOwner(bassRef(21)))!;
+      final across = high.union(rest);
+
+      expect(
+        layout.playingIn(0, [eventRef(1), bassRef(21)]),
+        Box(across.left, 0, across.right, layout.heightOf(0)),
+      );
+      expect(
+        layout.playingIn(0, [eventRef(2)])!.height,
+        layout.heightOf(0),
+        reason: 'a note in the staff is as tall as one above it',
+      );
+    });
+
+    test('keeps to the events that started last, not one held from '
+        'earlier', () {
+      final layout = sheetOf(
+        scoreOf([
+          [
+            staffOf([chordOf(1, 'C5'), chordOf(2, 'D5')]),
+            staffOf([
+              chordOf(21, 'C3', value: NoteValue.whole),
+            ], clef: Clef.bass),
+          ],
+        ]),
+      );
+      final moving = layout.systemAt(0).boundsOf(ElementOwner(eventRef(2)))!;
+
+      final column = layout.playingIn(0, [eventRef(2), bassRef(21)])!;
+
+      expect([column.left, column.right], [moving.left, moving.right]);
+    });
+
+    test('is on its own system only, and not on a hidden staff', () {
+      final score = threeSystems();
+      final layout = sheetOf(score);
+      final treble = eventRef(201, bar: 1);
+      final bass = EventRef(
+        measure: barId(1),
+        staff: staffId(1),
+        id: const EventId(221),
+      );
+
+      expect(layout.playingIn(0, [treble, bass]), isNotNull);
+      expect(layout.playingIn(1, [treble, bass]), isNull);
+      expect(sheetOf(hidePart(score, 1)).playingIn(0, [bass]), isNull);
+    });
+  });
+
   group('the playhead', () {
     test('glides into the next bar\'s downbeat when that bar plays next on '
         'the same system, and stops at the barline before a jump or a new '

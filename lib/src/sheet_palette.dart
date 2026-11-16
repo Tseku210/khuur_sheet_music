@@ -27,7 +27,7 @@ final class SheetLine {
   String toString() => 'SheetLine(color: $color, width: $width)';
 }
 
-/// How the sheet marks notes, which are the selected ones or the sounding
+/// How the sheet marks notes, which are the selected ones or the playing
 /// ones. A box behind them, a border around the box and another ink are
 /// each drawn when given, so a style may mix them.
 ///
@@ -143,8 +143,16 @@ final class SheetPalette {
       outOfRange: scheme.error,
       cursor: SheetLine(color: scheme.primary),
       selection: SheetHighlight(fill: scheme.primary.withValues(alpha: 0.18)),
-      playback: SheetHighlight(ink: scheme.tertiary),
-      playhead: SheetLine(color: scheme.tertiary.withValues(alpha: 0.6)),
+      playback: SheetHighlight(
+        fill: scheme.tertiary.withValues(alpha: 0.35),
+        radius: 0.3,
+        padding: 0.4,
+        ink: scheme.tertiary,
+      ),
+      playhead: SheetLine(
+        color: scheme.tertiary.withValues(alpha: 0.6),
+        width: 0,
+      ),
     );
   }
 
@@ -165,10 +173,16 @@ final class SheetPalette {
   /// The selected items and ranges.
   final SheetHighlight selection;
 
-  /// The events sounding now.
+  /// The events playing now, rests too. Its box is one column over the
+  /// events that started last, down the whole system, so it keeps one
+  /// height from note to rest to note. Its ink reaches every playing
+  /// event, held ones too.
   final SheetHighlight playback;
 
-  /// The moving playhead line.
+  /// The moving playhead line. The theme's palette gives it no width, so
+  /// it draws none: the line moves at the pace of the bar's spacing,
+  /// which does not follow time, and the box of [playback] shows the
+  /// playing events instead.
   final SheetLine playhead;
 
   /// The note of `SheetView.preview`. Null draws it in the cursor's colour.
