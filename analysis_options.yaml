@@ -17,3 +17,5 @@ linter:
     use_primary_constructors: false
     use_declaring_parameters: false
     unnecessary_type_name_in_constructor: false
+    # Every public member carries a doc comment for the API reference.
+    public_member_api_docs: true
