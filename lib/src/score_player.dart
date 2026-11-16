@@ -395,7 +395,7 @@ final class ScorePlayer {
     _position.value = PlaybackPosition(
       seconds: seconds,
       point: point,
-      sounding: run.script.sourcesAt(seconds),
+      playing: run.script.playingAt(seconds),
     );
   }
 }
@@ -553,7 +553,7 @@ final class PlaybackPosition {
   const PlaybackPosition({
     required this.seconds,
     required this.point,
-    required this.sounding,
+    required this.playing,
   });
 
   /// Script time, which runs at [ScorePlayer.tempoScale] times real time.
@@ -562,7 +562,8 @@ final class PlaybackPosition {
   /// The bar, pass and continuous offset, for the playhead.
   final PlaybackPoint point;
 
-  /// The events sounding now, one per voice, for the highlight. May include
-  /// events on hidden staves; the sheet skips any it did not draw.
-  final List<EventRef> sounding;
+  /// The events playing now, one per voice and rests too, for the
+  /// highlight. May include events on hidden staves; the sheet skips any
+  /// it did not draw.
+  final List<EventRef> playing;
 }

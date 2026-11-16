@@ -87,7 +87,7 @@ NoteRef headOf(Score score, int bar, int beat) => NoteRef(
 VoicePoint cursorIn(Score score, int bar) => point(score, bar, Moment.zero);
 
 /// Where a player is [through] of the way through bar [bar] of [score].
-PlaybackPosition playingIn(Score score, int bar, {double through = 0.25}) {
+PlaybackPosition positionIn(Score score, int bar, {double through = 0.25}) {
   final script = PlaybackCompiler().compile(score);
   final played = script.bars.firstWhere(
     (played) => played.measure == score.measures[bar].id,
@@ -96,7 +96,7 @@ PlaybackPosition playingIn(Score score, int bar, {double through = 0.25}) {
   return PlaybackPosition(
     seconds: seconds,
     point: script.pointAt(seconds)!,
-    sounding: script.sourcesAt(seconds),
+    playing: script.playingAt(seconds),
   );
 }
 
@@ -397,7 +397,7 @@ void main() {
         overlays = overlaysNow;
       }
 
-      playback.value = playingIn(score, 1);
+      playback.value = positionIn(score, 1);
       await tester.pump();
       expectOnlyOverlaysPainted('after a playback position');
 
@@ -2338,7 +2338,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // The last system goes to the top, which the end of the sheet stops.
-      playback.value = playingIn(score, 39);
+      playback.value = positionIn(score, 39);
       for (var frame = 0; frame < 6; frame++) {
         await tester.pump(const Duration(milliseconds: 16));
       }
@@ -2788,18 +2788,18 @@ void main() {
         SheetView(score: score, playback: playback, followPlayback: follow),
       );
       await tester.pumpWidget(view());
-      playback.value = playingIn(score, 20);
+      playback.value = positionIn(score, 20);
       await tester.pumpAndSettle();
       expect(topOf(tester, score.measures[20].id), closeTo(0, 1e-6));
 
       scrollOf(tester).jumpTo(0);
       await tester.pump();
-      playback.value = playingIn(score, 20, through: 0.75);
+      playback.value = positionIn(score, 20, through: 0.75);
       await tester.pumpAndSettle();
       expect(scrollOf(tester).pixels, 0);
 
       await tester.pumpWidget(view(follow: false));
-      playback.value = playingIn(score, 35);
+      playback.value = positionIn(score, 35);
       await tester.pumpAndSettle();
       expect(scrollOf(tester).pixels, 0);
     },
@@ -2819,7 +2819,7 @@ void main() {
           size: const Size(400, 120),
         ),
       );
-      playback.value = playingIn(score, 20);
+      playback.value = positionIn(score, 20);
       await tester.pumpAndSettle();
       expect(
         bandOf(tester, score.measures[20].id, staff).top,
@@ -2834,7 +2834,7 @@ void main() {
       scrollOf(tester).jumpTo(scrollOf(tester).pixels + lower.top - 10);
       await tester.pump();
       final offset = scrollOf(tester).pixels;
-      playback.value = playingIn(
+      playback.value = positionIn(
         score,
         score.measures.indexWhere((bar) => bar.id == next),
       );
@@ -2858,7 +2858,7 @@ void main() {
           (index) => spanOf(tester, index).bottom > viewSize.height,
         ),
       );
-      playback.value = playingIn(score, score.indexOf(bar));
+      playback.value = positionIn(score, score.indexOf(bar));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 125));
       expect(topOf(tester, bar), greaterThan(1));
@@ -2895,7 +2895,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       expect(done, isFalse);
 
-      playback.value = playingIn(score, 20);
+      playback.value = positionIn(score, 20);
       await tester.pump();
       expect(done, isTrue, reason: 'the scroll to the top took its place');
       await tester.pumpAndSettle();
@@ -2931,7 +2931,7 @@ void main() {
           spanOf(tester, system).bottom,
           closeTo(viewSize.height + below, 1e-6),
         );
-        playback.value = playingIn(
+        playback.value = positionIn(
           score,
           score.indexOf(layout.firstBarOf(system)),
         );
@@ -2963,7 +2963,7 @@ void main() {
       await tester.pump();
       expect(spanOf(tester, last).bottom, greaterThan(viewSize.height + 1));
 
-      playback.value = playingIn(score, score.measures.length - 1);
+      playback.value = positionIn(score, score.measures.length - 1);
       var furthest = position.pixels;
       for (var frame = 0; frame < 30; frame++) {
         await tester.pump(const Duration(milliseconds: 16));
@@ -2995,7 +2995,7 @@ void main() {
       final bar = score.measures[41].id;
       MeasureId firstOfItsSystem() =>
           shown(tester).firstBarOf(shown(tester).systemOf(bar)!);
-      playback.value = playingIn(score, 41, through: 0.1);
+      playback.value = positionIn(score, 41, through: 0.1);
       await tester.pumpAndSettle();
       expect(topOf(tester, bar), closeTo(0, 1e-6));
       final first = firstOfItsSystem();
@@ -3006,13 +3006,13 @@ void main() {
       await tester.pump();
       expect(firstOfItsSystem(), isNot(first));
       final offset = scrollOf(tester).pixels;
-      playback.value = playingIn(score, 41, through: 0.2);
+      playback.value = positionIn(score, 41, through: 0.2);
       await tester.pumpAndSettle();
       expect(scrollOf(tester).pixels, offset);
 
       final layout = shown(tester);
       final next = layout.firstBarOf(layout.systemOf(bar)! + 1);
-      playback.value = playingIn(score, score.indexOf(next));
+      playback.value = positionIn(score, score.indexOf(next));
       await tester.pumpAndSettle();
       expect(topOf(tester, next), closeTo(0, 1e-6));
     },
@@ -3032,11 +3032,11 @@ void main() {
       await tester.pumpWidget(host(SheetView(score: score, playback: second)));
       expect(first.isHeard, isFalse);
 
-      first.value = playingIn(score, 20);
+      first.value = positionIn(score, 20);
       await tester.pumpAndSettle();
       expect(scrollOf(tester).pixels, 0);
 
-      second.value = playingIn(score, 20);
+      second.value = positionIn(score, 20);
       await tester.pumpAndSettle();
       expect(topOf(tester, score.measures[20].id), closeTo(0, 1e-6));
 
@@ -3065,7 +3065,7 @@ void main() {
       var overlays = picturesOf<OverlayPainter>(tester);
       expect(overlays.length, greaterThan(1));
       for (final through in [0.1, 0.3, 0.5, 0.7]) {
-        playback.value = playingIn(score, 1, through: through);
+        playback.value = positionIn(score, 1, through: through);
         await tester.pump();
         final painted = picturesOf<OverlayPainter>(tester);
         for (final (tile, picture) in painted.indexed) {
@@ -4456,7 +4456,7 @@ void main() {
         PlaybackPosition(
           seconds: seconds,
           point: script.pointAt(seconds)!,
-          sounding: script.sourcesAt(seconds),
+          playing: script.playingAt(seconds),
         ),
       );
       addTearDown(playback.dispose);
@@ -4609,17 +4609,17 @@ void main() {
       Rect placeOf(ElementRef ref) =>
           sheet.rectOf(layout.boundsOf(ref)!).inflate(1);
 
-      final sounding = [
-        for (final ref in playback.value!.sounding)
+      final playing = [
+        for (final ref in playback.value!.playing)
           if (layout.boundsOf(ref) != null) placeOf(ref),
       ];
-      expect(sounding, isNotEmpty);
+      expect(playing, isNotEmpty);
       final purple = pixelsOf(0x88, 0x22, 0xCC);
-      expect(purple, isNotEmpty, reason: 'a sounding note in its colour');
+      expect(purple, isNotEmpty, reason: 'a playing note in its colour');
       expect(
-        purple.where((at) => !sounding.any((place) => place.contains(at))),
+        purple.where((at) => !playing.any((place) => place.contains(at))),
         isEmpty,
-        reason: 'the playback colour off the sounding notes',
+        reason: 'the playback colour off the playing notes',
       );
 
       final tinted = pixelsOf(0xFF, 0x88, 0x00);

@@ -207,7 +207,7 @@ Slider(
 )
 ```
 
-The player publishes its position. The sheet highlights the events that sound and moves a playhead. The play button reads the player's status, so the app keeps no play state of its own.
+The player publishes its position. The sheet marks the beat that plays with one column down the system, over the notes and the rests that start there, and draws those events in the playback ink. A note held from an earlier beat keeps its ink and stays out of the column. The play button reads the player's status, so the app keeps no play state of its own.
 
 A `PedalLine` plays as the sustain pedal. The notes of its part, on every staff, ring until the line ends. Add one with `AddSpanner(kind: const PedalLine(), staff: ..., first: ..., last: ...)`.
 
@@ -346,7 +346,7 @@ The look of a sheet is set by three values of `SheetView`. Each has a default, s
 
 | Value | What it holds | A change |
 | --- | --- | --- |
-| `palette` | Colours, one for each kind of mark if the app wants that, and the styles of the selection, the cursor, the playhead and the sounding notes. | Repaints. Nothing is laid out again. |
+| `palette` | Colours, one for each kind of mark if the app wants that, and the styles of the selection, the cursor, the playhead and the playing events. | Repaints. Nothing is laid out again. |
 | `style` | Fonts, text sizes, spacing, the thickness of the lines and what is printed. | Lays the score out again. |
 | `tints` | A colour for one note or one event. | Repaints. |
 
@@ -401,10 +401,10 @@ SheetPalette.of(context).copyWith(
 | `inks` | `Map<InkRole, Color>` | A colour for one kind of mark, in place of the three above. |
 | `paper` | `Color?` | The colour behind the sheet, on screen and in an image from `toImage`. Null draws none. |
 | `selection` | `SheetHighlight` | The selected notes, lines and ranges. |
-| `playback` | `SheetHighlight` | The notes that sound now. |
+| `playback` | `SheetHighlight` | The events that play now, rests too. Its box is one column down the system over the events that started last. |
 | `cursor` | `SheetLine` | The caret at the edit cursor. |
 | `preview` | `Color?` | The note of `SheetView.preview`. Null draws it in the cursor's colour. |
-| `playhead` | `SheetLine` | The line that moves while the score plays. |
+| `playhead` | `SheetLine` | A line that moves while the score plays. `SheetPalette.of` gives it a width of zero, so it draws none. It moves at the pace of the bar's spacing, which does not follow time. |
 
 A `SheetHighlight` draws a box, a border around the box and the marked item again in another ink. Each is drawn when it is given, so a style may mix them. The box and its border lie under the notes and the staff lines, so a fill of any colour leaves the music to read. Boxes that overlap make one shape with one border around it.
 
@@ -414,7 +414,7 @@ A `SheetHighlight` draws a box, a border around the box and the marked item agai
 | `border`, `borderWidth` | The colour and the width of the line around the box. The line lies inside the box. A width of zero draws none. |
 | `radius` | How round the corners are. |
 | `padding` | How far the box reaches past the notes. Under zero it makes the box smaller than the notes. |
-| `ink` | The colour the marked item is drawn in. A selected or sounding event is the whole chord or rest, with its stem, accidentals and dots. One selected note of a chord is its head alone. A selected slur, hairpin or other line is the whole line. A selected range has a box and no ink. |
+| `ink` | The colour the marked item is drawn in. A selected or playing event is the whole chord or rest, with its stem, accidentals and dots. One selected note of a chord is its head alone. A selected slur, hairpin or other line is the whole line. A selected range has a box and no ink. |
 
 A `SheetLine` has a `color` and a `width`, and a width of zero draws no line. Every length is in staff spaces, so a box and a line grow with the zoom. A width or a radius under zero fails an `assert`, so only a debug build refuses it. In a release build a width under zero draws no line and no border. A radius under zero goes to Flutter's `RRect` as it is. Flutter checks it in a debug build only and gives it no meaning, so do not pass one.
 
