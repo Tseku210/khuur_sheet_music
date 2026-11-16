@@ -5,6 +5,8 @@ sidebar:
   order: 5
 ---
 
+import SheetImage from '../../../components/SheetImage.astro';
+
 This guide places your own widgets over a `SheetView`, such as a delete button at the selected note. The `SheetController` reports where things are drawn, and tells you when they move.
 
 ## Put a button at the selected note
@@ -42,6 +44,8 @@ ListenableBuilder(
   ),
 )
 ```
+
+<SheetImage name="widgets-over-the-sheet" alt="The scale on the First sheet staff with its last note, the C of bar 2, selected under a light box, and a close button just above and to the right of it." />
 
 `_session` and `_run` are the ones of [Edit by tap](/khuur_sheet_music/guides/edit-by-tap/). `singleEvent` is the selected event when exactly one event, or one head of one chord, is selected.
 

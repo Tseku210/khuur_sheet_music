@@ -5,6 +5,8 @@ sidebar:
   order: 6
 ---
 
+import SheetImage from '../../../components/SheetImage.astro';
+
 This guide draws the sheet of a `SheetView` into a `ui.Image` and saves it as a PNG file.
 
 ## Export the whole sheet
@@ -34,6 +36,8 @@ The image is the sheet as the view draws it, with these differences:
 - It has no cursor, preview, selection, tints or playhead.
 - It has no padding of the view.
 - Its background is the palette's `paper`, or transparent when the palette has none. The palette the view takes from the theme has none.
+
+<SheetImage name="export-an-image" alt="Left, a SheetView of the First sheet with a selected G and the caret after it. Right, the image toImage made of the same view: the same sheet with no caret, no selection and no padding around it." />
 
 The image has the view's width, zoom and palette. To export in other colours, give the view another palette, as [Change the look](/khuur_sheet_music/guides/change-the-look/) describes.
 

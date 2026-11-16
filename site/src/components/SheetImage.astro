@@ -1,0 +1,31 @@
+---
+// A picture of a sheet in the reader's theme. `example/tool/render_docs_images.dart`
+// draws each one twice, as src/assets/sheets/<name>-light.png and -dark.png.
+import type { ImageMetadata } from 'astro';
+import { Image } from 'astro:assets';
+
+interface Props {
+	name: string;
+	alt: string;
+}
+
+const { name, alt } = Astro.props;
+
+const sheets = import.meta.glob<{ default: ImageMetadata }>('../assets/sheets/*.png', {
+	eager: true,
+});
+
+function sheet(theme: 'light' | 'dark'): ImageMetadata {
+	const file = sheets[`../assets/sheets/${name}-${theme}.png`];
+	if (!file) {
+		throw new Error(`No picture src/assets/sheets/${name}-${theme}.png`);
+	}
+	return file.default;
+}
+
+const light = sheet('light');
+const dark = sheet('dark');
+---
+
+<Image src={light} alt={alt} width={light.width / 2} densities={[1, 2]} class="dark:sl-hidden" />
+<Image src={dark} alt={alt} width={dark.width / 2} densities={[1, 2]} class="light:sl-hidden" />
