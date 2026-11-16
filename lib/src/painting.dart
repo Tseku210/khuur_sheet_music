@@ -522,9 +522,9 @@ final class SystemPainter extends CustomPainter {
       oldDelegate.scale != scale;
 }
 
-/// Paints the boxes of the selection and of the sounding notes under one
-/// system, so that a fill lies behind the notes and the staff lines. The
-/// box of a sounding note lies over the box of a selected one.
+/// Paints the boxes of the selection and the column of the playing events
+/// under one system, so that a fill lies behind the notes and the staff
+/// lines. The column lies over the box of a selected item.
 ///
 /// A tick paints with the same painter, so the selection's outline is made
 /// once, on the first paint.
@@ -557,13 +557,13 @@ final class HighlightPainter extends CustomPainter {
     if (_drawsBox(palette.selection)) {
       _mark(canvas, _selected, palette.selection);
     }
-    final sounding = playback?.value?.sounding;
-    if (sounding != null && _drawsBox(palette.playback)) {
-      final system = layout.systemAt(index);
-      final boxes = [
-        for (final ref in sounding) ?system.boundsOf(ElementOwner(ref)),
-      ];
-      _mark(canvas, _outlineOf(boxes, palette.playback), palette.playback);
+    final playing = playback?.value?.playing;
+    if (playing != null && _drawsBox(palette.playback)) {
+      _mark(
+        canvas,
+        _outlineOf([?layout.playingIn(index, playing)], palette.playback),
+        palette.playback,
+      );
     }
   }
 
@@ -652,9 +652,9 @@ final class HighlightPainter extends CustomPainter {
 }
 
 /// Paints what lies over one system's own ink, which is the tints, the ink
-/// of the selection, the ink of the sounding notes, the playhead and the
+/// of the selection, the ink of the playing events, the playhead and the
 /// caret, each in the style the palette gives it. An ink of the selection
-/// covers a tint, and the ink of the sounding notes covers both. Their
+/// covers a tint, and the ink of the playing events covers both. Their
 /// boxes are the [HighlightPainter]'s, under the system.
 ///
 /// The cursor, the selection and the tints are values of this painter, so
@@ -667,7 +667,7 @@ final class HighlightPainter extends CustomPainter {
 ///
 /// A tick paints with the same painter. So the painter finds the selected
 /// and the tinted drawables of its system once, on its first paint, and a
-/// tick costs the sounding events and the playhead.
+/// tick costs the playing events and the playhead.
 final class OverlayPainter extends CustomPainter {
   OverlayPainter({
     required this.layout,
@@ -698,7 +698,7 @@ final class OverlayPainter extends CustomPainter {
   late final SystemLayout _system = layout.systemAt(index);
 
   // A ref with no drawables here (a hidden staff, another system) draws
-  // nothing, so neither the tints nor the sounding events need a filter.
+  // nothing, so neither the tints nor the playing events need a filter.
   // The system is asked by the event's id and never by the ref's measure,
   // which a change of meter leaves stale.
   late final List<(Drawable, Color)> _tinted = [
@@ -731,7 +731,7 @@ final class OverlayPainter extends CustomPainter {
 
     final position = playback?.value;
     if (palette.playback.ink case final ink?) {
-      for (final ref in position?.sounding ?? const <EventRef>[]) {
+      for (final ref in position?.playing ?? const <EventRef>[]) {
         for (final drawable in _system.drawablesOf(ElementOwner(ref))) {
           paintDrawable(canvas, drawable, glyphs, scale, ink);
         }

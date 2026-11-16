@@ -80,8 +80,8 @@ class SheetView extends StatefulWidget {
   /// that is another object.
   final Map<ElementRef, Color> tints;
 
-  /// Usually `ScorePlayer.position`. The sheet highlights the sounding
-  /// events and draws a playhead.
+  /// Usually `ScorePlayer.position`. The sheet highlights the playing
+  /// events, and draws a playhead when the palette's has a width.
   final ValueListenable<PlaybackPosition?>? playback;
 
   /// Called with what a tap means. Not called for a tap outside every

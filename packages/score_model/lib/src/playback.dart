@@ -78,6 +78,10 @@ final class PlaybackCompiler {
       );
       final start = seconds;
       seconds += clock.at(to) - clock.at(from);
+      bool plays(TimedEvent timed) =>
+          sounds.containsKey(timed.ref.staff) &&
+          from <= timed.onset &&
+          timed.onset < to;
       final bar = _Bar(
         PlayedBar(
           measure: column.id,
@@ -90,11 +94,9 @@ final class PlaybackCompiler {
         clock: clock,
         heard: [
           for (final chord in fragment.chords)
-            if (sounds.containsKey(chord.timed.ref.staff) &&
-                from <= chord.timed.onset &&
-                chord.timed.onset < to)
-              chord,
+            if (plays(chord.timed)) chord,
         ],
+        playing: fragment.events.where(plays).toList(),
       );
       timeline.add(bar);
       for (final chord in bar.heard) {
@@ -331,6 +333,7 @@ final class _Bar {
     required this.to,
     required this.clock,
     required this.heard,
+    required this.playing,
   });
 
   final PlayedBar played;
@@ -342,6 +345,10 @@ final class _Bar {
 
   /// The chords that start in the played part, on parts not muted.
   final List<_Chord> heard;
+
+  /// The events that start in the played part, on parts not muted, rests
+  /// too.
+  final List<TimedEvent> playing;
 
   double secondsAt(Moment offset) =>
       played.start + clock.at(offset) - clock.at(from);
@@ -411,18 +418,18 @@ final class PlaybackScript {
     return at == _timeline.length ? null : at;
   }
 
-  /// Events sounding at [seconds], one per voice, for highlighting. An
-  /// event sounds for its notated length, and rests sound nothing. The
-  /// result includes events on hidden staves, because a hidden part plays.
-  List<EventRef> sourcesAt(double seconds) {
+  /// Events playing at [seconds], one per voice, for highlighting. An
+  /// event plays for its notated length, and a rest plays like a note, so
+  /// the reader keeps their place through it. The result includes events
+  /// on hidden staves, because a hidden part plays.
+  List<EventRef> playingAt(double seconds) {
     final bar = _playing(seconds);
     if (bar == null) {
       return const [];
     }
     final voices = <(StaffId, VoiceSlot)>{};
     return [
-      for (final _Chord(timed: TimedEvent(:onset, :duration, :voice, :ref))
-          in bar.heard)
+      for (final TimedEvent(:onset, :duration, :voice, :ref) in bar.playing)
         if (bar.secondsAt(onset) <= seconds &&
             seconds < bar.secondsAt(onset + duration) &&
             voices.add((ref.staff, voice)))
@@ -590,7 +597,10 @@ final class PlayedBar {
 /// column alone, so it can be cached on the column. Hidden parts are
 /// compiled too, because they play.
 final class _Fragment {
-  const _Fragment(this.chords, this.holds);
+  const _Fragment(this.events, this.chords, this.holds);
+
+  /// Every event, rests too, in staff, voice and time order.
+  final List<TimedEvent> events;
 
   /// In staff, voice and time order.
   final List<_Chord> chords;

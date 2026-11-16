@@ -405,9 +405,10 @@ class PlayerSketch {
     }
   }
 
-  /// Playhead to events, for highlighting. One entry per sounding event.
+  /// Playhead to events, for highlighting. One entry per playing event,
+  /// rests too.
   List<EventRef> highlightAt(double seconds) =>
-      _script?.sourcesAt(seconds) ?? const [];
+      _script?.playingAt(seconds) ?? const [];
 
   /// Start playback at the cursor.
   double startTimeFor(ScorePoint point) => _script?.secondsAt(point) ?? 0;

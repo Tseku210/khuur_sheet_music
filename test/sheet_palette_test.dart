@@ -22,7 +22,7 @@ import 'sheet_view_test.dart'
         inked,
         paintedIn,
         picturesOf,
-        playingIn,
+        positionIn,
         scrollOf,
         shown,
         tune;
@@ -247,7 +247,7 @@ void main() {
     final score = tune(bars: 4);
     final layout = layoutOf(score);
     final staff = score.staves.first.id;
-    final playing = playingIn(score, 0);
+    final playing = positionIn(score, 0);
     final marks = <String, (SheetPalette, Selection, PlaybackPosition?)>{
       'a selected note': (
         quiet.copyWith(selection: const SheetHighlight(fill: yellow)),
@@ -264,7 +264,7 @@ void main() {
         ),
         null,
       ),
-      'a sounding note': (
+      'a playing note': (
         quiet.copyWith(
           playback: const SheetHighlight(fill: yellow, padding: 0.3),
         ),
@@ -300,7 +300,7 @@ void main() {
     }
   });
 
-  testWidgets('the view lays the box of a selected note and of a sounding '
+  testWidgets('the view lays the box of a selected note and of a playing '
       'note under its notes', (tester) async {
     const yellow = Color(0xFFFFEB3B);
     final score = tune();
@@ -337,10 +337,10 @@ void main() {
         null,
       ),
       (
-        'a sounding note',
+        'a playing note',
         quiet.copyWith(playback: box),
         const NoSelection(),
-        playingIn(score, 0),
+        positionIn(score, 0),
       ),
     ]) {
       playback.value = playing;
@@ -679,10 +679,10 @@ void main() {
       'covers both', () async {
     final score = tune(bars: 4);
     final layout = layoutOf(score);
-    final playing = playingIn(score, 0);
-    final sounding = playing.sounding.single;
-    final head = score.lookup(sounding)!.event as ChordEvent;
-    final note = NoteRef(sounding, head.notes.single.id);
+    final position = positionIn(score, 0);
+    final event = position.playing.single;
+    final head = score.lookup(event)!.event as ChordEvent;
+    final note = NoteRef(event, head.notes.single.id);
     final middle = scale
         .rectOf(layout.systemAt(0).boundsOf(ElementOwner(note))!)
         .center;
@@ -707,7 +707,7 @@ void main() {
       palette,
       tints: {note: blue},
       selection: ItemSelection(Seq([note])),
-      playing: playing,
+      playing: position,
     );
     expect(heard.at(middle), green);
   });
@@ -715,21 +715,21 @@ void main() {
   test('a box lies behind the ink it comes with', () async {
     final score = tune(bars: 4);
     final layout = layoutOf(score);
-    final playing = playingIn(score, 0);
-    final sounding = playing.sounding.single;
+    final position = positionIn(score, 0);
+    final event = position.playing.single;
     final middle = scale
         .rectOf(
           layout.systemAt(0).boundsOf(ElementOwner(headOf(score, 0, 1)))!,
         )
         .center;
-    expect(sounding.id, headOf(score, 0, 1).event.id);
+    expect(event.id, headOf(score, 0, 1).event.id);
 
     final selected = await marksOf(
       layout,
       quiet.copyWith(
         selection: const SheetHighlight(fill: blue, ink: red),
       ),
-      selection: ItemSelection(Seq([sounding])),
+      selection: ItemSelection(Seq([event])),
     );
     expect(selected.at(middle), red);
 
@@ -738,37 +738,53 @@ void main() {
       quiet.copyWith(
         playback: const SheetHighlight(fill: blue, ink: green),
       ),
-      playing: playing,
+      playing: position,
     );
     expect(heard.at(middle), green);
   });
 
-  test('the sounding notes get a box when the playback style has a '
-      'fill', () async {
+  test('the playing events get a column down the whole system when the '
+      'playback style has a fill', () async {
     final score = tune(bars: 4);
     final layout = layoutOf(score);
-    final playing = playingIn(score, 0);
-    final sounding = [
-      for (final ref in playing.sounding)
-        scale.rectOf(layout.systemAt(0).boundsOf(ElementOwner(ref))!),
-    ];
-    expect(sounding, hasLength(1));
+    final position = positionIn(score, 0);
+    final drawn = layout
+        .systemAt(0)
+        .boundsOf(
+          ElementOwner(position.playing.single),
+        )!;
+    final note = scale.rectOf(drawn);
+    final column = scale.rectOf(layout.playingIn(0, position.playing)!);
+    expect(
+      column,
+      scale.rectOf(Box(drawn.left, 0, drawn.right, layout.heightOf(0))),
+    );
 
     final pixels = await marksOf(
       layout,
       quiet.copyWith(
         playback: const SheetHighlight(fill: blue, padding: 0.25),
       ),
-      playing: playing,
+      playing: position,
     );
 
-    final box = sounding.single.inflate(0.25 * spacePx);
-    expect(pixels.at(box.topLeft.translate(2, 2)), blue);
-    expect(pixels.at(box.bottomRight.translate(-2, -2)), blue);
+    final box = column.inflate(0.25 * spacePx);
+    expect(pixels.at(Offset(box.left + 2, note.center.dy)), blue);
+    expect(pixels.at(Offset(box.right - 2, note.center.dy)), blue);
+    expect(
+      pixels.at(Offset(note.center.dx, column.top + 2)),
+      blue,
+      reason: 'the top',
+    );
+    expect(
+      pixels.at(Offset(note.center.dx, column.bottom - 2)),
+      blue,
+      reason: 'the bottom',
+    );
     expect(
       pixels.painted.where((at) => !box.inflate(1).contains(at)),
       isEmpty,
-      reason: 'paint off the sounding note',
+      reason: 'paint off the column',
     );
 
     final lined = await marksOf(
@@ -776,10 +792,10 @@ void main() {
       quiet.copyWith(
         playback: const SheetHighlight(border: red, borderWidth: 0.2),
       ),
-      playing: playing,
+      playing: position,
     );
-    expect(lined.at(sounding.single.centerLeft.translate(2, 0)), red);
-    expect(lined.at(sounding.single.center), clear);
+    expect(lined.at(column.centerLeft.translate(2, 0)), red);
+    expect(lined.at(column.center), clear);
 
     final later = headOf(score, 0, 3).event;
     final laterBox = scale.rectOf(
@@ -791,16 +807,25 @@ void main() {
         playback: const SheetHighlight(fill: blue, ink: green),
       ),
       playing: PlaybackPosition(
-        seconds: playing.seconds,
-        point: playing.point,
-        sounding: [...playing.sounding, later],
+        seconds: position.seconds,
+        point: position.point,
+        playing: [...position.playing, later],
       ),
     );
-    expect(two.at(laterBox.topLeft.translate(2, 2)), blue);
     expect(
-      two.painted.where((at) => two.at(at) == green).any(laterBox.contains),
+      two.at(Offset(laterBox.center.dx, column.top + 2)),
+      blue,
+      reason: 'the column moves to the event that started last',
+    );
+    expect(
+      two.at(Offset(note.center.dx, column.top + 2)),
+      clear,
+      reason: 'and leaves the one held from earlier',
+    );
+    expect(
+      two.painted.where((at) => two.at(at) == green).any(note.contains),
       isTrue,
-      reason: 'the second sounding note is inked too',
+      reason: 'the held note is inked still',
     );
 
     final both = await marksOf(
@@ -809,13 +834,13 @@ void main() {
         selection: const SheetHighlight(fill: red),
         playback: const SheetHighlight(fill: blue),
       ),
-      selection: ItemSelection(Seq([playing.sounding.single])),
-      playing: playing,
+      selection: ItemSelection(Seq([position.playing.single])),
+      playing: position,
     );
     expect(
-      both.at(sounding.single.topLeft.translate(2, 2)),
+      both.at(note.topLeft.translate(2, 2)),
       blue,
-      reason: 'the box of a sounding note lies over the box of a selected one',
+      reason: 'the column lies over the box of a selected note',
     );
   });
 
@@ -824,7 +849,7 @@ void main() {
     final score = tune(bars: 4);
     final layout = layoutOf(score);
     final cursor = cursorIn(score, 1);
-    final playing = playingIn(score, 2, through: 0.6);
+    final playing = positionIn(score, 2, through: 0.6);
     final caret = scale.rectOf(layout.caretIn(0, cursor)!);
     Future<Pixels> drawn({required double caretWidth, double? headWidth}) =>
         marksOf(
@@ -1148,8 +1173,9 @@ void main() {
   });
 
   // Which colour of the theme each part takes is not checked here.
-  testWidgets('the palette of the theme fills the selection, inks the '
-      'sounding notes and draws lines a fifth of a staff space wide', (
+  testWidgets('the palette of the theme fills the selection, boxes and '
+      'inks the playing events, draws a caret a fifth of a staff space '
+      'wide and no playhead', (
     tester,
   ) async {
     late SheetPalette palette;
@@ -1167,9 +1193,18 @@ void main() {
 
     expect(palette.selection.fill, isNotNull);
     expect(palette.selection, SheetHighlight(fill: palette.selection.fill));
+    expect(palette.playback.fill, isNotNull);
     expect(palette.playback.ink, isNotNull);
-    expect(palette.playback, SheetHighlight(ink: palette.playback.ink));
-    expect([palette.cursor.width, palette.playhead.width], [0.2, 0.2]);
+    expect(
+      palette.playback,
+      SheetHighlight(
+        fill: palette.playback.fill,
+        radius: 0.3,
+        padding: 0.4,
+        ink: palette.playback.ink,
+      ),
+    );
+    expect([palette.cursor.width, palette.playhead.width], [0.2, 0]);
     expect(palette.paper, isNull);
   });
 
