@@ -717,6 +717,46 @@ void main() {
       expect([column.left, column.right], [moving.left, moving.right]);
     });
 
+    test('keeps to the note on the downbeat, not a bar rest centred on '
+        'another staff', () {
+      final layout = sheetOf(
+        scoreOf([
+          [
+            staffOf([chordOf(1, 'D4'), chordOf(2, 'D4')]),
+            staffOf([
+              MeasureRest(id: const EventId(21), span: whole.length),
+            ], clef: Clef.bass),
+          ],
+        ]),
+      );
+      final note = layout.systemAt(0).boundsOf(ElementOwner(eventRef(1)))!;
+
+      final column = layout.playingIn(0, [eventRef(1), bassRef(21)])!;
+
+      expect([column.left, column.right], [note.left, note.right]);
+    });
+
+    test('reaches across the bar rests when only they are playing', () {
+      final layout = sheetOf(
+        scoreOf([
+          [
+            staffOf([MeasureRest(id: const EventId(1), span: whole.length)]),
+            staffOf([
+              MeasureRest(id: const EventId(21), span: whole.length),
+            ], clef: Clef.bass),
+          ],
+        ]),
+      );
+      final system = layout.systemAt(0);
+      final rests = system
+          .boundsOf(ElementOwner(eventRef(1)))!
+          .union(system.boundsOf(ElementOwner(bassRef(21)))!);
+
+      final column = layout.playingIn(0, [eventRef(1), bassRef(21)])!;
+
+      expect([column.left, column.right], [rests.left, rests.right]);
+    });
+
     test('is on its own system only, and not on a hidden staff', () {
       final score = threeSystems();
       final layout = sheetOf(score);
