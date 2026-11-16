@@ -62,7 +62,26 @@ enum LaneEnd {
 
 /// The right edge of the last note an extender runs to, as a slice and an x
 /// from it.
-typedef MelismaEnd = ({int slice, double dx});
+///
+/// A class, so that a [BarLane] holds no record. A map tests a record that
+/// holds a record slowly, each time it stores one.
+final class MelismaEnd {
+  /// Makes the end at [dx] from [slice].
+  const MelismaEnd({required this.slice, required this.dx});
+
+  /// The slice of the note.
+  final int slice;
+
+  /// The note's right edge, from the slice line.
+  final double dx;
+
+  @override
+  bool operator ==(Object other) =>
+      other is MelismaEnd && other.slice == slice && other.dx == dx;
+
+  @override
+  int get hashCode => Object.hash(slice, dx);
+}
 
 /// A lane in one bar. It holds what the lane does at the bar's edges, and the
 /// room its syllables need above and below their baseline.
@@ -352,11 +371,12 @@ List<LyricRow> lyricRows(
   final hyphen = text.measure('-', style.specOf(TextRole.lyric));
   // An extender lies on the baseline, half of it under the line.
   final line = style.font.defaults.lyricLineThickness / 2;
-  final rows = <LyricLane, LyricRow>{
+  // A row is made from its room at the end. A row holds its lane, which is
+  // a record, and a map tests such a value slowly each time it stores one.
+  final rooms = <LyricLane, ({double ascent, double descent})>{
     for (final lane in carry.open.keys)
       if (lane.staff == staff)
         lane: (
-          lane: lane,
           ascent: math.max(hyphen.ascent, line),
           descent: math.max(hyphen.descent, line),
         ),
@@ -366,15 +386,17 @@ List<LyricRow> lyricRows(
       if (lane.staff != staff) {
         continue;
       }
-      final row = rows[lane];
-      rows[lane] = (
-        lane: lane,
-        ascent: math.max(row?.ascent ?? line, here.ascent),
-        descent: math.max(row?.descent ?? line, here.descent),
+      final room = rooms[lane];
+      rooms[lane] = (
+        ascent: math.max(room?.ascent ?? line, here.ascent),
+        descent: math.max(room?.descent ?? line, here.descent),
       );
     }
   }
-  return rows.values.toList()..sort(
+  return [
+    for (final MapEntry(key: lane, value: room) in rooms.entries)
+      (lane: lane, ascent: room.ascent, descent: room.descent),
+  ]..sort(
     (a, b) => a.lane.voice.index != b.lane.voice.index
         ? a.lane.voice.index.compareTo(b.lane.voice.index)
         : a.lane.verse.compareTo(b.lane.verse),
@@ -527,10 +549,8 @@ bool _holds(TimedEvent? timed, int? verse) => switch (timed?.event) {
   _ => false,
 };
 
-MelismaEnd _endOf(PlacedChord placed) => (
-  slice: placed.slice,
-  dx: placed.plan.headsBox.right,
-);
+MelismaEnd _endOf(PlacedChord placed) =>
+    MelismaEnd(slice: placed.slice, dx: placed.plan.headsBox.right);
 
 /// The text's x from the slice line. It is centred on the head at the
 /// stem's foot, which is never a displaced head of a second. A syllable

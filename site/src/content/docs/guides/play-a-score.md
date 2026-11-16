@@ -45,7 +45,7 @@ Pass the player's `position` to the view as `playback`.
 SheetView(score: widget.score, playback: _player.position)
 ```
 
-The sheet marks the beat that plays with one column down the system, over the notes and the rests that start there. It draws every playing event in the playback ink. A note held from an earlier beat also takes the playback ink, and stays out of the column. To change these colours, see [Change the look of the sheet](/khuur_sheet_music/guides/change-the-look/).
+The sheet marks the beat that plays with one column down the system, over the notes and the rests that start there. The column covers a chord's heads, accidentals and dots, and not its grace notes or its ties, so a note tied into the next bar does not stretch it across the barline. It draws every playing event in the playback ink. A note held from an earlier beat also takes the playback ink, and stays out of the column. To change these colours, see [Change the look of the sheet](/khuur_sheet_music/guides/change-the-look/).
 
 When the playhead enters a system that is not wholly in view, the view scrolls that system to its top. To keep the view where the user puts it, pass `followPlayback: false`.
 
