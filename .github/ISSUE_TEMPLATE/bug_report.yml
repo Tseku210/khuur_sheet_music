@@ -1,0 +1,61 @@
+name: Bug report
+description: Something renders, edits or plays wrong.
+labels: [bug, khuur_sheet]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens
+      description: What you see or hear. Add a screenshot of the sheet if it is about the drawing.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      description: The smallest score that shows the bug, as Dart code or a MusicXML file, and the steps.
+      render: dart
+    validations:
+      required: true
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      options:
+        - khuur_sheet_music (view, painter or player)
+        - score_layout
+        - score_model
+        - Not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platforms
+      multiple: true
+      options:
+        - Android
+        - iOS
+        - macOS
+        - Windows
+        - Linux
+        - Web
+        - Pure Dart
+  - type: input
+    id: version
+    attributes:
+      label: Package version or commit
+      placeholder: 0.2.1 or 197747c
+    validations:
+      required: true
+  - type: textarea
+    id: flutter
+    attributes:
+      label: Output of flutter --version
+      render: text
