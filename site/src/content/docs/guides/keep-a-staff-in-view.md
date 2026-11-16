@@ -1,0 +1,55 @@
+---
+title: Keep one staff in view
+description: Keep one staff of a tall system on screen when your app scrolls to a bar and while the sheet follows playback.
+sidebar:
+  order: 4
+---
+
+This guide keeps one staff on screen when a system of several staves is taller than the view. A short view, such as a phone held sideways, can be lower than one system of a score with several parts.
+
+Without a staff, `SheetController.ensureVisible` shows the top of such a system, which is the first part. Playback that follows the sound does the same.
+
+## Pick the staff
+
+A `StaffId` comes from the score's parts. This one is the first staff of the second part.
+
+```dart
+final soloStaff = score.parts[1].staves.first.id;
+```
+
+## Scroll to a bar with the staff in view
+
+Pass the staff to `ensureVisible`.
+
+```dart
+await _sheet.ensureVisible(point, staff: soloStaff);
+```
+
+`point` is a `ScorePoint`, such as `_session.cursor.at`. The future completes when the scroll ends or the user takes over.
+
+The view scrolls by the shortest way until the staff is in view with the room that is its own. That room reaches halfway to the staves next to the staff, and to the edge of the system where there is no staff next to it. The view does not scroll while the staff is in view already. When the view is too short for that room, the lines of the staff go to the middle of the view.
+
+## Follow playback on the staff
+
+Pass the same staff as `playbackStaff`.
+
+```dart
+SheetView(
+  score: widget.score,
+  controller: _sheet,
+  playback: _player.position,
+  playbackStaff: soloStaff,
+)
+```
+
+When the playhead enters a system and the staff is not wholly in view, the view puts the top of the staff's room at the top of the view. `followPlayback` must be on, which it is unless you turn it off.
+
+## Know when the staff applies
+
+Both `staff` and `playbackStaff` apply only to a system that is taller than the view. The view shows a system that fits whole, as without a staff. It does the same for a system that does not draw the staff, such as one where the staff's part is hidden.
+
+## Related pages
+
+- [Play a score](/khuur_sheet_music/guides/play-a-score/) sets up the `ScorePlayer` whose position the sheet follows.
+- [Place widgets over the sheet](/khuur_sheet_music/guides/widgets-over-the-sheet/) covers the rest of what the controller reports.
+- [The playback timeline](/khuur_sheet_music/explanation/playback-timeline/) explains how the sheet follows the sound.
