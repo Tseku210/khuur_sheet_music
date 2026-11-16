@@ -537,8 +537,7 @@ MelismaEnd _endOf(PlacedChord placed) => (
 /// whose extender reaches past its own note ([melisma]) is aligned left
 /// with that head instead.
 double _dxOf(ChordPlan plan, TextExtent extent, {required bool melisma}) {
-  final head = plan.stem == StemSide.up ? plan.heads.first : plan.heads.last;
-  final box = plan.headBoxes[head.id]!;
+  final box = plan.footBox;
   return melisma ? box.left : (box.left + box.right - extent.width) / 2;
 }
 

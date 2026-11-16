@@ -526,9 +526,7 @@ double _centreOf(TimedEvent timed, PlacedChord? chord, SmuflFont font) {
     final ink = _inkOf(timed, null, font);
     return (ink.left + ink.right) / 2;
   }
-  final plan = chord.plan;
-  final head = plan.stem == StemSide.up ? plan.heads.first : plan.heads.last;
-  final box = plan.headBoxes[head.id]!;
+  final box = chord.plan.footBox;
   return (box.left + box.right) / 2;
 }
 
@@ -653,7 +651,7 @@ List<BarItem> _hangArticulations(
   final plan = chord.plan;
   final voices = event.voices;
   final up = plan.stem == StemSide.up;
-  final head = up ? plan.heads.first : plan.heads.last;
+  final head = plan.footHead;
   final away = up ? -1 : 1;
   var step = voices < 2 ? head.step + (head.step.isOdd ? 2 : 3) * away : null;
   final items = <BarItem>[];

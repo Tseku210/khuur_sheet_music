@@ -136,6 +136,13 @@ final class ChordPlan {
 
   /// The union of [headBoxes].
   Box get headsBox => _ink.headsBox;
+
+  /// The head the stem leaves: the lowest of an upstem chord, the highest of
+  /// a downstem one. It is never a head flipped across the stem.
+  HeadPlan get footHead => stem == StemSide.up ? heads.first : heads.last;
+
+  /// [footHead]'s box against the slice line.
+  Box get footBox => headBoxes[footHead.id]!;
 }
 
 /// One grace chord before a principal.
