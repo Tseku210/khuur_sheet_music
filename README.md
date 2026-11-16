@@ -18,7 +18,7 @@ dependencies:
       ref: main
 ```
 
-`pubspec.lock` keeps the commit that pub got, and `flutter pub upgrade khuur_sheet_music` moves it to the newest commit on `main`. To work on the package and an app together, depend on a checkout by path, as `example/pubspec.yaml` does. The package needs Dart 3.13 and Flutter 3.47 or later.
+`pubspec.lock` keeps the commit that pub got, and `flutter pub upgrade khuur_sheet_music` moves it to the newest commit on `main`. To work on the package and an app together, depend on a checkout by path, as `example/pubspec.yaml` does. The package needs Dart 3.13 and Flutter 3.47.5 or later.
 
 The sheet takes its colours from the `Theme` of [`material_ui`](https://pub.dev/packages/material_ui), the package that replaces `package:flutter/material.dart`. The two libraries keep separate themes. Under a `MaterialApp` of `flutter/material.dart` the sheet finds no theme and draws in the light default colours. To move an app to `material_ui`, follow the migration steps in the README of `material_ui`.
 
@@ -530,25 +530,7 @@ The diagram shows how the packages connect. `SheetView` and its painters draw a 
 
 ![The architecture of khuur_sheet_music: the app gives a score to SheetView and ScorePlayer. SheetView and the painters draw through SheetLayout in score_layout, which reads the Score in score_model. ScorePlayer compiles the score into a PlaybackScript, sends notes through SynthOutput to khuur_synth, and sends the playing position to the painters.](doc/architecture.png)
 
-Run these checks from the repository root before you send a change. `flutter test` at the root runs neither the tests of the two packages nor the tests of the example.
-
-```bash
-flutter pub get
-flutter analyze
-flutter test
-(cd packages/score_model && dart test)
-(cd packages/score_layout && dart test)
-(cd example && flutter test)
-```
-
-`packages/score_layout/benchmark/layout_benchmark.dart` measures the cost of layout against a budget. After a change to the layout engine, compile the benchmark and run it. It exits with code 1 when a layout is over its budget.
-
-```bash
-cd packages/score_layout
-mkdir -p build
-dart compile exe benchmark/layout_benchmark.dart -o build/layout_benchmark
-build/layout_benchmark
-```
+[CONTRIBUTING.md](CONTRIBUTING.md) lists the checks that a change must pass and explains how a pull request lands.
 
 ## Used by
 

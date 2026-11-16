@@ -6,7 +6,7 @@ homepage: https://github.com/Tseku210/khuur_sheet_music
 
 environment:
   sdk: ^3.13.0
-  flutter: ">=3.47.0"
+  flutter: ">=3.47.5"
 
 workspace:
   - packages/score_layout
