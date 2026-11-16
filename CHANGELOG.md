@@ -1,3 +1,6 @@
+## Unreleased
+* The playback highlight of a `SheetView` covers only the chord on the beat: its heads, accidentals and dots. It reached left over the chord's grace notes and right along its ties, so a note tied into the next bar lit a column across the barline.
+
 ## 0.3.1
 * The playback highlight of a `SheetView` covers only the notes that are sounding when another staff holds a bar rest. On the bar's first beat it reached the middle of the bar and covered notes that had not started.
 * MusicXML import reads a note that ends nested tuplets whatever order it lists their stops in, and gives a chord the duration of its first note. Debussy's String Quartet from OpenScore and a Sibelius export of Schubert's *Der Lindenbaum* were refused before.
