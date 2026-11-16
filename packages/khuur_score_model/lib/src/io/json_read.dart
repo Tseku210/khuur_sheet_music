@@ -57,8 +57,8 @@ final class _Decoder {
       ]),
     );
     for (final (i, spanner) in score.spanners.indexed) {
-      if (score.isCollapsed(spanner)) {
-        spanners[i]['to'].fail('a slur or glissando ends after it starts');
+      if (spannerProblem(score, spanner) case final problem?) {
+        spanners[i]['to'].fail(problem);
       }
     }
     return score;

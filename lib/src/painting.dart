@@ -190,18 +190,36 @@ ui.Paragraph textParagraph(
   TextSpec spec,
   double fontSize,
   Color color,
-) {
+) => _line(
+  text,
+  spec.family,
+  fontSize,
+  color,
+  weight: spec.bold ? FontWeight.bold : FontWeight.normal,
+  style: spec.italic ? FontStyle.italic : FontStyle.normal,
+);
+
+/// One line of [text] in [family], laid out with no width limit. Text and
+/// glyphs are both built here, so they share every paragraph setting.
+ui.Paragraph _line(
+  String text,
+  String? family,
+  double fontSize,
+  Color color, {
+  FontWeight? weight,
+  FontStyle? style,
+}) {
   final builder =
       ui.ParagraphBuilder(
-          ui.ParagraphStyle(fontFamily: spec.family, fontSize: fontSize),
+          ui.ParagraphStyle(fontFamily: family, fontSize: fontSize),
         )
         ..pushStyle(
           ui.TextStyle(
             color: color,
-            fontFamily: spec.family,
+            fontFamily: family,
             fontSize: fontSize,
-            fontWeight: spec.bold ? FontWeight.bold : FontWeight.normal,
-            fontStyle: spec.italic ? FontStyle.italic : FontStyle.normal,
+            fontWeight: weight,
+            fontStyle: style,
           ),
         )
         ..addText(text);
@@ -352,18 +370,60 @@ final class GlyphPainter {
     }
   }
 
-  ui.Paragraph _build(int codepoint, double fontSize, Color color) {
-    final family = font.flutterFamily;
-    final builder =
-        ui.ParagraphBuilder(
-            ui.ParagraphStyle(fontFamily: family, fontSize: fontSize),
-          )
-          ..pushStyle(
-            ui.TextStyle(color: color, fontFamily: family, fontSize: fontSize),
-          )
-          ..addText(String.fromCharCode(codepoint));
-    return builder.build()
-      ..layout(const ui.ParagraphConstraints(width: double.infinity));
+  ui.Paragraph _build(int codepoint, double fontSize, Color color) => _line(
+    String.fromCharCode(codepoint),
+    font.flutterFamily,
+    fontSize,
+    color,
+  );
+}
+
+/// Paints [drawables], each in the colour [palette] gives its [InkRole].
+void _paintInked(
+  Canvas canvas,
+  Iterable<Drawable> drawables,
+  GlyphPainter glyphs,
+  SheetScale scale,
+  SheetPalette palette,
+) {
+  for (final drawable in drawables) {
+    paintDrawable(
+      canvas,
+      drawable,
+      glyphs,
+      scale,
+      palette.colorOf(drawable.ink),
+    );
+  }
+}
+
+/// Paints the systems of [layout] from [from] up to [end], with sheet y
+/// [top] at the canvas's top and [spacePx] logical pixels to a staff space.
+/// The header comes first when [from] is 0. No highlight and no overlay is
+/// painted, so this is the sheet as printed.
+void paintSystems(
+  Canvas canvas,
+  SheetLayout layout, {
+  required int from,
+  required int end,
+  required double top,
+  required double spacePx,
+  required GlyphPainter glyphs,
+  required SheetPalette palette,
+}) {
+  SheetScale below(double y) =>
+      SheetScale(spacePx: spacePx, origin: Offset(0, (y - top) * spacePx));
+  if (from == 0) {
+    _paintInked(canvas, layout.header, glyphs, below(0), palette);
+  }
+  for (var index = from; index < end; index++) {
+    _paintInked(
+      canvas,
+      layout.systemAt(index).drawables.followedBy([?layout.labelOf(index)]),
+      glyphs,
+      below(layout.tops[index]),
+      palette,
+    );
   }
 }
 
@@ -460,17 +520,8 @@ final class HeaderPainter extends CustomPainter {
   final SheetScale scale;
 
   @override
-  void paint(Canvas canvas, Size size) {
-    for (final drawable in header) {
-      paintDrawable(
-        canvas,
-        drawable,
-        glyphs,
-        scale,
-        palette.colorOf(drawable.ink),
-      );
-    }
-  }
+  void paint(Canvas canvas, Size size) =>
+      _paintInked(canvas, header, glyphs, scale, palette);
 
   @override
   bool shouldRepaint(HeaderPainter oldDelegate) =>
@@ -520,17 +571,8 @@ final class SystemPainter extends CustomPainter {
   Iterable<Drawable> get _drawables => system.drawables.followedBy([?label]);
 
   @override
-  void paint(Canvas canvas, Size size) {
-    for (final drawable in _drawables) {
-      paintDrawable(
-        canvas,
-        drawable,
-        glyphs,
-        scale,
-        palette.colorOf(drawable.ink),
-      );
-    }
-  }
+  void paint(Canvas canvas, Size size) =>
+      _paintInked(canvas, _drawables, glyphs, scale, palette);
 
   @override
   bool shouldRepaint(SystemPainter oldDelegate) =>

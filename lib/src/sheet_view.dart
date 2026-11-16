@@ -382,25 +382,16 @@ class SheetController extends ChangeNotifier {
       canvas.drawColor(paper, BlendMode.src);
     }
     canvas.scale(pixelRatio);
-    SheetScale below(double y) =>
-        SheetScale(spacePx: spacePx, origin: Offset(0, (y - top) * spacePx));
-    if (from == 0) {
-      HeaderPainter(
-        header: layout.header,
-        glyphs: view._glyphs,
-        palette: palette,
-        scale: below(0),
-      ).paint(canvas, Size.zero);
-    }
-    for (var index = from; index < end; index++) {
-      SystemPainter(
-        system: layout.systemAt(index),
-        label: layout.labelOf(index),
-        glyphs: view._glyphs,
-        palette: palette,
-        scale: below(layout.tops[index]),
-      ).paint(canvas, Size.zero);
-    }
+    paintSystems(
+      canvas,
+      layout,
+      from: from,
+      end: end,
+      top: top,
+      spacePx: spacePx,
+      glyphs: view._glyphs,
+      palette: palette,
+    );
     final picture = recorder.endRecording();
     return picture.toImage(width, height).whenComplete(picture.dispose);
   }
@@ -414,13 +405,45 @@ class SheetController extends ChangeNotifier {
 }
 
 /// The sheet on screen, which is the layout the last frame built and what
-/// it was drawn with.
-typedef _Shown = ({
-  SheetLayout layout,
-  double spacePx,
-  EdgeInsets padding,
-  SheetPalette palette,
-});
+/// it was drawn with, and where its systems are in logical pixels.
+///
+/// A system has two frames. The sheet's starts at the first staff space of
+/// the layout, and the scroll content's starts [padding] above it.
+final class _Shown {
+  const _Shown({
+    required this.layout,
+    required this.spacePx,
+    required this.padding,
+    required this.palette,
+  });
+
+  final SheetLayout layout;
+  final double spacePx;
+  final EdgeInsets padding;
+  final SheetPalette palette;
+
+  /// The top and bottom of the system at [index] in the sheet.
+  ({double top, double bottom}) sheetSpanOf(int index) => (
+    top: layout.tops[index] * spacePx,
+    bottom: (layout.tops[index] + layout.heightOf(index)) * spacePx,
+  );
+
+  /// The top and bottom of the system at [index] in the scroll content.
+  ({double top, double bottom}) contentSpanOf(int index) {
+    final top = padding.top + layout.tops[index] * spacePx;
+    return (top: top, bottom: top + layout.heightOf(index) * spacePx);
+  }
+
+  /// The height of the tile of the system at [index], which is its planned
+  /// height and the gap to the next system. Known without assembling the
+  /// system.
+  double tileExtentOf(int index) {
+    final next = index + 1 < layout.systemCount
+        ? layout.tops[index + 1]
+        : layout.height;
+    return (next - layout.tops[index]) * spacePx;
+  }
+}
 
 /// The bar the view keeps in place across an update, and where the top of
 /// its system sits in the sheet, in logical pixels.
@@ -442,18 +465,6 @@ typedef _OwnScroll = ({
 /// or the part of one that holds a staff, and how much of the content the
 /// view shows, in logical pixels.
 typedef _Place = ({double top, double bottom, double viewport});
-
-/// The top and bottom of the system at [index] in the scroll content, in
-/// logical pixels.
-({double top, double bottom}) _spanOf(
-  SheetLayout layout,
-  int index,
-  double spacePx,
-  EdgeInsets padding,
-) {
-  final top = padding.top + layout.tops[index] * spacePx;
-  return (top: top, bottom: top + layout.heightOf(index) * spacePx);
-}
 
 /// The offset that brings a system spanning [top] to [bottom] into a view
 /// [viewport] high that is at [pixels]. It is the system's top when [toTop]
@@ -849,8 +860,8 @@ class _SheetViewState extends State<SheetView> {
     if (shown == null || index == null || !_scroll.hasClients) {
       return null;
     }
-    final (:layout, :spacePx, :padding, palette: _) = shown;
-    final (:top, :bottom) = _spanOf(layout, index, spacePx, padding);
+    final _Shown(:layout, :spacePx) = shown;
+    final (:top, :bottom) = shown.contentSpanOf(index);
     final viewport = _scroll.position.viewportDimension;
     final system = (top: top, bottom: bottom, viewport: viewport);
     if (staff == null || bottom - top <= viewport) {
@@ -1045,12 +1056,11 @@ class _SheetViewState extends State<SheetView> {
     if (position.pixels <= position.minScrollExtent) {
       return null;
     }
-    final (:layout, :spacePx, :padding, palette: _) = shown;
-    final viewTop = position.pixels - padding.top;
+    final layout = shown.layout;
+    final viewTop = position.pixels - shown.padding.top;
     final viewBottom = viewTop + position.viewportDimension;
-    double topOf(int index) => layout.tops[index] * spacePx;
-    double bottomOf(int index) =>
-        (layout.tops[index] + layout.heightOf(index)) * spacePx;
+    double topOf(int index) => shown.sheetSpanOf(index).top;
+    double bottomOf(int index) => shown.sheetSpanOf(index).bottom;
     final cursor = widget.followCursor ? widget.cursor?.at.measure : null;
     final cursorSystem = cursor == null ? null : layout.systemOf(cursor);
     if (cursor != null &&
@@ -1066,23 +1076,18 @@ class _SheetViewState extends State<SheetView> {
     return (bar: layout.firstBarOf(first), top: topOf(first));
   }
 
-  /// The scroll offset a view that is [viewport] high opens [layout] at.
+  /// The scroll offset a view that is [viewport] high opens [shown] at.
   ///
   /// A view that follows its cursor opens with the cursor's system in view,
   /// by the rule of `ensureVisible` from the top of the sheet. Any other
   /// opens at the top.
-  double _startOf(
-    SheetLayout layout,
-    double spacePx,
-    EdgeInsets padding,
-    double viewport,
-  ) {
+  double _startOf(_Shown shown, double viewport) {
     final cursor = widget.followCursor ? widget.cursor?.at.measure : null;
-    final index = cursor == null ? null : layout.systemOf(cursor);
+    final index = cursor == null ? null : shown.layout.systemOf(cursor);
     if (index == null) {
       return 0;
     }
-    final (:top, :bottom) = _spanOf(layout, index, spacePx, padding);
+    final (:top, :bottom) = shown.contentSpanOf(index);
     return math.max(
       0,
       _visibleTarget(
@@ -1115,14 +1120,14 @@ class _SheetViewState extends State<SheetView> {
   /// scroll the view itself is animating writes its own offsets on the next
   /// tick and would undo it, and it may be going to where its bar was. So
   /// the builder has such a scroll look again after every frame it builds.
-  void _keepInPlace(_ScrollAnchor? anchor, SheetLayout layout, double spacePx) {
-    final index = anchor == null ? null : layout.systemOf(anchor.bar);
+  void _keepInPlace(_ScrollAnchor? anchor, _Shown shown) {
+    final index = anchor == null ? null : shown.layout.systemOf(anchor.bar);
     if (anchor == null || index == null) {
       return;
     }
     final position = _scroll.position;
     final moved = math.max(
-      layout.tops[index] * spacePx - anchor.top,
+      shown.sheetSpanOf(index).top - anchor.top,
       position.minScrollExtent - position.pixels,
     );
     if (moved != 0) {
@@ -1151,24 +1156,20 @@ class _SheetViewState extends State<SheetView> {
               style: widget.style,
             )
           : previous.layout.update(widget.score, width: width);
-      if (previous == null) {
-        // The scroll view makes its position after this returns.
-        _scroll.start = _startOf(
-          layout,
-          spacePx,
-          padding,
-          constraints.maxHeight,
-        );
-      }
-      _keepInPlace(anchor, layout, spacePx);
-      _stale = false;
       final palette = widget.palette ?? SheetPalette.of(context);
-      _shown = (
+      final shown = _Shown(
         layout: layout,
         spacePx: spacePx,
         padding: padding,
         palette: palette,
       );
+      if (previous == null) {
+        // The scroll view makes its position after this returns.
+        _scroll.start = _startOf(shown, constraints.maxHeight);
+      }
+      _keepInPlace(anchor, shown);
+      _stale = false;
+      _shown = shown;
       final relaid =
           !identical(layout, previous?.layout) ||
           spacePx != previous?.spacePx ||
@@ -1219,7 +1220,7 @@ class _SheetViewState extends State<SheetView> {
                 ),
                 SliverVariedExtentList(
                   itemExtentBuilder: (index, _) => index < layout.systemCount
-                      ? _extentOf(layout, index) * spacePx
+                      ? shown.tileExtentOf(index)
                       : null,
                   // Only a system scrolled into view is asked for,
                   // so only those are assembled.
@@ -1304,15 +1305,6 @@ class _SheetViewState extends State<SheetView> {
       );
     },
   );
-
-  /// The height of a system's tile in staff spaces, which is its planned
-  /// height and the gap to the next system. Known without assembling the
-  /// system.
-  double _extentOf(SheetLayout layout, int index) =>
-      (index + 1 < layout.systemCount
-          ? layout.tops[index + 1]
-          : layout.height) -
-      layout.tops[index];
 
   /// What a screen reader says for system [index], which is the bars it
   /// holds by their printed numbers. Known without assembling the system.

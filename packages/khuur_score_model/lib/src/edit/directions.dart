@@ -24,7 +24,7 @@ _Result _addSpanner(
     first: first,
     last: last,
   );
-  if (!_fits(score, spanner)) {
+  if (spannerProblem(score, spanner) != null) {
     final name = _spannerName(kind);
     throw _Refuse(
       InvalidValue(

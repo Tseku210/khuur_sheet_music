@@ -128,6 +128,20 @@ const Set<Articulation> restMarks = {Articulation.fermata};
 String? restMarksProblem(Set<Articulation> marks) =>
     restMarks.containsAll(marks) ? null : 'a rest holds only a fermata';
 
+/// Refuses [spanner] where it cannot stand in [score]: its ends out of
+/// order, or, for one that joins notes, both ends on one event.
+String? spannerProblem(Score score, Spanner spanner) =>
+    spannerOrderProblem(
+      joinsNotes: spanner.kind.joinsNotes,
+      firstBar: score.indexOf(spanner.first.measure),
+      firstOffset: spanner.first.offset,
+      lastBar: score.indexOf(spanner.last.measure),
+      lastOffset: spanner.last.offset,
+    ) ??
+    (score.isCollapsed(spanner) ? _endsAfterStart : null);
+
+const _endsAfterStart = 'a slur or glissando ends after it starts';
+
 /// A spanner that joins notes ends after it starts; any other ends no
 /// sooner than it starts. The ends are bar indices and offsets so the rule
 /// needs no [Score].
@@ -142,7 +156,7 @@ String? spannerOrderProblem({
       ? firstBar.compareTo(lastBar)
       : firstOffset.compareTo(lastOffset);
   if (joinsNotes) {
-    return order < 0 ? null : 'a slur or glissando ends after it starts';
+    return order < 0 ? null : _endsAfterStart;
   }
   return order <= 0 ? null : 'a line cannot end before it starts';
 }

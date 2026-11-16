@@ -155,6 +155,34 @@ typedef _Wide = ({
   Object? lane,
 });
 
+/// The directions of each staff of a bar and the bar's system marks, built
+/// once for both the bar's spacing ([markReach]) and their placing
+/// ([directionItems], [systemMarkItems]), so the two read the same rows.
+final class BarDirections {
+  /// Builds the marks of [view] at its [times].
+  BarDirections(
+    MeasureView view, {
+    required List<Moment> times,
+    required EngravingStyle style,
+    required TextMeasurer text,
+  }) : _staves = [
+         for (final (staff, staffView) in view.staves.indexed)
+           _directions(
+             staffView,
+             staff: staff,
+             times: times,
+             style: style,
+             text: text,
+           ),
+       ],
+       _system = view.staves.isEmpty
+           ? const []
+           : _systemMarks(view, times: times, style: style, text: text);
+
+  final List<List<_Wide>> _staves;
+  final List<_Wide> _system;
+}
+
 /// [reach] widened until the bar's rods hold every mark of [view] inside
 /// the bar.
 ///
@@ -171,10 +199,10 @@ List<SliceReach> markReach(
   MeasureView view,
   Map<EventId, PlacedChord> chords,
   Map<EventId, EventMarks> eventMarks,
+  BarDirections directions,
   List<SliceReach> reach, {
   required List<Moment> times,
   required EngravingStyle style,
-  required TextMeasurer text,
 }) {
   final wide = [...reach];
   final font = style.font;
@@ -227,16 +255,8 @@ List<SliceReach> markReach(
   }
 
   final marks = [
-    for (final (staff, staffView) in view.staves.indexed)
-      ..._directions(
-        staffView,
-        staff: staff,
-        times: times,
-        style: style,
-        text: text,
-      ),
-    if (view.staves.isNotEmpty)
-      ..._systemMarks(view, times: times, style: style, text: text),
+    ...directions._staves.expand((marks) => marks),
+    ...directions._system,
   ];
   final pad = style.spacing.barPad;
   final end = times.length - 1;
@@ -526,9 +546,7 @@ double _centreOf(TimedEvent timed, PlacedChord? chord, SmuflFont font) {
     final ink = _inkOf(timed, null, font);
     return (ink.left + ink.right) / 2;
   }
-  final plan = chord.plan;
-  final head = plan.stem == StemSide.up ? plan.heads.first : plan.heads.last;
-  final box = plan.headBoxes[head.id]!;
+  final box = chord.plan.footBox;
   return (box.left + box.right) / 2;
 }
 
@@ -653,7 +671,7 @@ List<BarItem> _hangArticulations(
   final plan = chord.plan;
   final voices = event.voices;
   final up = plan.stem == StemSide.up;
-  final head = up ? plan.heads.first : plan.heads.last;
+  final head = plan.footHead;
   final away = up ? -1 : 1;
   var step = voices < 2 ? head.step + (head.step.isOdd ? 2 : 3) * away : null;
   final items = <BarItem>[];
@@ -1002,21 +1020,12 @@ List<BarItem> _place(
 /// accidentals are `csym` glyphs, and its root and bass are spelled as
 /// `style.chordSymbols` asks. An empty text draws nothing.
 List<BarItem> directionItems(
-  StaffView view,
+  BarDirections directions,
   Skyline skyline, {
   required int staff,
-  required List<Moment> times,
   required List<double> xs,
-  required EngravingStyle style,
-  required TextMeasurer text,
 }) => [
-  for (final mark in _directions(
-    view,
-    staff: staff,
-    times: times,
-    style: style,
-    text: text,
-  ))
+  for (final mark in directions._staves[staff])
     ..._place(mark, skyline, staff: staff, xs: xs, left: 0),
 ];
 
@@ -1136,15 +1145,12 @@ List<_Wide> _systemMarks(
 /// outside the rest. The items sit on staff 0, against [top]. A mark with
 /// nothing to print draws nothing.
 List<BarItem> systemMarkItems(
-  MeasureView view,
+  BarDirections directions,
   Skyline top, {
-  required List<Moment> times,
   required List<double> xs,
   required double left,
-  required EngravingStyle style,
-  required TextMeasurer text,
 }) => [
-  for (final mark in _systemMarks(view, times: times, style: style, text: text))
+  for (final mark in directions._system)
     ..._place(mark, top, staff: 0, xs: xs, left: left),
 ];
 
