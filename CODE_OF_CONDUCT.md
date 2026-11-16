@@ -4,9 +4,8 @@ This project follows the [Contributor Covenant, version 2.1](https://www.contrib
 
 ## Report a problem
 
-Report behaviour that breaks the code of conduct privately to the maintainer:
+To report behaviour that breaks the code of conduct, open a [private advisory](https://github.com/Tseku210/khuur_sheet_music/security/advisories/new) and start its title with "Conduct:". Link the comments, issues or pull requests that the report is about. Only you and the maintainer can read the advisory.
 
-- On the comment, issue or pull request, open the **...** menu, select **Report content**, then select **Report to repository admins**.
-- If the problem is not on GitHub content that you can report, open a [private security advisory](https://github.com/Tseku210/khuur_sheet_music/security/advisories/new) and start its title with "Conduct:". Only the maintainer can read it.
+For harassment or abuse that breaks GitHub's own rules, you can also report it to GitHub: open the **...** menu on the content and select **Report content**. GitHub staff review those reports, not the maintainer.
 
 The maintainer reviews every report and keeps the identity of the reporter private. The enforcement guidelines of the Contributor Covenant decide the consequences.
