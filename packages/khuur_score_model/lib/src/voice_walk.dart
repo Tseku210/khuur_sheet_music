@@ -87,6 +87,59 @@ Iterable<TimedTuplet> timedTuplets(Voice voice) sync* {
   }
 }
 
+/// What [timedEvents] and [timedTuplets] give for [voice], from one walk.
+///
+/// A measure view reads both lists whole, so it walks the voice once here
+/// and builds neither lazily.
+({List<TimedEvent> events, List<TimedTuplet> tuplets}) timedVoice(
+  Voice voice, {
+  required MeasureId measure,
+  required StaffId staff,
+}) {
+  final events = <TimedEvent>[];
+  final tuplets = <TimedTuplet>[];
+  void walk(
+    Iterable<VoiceItem> items,
+    Moment start,
+    Fraction scale,
+    List<TupletId> enclosing,
+  ) {
+    var at = start;
+    for (final item in items) {
+      final duration = item.span * scale;
+      switch (item) {
+        case Gap():
+          break;
+        case Event():
+          events.add(
+            TimedEvent(
+              ref: EventRef(measure: measure, staff: staff, id: item.id),
+              voice: voice.slot,
+              event: item,
+              onset: at,
+              duration: duration,
+              tuplets: enclosing,
+            ),
+          );
+        case Tuplet(:final id, :final ratio, :final members):
+          tuplets.add(
+            (
+              tuplet: item,
+              onset: at,
+              span: duration,
+              depth: enclosing.length,
+            ),
+          );
+          walk(members, at, scale * ratio.scale, [...enclosing, id]);
+      }
+      at += duration;
+    }
+  }
+
+  walk(voice.items, Moment.zero, Fraction.one, const []);
+  return (events: events, tuplets: tuplets);
+}
+
 /// The last event [timedEvents] gives for [voice], found without its time.
 Event? lastEvent(Voice voice) {
   Event? last(Seq<VoiceItem> items) {
