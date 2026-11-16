@@ -81,12 +81,17 @@ Map<String, Object?> scoreToJson(Score score) {
 /// Throws [ScoreFormatException] naming the JSON path of the first problem.
 Score scoreFromJson(Object? json) => _Decoder().score(_In(json, r'$'));
 
+/// A score file that cannot be read, with where and why.
+///
+/// [scoreFromJson] and `scoreFromMusicXml` throw it at the first problem.
 final class ScoreFormatException implements Exception {
+  /// An error at [path] that [message] explains.
   const ScoreFormatException(this.path, this.message);
 
   /// A JSON path or a MusicXML element path to the offending value, such as
   /// `$.measures[12].staves[0]` or `/score-partwise/part/measure[3]/note[2]`.
   final String path;
+  /// Why the value is refused, such as `missing` or `fifths outside -7..7`.
   final String message;
 
   @override

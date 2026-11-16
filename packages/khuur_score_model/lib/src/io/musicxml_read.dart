@@ -19,6 +19,9 @@ import 'musicxml_records.dart';
 part 'musicxml_read_marks.dart';
 part 'musicxml_read_notes.dart';
 
+/// Reads the `score-partwise` element [root] into records, minting every id.
+/// Throws `ScoreFormatException` at the first element that breaks a rule the
+/// model keeps.
 DocumentRecord readDocument(XmlElement root) {
   final ids = Ids();
   final identification = root.getElement('identification');

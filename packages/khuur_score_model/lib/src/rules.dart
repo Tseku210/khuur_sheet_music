@@ -19,27 +19,35 @@ final _longest = Length(Fraction(64));
 /// nesting, so the depth is capped.
 const _deepest = 16;
 
+/// Refuses a MIDI [number], such as a key or a program, outside 0 to 127.
 String? midiProblem(int number) =>
     number >= 0 && number <= 127 ? null : 'a MIDI number is 0 to 127';
 
+/// Refuses a negative sound [bank].
 String? bankProblem(int bank) => bank >= 0 ? null : 'a bank is 0 or more';
 
+/// Refuses a key of more than 7 flats or 7 sharps, counted in [fifths].
 String? keyProblem(int fifths) =>
     fifths >= -7 && fifths <= 7 ? null : 'a key has 7 flats to 7 sharps';
 
+/// Refuses a repeat that plays fewer than 2 [times].
 String? repeatProblem(int times) =>
     times >= 2 ? null : 'a repeat plays twice or more';
 
+/// Refuses a [bpm] that is not a finite number above 0.
 String? tempoProblem(double bpm) =>
     bpm > 0 && bpm.isFinite ? null : 'a tempo is a finite number above 0';
 
+/// Refuses a tempo line [factor] that is not a finite number above 0.
 String? factorProblem(double factor) => factor > 0 && factor.isFinite
     ? null
     : 'a factor is a finite number above 0';
 
+/// Refuses a negative [finger] number.
 String? fingerProblem(int finger) =>
     finger >= 0 ? null : 'a finger number is 0 or more';
 
+/// Refuses a tuplet ratio [term] of 0 or less.
 String? ratioTermProblem(int term) =>
     term > 0 ? null : 'ratio terms are above 0';
 
@@ -47,14 +55,19 @@ String? ratioTermProblem(int term) =>
 String? tupletDepthProblem(int depth) =>
     depth <= _deepest ? null : 'tuplets nest at most $_deepest deep';
 
+/// Refuses a meter [unit] that is not a power of two from 1 to 128.
 String? unitProblem(int unit) =>
     _units.contains(unit) ? null : 'the unit is a power of two up to 128';
 
+/// Refuses a [meter] with no groups, a group of no beats, a bad unit, or a bar
+/// length that [barLengthProblem] refuses.
 String? meterProblem(Meter meter) =>
     meter.groups.isEmpty || meter.groups.any((beats) => beats < 1)
     ? 'a meter has groups of 1 or more beats'
     : unitProblem(meter.unit) ?? barLengthProblem(meter.length);
 
+/// Refuses a bar [length] that is not a whole number of 128th notes above 0, or
+/// that is longer than 64 whole notes.
 String? barLengthProblem(Length length) {
   if (!length.isPositive || !_onGrid(length)) {
     return 'a bar holds a whole number of 128th notes';
@@ -62,10 +75,14 @@ String? barLengthProblem(Length length) {
   return length > _longest ? 'a bar lasts at most 64 whole notes' : null;
 }
 
+/// Refuses a note [value] that does not last a whole number of 128th notes, as
+/// a dotted 128th does not.
 String? valueProblem(NoteValue value) => _onGrid(value.length)
     ? null
     : 'a value lasts a whole number of 128th notes';
 
+/// Refuses an onset [at] that is not a whole number of 128th notes into its bar
+/// or tuplet.
 String? startProblem(Moment at) => _onGrid(Moment.zero.until(at))
     ? null
     : 'a note starts a whole number of 128th notes into its bar or tuplet';
@@ -73,6 +90,7 @@ String? startProblem(Moment at) => _onGrid(Moment.zero.until(at))
 bool _onGrid(Length length) =>
     (length / DurationBase.oneTwentyEighth.length).isInteger;
 
+/// Refuses a [pitch] whose MIDI key lies outside 0 to 127.
 String? pitchProblem(Pitch pitch) => pitch.midiKey >= 0 && pitch.midiKey <= 127
     ? null
     : 'a pitch lies within MIDI keys 0 to 127';
@@ -97,6 +115,7 @@ String? toneProblem(Instrument instrument, Tone tone) => switch (tone) {
         (instrument.soundOf(tone) == null ? 'the kit has no $tone' : null),
 };
 
+/// Refuses a [string] index, from 0, that [instrument] has no string for.
 String? stringProblem(Instrument instrument, int string) =>
     string >= 0 && string < instrument.strings.length
     ? null
@@ -105,6 +124,7 @@ String? stringProblem(Instrument instrument, int string) =>
 /// The only articulations a rest can carry.
 const Set<Articulation> restMarks = {Articulation.fermata};
 
+/// Refuses rest [marks] that hold anything but a fermata.
 String? restMarksProblem(Set<Articulation> marks) =>
     restMarks.containsAll(marks) ? null : 'a rest holds only a fermata';
 
@@ -127,9 +147,13 @@ String? spannerOrderProblem({
   return order <= 0 ? null : 'a line cannot end before it starts';
 }
 
+/// Refuses a [tempo] whose bpm [tempoProblem] refuses, or whose beat
+/// [valueProblem] refuses.
 String? tempoMarkProblem(Tempo tempo) =>
     tempoProblem(tempo.bpm) ?? valueProblem(tempo.beat);
 
+/// Refuses an [instrument] whose program, bank, drum keys or pitches are out of
+/// range, or whose kit names a drum twice.
 String? instrumentProblem(Instrument instrument) {
   final names = <String>{};
   return midiProblem(instrument.program) ??
@@ -148,6 +172,8 @@ String? instrumentProblem(Instrument instrument) {
       ].nonNulls.firstOrNull;
 }
 
+/// Refuses a [template] with no staff, with a clef count that differs from its
+/// staves, or with an instrument that [instrumentProblem] refuses.
 String? templateProblem(PartTemplate template) {
   final PartTemplate(:instrument, :staves, :clefs) = template;
   return staves < 1 || (clefs != null && clefs.length != staves)
