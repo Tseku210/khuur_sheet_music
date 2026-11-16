@@ -18,6 +18,25 @@ import 'text.dart';
 /// Clear space between the lines of the header, in staff spaces.
 const double _headerLineGap = 1;
 
+const Set<InkRole> _chordInk = {
+  InkRole.notehead,
+  InkRole.outOfRange,
+  InkRole.accidental,
+  InkRole.dot,
+  InkRole.rest,
+};
+
+/// The box of what [ref] draws on the beat in [system]: its chord's heads,
+/// accidentals and dots, or its rest. A grace note's glyphs are the ones
+/// drawn below full size.
+Box? _onTheBeat(SystemLayout system, EventRef ref) => system
+    .drawablesOf(ElementOwner(ref))
+    .where(
+      (d) => _chordInk.contains(d.ink) && !(d is GlyphDraw && d.scale != 1),
+    )
+    .map((d) => d.bounds)
+    .fold<Box?>(null, (a, b) => a?.union(b) ?? b);
+
 /// A score laid out as a vertical stack of systems at one width, in staff
 /// spaces. The engine's only entry point.
 ///
@@ -401,20 +420,22 @@ final class SheetLayout {
   /// or null when none of them is drawn here.
   ///
   /// [events] are of one bar, as `PlaybackScript.playingAt` gives them, so
-  /// their onsets compare. The column reaches across what the events that
-  /// started last draw, on every staff, and down the whole system as the
-  /// playhead does. So it keeps one height from note to rest to note, and
-  /// an event held from earlier does not stretch it back. A `MeasureRest` is
-  /// centred in its bar, not drawn at its onset, so it gives the column its
-  /// width only when nothing else started with it. Events on another
-  /// system or a hidden staff have no part in it.
+  /// their onsets compare. The column reaches across the chords and rests
+  /// of the events that started last, on every staff, and down the whole
+  /// system as the playhead does. So it keeps one height from note to rest
+  /// to note, and an event held from earlier does not stretch it back. A
+  /// chord is its heads, accidentals and dots, and not its grace notes,
+  /// which sound off the beat, or its ties and marks, which may reach into
+  /// the next bar. A `MeasureRest` is centred in its bar, not drawn at its
+  /// onset, so it gives the column its width only when nothing else started
+  /// with it. Events on another system or a hidden staff have no part in it.
   Box? playingIn(int index, Iterable<EventRef> events) {
     final system = systemAt(index);
     final drawn = [
       for (final ref in events)
         if (score.lookup(ref) case final timed?
             when systemOf(timed.ref.measure) == index)
-          if (system.boundsOf(ElementOwner(ref)) case final bounds?)
+          if (_onTheBeat(system, ref) case final bounds?)
             (timed: timed, bounds: bounds),
     ];
     if (drawn.isEmpty) {

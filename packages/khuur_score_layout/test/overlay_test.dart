@@ -683,7 +683,9 @@ void main() {
         ]),
       );
       final system = layout.systemAt(0);
-      final high = system.boundsOf(ElementOwner(eventRef(1)))!;
+      final high = system.boundsOf(
+        ElementOwner(NoteRef(eventRef(1), const NoteId(10))),
+      )!;
       final rest = system.boundsOf(ElementOwner(bassRef(21)))!;
       final across = high.union(rest);
 
@@ -755,6 +757,53 @@ void main() {
       final column = layout.playingIn(0, [eventRef(1), bassRef(21)])!;
 
       expect([column.left, column.right], [rests.left, rests.right]);
+    });
+
+    test('covers the chord on the beat with its accidental, not its grace '
+        'note or the tie it sends over the barline', () {
+      final layout = sheetOf(
+        scoreOf([
+          [
+            staffOf([
+              ChordEvent(
+                id: const EventId(1),
+                value: NoteValue.whole,
+                graces: Seq([graceOf(5, 'D5')]),
+                notes: Seq([
+                  PitchedNote(
+                    id: const NoteId(10),
+                    pitch: Pitch.parse('F#5'),
+                    tie: true,
+                  ),
+                ]),
+              ),
+            ]),
+          ],
+          [
+            staffOf([chordOf(2, 'F#5', value: NoteValue.whole)]),
+          ],
+        ]),
+      );
+      final drawables = layout.systemAt(0).drawables;
+      Box only(bool Function(Drawable) test) =>
+          drawables.where(test).single.bounds;
+      final head = only(
+        (d) =>
+            d.ink == InkRole.notehead &&
+            d.owner == ElementOwner(NoteRef(eventRef(1), const NoteId(10))),
+      );
+      final grace = only(
+        (d) =>
+            d.ink == InkRole.notehead && d.owner == ElementOwner(eventRef(1)),
+      );
+      final tie = only((d) => d.ink == InkRole.tie);
+
+      final column = layout.playingIn(0, [eventRef(1)])!;
+
+      expect(column.left, lessThan(head.left), reason: 'the sharp is in');
+      expect(column.left, greaterThan(grace.right));
+      expect(column.right, head.right);
+      expect(column.right, lessThan(tie.right));
     });
 
     test('is on its own system only, and not on a hidden staff', () {

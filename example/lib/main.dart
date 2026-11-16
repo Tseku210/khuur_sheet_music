@@ -78,6 +78,11 @@ class _ScorePageState extends State<ScorePage>
   bool _autoBeams = true;
   ScoreClip? _clip;
 
+  /// What the user last selected themselves, by a tap or the action row.
+  /// Play starts there while it is still the selection, and not at a note
+  /// that entering it selected.
+  Selection _chosen = const Selection.none();
+
   /// A finger held down on the sheet. Null with no finger held, and while
   /// the held finger is off the sheet.
   EntryHold? _hold;
@@ -111,7 +116,7 @@ class _ScorePageState extends State<ScorePage>
       _ => null,
     };
     if (picked != null) {
-      setState(() => _session = _session.select(picked));
+      _select(picked);
       return;
     }
     if (_sheet.entryAt(at, voice: voice) case final hit?) {
@@ -220,15 +225,44 @@ class _ScorePageState extends State<ScorePage>
       case RunEdit(:final edit):
         _run(edit);
       case Reselect(:final selection):
-        setState(() => _session = _session.select(selection));
+        _select(selection);
       case TakeCopy():
         setState(() => _clip = _session.copy());
     }
   }
 
+  void _select(Selection selection) => setState(() {
+    _chosen = selection;
+    _session = _session.select(selection);
+  });
+
+  /// Playing drops the selection, so the notes the player lights are the
+  /// only ones marked.
+  void _unselect() => _select(const Selection.none());
+
+  void _resume() {
+    _unselect();
+    _player.resume();
+  }
+
+  /// Plays from the start of what the user selected, or from the top. The
+  /// start falls on the first pass when it is in a repeat.
   Future<void> _play() async {
+    final selection = _session.selection;
+    final startAt = switch (identical(selection, _chosen) ? selection : null) {
+      null => null,
+      RangeSelection(:final from) => from,
+      final chosen => switch (Picked.of(_session.score, chosen).events) {
+        [TimedEvent(:final ref, :final onset), ...] => ScorePoint(
+          ref.measure,
+          onset,
+        ),
+        _ => null,
+      },
+    };
+    _unselect();
     try {
-      await _player.play(_session.score);
+      await _player.play(_session.score, startAt: startAt);
     } on Object catch (error) {
       if (mounted) {
         _say('$error');
@@ -594,7 +628,7 @@ class _ScorePageState extends State<ScorePage>
             PlayerStatus.idle => (Icons.play_arrow, 'Play', _play),
             PlayerStatus.loading => (Icons.hourglass_empty, 'Loading', null),
             PlayerStatus.playing => (Icons.pause, 'Pause', _player.pause),
-            PlayerStatus.paused => (Icons.play_arrow, 'Resume', _player.resume),
+            PlayerStatus.paused => (Icons.play_arrow, 'Resume', _resume),
           };
           return Row(
             children: [
