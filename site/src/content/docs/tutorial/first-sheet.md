@@ -1,0 +1,552 @@
+---
+title: Your first sheet
+description: Build a one-page Flutter app that shows a score, enters a note where you tap, and plays the score through a SoundFont.
+sidebar:
+  order: 1
+---
+
+In this tutorial you build a one-page Flutter app. It shows a C major scale on a staff, enters a quarter note where you tap, undoes the last entry, and plays the score through a SoundFont.
+
+## Before you start
+
+You need the following:
+
+- Flutter 3.47.5 or later. Run `flutter --version` to see yours.
+- An Android or iOS device, emulator or simulator. Playback runs only on Android and iOS. The steps before playback also run on macOS.
+- A SoundFont file in SF2 format with a piano at program 0. The last step says where to get one.
+
+## Create the app
+
+1. Create a new Flutter app and go into its folder.
+
+   ```bash
+   flutter create first_sheet
+   cd first_sheet
+   ```
+
+2. Open `pubspec.yaml`. Add `khuur_sheet_music` and `material_ui` under `dependencies`, and add the `dependency_overrides` section. Keep the entries that `flutter create` wrote.
+
+   ```yaml
+   dependencies:
+     flutter:
+       sdk: flutter
+     khuur_sheet_music:
+       git:
+         url: https://github.com/Tseku210/khuur_sheet_music
+         ref: main
+     material_ui: ^1.11.0
+
+   dependency_overrides:
+     khuur_score_model:
+       git:
+         url: https://github.com/Tseku210/khuur_sheet_music
+         ref: main
+         path: packages/khuur_score_model
+     khuur_score_layout:
+       git:
+         url: https://github.com/Tseku210/khuur_sheet_music
+         ref: main
+         path: packages/khuur_score_layout
+   ```
+
+   The library is not on pub.dev yet, so you get it from the `main` branch of its repository. It depends on its two pure-Dart packages by version, and the overrides point those at the same repository.
+
+3. Get the packages.
+
+   ```bash
+   flutter pub get
+   ```
+
+   The command ends without an error.
+
+4. Delete `test/widget_test.dart`. It tests the counter app that `flutter create` wrote, and the next step replaces that app.
+
+## Show a score
+
+Replace all of `lib/main.dart` with the following code.
+
+```dart
+import 'package:khuur_sheet_music/khuur_sheet_music.dart';
+import 'package:material_ui/material_ui.dart';
+
+void main() => runApp(const FirstSheetApp());
+
+class FirstSheetApp extends StatelessWidget {
+  const FirstSheetApp({super.key});
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    title: 'First sheet',
+    theme: ThemeData(colorSchemeSeed: Colors.indigo),
+    darkTheme: ThemeData(
+      colorSchemeSeed: Colors.indigo,
+      brightness: Brightness.dark,
+    ),
+    home: const SheetPage(),
+  );
+}
+
+final Score blankScore = Score.blank(
+  title: 'First sheet',
+  parts: const [
+    PartTemplate(
+      name: 'Piano',
+      instrument: Instrument(key: 'piano', program: 0),
+    ),
+  ],
+  measureCount: 4,
+);
+
+class SheetPage extends StatelessWidget {
+  const SheetPage({super.key});
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('First sheet')),
+    body: SheetView(score: blankScore),
+  );
+}
+```
+
+The file imports `package:material_ui/material_ui.dart` and not `package:flutter/material.dart`. The sheet takes its colours from the `Theme` of `material_ui`. Under a `MaterialApp` of `flutter/material.dart` it finds no theme and draws in the light default colours, also in dark mode.
+
+`Score.blank` makes a score with one piano part and four empty bars. `SheetView` shows it. The `Scaffold` body gives the view a bounded width and height, which it needs, as any scroll view does.
+
+Run the app.
+
+```bash
+flutter run
+```
+
+You see the title "First sheet" over a staff with a treble clef. The staff has four bars, and each bar holds a rest.
+
+## Write notes in code
+
+A `Score` is immutable. You change it through an `EditSession`, which holds a score, a cursor and the undo history. `run` takes an edit and gives `Applied` with a new session, or `Refused` with the reason.
+
+1. Add this function and this variable under `blankScore`.
+
+   ```dart
+   Score buildScale() {
+     var session = EditSession.start(blankScore);
+     for (final name in ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5']) {
+       final edit = EnterNote(
+         at: session.cursor,
+         tone: Pitch.parse(name),
+         value: NoteValue.quarter,
+       );
+       if (session.run(edit) case Applied(session: final next)) {
+         session = next;
+       }
+     }
+     return session.score;
+   }
+
+   final Score scale = buildScale();
+   ```
+
+   Each `EnterNote` writes a quarter note at the cursor, and the cursor moves on past it.
+
+2. In `SheetPage`, show `scale` in place of `blankScore`.
+
+   ```dart
+   body: SheetView(score: scale),
+   ```
+
+3. Press `R` in the terminal where `flutter run` runs, for a hot restart.
+
+The first two bars now hold the scale in quarter notes, from middle C up to the C above it. The last two bars still rest.
+
+## Enter notes by tap
+
+Now the page keeps the session in its state, and a tap enters a note.
+
+1. Replace the `SheetPage` class with these two classes.
+
+   ```dart
+   class SheetPage extends StatefulWidget {
+     const SheetPage({super.key});
+
+     @override
+     State<SheetPage> createState() => _SheetPageState();
+   }
+
+   class _SheetPageState extends State<SheetPage> {
+     EditSession _session = EditSession.start(scale);
+
+     void _onTap(SheetHit hit) {
+       final tone = _session.score.toneForStaffStep(
+         hit.staff,
+         hit.at,
+         hit.staffStep,
+       );
+       if (tone == null) {
+         return;
+       }
+       _run(
+         EnterNote(
+           at: VoicePoint(staff: hit.staff, voice: hit.voice, at: hit.at),
+           tone: tone,
+           value: NoteValue.quarter,
+         ),
+       );
+     }
+
+     void _run(Edit edit) {
+       switch (_session.run(edit)) {
+         case Applied(:final session):
+           setState(() => _session = session);
+         case Refused(:final reason):
+           ScaffoldMessenger.of(context)
+               .showSnackBar(SnackBar(content: Text('$reason')));
+       }
+     }
+
+     void _undo() => setState(() => _session = _session.undo());
+
+     @override
+     Widget build(BuildContext context) => Scaffold(
+       appBar: AppBar(
+         title: const Text('First sheet'),
+         actions: [
+           IconButton(
+             tooltip: 'Undo',
+             icon: const Icon(Icons.undo),
+             onPressed: _session.canUndo ? _undo : null,
+           ),
+         ],
+       ),
+       body: SheetView(
+         score: _session.score,
+         cursor: _session.cursor,
+         tapGrid: DurationBase.quarter,
+         onTap: _onTap,
+       ),
+     );
+   }
+   ```
+
+2. Press `R` for a hot restart.
+
+A caret now marks the cursor at the start of the third bar.
+
+The view calls `onTap` with a `SheetHit`, which names the staff, the voice, the time and the staff step under the tap. `toneForStaffStep` turns the staff step into a pitch from the clef and the key at that time. `tapGrid` snaps the tap to a quarter-note beat.
+
+Try these taps:
+
+1. Tap the third bar on the second line from the bottom, about a quarter of the way into the bar. A quarter note G appears on the second beat, after a quarter rest and before a half rest.
+2. Tap a note of the scale, higher or lower than it is. A note at the height of your tap replaces it, because entry writes over the music under it.
+3. Tap **Undo** in the app bar. The last entry goes away. The button is off when there is nothing to undo.
+
+A tap on a note or a rest takes the time where that note or rest starts. The rest of an empty bar is drawn in the middle of the bar and starts at its beginning, so a tap on that rest enters the note on the first beat. [Edit by tap](/khuur_sheet_music/guides/edit-by-tap/) shows how to enter the note where the finger is instead.
+
+## Play the score
+
+`ScorePlayer` plays a score through FluidSynth on Android and iOS. The package bundles no SoundFont, so the app brings its own.
+
+1. Get an SF2 SoundFont with a piano at program 0. [Upright Piano KW](https://freepats.zenvoid.org/Piano/acoustic-grand-piano.html#UprightKW) from FreePats is one, released under CC0. Its smaller mono version is enough for this tutorial. Unpack the `.sf2` file if it comes in an archive.
+
+2. Copy the file into your app as `assets/soundfonts/piano.sf2`.
+
+3. Declare it in `pubspec.yaml`, in the `flutter` section that `flutter create` wrote.
+
+   ```yaml
+   flutter:
+     uses-material-design: true
+     assets:
+       - assets/soundfonts/piano.sf2
+   ```
+
+4. Replace `SheetPage` and `_SheetPageState` with the following code.
+
+   ```dart
+   class SheetPage extends StatefulWidget {
+     const SheetPage({super.key});
+
+     @override
+     State<SheetPage> createState() => _SheetPageState();
+   }
+
+   class _SheetPageState extends State<SheetPage>
+       with SingleTickerProviderStateMixin {
+     EditSession _session = EditSession.start(scale);
+
+     late final ScorePlayer _player = ScorePlayer(
+       soundFont: const AssetSoundFont('assets/soundfonts/piano.sf2'),
+       vsync: this,
+     );
+
+     @override
+     void dispose() {
+       _player.dispose();
+       super.dispose();
+     }
+
+     void _onTap(SheetHit hit) {
+       final tone = _session.score.toneForStaffStep(
+         hit.staff,
+         hit.at,
+         hit.staffStep,
+       );
+       if (tone == null) {
+         return;
+       }
+       _run(
+         EnterNote(
+           at: VoicePoint(staff: hit.staff, voice: hit.voice, at: hit.at),
+           tone: tone,
+           value: NoteValue.quarter,
+         ),
+       );
+     }
+
+     void _run(Edit edit) {
+       switch (_session.run(edit)) {
+         case Applied(:final session):
+           setState(() => _session = session);
+         case Refused(:final reason):
+           _say('$reason');
+       }
+     }
+
+     void _undo() => setState(() => _session = _session.undo());
+
+     Future<void> _play() async {
+       try {
+         await _player.play(_session.score);
+       } on Object catch (error) {
+         if (mounted) {
+           _say('$error');
+         }
+       }
+     }
+
+     void _say(String message) =>
+         ScaffoldMessenger.of(context)
+             .showSnackBar(SnackBar(content: Text(message)));
+
+     @override
+     Widget build(BuildContext context) => Scaffold(
+       appBar: AppBar(
+         title: const Text('First sheet'),
+         actions: [
+           IconButton(
+             tooltip: 'Undo',
+             icon: const Icon(Icons.undo),
+             onPressed: _session.canUndo ? _undo : null,
+           ),
+           ValueListenableBuilder(
+             valueListenable: _player.status,
+             builder: (context, status, _) => IconButton(
+               tooltip: status == PlayerStatus.playing ? 'Pause' : 'Play',
+               icon: Icon(
+                 status == PlayerStatus.playing ? Icons.pause : Icons.play_arrow,
+               ),
+               onPressed: switch (status) {
+                 PlayerStatus.idle => _play,
+                 PlayerStatus.loading => null,
+                 PlayerStatus.playing => _player.pause,
+                 PlayerStatus.paused => _player.resume,
+               },
+             ),
+           ),
+         ],
+       ),
+       body: SheetView(
+         score: _session.score,
+         cursor: _session.cursor,
+         tapGrid: DurationBase.quarter,
+         onTap: _onTap,
+         playback: _player.position,
+       ),
+     );
+   }
+   ```
+
+5. Stop the app with `q`, and run it again on an Android or iOS device or emulator. A new asset needs a fresh build.
+
+   ```bash
+   flutter run
+   ```
+
+6. Tap **Play** in the app bar.
+
+The scale plays. The sheet marks each beat as it plays and draws the notes that start there in the playback colour. The button turns into **Pause** while the score plays, and back into **Play** when the score ends. The player plays the score as it is when you tap **Play**, so enter a few notes and play again to hear them.
+
+The player needs a ticker to publish its position each frame, so the state class mixes in `SingleTickerProviderStateMixin`. The button reads `_player.status`, so the page keeps no play state of its own. `dispose` stops the sound and frees the SoundFont.
+
+On macOS the future of `play` fails with `SynthUnavailable`, and the app shows the message in a snack bar.
+
+## What you built
+
+You built a Flutter app that shows a score in a `SheetView`, writes notes in code and by tap through an `EditSession`, undoes an entry, and plays the score with `ScorePlayer`.
+
+<details>
+<summary>The finished <code>lib/main.dart</code></summary>
+
+```dart
+import 'package:khuur_sheet_music/khuur_sheet_music.dart';
+import 'package:material_ui/material_ui.dart';
+
+void main() => runApp(const FirstSheetApp());
+
+class FirstSheetApp extends StatelessWidget {
+  const FirstSheetApp({super.key});
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    title: 'First sheet',
+    theme: ThemeData(colorSchemeSeed: Colors.indigo),
+    darkTheme: ThemeData(
+      colorSchemeSeed: Colors.indigo,
+      brightness: Brightness.dark,
+    ),
+    home: const SheetPage(),
+  );
+}
+
+final Score blankScore = Score.blank(
+  title: 'First sheet',
+  parts: const [
+    PartTemplate(
+      name: 'Piano',
+      instrument: Instrument(key: 'piano', program: 0),
+    ),
+  ],
+  measureCount: 4,
+);
+
+Score buildScale() {
+  var session = EditSession.start(blankScore);
+  for (final name in ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5']) {
+    final edit = EnterNote(
+      at: session.cursor,
+      tone: Pitch.parse(name),
+      value: NoteValue.quarter,
+    );
+    if (session.run(edit) case Applied(session: final next)) {
+      session = next;
+    }
+  }
+  return session.score;
+}
+
+final Score scale = buildScale();
+
+class SheetPage extends StatefulWidget {
+  const SheetPage({super.key});
+
+  @override
+  State<SheetPage> createState() => _SheetPageState();
+}
+
+class _SheetPageState extends State<SheetPage>
+    with SingleTickerProviderStateMixin {
+  EditSession _session = EditSession.start(scale);
+
+  late final ScorePlayer _player = ScorePlayer(
+    soundFont: const AssetSoundFont('assets/soundfonts/piano.sf2'),
+    vsync: this,
+  );
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
+  }
+
+  void _onTap(SheetHit hit) {
+    final tone = _session.score.toneForStaffStep(
+      hit.staff,
+      hit.at,
+      hit.staffStep,
+    );
+    if (tone == null) {
+      return;
+    }
+    _run(
+      EnterNote(
+        at: VoicePoint(staff: hit.staff, voice: hit.voice, at: hit.at),
+        tone: tone,
+        value: NoteValue.quarter,
+      ),
+    );
+  }
+
+  void _run(Edit edit) {
+    switch (_session.run(edit)) {
+      case Applied(:final session):
+        setState(() => _session = session);
+      case Refused(:final reason):
+        _say('$reason');
+    }
+  }
+
+  void _undo() => setState(() => _session = _session.undo());
+
+  Future<void> _play() async {
+    try {
+      await _player.play(_session.score);
+    } on Object catch (error) {
+      if (mounted) {
+        _say('$error');
+      }
+    }
+  }
+
+  void _say(String message) =>
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(message)));
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(
+      title: const Text('First sheet'),
+      actions: [
+        IconButton(
+          tooltip: 'Undo',
+          icon: const Icon(Icons.undo),
+          onPressed: _session.canUndo ? _undo : null,
+        ),
+        ValueListenableBuilder(
+          valueListenable: _player.status,
+          builder: (context, status, _) => IconButton(
+            tooltip: status == PlayerStatus.playing ? 'Pause' : 'Play',
+            icon: Icon(
+              status == PlayerStatus.playing ? Icons.pause : Icons.play_arrow,
+            ),
+            onPressed: switch (status) {
+              PlayerStatus.idle => _play,
+              PlayerStatus.loading => null,
+              PlayerStatus.playing => _player.pause,
+              PlayerStatus.paused => _player.resume,
+            },
+          ),
+        ),
+      ],
+    ),
+    body: SheetView(
+      score: _session.score,
+      cursor: _session.cursor,
+      tapGrid: DurationBase.quarter,
+      onTap: _onTap,
+      playback: _player.position,
+    ),
+  );
+}
+```
+
+</details>
+
+## Next steps
+
+Each guide takes one part of this app further.
+
+- [Show a score](/khuur_sheet_music/guides/show-a-score/) builds longer scores in code.
+- [Edit by tap](/khuur_sheet_music/guides/edit-by-tap/) selects notes and lines, and covers undo and redo.
+- [Show where a note will go](/khuur_sheet_music/guides/note-preview/) draws the note under a held finger before it is entered.
+- [Play a score](/khuur_sheet_music/guides/play-a-score/) adds a stop button, a tempo slider and loops.
+- [SoundFonts and reverb](/khuur_sheet_music/guides/soundfonts-and-reverb/) gives each instrument its own SoundFont and adds reverb.
+- [Change the look](/khuur_sheet_music/guides/change-the-look/) sets the colours, the engraving style and the size.
+
+To see how the score, the layout and the player fit together, read [Architecture](/khuur_sheet_music/explanation/architecture/).

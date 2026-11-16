@@ -1,0 +1,160 @@
+---
+title: Show a score
+description: Show a Score in a SheetView, build a score in code with an EditSession, and save it as JSON.
+sidebar:
+  order: 1
+---
+
+This guide shows a `Score` on screen in a `SheetView`, builds a score in code, and saves and loads it as JSON.
+
+## Show a saved score
+
+Give the view a `Score`. A score saved as JSON comes back with `scoreFromJson`.
+
+```dart
+SheetView(score: scoreFromJson(jsonDecode(saved)))
+```
+
+Put the view where both its width and its height are bounded, as for any scroll view. The body of a `Scaffold` bounds both. In a `Column`, wrap the view in an `Expanded`.
+
+```dart
+Column(
+  children: [
+    Expanded(child: SheetView(score: score)),
+    controls,
+  ],
+)
+```
+
+The view behaves as follows:
+
+- It takes its width from its constraints and breaks lines at that width. It never scales a score to fit a box.
+- It scrolls up and down, and never sideways. A bar wider than the view is cut at the view's edge.
+- It draws at `staffSpace` logical pixels per staff space, 8 unless you give another, times the zoom of its `SheetController`.
+- It takes its colours from the ambient `Theme` of `material_ui`. Under a `MaterialApp` of `flutter/material.dart` it finds no theme and draws in the light default colours.
+
+## Build a score in code
+
+A `Score` is immutable. Start one with `Score.blank`, and change it through an `EditSession`. An edit that applies gives a new session, which holds the new score.
+
+```dart
+var session = EditSession.start(
+  Score.blank(
+    parts: const [
+      PartTemplate(
+        name: 'Piano',
+        instrument: Instrument(key: 'piano', program: 0),
+        staves: 2,
+        clefs: [Clef.treble, Clef.bass],
+      ),
+    ],
+    measureCount: 8,
+  ),
+);
+
+final edit = EnterNote(
+  at: session.cursor,
+  tone: Pitch.parse('E4'),
+  value: NoteValue.quarter,
+);
+if (session.run(edit) case Applied(session: final next)) {
+  session = next;
+}
+```
+
+`run` returns `Applied` with the next session, or `Refused` with the same session and the reason. Both carry a `session`, so code that does not need the reason reads `session.run(edit).session`.
+
+After `EnterNote` the cursor sits at the end of the new note, so the next `EnterNote` at `session.cursor` follows it.
+
+The edits that build most scores are these:
+
+- `EnterNote`, `AddToChord` and `EnterRest` write music.
+- `SetClef`, `SetKey` and `SetMeter` change the clef, the key and the meter.
+- `SetBreak(measure, LayoutBreak.system)` starts a new system at a bar.
+- `SetBarLength` makes a bar shorter than its meter, as for a pickup.
+- `AddSpanner` adds a slur, a hairpin, a pedal line or another line.
+- `Batch` runs a list of edits as one undo step. If one of them is refused, the batch is refused and the score does not change.
+
+The ids of bars and staves come from the score.
+
+```dart
+final bars = [for (final column in session.score.measures) column.id];
+session = session
+    .run(
+      Batch([
+        SetKey(from: bars.first, key: const KeySignature(-1)),
+        SetBreak(bars[4], LayoutBreak.system),
+      ], label: 'Key and break'),
+    )
+    .session;
+```
+
+The example app's [`demo_score.dart`](https://github.com/Tseku210/khuur_sheet_music/blob/main/example/lib/demo_score.dart) builds the opening of Beethoven's "Für Elise" from these edits.
+
+## Choose what happens at the barline
+
+By default, a note longer than the rest of its bar is cut at the barline, and the pieces are tied. A note that ends the score gets an empty bar after it, so the cursor has a bar to move into.
+
+To turn both off, pass `overfill: Overfill.refuse` and `appendBar: false`.
+
+```dart
+EnterNote(
+  at: session.cursor,
+  tone: Pitch.parse('G4'),
+  value: NoteValue.half,
+  overfill: Overfill.refuse,
+  appendBar: false,
+)
+```
+
+The long note is then refused with `WouldCrossBarline`. Add bars with `InsertMeasures`.
+
+Beams follow the meter. To enter a note that takes no beam, pass `beam: BeamMode.none` to `EnterNote`. To change how a note beams afterwards, run `SetBeam`.
+
+## Insert instead of overwrite
+
+Entry overwrites by default. A note entered over other notes replaces them. To insert, pass `ripple: Ripple.part` to `EnterNote` or `EnterRest`.
+
+```dart
+EnterNote(
+  at: session.cursor,
+  tone: Pitch.parse('A4'),
+  value: NoteValue.quarter,
+  ripple: Ripple.part,
+)
+```
+
+The new note first fills any rest at the cursor. Then the later music of the part moves forward by the rest of the note's length. Other edits take the same option:
+
+- `SetValue(event, value, ripple: Ripple.part)` moves the later music by the change in length.
+- `Erase(selection, ripple: Ripple.part)` pulls the later music back over what it deleted.
+
+`Ripple.part` moves every voice and staff of the edited part, and no other part. `Ripple.staff` moves every voice of the edited staff and no other staff, so you can edit one hand of a piano part without the other.
+
+A ripple stays inside the section that holds the edit. A section ends at any barline other than a regular one, and at a repeat sign, a volta, a rehearsal mark, a segno or coda, a key change and a meter change. A bar of irregular length, such as a pickup, is a section of its own.
+
+- Music pushed past the end of a section adds bars before its closing barline. In those bars every staff that did not move rests.
+- A push that would grow an irregular bar is refused with `WouldCrossBarline`.
+- A pull leaves rests at the end of the section and removes no bars.
+- `Overfill.refuse` still refuses a new note longer than the rest of its bar. The music the note pushes is always cut at barlines, and the section always grows to hold it.
+
+The edit does not remember the mode. If your app offers both modes, keep the choice in your own state and pass it with each edit.
+
+## Save and load a score
+
+`scoreToJson` gives a JSON value, and `scoreFromJson` reads one back.
+
+```dart
+final saved = jsonEncode(scoreToJson(session.score));
+final score = scoreFromJson(jsonDecode(saved));
+```
+
+A session started from a loaded score never reissues an id the score already uses.
+
+## Related pages
+
+- [Your first sheet](/khuur_sheet_music/tutorial/first-sheet/) builds a page with a sheet from the start.
+- [Edit by tap](/khuur_sheet_music/guides/edit-by-tap/) turns taps on the sheet into edits.
+- [Change the look](/khuur_sheet_music/guides/change-the-look/) sets the colours, the engraving style and the size.
+- [Read MusicXML and write MIDI](/khuur_sheet_music/guides/musicxml-and-midi/) covers the other file formats.
+- [The score model](/khuur_sheet_music/explanation/score-model/) explains why a score is immutable and how edits work.

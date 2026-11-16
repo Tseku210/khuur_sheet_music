@@ -15,8 +15,8 @@
 /// player plays it. Under a moving tempo, a note between two sixteenths can
 /// sit a few ticks off its notated place.
 ///
-/// A quarter tone is a pitch bend before the note, as the player sends it,
-/// with the wheel's end at two semitones. A track that bends sets that
+/// A quarter tone is a pitch bend before the note, with the wheel's end at
+/// two semitones. A track that bends sets that
 /// range first. The pedal is in the notes it holds, which the script
 /// already lengthens, and not a controller.
 ///

@@ -1,0 +1,70 @@
+---
+title: Architecture
+description: The three packages of khuur_sheet_music, what each one owns, and how a score travels from the model to pixels on the screen and to sound.
+sidebar:
+  order: 1
+---
+
+import Architecture from '../../../assets/architecture.svg';
+
+khuur_sheet_music is three Dart packages in one pub workspace. Each package owns one kind of knowledge, and the dependencies point one way. The Flutter shell depends on the layout engine, and the layout engine depends on the score model. The model knows nothing about layout, and the layout engine knows nothing about pixels.
+
+<div style="overflow-x: auto; margin-block: 1.5rem;">
+	<Architecture style="display: block; width: 100%; min-width: 640px; height: auto;" />
+</div>
+
+## What each package owns
+
+`khuur_score_model`, in `packages/khuur_score_model/`, owns the music as data. It holds the immutable `Score`, the edits and the `EditSession` that applies them, and the views that layout reads (`Score.measureView` and `Score.changesSince`). It also holds the `PlaybackCompiler` that turns a score into a `PlaybackScript`, JSON save and load, MusicXML import and export, and MIDI file export. Its only dependency is the `xml` package.
+
+`khuur_score_layout`, in `packages/khuur_score_layout/`, owns geometry. Its entry point, `SheetLayout`, turns a `Score` into a vertical stack of systems at one width. Each system is a list of positioned drawables in staff spaces, with y pointing down. The same object answers the questions an editor asks about that geometry. It says what a tap at a point means, where an element is drawn, and where the caret and the playhead go. It depends on the model and on nothing else.
+
+`khuur_sheet_music`, the root package, is the Flutter shell. It holds `SheetView` and `SheetController`, the painters in `lib/src/painting.dart`, the text measurer that wraps `dart:ui` paragraphs, and `ScorePlayer` with its `MidiOutput` seam. It depends on both packages above and on `khuur_synth`, which plays MIDI through FluidSynth on Android and iOS.
+
+The shell's library, `package:khuur_sheet_music/khuur_sheet_music.dart`, re-exports all of the model, the layout types an app names, and the types of `khuur_synth` that an app names, such as `AssetSoundFont` and `Reverb`. An app imports that one library. [Packages](/khuur_sheet_music/reference/packages/) lists what each package exports.
+
+## Why the model and the layout engine are pure Dart
+
+Neither `packages/khuur_score_model` nor `packages/khuur_score_layout` imports Flutter or `dart:ui`. The boundary is a package boundary, not a convention, and it pays for itself in four ways.
+
+The tests of both packages run with `dart test` on any host. They need no widget binding, no device and no font loading. The layout engine's cost benchmark compiles to a native executable with `dart compile exe` and fails when a layout goes over its budget, which is only possible because nothing in the engine needs Flutter.
+
+The engine cannot mix units. It cannot name `Offset`, `Rect` or `Paint`, because it does not depend on the library that declares them. All of its geometry is in staff spaces. The one conversion from staff spaces to logical pixels is `SheetScale` in `lib/src/painting.dart`, so a unit mistake has one place to happen.
+
+The engine needs one thing from the platform, and it asks for it through a port. Text extents come through `TextMeasurer.measure(text, spec)`. The shell implements it with `dart:ui` paragraphs. The layout tests use a fake measurer with fixed-pitch text, so a test gives the same line breaks on every host.
+
+A program without Flutter can use the model and the layout engine. A server or a command-line tool can read MusicXML, edit a score, write a MIDI file, or compute a layout.
+
+The price is that the shell adapts what the engine cannot see. A text font that finishes loading after the first frame changes every measured text, so the shell builds a new measurer and a new `SheetLayout`. That cost is rare and local, and the trade is worth it.
+
+## From a score to pixels
+
+`SheetView` takes a `Score` value. The first time, it builds `SheetLayout(score, width: ..., text: ..., style: ...)`. For each later score, and for each new width, it calls `layout.update(score, width: width)`, which returns the same layout when nothing changed.
+
+`SheetLayout` decides how much work an update needs by asking the model. `score.changesSince(previous)` names the bars whose views may differ, the bars that are gone, and whether the sequence of bars changed. The engine lays out again from `score.measureView(id)` only the bars it names and keeps every other bar. It then breaks lines again only from the first system that an edit can reach, and plans again only the systems whose inputs changed. A one-note edit in a long score lays out one bar and its neighbours.
+
+Building or updating a layout assembles no system. The view shows the systems as tiles in a scrolling list, and a tile asks `layout.systemAt(i)` for its system. The layout assembles a system on first use and returns the same object for as long as the system's inputs are unchanged, across updates too. The painters use that identity as their cache key, so a system that did not change is not painted again.
+
+The painters convert staff spaces to pixels and draw glyphs as text in the Bravura font that the package ships. Each tile stacks three layers. `SystemPainter` draws the staves and the music in a layer of its own. `HighlightPainter` and `OverlayPainter` draw the selection, the cursor, the tints and the playing notes. A cursor move, a new selection or a playback tick repaints those two layers and lays nothing out.
+
+A tap goes the other way. The view asks `SheetLayout.hitTest` what the point means, and gives the app a `SheetHit` that names the staff, the voice, the time and the staff step under the finger, and the element there if any. The app turns the hit into an edit. [Edit by tap](/khuur_sheet_music/guides/edit-by-tap/) shows that loop. [The layout engine](/khuur_sheet_music/explanation/layout-engine/) explains how bars are spaced and lines broken.
+
+## From a score to sound
+
+The app calls `ScorePlayer.play(score)`. The player keeps one `PlaybackCompiler` for its lifetime, and `compile(score, options)` returns a `PlaybackScript`. The compiler caches what it compiled for each bar, keyed by the bar's column object. A bar that an edit did not touch is the same object in the next score, so after a one-note edit the compiler compiles one bar again.
+
+The script holds its notes in seconds, with repeats played out, tempo and dynamics applied, and tied notes merged. The player maps wall time to script seconds through one clock. A one-shot timer reads the clock, sleeps until the next note starts or ends, and then sends `noteOn` or `noteOff` to its `MidiOutput`. A ticker reads the same clock once per frame and publishes the position. Neither keeps time of its own, so the sound and the playhead cannot drift apart. [The playback timeline](/khuur_sheet_music/explanation/playback-timeline/) explains the script and the clock in full.
+
+`SynthOutput` is the `MidiOutput` that the player makes when the app passes none. It plays through FluidSynth from `khuur_synth`, one synth for each output, from the SoundFonts that the app gives the player. The package bundles no SoundFont.
+
+The position comes back to the sheet without passing through the app's state. `ScorePlayer.position` is a `ValueListenable<PlaybackPosition?>`, and the app passes it to `SheetView.playback`. Each position holds the playhead's point, from `PlaybackScript.pointAt`, and the events that sound, from `PlaybackScript.playingAt`. The highlight and overlay painters listen to it directly, so a tick repaints them without a build. They ask `SheetLayout.playingIn` and `SheetLayout.playheadIn` where to draw.
+
+## Where your app plugs in
+
+Your app owns the state and the decisions. The library owns the music, the geometry and the timing. Three types are where the two meet.
+
+`EditSession`, from the model, is how a score changes. The app holds one in a field, calls `session.run(edit)`, and keeps the session that comes back. It passes `session.score`, `session.cursor` and `session.selection` to `SheetView`. The view never edits a score itself. [The score model](/khuur_sheet_music/explanation/score-model/) explains why edits work this way.
+
+`SheetController`, from the shell, is how the app talks to a view. It holds the zoom, and it answers geometry questions in the view's local pixels through `hitTest`, `entryAt`, `rectOf`, `caretOf` and `rectsOf`. It also scrolls a bar into view with `ensureVisible` and draws systems to an image with `toImage`. An app places its own widgets over the sheet with these answers.
+
+`MidiOutput`, from the shell, is how sound leaves the player. It is an interface of seven methods. An app that plays through another synthesizer passes its own output to `ScorePlayer(output: ...)`, and the player's tests pass a fake. [Play a score](/khuur_sheet_music/guides/play-a-score/) shows the player from the app's side.
