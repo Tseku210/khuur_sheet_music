@@ -18,6 +18,8 @@ import 'smufl_metadata.dart';
 /// once and keeps the font. Parsing it again makes an unequal font, an
 /// unequal style and a full layout.
 final class SmuflFont {
+  /// A font named [family] with [glyphs] and [defaults]. Nothing checks the
+  /// glyph table here, so it must hold every [Glyph].
   const SmuflFont({
     required this.family,
     required this.glyphs,
@@ -56,9 +58,13 @@ final class SmuflFont {
   /// The font family name the painter asks the text engine for.
   final String family;
 
+  /// The metrics of every [Glyph], in staff spaces.
   final Map<Glyph, GlyphMetrics> glyphs;
+
+  /// The line thicknesses and other lengths the font recommends.
   final EngravingDefaults defaults;
 
+  /// The metrics of [glyph].
   GlyphMetrics operator [](Glyph glyph) => glyphs[glyph]!;
 
   /// This font with other engraving defaults, which is how an app changes

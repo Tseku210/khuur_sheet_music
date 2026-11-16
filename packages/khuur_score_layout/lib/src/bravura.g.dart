@@ -4,6 +4,7 @@
 import 'geometry.dart';
 import 'glyphs.dart';
 
+/// Bravura's engraving defaults from its metadata, in staff spaces.
 const bravuraDefaults = EngravingDefaults(
   arrowShaftThickness: 0.16,
   barlineSeparation: 0.4,
@@ -35,6 +36,7 @@ const bravuraDefaults = EngravingDefaults(
   tupletBracketThickness: 0.16,
 );
 
+/// Bravura's metrics for every [Glyph], in staff spaces with y down.
 const bravuraGlyphs = <Glyph, GlyphMetrics>{
   Glyph.gClef: GlyphMetrics(
     box: Box(0, -4.392, 2.684, 2.632),

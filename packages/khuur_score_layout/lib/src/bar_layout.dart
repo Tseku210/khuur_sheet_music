@@ -29,6 +29,7 @@ import 'text.dart';
 /// reads [widths], [staves], [lyrics] and [breakBefore]. Assembly reads the
 /// rest.
 final class BarLayout {
+  /// Holds a bar laid out by [layoutBar].
   const BarLayout({
     required this.measure,
     required this.length,
@@ -49,7 +50,10 @@ final class BarLayout {
     required this.lyrics,
   });
 
+  /// The bar this lays out.
   final MeasureId measure;
+
+  /// The bar's length, `MeasureColumn.length`.
   final Length length;
 
   /// `MeasureColumn.breakBefore`. A change of it makes a new column, so
@@ -60,12 +64,15 @@ final class BarLayout {
   /// `MeasureView.isRestOnly`.
   final bool restOnly;
 
+  /// The bar's widths for line breaking. See [BarWidths].
   final BarWidths widths;
 
   /// Clear space from the end of the bar's head to its first slice. It is what
   /// the first slice reaches to the left, plus `SpacingPolicy.barPad`.
   final double lead;
 
+  /// The bar's time slices, one per distinct moment of [sliceTimes], ending
+  /// with the bar's end.
   final List<Slice> slices;
 
   /// The visible staves, top to bottom, with how far the bar's content reaches
@@ -78,13 +85,31 @@ final class BarLayout {
   /// Everything placed against one slice, in bar space.
   final List<BarItem> items;
 
+  /// The three heads the bar can print. The system picks by where the bar
+  /// lands.
   final BarHeads heads;
+
+  /// The bar's repeats and end barline, which the system draws with its
+  /// barlines.
   final BarEdges edges;
+
+  /// The bar's beams, planned in bar space and drawn by the system.
   final List<BeamPlan> beams;
+
+  /// The bar's tuplet numbers and brackets, drawn by the system.
   final List<TupletStub> tuplets;
+
+  /// The tie ends the bar holds, with the ties that leave for the next bar
+  /// or arrive from the one before.
   final List<TieEnd> ties;
+
+  /// The piece of each spanner that crosses this bar.
   final List<SpannerPiece> spanners;
+
+  /// The volta bracket over the bar, or null when the bar is under none.
   final VoltaStub? volta;
+
+  /// The bar's syllables and each lyric lane's flow through it.
   final BarLyrics lyrics;
 
   @override
@@ -129,6 +154,7 @@ typedef BarStaff = ({StaffId staff, int lines, double above, double below});
 /// barline is drawn at the end of the bar before, and counted here once, as
 /// the width of the bar whose head it is.
 final class BarWidths {
+  /// Makes a bar's widths.
   const BarWidths({
     required this.inlineHead,
     required this.systemHead,

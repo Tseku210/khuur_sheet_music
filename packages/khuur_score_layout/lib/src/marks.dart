@@ -1159,6 +1159,7 @@ List<Glyph> metronomeGlyphs(NoteValue beat) => [
 /// it, because a bracket spans slices that the stretch moves apart. Like a
 /// beam between stems it belongs to no one event, so it has no owner.
 final class TupletStub {
+  /// Makes a tuplet stub.
   const TupletStub({
     required this.first,
     required this.last,
@@ -1172,6 +1173,8 @@ final class TupletStub {
   /// Both are at one height, the bracket's line, which runs through the
   /// middle of the number.
   final BarAnchor first;
+
+  /// The bracket's end at the last event. See [first].
   final BarAnchor last;
 
   /// The number, or the ratio with `tupletColon` when the tuplet's ratio
@@ -1182,6 +1185,7 @@ final class TupletStub {
   /// `TupletBracket.auto`, or when it is `hidden`.
   final bool bracket;
 
+  /// The side the tuplet stands on, which most of its stems point to.
   final Side side;
 
   @override

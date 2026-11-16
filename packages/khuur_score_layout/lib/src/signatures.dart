@@ -42,10 +42,13 @@ typedef HeadItem = ({int staff, Drawable drawable});
 
 /// What a bar prints before its first slice in one situation.
 final class BarHead {
+  /// Makes a head of [items], [width] staff spaces wide.
   const BarHead({required this.items, required this.width});
 
+  /// A head that prints nothing and takes no room.
   static const none = BarHead(items: [], width: 0);
 
+  /// The head's drawables. See [HeadItem].
   final List<HeadItem> items;
 
   /// From the head's left edge to the end of its last group, with the gap
@@ -83,8 +86,10 @@ final class BarHead {
 
 /// A head that the barline before its bar cuts in two.
 final class SplitHead {
+  /// Makes a head that the barline cuts into [before] and [after].
   const SplitHead({required this.before, required this.after});
 
+  /// A split head with nothing on either side.
   static const none = SplitHead(before: BarHead.none, after: BarHead.none);
 
   /// What stands before the barline, at the end of the bar before. Its x
@@ -95,6 +100,7 @@ final class SplitHead {
   /// What stands after the barline. Its x runs from the barline's end.
   final BarHead after;
 
+  /// The room both parts take together.
   double get width => before.width + after.width;
 
   @override
@@ -108,6 +114,7 @@ final class SplitHead {
 /// The three heads a bar can print. A bar does not know where it lands, so
 /// it holds all three and the system picks.
 final class BarHeads {
+  /// Makes a bar's three heads.
   const BarHeads({
     required this.inline,
     required this.system,
@@ -416,6 +423,7 @@ BarHead keySignatureItems(
   return items.isEmpty ? BarHead.none : BarHead(items: items, width: x);
 }
 
+/// The time signature digit glyphs, indexed by digit value.
 const List<Glyph> timeSigDigits = [
   Glyph.timeSig0,
   Glyph.timeSig1,
@@ -429,6 +437,8 @@ const List<Glyph> timeSigDigits = [
   Glyph.timeSig9,
 ];
 
+/// The time signature digits that spell [number] in decimal. [number]
+/// must not be negative.
 Iterable<Glyph> digitGlyphs(int number) =>
     number.toString().codeUnits.map((unit) => timeSigDigits[unit - 0x30]);
 
@@ -634,6 +644,8 @@ List<Drawable> _placePieces(
 double endBarlineWidth(BarEdges edges, EngravingStyle style) =>
     _piecesWidth(_endPieces(edges), style);
 
+/// The width of a start repeat sign, its thick and thin lines and its
+/// dots.
 double startRepeatWidth(EngravingStyle style) =>
     _piecesWidth(_startRepeat, style);
 
@@ -720,6 +732,7 @@ const double braceWidth = 1;
 /// braces and the line that joins the staves. A function of the parts, the
 /// style and the text measurer, so one value serves every system of a score.
 final class SystemLead {
+  /// Makes a lead. [systemLead] builds the one for a score.
   const SystemLead({
     required this.parts,
     required this.firstIndent,
@@ -741,6 +754,8 @@ final class SystemLead {
     for (final part in parts) (part.firstStaff, part.lastStaff),
   ];
 
+  /// The width kept for a brace, which is [braceWidth] when any part has
+  /// two staves or more, else 0.
   double get braceRoom => _braceRoomOf(parts);
 }
 
@@ -758,6 +773,7 @@ typedef LeadPart = ({
   int lastStaff,
 });
 
+/// The name a part shows on a given system.
 extension LeadPartName on LeadPart {
   /// The name this part shows on the first system or on a later one, as it
   /// measures. Null when it shows none.

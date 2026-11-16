@@ -37,6 +37,8 @@ const double _headerLineGap = 1;
 /// Sheet space has its origin at the top-left of the header block, y down. The
 /// layout is a value to its readers. Nothing it reports ever changes.
 final class SheetLayout {
+  /// Lays out [score] at [width], in staff spaces, measuring text with
+  /// [text]. [style] defaults to [EngravingStyle.standard].
   factory SheetLayout(
     Score score, {
     required double width,
@@ -112,12 +114,14 @@ final class SheetLayout {
     );
   }
 
+  /// The score this layout shows.
   final Score score;
 
   /// The sheet's width in staff spaces, which is the view's width in pixels
   /// over the pixels per staff space. Zoom changes it, and so rebreaks lines.
   final double width;
 
+  /// The style every bar was laid out under. [update] keeps it.
   final EngravingStyle style;
 
   /// Title, subtitle and credits from `score.meta`, in sheet space.
@@ -147,11 +151,14 @@ final class SheetLayout {
       for (final measure in plan.bars) measure: index,
   };
 
+  /// How many systems the sheet has. Known without assembling any.
   int get systemCount => _breaks.plans.length;
 
   /// The planned height of system [index]. Known without assembling it.
   double heightOf(int index) => _breaks.plans[index].height;
 
+  /// The sheet's height in staff spaces, from the top of the header block
+  /// to the bottom of the last system.
   double get height => tops.last + heightOf(systemCount - 1);
 
   /// System [index], assembled on first use.
@@ -716,12 +723,15 @@ enum _Align { left, centre, right }
 
 /// What an update changed.
 final class LayoutDelta {
+  /// Makes a delta.
   const LayoutDelta({
     required this.relaid,
     required this.rekeyed,
     required this.rebroke,
   });
 
+  /// The bars laid out again, new ones included. A layout built from
+  /// nothing lists every bar.
   final Set<MeasureId> relaid;
 
   /// Indices in the new layout of the systems whose key no system of the

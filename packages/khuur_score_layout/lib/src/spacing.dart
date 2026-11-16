@@ -16,8 +16,10 @@ import 'style.dart';
 /// The last slice of a bar is the bar's end, where the barline sits. Its
 /// rod is the barline's width and it has no spring.
 final class Slice {
+  /// Makes a slice at [at].
   const Slice({required this.at, required this.ideal, required this.rod});
 
+  /// The slice's onset, from the bar's start.
   final Moment at;
 
   /// Ideal distance to the next slice at stretch 1.
@@ -42,8 +44,10 @@ final class Slice {
 /// wide text to the right.
 typedef SliceReach = ({double left, double right});
 
+/// The reach of a slice with nothing outside its line.
 const SliceReach noReach = (left: 0, right: 0);
 
+/// The larger of [a] and [b] on each side.
 SliceReach widest(SliceReach a, SliceReach b) =>
     (left: math.max(a.left, b.left), right: math.max(a.right, b.right));
 

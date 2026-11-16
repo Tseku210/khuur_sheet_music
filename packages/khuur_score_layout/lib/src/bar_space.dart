@@ -15,13 +15,17 @@ typedef BarAnchor = ({int slice, double dx, int staff, double dy});
 /// the slice's x and the staff's top line, so justification moves it with
 /// its slice and never stretches it.
 final class BarItem {
+  /// Fixes [drawable] to [slice] on [staff]. It is not [centred] unless
+  /// asked.
   const BarItem(this.slice, this.staff, this.drawable, {this.centred = false});
 
+  /// Index into the bar's slices.
   final int slice;
 
   /// Index into the bar's visible staves.
   final int staff;
 
+  /// What is drawn, relative to the slice's x and the staff's top line.
   final Drawable drawable;
 
   /// The drawable's x is from the middle of its slice and the bar's end,
@@ -45,6 +49,8 @@ final class BarItem {
 /// of every staff, in system space. Assembly makes one per bar, and every
 /// system-time function resolves bar space through it.
 final class BarFrame {
+  /// Makes a frame. [beforeBarline] defaults to 0, for no clef before the
+  /// barline.
   const BarFrame({
     required this.left,
     required this.xs,
@@ -66,17 +72,22 @@ final class BarFrame {
   /// bar, or the next system's first bar, changes to before the barline.
   final double beforeBarline;
 
+  /// x where the bar's content ends, which is the last slice's x.
   double get right => xs.last;
 
   /// x where the bar's end barline starts.
   double get barline => xs.last + beforeBarline;
 
+  /// [anchor] in system space.
   SpPoint at(BarAnchor anchor) =>
       SpPoint(xs[anchor.slice] + anchor.dx, tops[anchor.staff] + anchor.dy);
 
+  /// The x [item] is placed from, in system space. A centred item takes the
+  /// middle of its slice and the bar's end.
   double xOf(BarItem item) =>
       item.centred ? (xs[item.slice] + xs.last) / 2 : xs[item.slice];
 
+  /// [item]'s drawable moved into system space.
   Drawable place(BarItem item) =>
       item.drawable.shift(xOf(item), tops[item.staff]);
 }
@@ -87,7 +98,13 @@ final class BarFrame {
 typedef Framed<T> = ({T of, BarFrame frame});
 
 /// The side of a staff a curve bulges to, or a piece reserves room on.
-enum Side { above, below }
+enum Side {
+  /// Above the staff, toward smaller y.
+  above,
+
+  /// Below the staff, toward larger y.
+  below,
+}
 
 /// The outline of what one staff of a bar has above its top line and below
 /// its bottom line, in bar space at stretch 1, with x from the bar's first
@@ -95,6 +112,7 @@ enum Side { above, below }
 final class Skyline {
   final List<Box> _boxes = [];
 
+  /// Adds [box] to the outline, in the skyline's coordinates.
   void add(Box box) => _boxes.add(box);
 
   /// The lowest y a box over [left] to [right] can end at and still clear
