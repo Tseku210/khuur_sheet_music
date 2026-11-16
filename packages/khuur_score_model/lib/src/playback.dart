@@ -369,8 +369,12 @@ final class PlaybackOptions {
   /// By default the whole score plays, repeats unrolled, with every part heard.
   const PlaybackOptions({this.from, this.to, this.muted = const {}});
 
-  /// Play only `[from, to)` in notated order, ignoring repeats. The player
-  /// loops the returned script when the user asked for a loop.
+  /// The start of the range. Null starts at the first bar.
+  ///
+  /// Once [from] or [to] is set, only `[from, to)` plays, in notated order,
+  /// with repeats and jumps ignored. With both null the whole score plays
+  /// with its repeats unrolled. The player loops the returned script when
+  /// the user asked for a loop.
   final ScorePoint? from;
   /// The end of the range, which does not play. Null plays to the end of the
   /// last bar.
@@ -571,8 +575,8 @@ final class PlaybackNote {
   /// 0 or 50 (quarter tones). The player applies pitch bend.
   final int cents;
 
-  /// The MIDI velocity, from the dynamic at the note and its accents, at most
-  /// 127.
+  /// The MIDI velocity, from the dynamic at the note and its accents. It is
+  /// 12 to 127, from [Dynamic.pppp] up to the cap.
   final int velocity;
   /// The MIDI channel, 0 to 15. Channel 9 plays percussion parts.
   final int channel;

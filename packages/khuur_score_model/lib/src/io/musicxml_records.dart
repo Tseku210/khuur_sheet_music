@@ -125,7 +125,8 @@ final class PartRecord {
   /// none is given.
   final int bank;
   /// The `<transpose>` stated before the first note of the first bar, or a
-  /// unison.
+  /// unison. It runs from written to sounding pitch, as in MusicXML, and
+  /// becomes the part's `Instrument.transposition`.
   final Interval transposition;
   /// The open strings that `<staff-tuning>` states, in `line` order, or empty
   /// when the part states none.

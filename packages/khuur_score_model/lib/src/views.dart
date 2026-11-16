@@ -456,7 +456,8 @@ final class ScoreContext {
   /// changes only what playback hears.
   final Tempo tempo;
 
-  /// Octaves an 8va/8vb line in effect adds to printed pitch to give the
-  /// sounding pitch: 1 under 8va, -1 under 8vb, 0 for none.
+  /// Octaves an octave line in effect adds to printed pitch to give the
+  /// sounding pitch. It is 1, 2 or 3 under 8va, 15ma or 22ma, the negative
+  /// of those under 8vb, 15mb or 22mb, and 0 with no line.
   final int octaveShift;
 }

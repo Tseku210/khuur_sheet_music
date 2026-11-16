@@ -321,7 +321,10 @@ final class EditSession {
     _historyLimit,
   );
 
-  /// Not an undo step. A stale selection is dropped on the next edit.
+  /// Not an undo step. The next edit keeps only the parts of the selection
+  /// that still resolve. Removed items and spanners drop out, and a range
+  /// that loses one of its bars or staves becomes no selection. A range end
+  /// that a shortened bar no longer holds moves back to the bar's new end.
   EditSession select(Selection selection) => EditSession._(
     score,
     cursor,
