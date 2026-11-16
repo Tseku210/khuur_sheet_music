@@ -3,6 +3,11 @@ description: Sheet music for Flutter. A scrolling, editable view of a score, wit
 version: 0.3.0
 repository: https://github.com/Tseku210/khuur_sheet_music
 issue_tracker: https://github.com/Tseku210/khuur_sheet_music/issues
+screenshots:
+  - description: The opening of Für Elise, drawn by SheetView in the light theme.
+    path: doc/hero.png
+  - description: The same sheet in the dark theme, in colours SheetPalette takes from it.
+    path: doc/hero-dark.png
 topics:
   - music
   - sheet-music
