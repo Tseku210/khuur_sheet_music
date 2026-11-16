@@ -176,26 +176,26 @@ packages:
     source: hosted
     version: "1.0.0"
   khuur_score_layout:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       path: "../packages/khuur_score_layout"
       relative: true
     source: path
-    version: "0.0.0"
+    version: "0.3.0"
   khuur_score_model:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
       path: "../packages/khuur_score_model"
       relative: true
     source: path
-    version: "0.0.0"
+    version: "0.3.0"
   khuur_sheet_music:
     dependency: "direct main"
     description:
       path: ".."
       relative: true
     source: path
-    version: "0.2.1"
+    version: "0.3.0"
   khuur_synth:
     dependency: transitive
     description:

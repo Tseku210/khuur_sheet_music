@@ -13,6 +13,14 @@ dependencies:
     path: ../
   material_ui: ^1.11.0
 
+# The library depends on the two pure-Dart packages by version, for pub.dev.
+# The example builds against the checkout instead.
+dependency_overrides:
+  khuur_score_layout:
+    path: ../packages/khuur_score_layout
+  khuur_score_model:
+    path: ../packages/khuur_score_model
+
 dev_dependencies:
   crypto: ^3.0.7
   flutter_lints: ^6.0.0

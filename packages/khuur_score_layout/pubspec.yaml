@@ -1,6 +1,14 @@
 name: khuur_score_layout
-description: Lays a score out as systems of positioned drawables, in staff spaces. Pure Dart, no Flutter.
-publish_to: none
+description: Layout engine for sheet music. Breaks a score into systems of positioned glyphs, lines and text, and hit-tests taps on them. Pure Dart.
+version: 0.3.0
+repository: https://github.com/Tseku210/khuur_sheet_music/tree/main/packages/khuur_score_layout
+issue_tracker: https://github.com/Tseku210/khuur_sheet_music/issues
+topics:
+  - music
+  - sheet-music
+  - music-notation
+  - engraving
+  - layout
 
 environment:
   sdk: ^3.13.0
@@ -8,8 +16,7 @@ environment:
 resolution: workspace
 
 dependencies:
-  khuur_score_model:
-    path: ../khuur_score_model
+  khuur_score_model: ^0.3.0
 
 dev_dependencies:
   pedantic_mono: ^1.38.1
