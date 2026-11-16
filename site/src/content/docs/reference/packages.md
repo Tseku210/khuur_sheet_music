@@ -13,8 +13,6 @@ The repository is a pub workspace of three packages, all at version 0.3.0. The r
 | `khuur_score_model` | Pure Dart | The score, its edits, saving and loading, and the playback script | `xml` |
 | `khuur_score_layout` | Pure Dart | The layout engine, glyphs and hit testing | `khuur_score_model` |
 
-The API links on this page work once 0.3.0 is published on pub.dev.
-
 ## khuur_sheet_music
 
 ```dart

@@ -6,7 +6,7 @@
   | `package:score_model/score_model.dart` | `package:khuur_score_model/khuur_score_model.dart` |
   | `package:score_layout/score_layout.dart` | `package:khuur_score_layout/khuur_score_layout.dart` |
 
-* The library depends on `khuur_score_model` and `khuur_score_layout` by version, so all three packages can go to pub.dev. Until they do, an app that gets the library through git overrides the two packages with the same repository. The README shows how.
+* The library depends on `khuur_score_model` and `khuur_score_layout` by version, and all three packages are on pub.dev. An app adds the library with `flutter pub add`, where before it depended on the repository through git.
 * Every public member of the three packages has a doc comment, and the `public_member_api_docs` lint is on in each. Some existing comments were wrong and are corrected, among them `Jump.text`, `ScoreContext.octaveShift` and `EditSession.select`.
 * The documentation moves to a site, https://tseku210.github.io/khuur_sheet_music/, with a tutorial, how-to guides, explanations of the design, and reference pages. The README is now a short front page.
 * The library compiles and runs on the web, with dart2js and dart2wasm, where before `flutter build web` failed with "Dart library 'dart:ffi' is not available on this platform". It needs `khuur_synth` 0.1.1, which no longer imports `dart:ffi` on the web. There, as on macOS, `ScorePlayer.play` with the default output fails with `SynthUnavailable`, and a `MidiOutput` of the app's own plays.

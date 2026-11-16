@@ -26,32 +26,15 @@ You need the following:
    cd first_sheet
    ```
 
-2. Open `pubspec.yaml`. Add `khuur_sheet_music` and `material_ui` under `dependencies`, and add the `dependency_overrides` section. Keep the entries that `flutter create` wrote.
+2. Open `pubspec.yaml`. Add `khuur_sheet_music` and `material_ui` under `dependencies`. Keep the entries that `flutter create` wrote.
 
    ```yaml
    dependencies:
      flutter:
        sdk: flutter
-     khuur_sheet_music:
-       git:
-         url: https://github.com/Tseku210/khuur_sheet_music
-         ref: main
+     khuur_sheet_music: ^0.3.0
      material_ui: ^1.11.0
-
-   dependency_overrides:
-     khuur_score_model:
-       git:
-         url: https://github.com/Tseku210/khuur_sheet_music
-         ref: main
-         path: packages/khuur_score_model
-     khuur_score_layout:
-       git:
-         url: https://github.com/Tseku210/khuur_sheet_music
-         ref: main
-         path: packages/khuur_score_layout
    ```
-
-   The library is not on pub.dev yet, so you get it from the `main` branch of its repository. It depends on its two pure-Dart packages by version, and the overrides point those at the same repository.
 
 3. Get the packages.
 
