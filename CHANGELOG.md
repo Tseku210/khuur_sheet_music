@@ -1,4 +1,4 @@
-## Unreleased
+## 0.3.3
 * An ornament can carry an accidental above and below its sign, and a turn, mordent or trill plays the upper and lower notes those accidentals give, where before it took both from the key. MusicXML import reads the `<accidental-mark>` that follows a sign, export writes it back, and the sheet draws it small over or under the sign. So the turn in bar 2 of Chopin's Nocturne Op. 9 No. 2 plays D♭ and B♮ in E♭ major.
 
 ## 0.3.2
