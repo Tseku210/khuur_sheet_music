@@ -56,6 +56,15 @@ build/layout_benchmark
 
 The glyph table `packages/khuur_score_layout/lib/src/bravura.g.dart` is generated. Do not edit it by hand. Change `tool/bravura_metadata.json` or the generator, then run `dart run tool/generate_bravura.dart` in `packages/khuur_score_layout`.
 
+The pictures of sheets on the docs site and in the README are generated too. After a change to what the sheet draws, or to the sample code on a page with a picture, draw them again and commit the files that change.
+
+```bash
+cd example
+flutter test tool/render_docs_images.dart
+```
+
+The script builds each picture's score as the code on its page does. It writes the site's pictures, a light and a dark one each, to `site/src/assets/sheets/`, and the README's to `doc/`. A second run on the same machine writes the same bytes.
+
 ## Write the change
 
 - Add or change tests for every change in behaviour. Test what a user of the API can observe, not the internals. The tests use hand-written fakes from `test/mock/`, not a mocking package.
