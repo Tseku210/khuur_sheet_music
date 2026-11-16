@@ -71,10 +71,11 @@ StaffView _staffView(
 ) {
   final source = column.staff(id);
   final writtenKey = part.instrument.writtenKey(column.key);
-  final lanes = [
+  final walked = [
     for (final voice in source.voices)
-      (voice, timedEvents(voice, measure: column.id, staff: id).toList()),
+      (voice, timedVoice(voice, measure: column.id, staff: id)),
   ];
+  final lanes = [for (final (voice, timed) in walked) (voice, timed.events)];
   final octaveLines = [
     for (final segment in segments)
       if (segment.spanner
@@ -128,12 +129,12 @@ StaffView _staffView(
         previous == null || previous.staff(id).clefAtEnd != source.clef,
     writtenKey: writtenKey,
     voices: [
-      for (final (voice, events) in lanes)
+      for (final (voice, (:events, :tuplets)) in walked)
         VoiceView(
           slot: voice.slot,
           events: events,
           beams: beamGroups(events, column.meter),
-          tuplets: _tuplets(voice, events),
+          tuplets: _tuplets(tuplets, events),
           nextOpening: next == null ? null : openingEvent(next, id, voice.slot),
         ),
     ],
@@ -205,7 +206,10 @@ List<TieView> _ties(
 }
 
 /// Tuplets in pre-order: an outer tuplet before the tuplets it holds.
-List<TupletView> _tuplets(Voice voice, List<TimedEvent> events) {
+List<TupletView> _tuplets(
+  List<TimedTuplet> tuplets,
+  List<TimedEvent> events,
+) {
   final members = <TupletId, List<EventId>>{};
   for (final timed in events) {
     for (final id in timed.tuplets) {
@@ -213,7 +217,7 @@ List<TupletView> _tuplets(Voice voice, List<TimedEvent> events) {
     }
   }
   return [
-    for (final (:tuplet, :onset, :span, :depth) in timedTuplets(voice))
+    for (final (:tuplet, :onset, :span, :depth) in tuplets)
       TupletView(
         tuplet: tuplet,
         onset: onset,
