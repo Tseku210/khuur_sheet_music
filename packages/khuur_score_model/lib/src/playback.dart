@@ -572,7 +572,8 @@ final class PlaybackNote {
   /// MIDI key 0–127.
   final int key;
 
-  /// 0 or 50 (quarter tones). The player applies pitch bend.
+  /// 0 or 50, the cents above [key] for a quarter tone. The player passes
+  /// it to `MidiOutput.noteOn`, and `scoreToMidi` writes it as a pitch bend.
   final int cents;
 
   /// The MIDI velocity, from the dynamic at the note and its accents. It is
