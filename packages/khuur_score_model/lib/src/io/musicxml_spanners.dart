@@ -132,15 +132,10 @@ final class _Placing {
         (EventAnchor(), TimeAnchor()) || (TimeAnchor(), EventAnchor()) => null,
       };
 
-  bool _misordered(SpannerKind kind, ScorePoint first, ScorePoint last) =>
-      spannerOrderProblem(
-        joinsNotes: kind.joinsNotes,
-        firstBar: score.indexOf(first.measure),
-        firstOffset: first.offset,
-        lastBar: score.indexOf(last.measure),
-        lastOffset: last.offset,
-      ) !=
-      null;
+  _Placed? _standing(_Placed placed) =>
+      spannerProblem(score, placed.spanner(const SpannerId(0))) == null
+      ? placed
+      : null;
 
   ScorePoint _point(int bar, Moment offset) =>
       ScorePoint(document.measures[bar], offset);
@@ -148,16 +143,14 @@ final class _Placing {
   _Placed? _onNotes(_Pair record, EventAnchor start, EventAnchor stop) {
     final staff = start.event.lane.staff;
     if (!record.kind.joinsNotes) {
-      final first = _point(start.bar, start.event.onset);
-      final last = _point(stop.bar, stop.event.onset);
-      return _misordered(record.kind, first, last)
-          ? null
-          : _Placed(
-              record,
-              staff: part.staves[staff],
-              first: first,
-              last: last,
-            );
+      return _standing(
+        _Placed(
+          record,
+          staff: part.staves[staff],
+          first: _point(start.bar, start.event.onset),
+          last: _point(stop.bar, stop.event.onset),
+        ),
+      );
     }
     final slot = start.event.lane.slot;
     final voice = slot == VoiceSlot.one ? stop.event.lane.slot : slot;
@@ -165,25 +158,23 @@ final class _Placing {
       start.bar,
       _timeOn(start, staff, voice, from: Moment.zero),
     );
-    final placed = _Placed(
-      record,
-      staff: part.staves[staff],
-      first: first,
-      last: _point(
-        stop.bar,
-        _timeOn(
-          stop,
-          staff,
-          voice,
-          from: stop.bar == start.bar ? first.offset : Moment.zero,
+    return _standing(
+      _Placed(
+        record,
+        staff: part.staves[staff],
+        first: first,
+        last: _point(
+          stop.bar,
+          _timeOn(
+            stop,
+            staff,
+            voice,
+            from: stop.bar == start.bar ? first.offset : Moment.zero,
+          ),
         ),
+        voice: voice,
       ),
-      voice: voice,
     );
-    return _misordered(record.kind, first, placed.last) ||
-            score.isCollapsed(placed.spanner(const SpannerId(0)))
-        ? null
-        : placed;
   }
 
   /// The first time from [from] at which a spanner of [voice] on [staff]

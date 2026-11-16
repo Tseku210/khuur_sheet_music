@@ -305,7 +305,7 @@ Score _keepTempoLines(
   Spanner? head(Spanner line) {
     final before = cut.measures[start - 1];
     final trimmed = _tempoLine(line, last: _lastOnset(before, line));
-    if (!_fits(cut, trimmed)) {
+    if (spannerProblem(cut, trimmed) != null) {
       return null;
     }
     final from = played.at(line.first.measure, line.first.offset);
@@ -579,7 +579,7 @@ Score _untieAt(Score score, int index, Moment from, MeasureColumn? next) {
 /// [spanners] with their ends where [first] and [last] put them among the
 /// bars of [score], which are the bars after the edit. An end with nowhere
 /// to go is null. A spanner that loses an end, or whose ends no longer fit
-/// its kind (see [_fits]), is dropped. The same object when nothing moves.
+/// its kind (see [spannerProblem]), is dropped. The same object when nothing moves.
 Seq<Spanner> _moveSpanners(
   Score score,
   Seq<Spanner> spanners, {
@@ -607,32 +607,19 @@ Seq<Spanner> _moveSpanners(
       first: from,
       last: to,
     );
-    if (_fits(score, candidate)) {
+    if (spannerProblem(score, candidate) == null) {
       kept.add(candidate);
     }
   }
   return moved ? Seq(kept) : spanners;
 }
 
-/// Whether [spanner] can stand in [score]: in order, and past its first
-/// event when it joins notes.
-bool _fits(Score score, Spanner spanner) =>
-    spannerOrderProblem(
-          joinsNotes: spanner.kind.joinsNotes,
-          firstBar: score.indexOf(spanner.first.measure),
-          firstOffset: spanner.first.offset,
-          lastBar: score.indexOf(spanner.last.measure),
-          lastOffset: spanner.last.offset,
-        ) ==
-        null &&
-    !score.isCollapsed(spanner);
-
 /// [score] without the spanners an edit has left unable to stand, such as a
 /// slur whose notes a longer note has replaced.
 Score _withFittingSpanners(Score score) {
   final kept = [
     for (final spanner in score.spanners)
-      if (_fits(score, spanner)) spanner,
+      if (spannerProblem(score, spanner) == null) spanner,
   ];
   return kept.length == score.spanners.length
       ? score
