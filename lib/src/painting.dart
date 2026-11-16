@@ -190,18 +190,36 @@ ui.Paragraph textParagraph(
   TextSpec spec,
   double fontSize,
   Color color,
-) {
+) => _line(
+  text,
+  spec.family,
+  fontSize,
+  color,
+  weight: spec.bold ? FontWeight.bold : FontWeight.normal,
+  style: spec.italic ? FontStyle.italic : FontStyle.normal,
+);
+
+/// One line of [text] in [family], laid out with no width limit. Text and
+/// glyphs are both built here, so they share every paragraph setting.
+ui.Paragraph _line(
+  String text,
+  String? family,
+  double fontSize,
+  Color color, {
+  FontWeight? weight,
+  FontStyle? style,
+}) {
   final builder =
       ui.ParagraphBuilder(
-          ui.ParagraphStyle(fontFamily: spec.family, fontSize: fontSize),
+          ui.ParagraphStyle(fontFamily: family, fontSize: fontSize),
         )
         ..pushStyle(
           ui.TextStyle(
             color: color,
-            fontFamily: spec.family,
+            fontFamily: family,
             fontSize: fontSize,
-            fontWeight: spec.bold ? FontWeight.bold : FontWeight.normal,
-            fontStyle: spec.italic ? FontStyle.italic : FontStyle.normal,
+            fontWeight: weight,
+            fontStyle: style,
           ),
         )
         ..addText(text);
@@ -352,19 +370,12 @@ final class GlyphPainter {
     }
   }
 
-  ui.Paragraph _build(int codepoint, double fontSize, Color color) {
-    final family = font.flutterFamily;
-    final builder =
-        ui.ParagraphBuilder(
-            ui.ParagraphStyle(fontFamily: family, fontSize: fontSize),
-          )
-          ..pushStyle(
-            ui.TextStyle(color: color, fontFamily: family, fontSize: fontSize),
-          )
-          ..addText(String.fromCharCode(codepoint));
-    return builder.build()
-      ..layout(const ui.ParagraphConstraints(width: double.infinity));
-  }
+  ui.Paragraph _build(int codepoint, double fontSize, Color color) => _line(
+    String.fromCharCode(codepoint),
+    font.flutterFamily,
+    fontSize,
+    color,
+  );
 }
 
 /// Paints one drawable in [color]. A line of no thickness is not drawn.
