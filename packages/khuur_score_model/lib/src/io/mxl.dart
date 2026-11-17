@@ -52,9 +52,11 @@ Score scoreFromMusicXmlBytes(
 /// of the file or of the archive entry once inflated. The container is
 /// held to it too. The default, 64 MiB, is meant to leave room for a long
 /// orchestral score. An entry whose archive declares a size over the limit
-/// is refused before any of it is inflated, and no entry is inflated past
-/// the size its archive declares, so a hostile archive cannot inflate more
-/// than [maxScoreBytes]. The archive's other entries are never inflated.
+/// is refused before any of it is inflated. On native platforms no entry is
+/// inflated much past the size its archive declares. On the web, the
+/// inflater checks that size between deflate blocks, so a crafted archive
+/// can inflate one block past it before it is refused. The archive's other
+/// entries are never inflated.
 ///
 /// Throws [ScoreFormatException] when the bytes cannot be read. Its `path`
 /// is `/` for a damaged archive or a file whose text does not decode,
@@ -70,8 +72,9 @@ String musicXmlFromBytes(Uint8List bytes, {int maxScoreBytes = 64 << 20}) =>
 ///
 /// The archive holds a stored `mimetype`, `META-INF/container.xml`, and
 /// the document of [scoreToMusicXml] deflated as `score.musicxml`. Every
-/// entry carries a fixed time, so writing a score again gives the same
-/// bytes.
+/// entry carries a fixed time, so writing a score again on the same machine
+/// gives the same bytes. The zip time fields follow the local time zone, so
+/// two machines can differ.
 Uint8List scoreToMxl(Score score) {
   final archive = Archive()
     ..add(
