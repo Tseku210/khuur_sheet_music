@@ -1,6 +1,8 @@
 /// Building one system from its plan. Not exported.
 library;
 
+import 'package:khuur_score_model/khuur_score_model.dart';
+
 import 'bar_layout.dart';
 import 'bar_space.dart';
 import 'beams.dart';
@@ -8,6 +10,7 @@ import 'breaking.dart';
 import 'chords.dart';
 import 'drawable.dart';
 import 'geometry.dart';
+import 'hit.dart';
 import 'lyrics.dart';
 import 'marks.dart';
 import 'signatures.dart';
@@ -61,9 +64,33 @@ SystemLayout assembleSystem(
   ];
   final edges = <Framed<PlacedEdges>>[];
   final singles = <({BarLayout bar, BarFrame frame})>[];
-  void drawHead(BarHead head, double x) {
+  final staffIds = [for (final staff in units.first.staves) staff.staff];
+  final signatures = <SignatureHit, Box>{};
+  void addSignature(Drawable drawable, int staff, ScorePoint at) {
+    final kind = switch (drawable.ink) {
+      InkRole.clef => SignatureKind.clef,
+      InkRole.keySignature => SignatureKind.key,
+      InkRole.timeSignature => SignatureKind.meter,
+      // A tempo line's text shares the ink but is a spanner's, placed with
+      // the spanners and never here.
+      InkRole.tempo => SignatureKind.tempo,
+      _ => null,
+    };
+    if (kind == null) {
+      return;
+    }
+    signatures.update(
+      SignatureHit(staff: staffIds[staff], kind: kind, at: at),
+      (box) => box.union(drawable.bounds),
+      ifAbsent: () => drawable.bounds,
+    );
+  }
+
+  void drawHead(BarHead head, double x, MeasureId measure) {
     for (final item in head.items) {
-      drawables.add(item.drawable.shift(x, tops[item.staff]));
+      final drawable = item.drawable.shift(x, tops[item.staff]);
+      drawables.add(drawable);
+      addSignature(drawable, item.staff, ScorePoint(measure, Moment.zero));
     }
   }
 
@@ -72,14 +99,23 @@ SystemLayout assembleSystem(
     final heads = unit.first.heads;
     final head = index == 0 ? heads.system : heads.inline.after;
     edges.add((of: (edges: unit.edges, head: head.width), frame: frame));
-    drawHead(head, frame.left);
+    final measure = unit.first.measure;
+    drawHead(head, frame.left, measure);
     if (index > 0) {
-      drawHead(heads.inline.before, frames[index - 1].right);
+      drawHead(heads.inline.before, frames[index - 1].right, measure);
     }
     switch (unit) {
       case SingleBar(:final bar):
         singles.add((bar: bar, frame: frame));
-        drawables.addAll(bar.items.map(frame.place));
+        for (final item in bar.items) {
+          final drawable = frame.place(item);
+          drawables.add(drawable);
+          addSignature(
+            drawable,
+            item.staff,
+            ScorePoint(measure, bar.slices[item.slice].at),
+          );
+        }
         for (final beam in bar.beams) {
           drawables.addAll(placeBeam(beam, frame, style));
         }
@@ -98,8 +134,10 @@ SystemLayout assembleSystem(
         );
     }
   }
-  drawHead(courtesy.before, last.right);
-  drawHead(courtesy.after, courtesyLeft);
+  if (key.next case final next?) {
+    drawHead(courtesy.before, last.right, next.measure);
+    drawHead(courtesy.after, courtesyLeft, next.measure);
+  }
   drawables
     ..addAll(
       placeBarlines(edges, groups: key.lead.groups, tops: tops, style: style),
@@ -165,6 +203,10 @@ SystemLayout assembleSystem(
     ],
     width: plan.width,
     height: plan.height,
+    signatures: [
+      for (final MapEntry(key: signature, value: bounds) in signatures.entries)
+        PlacedSignature(signature: signature, bounds: bounds),
+    ],
   );
 }
 

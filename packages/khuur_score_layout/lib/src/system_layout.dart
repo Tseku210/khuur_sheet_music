@@ -2,14 +2,15 @@ import 'package:khuur_score_model/khuur_score_model.dart';
 
 import 'drawable.dart';
 import 'geometry.dart';
+import 'hit.dart';
 
 /// One system. It is a line of bars across every visible staff, justified to
 /// the sheet width, with every drawable placed in system space.
 ///
 /// This is the geometry everything reads. The painter draws [drawables].
 /// Hit testing, the caret, selection boxes and the playback highlight read
-/// [bars], [staves] and [drawablesOf]. Nobody records positions while
-/// painting.
+/// [bars], [staves], [signatures] and [drawablesOf]. Nobody records
+/// positions while painting.
 ///
 /// Invariant: every drawable lies inside the box from (0, 0) to
 /// ([width], [height]). The height was fixed when lines were broken,
@@ -25,10 +26,17 @@ final class SystemLayout {
     required this.staves,
     required this.width,
     required this.height,
+    this.signatures = const [],
   });
 
   /// Everything the system draws, in system space.
   final List<Drawable> drawables;
+
+  /// Each clef, key signature, time signature and tempo mark the system
+  /// draws, one for each staff, kind and point, with the box of its glyphs.
+  /// The naturals that cancel an old key are part of the new key's box, and
+  /// a tempo mark's box spans its words and its metronome mark.
+  final List<PlacedSignature> signatures;
 
   /// In time order.
   final List<PlacedBar> bars;
@@ -116,6 +124,27 @@ final class SystemLayout {
     }
     return best;
   }
+
+  /// The clef, key signature, time signature or tempo mark drawn nearest
+  /// [point], within [reach]. Null when none is, and when a note, an event or a
+  /// spanner is drawn at least as near, so the nearer of a sign and a note
+  /// wins and the note wins a tie. A key signature counts as one box over
+  /// all its accidentals, so a tap between two of them is on it.
+  SignatureHit? signatureAt(SpPoint point, {double reach = 0}) {
+    PlacedSignature? best;
+    var nearest = double.infinity;
+    for (final placed in signatures) {
+      final distance = placed.bounds.distanceTo(point);
+      if (distance <= reach && distance < nearest) {
+        best = placed;
+        nearest = distance;
+      }
+    }
+    if (best == null || targetAt(point, reach: nearest) != null) {
+      return null;
+    }
+    return best.signature;
+  }
 }
 
 bool _covers(Owner owner, Owner? drawn) => switch ((owner, drawn)) {
@@ -195,6 +224,21 @@ final class TimeAxis {
   Moment nearest(Iterable<Moment> candidates, double x) => candidates.reduce(
     (a, b) => (xAt(a) - x).abs() <= (xAt(b) - x).abs() ? a : b,
   );
+}
+
+/// Where one clef, key signature, time signature or tempo mark landed on
+/// its system.
+final class PlacedSignature {
+  /// Makes a placed sign.
+  const PlacedSignature({required this.signature, required this.bounds});
+
+  /// What the sign stands for.
+  final SignatureHit signature;
+
+  /// The box of the sign's glyphs in system space. A key signature's box
+  /// spans all its accidentals, a time signature's both its rows, and a
+  /// tempo mark's its words, its note and its number.
+  final Box bounds;
 }
 
 /// Where one visible staff landed on its system.

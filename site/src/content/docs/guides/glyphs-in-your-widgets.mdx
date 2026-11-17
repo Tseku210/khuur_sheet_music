@@ -1,6 +1,6 @@
 ---
 title: Draw the sheet's glyphs in your own widgets
-description: Show a note value, a rest, an accidental, a dynamic, a bowing or a fingering in a toolbar or a palette with the same glyph the sheet engraves.
+description: Show a note value, a rest, an accidental, a dynamic, a bowing, a fingering, a key signature or a time signature in a toolbar or a palette with the same glyphs the sheet engraves.
 sidebar:
   order: 10
 ---
@@ -82,6 +82,75 @@ For the bundled Bravura, and for a copy of it with other engraving defaults, `fl
 ```dart
 double glyphWidth(Glyph glyph, double staffSpace) =>
     SmuflFont.bravura[glyph].box.width * staffSpace;
+```
+
+## Draw a key signature
+
+`keySignatureSteps(KeySignature, Clef)` gives the staff steps of a key's accidentals in the order the sheet prints them. Step 0 is the bottom line of the staff and step 8 the top line, as in `Score.toneForStaffStep`. A key with sharps draws `Glyph.accidentalSharp` on each step, and a key with flats `Glyph.accidentalFlat`. C major and A minor give no steps.
+
+A step lies `(8 - step) / 2` staff spaces below the top line. This painter draws a key on five lines, as a key chooser might show each of the fifteen keys.
+
+```dart
+class KeyPainter extends CustomPainter {
+  KeyPainter(this.key, {this.clef = Clef.treble, this.staffSpace = 6});
+
+  final KeySignature key;
+  final Clef clef;
+  final double staffSpace;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final top = (size.height - 4 * staffSpace) / 2;
+    final line = Paint()..strokeWidth = 1;
+    for (var i = 0; i < 5; i++) {
+      final y = top + i * staffSpace;
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), line);
+    }
+    final glyph = key.fifths > 0
+        ? Glyph.accidentalSharp
+        : Glyph.accidentalFlat;
+    final advance = SmuflFont.bravura[glyph].advance;
+    for (final (index, step) in keySignatureSteps(key, clef).indexed) {
+      final text = TextPainter(
+        text: TextSpan(
+          text: String.fromCharCode(glyph.codepoint),
+          style: TextStyle(
+            fontFamily: SmuflFont.bravura.flutterFamily,
+            fontSize: 4 * staffSpace,
+            height: 1,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final x = staffSpace * (1 + index * (advance + 0.15));
+      final y = top + (8 - step) / 2 * staffSpace;
+      final baseline = text.computeDistanceToActualBaseline(
+        TextBaseline.alphabetic,
+      );
+      text.paint(canvas, Offset(x, y - baseline));
+    }
+  }
+
+  @override
+  bool shouldRepaint(KeyPainter old) =>
+      old.key != key || old.clef != clef || old.staffSpace != staffSpace;
+}
+```
+
+The sheet leaves 0.15 staff spaces between two accidentals of a key. On a transposing staff, pass the key the staff writes, `instrument.writtenKey(key)`, to show what the sheet shows.
+
+## Draw a time signature
+
+`timeSignatureRows(Meter)` gives the rows of glyphs the sheet draws a meter in, top to bottom, each with the staff step its glyphs stand on. A meter in digits is two rows, its numerator on step 6 and its unit on step 2. Common and cut time are one row, `Glyph.timeSigCommon` or `Glyph.timeSigCutCommon` on step 4, the middle line. Draw each glyph with its origin on its step, as the key painter above does. Set a row's glyphs side by side by their `advance`, with no gap, and centre each row on the widest.
+
+```dart
+for (final row in timeSignatureRows(Meter.simple(6, 8))) {
+  final width = row.glyphs.fold<double>(
+    0,
+    (width, glyph) => width + SmuflFont.bravura[glyph].advance,
+  );
+  // Draw row.glyphs from (rowsWidth - width) / 2 on row.step.
+}
 ```
 
 ## Related pages

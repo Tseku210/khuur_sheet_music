@@ -249,6 +249,12 @@ class SheetController extends ChangeNotifier {
   SheetHit? hitTest(Offset local, {VoiceSlot voice = VoiceSlot.one}) =>
       _view?._hitTest(local, voice);
 
+  /// The clef, key signature, time signature or tempo mark under a tap at
+  /// [local], or null when the tap is on none. A note, an event or a spanner drawn at
+  /// least as near takes the tap instead, so ask this first and [hitTest]
+  /// when it answers null. The reach is a finger's, as for [hitTest].
+  SignatureHit? signatureAt(Offset local) => _view?._signatureAt(local);
+
   /// Where a note entered at [local] in [voice] would go, whatever is drawn
   /// there, on the view's tap grid. The hit has no target. `SheetView.onHold`
   /// reports this for a held finger, so an app asks it only for other
@@ -522,6 +528,14 @@ class _SheetViewState extends State<SheetView> {
       _viewportOf(shown).toSheet(local),
       voice: voice,
       grid: widget.tapGrid,
+      reach: kTouchSlop / shown.spacePx,
+    ),
+    null => null,
+  };
+
+  SignatureHit? _signatureAt(Offset local) => switch (_shown) {
+    final shown? => shown.layout.signatureAt(
+      _viewportOf(shown).toSheet(local),
       reach: kTouchSlop / shown.spacePx,
     ),
     null => null,

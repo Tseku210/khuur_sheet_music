@@ -1,6 +1,6 @@
 /// Signatures and structure. Clefs, key and time signatures, the widths of
 /// barlines and repeat signs, and what stands before the first bar of a
-/// system. Not exported.
+/// system. Only [keySignatureSteps] and [timeSignatureRows] are exported.
 library;
 
 import 'dart:math' as math;
@@ -361,8 +361,17 @@ List<Step> _alteredLetters(KeySignature key) => key.fifths >= 0
     ? _sharpOrder.sublist(0, key.fifths)
     : [for (var i = 0; i < -key.fifths; i++) _sharpOrder[6 - i]];
 
-/// The staff steps of a key signature's accidentals under [clef], in printing
-/// order. Empty under a percussion clef, which prints no key.
+/// The staff steps of [key]'s accidentals under [clef], in printing order,
+/// where the sheet draws them. Empty for C major and A minor, and under a
+/// percussion clef, which prints no key.
+///
+/// Steps are counted as `Score.toneForStaffStep` counts them: 0 is the
+/// bottom line of the staff, 1 the space above it, and 8 the top line.
+/// Each step holds a `Glyph.accidentalSharp` when `key.fifths` is above 0
+/// and a `Glyph.accidentalFlat` when it is below. Pass the key as the staff
+/// writes it, `Instrument.writtenKey` of the sounding key, to match the
+/// sheet on a transposing staff. The sheet spaces the accidentals by each
+/// glyph's advance and 0.15 staff spaces between them.
 List<int> keySignatureSteps(KeySignature key, Clef clef) {
   if (clef.sign == ClefSign.percussion || key.fifths == 0) {
     return const [];
@@ -442,36 +451,47 @@ const List<Glyph> timeSigDigits = [
 Iterable<Glyph> digitGlyphs(int number) =>
     number.toString().codeUnits.map((unit) => timeSigDigits[unit - 0x30]);
 
-/// A time signature from x 0. It is `timeSigCommon` or `timeSigCutCommon` for
-/// those symbols, else numerator over denominator in `timeSig` digits, each row
-/// centred. The groups of an additive meter are joined by plus signs. The rows
-/// meet on the middle line, which is also the line of a one-line staff.
+/// The rows of glyphs the sheet draws [meter] in, top to bottom, each on the
+/// staff step its glyphs' origins stand on, counted as in
+/// [keySignatureSteps]. A common or cut time symbol is one row on the middle
+/// line, step 4. Any other meter is its numerator on step 6 over its unit on
+/// step 2, in `timeSig` digits, with the groups of an additive meter joined
+/// by `timeSigPlus`. The sheet centres each row on the widest and sets its
+/// glyphs side by side by their advances, with no gap.
+List<({int step, List<Glyph> glyphs})> timeSignatureRows(Meter meter) =>
+    switch (meter.symbol) {
+      MeterSymbol.common => const [
+        (step: 4, glyphs: [Glyph.timeSigCommon]),
+      ],
+      MeterSymbol.cut => const [
+        (step: 4, glyphs: [Glyph.timeSigCutCommon]),
+      ],
+      MeterSymbol.numeric => [
+        (
+          step: 6,
+          glyphs: [
+            for (final (index, group) in meter.groups.indexed) ...[
+              if (index > 0) Glyph.timeSigPlus,
+              ...digitGlyphs(group),
+            ],
+          ],
+        ),
+        (step: 2, glyphs: [...digitGlyphs(meter.unit)]),
+      ],
+    };
+
+/// A time signature from x 0, as [timeSignatureRows] gives it, each row
+/// centred. The rows meet on the middle line, which is also the line of a
+/// one-line staff.
 BarHead meterItems(
   Meter meter, {
   required int staff,
   required EngravingStyle style,
 }) {
-  final symbol = switch (meter.symbol) {
-    MeterSymbol.common => Glyph.timeSigCommon,
-    MeterSymbol.cut => Glyph.timeSigCutCommon,
-    MeterSymbol.numeric => null,
-  };
-  final rows = symbol != null
-      ? [
-          (y: yOfStep(4), glyphs: [symbol]),
-        ]
-      : [
-          (
-            y: yOfStep(6),
-            glyphs: [
-              for (final (index, group) in meter.groups.indexed) ...[
-                if (index > 0) Glyph.timeSigPlus,
-                ...digitGlyphs(group),
-              ],
-            ],
-          ),
-          (y: yOfStep(2), glyphs: [...digitGlyphs(meter.unit)]),
-        ];
+  final rows = [
+    for (final row in timeSignatureRows(meter))
+      (y: yOfStep(row.step), glyphs: row.glyphs),
+  ];
   double widthOf(List<Glyph> glyphs) =>
       glyphs.fold(0, (width, glyph) => width + style.font[glyph].advance);
   final width = rows.fold<double>(

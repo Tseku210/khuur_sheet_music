@@ -53,6 +53,68 @@ final class SheetHit {
   final Owner? target;
 }
 
+/// What a clef, a key signature, a time signature or a tempo mark drawn on
+/// the sheet stands for. Each kind names the edit that changes it.
+enum SignatureKind {
+  /// A clef. `SetClef(staff: hit.staff, at: hit.at, clef: ...)` changes it.
+  clef,
+
+  /// A key signature. `SetKey(from: hit.at.measure, key: ...)` changes it.
+  key,
+
+  /// A time signature. `SetMeter(from: hit.at.measure, meter: ...)` changes
+  /// it.
+  meter,
+
+  /// A tempo mark, its words and its metronome mark both. `SetTempoMarks` on
+  /// `hit.at.measure`, with the bar's mark at `hit.at.offset` replaced and
+  /// its other marks kept, changes it.
+  tempo,
+}
+
+/// A clef, a key signature, a time signature or a tempo mark under a tap,
+/// as model values, so an app can run the edit of [kind] straight from it.
+final class SignatureHit {
+  /// The sign of [kind] drawn on [staff], which takes effect at [at].
+  const SignatureHit({
+    required this.staff,
+    required this.kind,
+    required this.at,
+  });
+
+  /// The staff the sign is drawn on. Every staff of a part draws its own
+  /// key and meter, so a tap on the lower staff of a piano names that
+  /// staff. A tempo mark belongs to every staff and is drawn above the
+  /// system's top staff, which it names.
+  final StaffId staff;
+
+  /// Whether the sign is a clef, a key signature, a time signature or a
+  /// tempo mark.
+  final SignatureKind kind;
+
+  /// Where the sign takes effect. For a sign before the music of a bar it
+  /// is the start of that bar. That holds for the clef and key every system
+  /// restates at its start, which name the system's first bar, and for the
+  /// courtesy signs at the end of a system, which name the first bar of the
+  /// next system. For a clef that changes inside a bar it is that bar and
+  /// the clef's offset, and for a tempo mark its bar and `TempoMark.offset`.
+  /// A tempo mark is drawn only where it stands, never restated.
+  final ScorePoint at;
+
+  @override
+  bool operator ==(Object other) =>
+      other is SignatureHit &&
+      other.staff == staff &&
+      other.kind == kind &&
+      other.at == at;
+
+  @override
+  int get hashCode => Object.hash(staff, kind, at);
+
+  @override
+  String toString() => 'SignatureHit($staff, ${kind.name}, $at)';
+}
+
 /// A note that is not in the score, drawn where an entry would put it.
 ///
 /// An app makes one from a [SheetHit] while a finger is down on the sheet,
