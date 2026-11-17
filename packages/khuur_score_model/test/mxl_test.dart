@@ -410,7 +410,7 @@ void main() {
         try {
           scoreFromMusicXmlBytes(candidate);
         } on ScoreFormatException {
-          // Refused as it should be.
+          continue;
         } on Object catch (e) {
           fail('damaged archive $i threw ${e.runtimeType}: $e');
         }
