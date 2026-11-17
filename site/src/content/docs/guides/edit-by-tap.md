@@ -136,6 +136,69 @@ GestureDetector(
 
 `_enter` is the second half of `_onTap` above, from `toneForStaffStep` to `_run`. `entryAt` looks at no drawn mark and gives a hit with no target.
 
+## Change a clef, a key, a meter or a tempo
+
+A clef, a key signature, a time signature and a tempo mark are not elements of the score, so a hit on one has no target, and the handlers above would enter a note there. `signatureAt` tells whether a tap is on one. Ask it first in your own tap handler, and go on to `hitTest` when it gives null.
+
+```dart
+void _onTapAt(Offset at) {
+  if (_sheet.signatureAt(at) case final sign?) {
+    _change(sign);
+    return;
+  }
+  // Select a note or a line, or enter a note, as above.
+}
+
+Future<void> _change(SignatureHit sign) async {
+  switch (sign.kind) {
+    case SignatureKind.clef:
+      if (await _pickClef() case final clef?) {
+        _run(SetClef(staff: sign.staff, at: sign.at, clef: clef));
+      }
+    case SignatureKind.key:
+      if (await _pickKey() case final key?) {
+        _run(SetKey(from: sign.at.measure, key: key));
+      }
+    case SignatureKind.meter:
+      if (await _pickMeter() case final meter?) {
+        _run(SetMeter(from: sign.at.measure, meter: meter));
+      }
+    case SignatureKind.tempo:
+      if (await _pickTempo() case final tempo?) {
+        final bar = _score.measures[_score.indexOf(sign.at.measure)];
+        _run(
+          SetTempoMarks(
+            sign.at.measure,
+            Seq([
+              for (final mark in bar.tempos)
+                mark.offset == sign.at.offset
+                    ? TempoMark(
+                        offset: mark.offset,
+                        tempo: tempo,
+                        text: mark.text,
+                        showMetronome: mark.showMetronome,
+                      )
+                    : mark,
+            ]),
+          ),
+        );
+      }
+  }
+}
+```
+
+`_pickClef`, `_pickKey`, `_pickMeter` and `_pickTempo` are your app's own choosers. `SetTempoMarks` replaces all of a bar's marks, so keep the ones the tap was not on.
+
+The `SignatureHit` names the staff the sign is drawn on, its kind, and the point it takes effect from:
+
+- A sign before the music of a bar names the start of that bar.
+- The clef and key at the start of each system name that system's first bar, though they only restate what came before. A `SetKey` there starts the new key at that bar.
+- The courtesy key and meter at the end of a system, and a courtesy clef before its last barline, name the first bar of the next system.
+- A clef that changes inside a bar names the bar and the clef's offset.
+- A tempo mark names its bar and its offset, whether the tap is on its words, its note or its number. It is drawn above the system's top staff and names that staff. The sheet never restates a tempo mark, and the words of a tempo line such as *rit.* belong to the line.
+
+A note, a rest or a line drawn as near as the sign takes the tap, so a note just after a clef stays easy to select. A key signature counts as one box over all its accidentals. C major and A minor draw no key, so nothing there answers to a tap.
+
 ## Choose the tap grid
 
 `tapGrid` is the grid a tap snaps to. It is a sixteenth unless you give another. Pass the base of the value being entered, and a note starts on a beat of its own value.
@@ -215,6 +278,7 @@ Each new zoom breaks the lines again over the whole score. If your app zooms by 
 
 - [Your first sheet](/khuur_sheet_music/tutorial/first-sheet/) enters notes by tap from a blank page.
 - [Show where a note will go](/khuur_sheet_music/guides/note-preview/) shows the note under a held finger before it is entered.
+- [Draw the sheet's glyphs in your own widgets](/khuur_sheet_music/guides/glyphs-in-your-widgets/) draws the keys of a key chooser as the sheet draws them.
 - [Place widgets over the sheet](/khuur_sheet_music/guides/widgets-over-the-sheet/) puts a delete button at the selected note.
 - [Show a score](/khuur_sheet_music/guides/show-a-score/) lists the edits and how entry fits notes into bars.
 - [The score model](/khuur_sheet_music/explanation/score-model/) explains sessions, edits and undo.

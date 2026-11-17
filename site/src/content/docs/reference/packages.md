@@ -27,7 +27,7 @@ The import exports the following names.
 | --- | --- |
 | The library itself | `SheetView`, `SheetController`, `EntryHold`, `SheetPalette`, `SheetHighlight`, `SheetLine`, `ScorePlayer`, `PlayerStatus`, `PlaybackPosition`, `MidiOutput`, `SynthOutput`, and the `SmuflFontFamily` extension, which gives `SmuflFont.flutterFamily` |
 | `khuur_score_model` | Every public name |
-| `khuur_score_layout` | `ChordSymbolSpelling`, `ElementOwner`, `EngravingDefaults`, `EngravingStyle`, `Glyph`, `InkRole`, `NotePreview`, `Owner`, `QuarterToneGlyphs`, `SheetHit`, `SmuflFont`, `SpacingPolicy`, `SpannerOwner`, `StringNumbers`, `TextRole`, `TextSpec`, `accidentalGlyph`, `bowingGlyph`, `dynamicGlyph`, `fingeringGlyphs`, `noteGlyph`, `restGlyph` |
+| `khuur_score_layout` | `ChordSymbolSpelling`, `ElementOwner`, `EngravingDefaults`, `EngravingStyle`, `Glyph`, `InkRole`, `NotePreview`, `Owner`, `QuarterToneGlyphs`, `SheetHit`, `SignatureHit`, `SignatureKind`, `SmuflFont`, `SpacingPolicy`, `SpannerOwner`, `StringNumbers`, `TextRole`, `TextSpec`, `accidentalGlyph`, `bowingGlyph`, `dynamicGlyph`, `fingeringGlyphs`, `keySignatureSteps`, `noteGlyph`, `restGlyph` |
 | `khuur_synth` | `AssetSoundFont`, `AudioOutputFailed`, `AudioSessionPolicy`, `FileSoundFont`, `PresetNotFound`, `Reverb`, `SoundFont`, `SoundFontLoadFailed`, `Synth`, `SynthException`, `SynthUnavailable` |
 
 Two names of the score model clash with names in Flutter. [Name clashes](/khuur_sheet_music/reference/name-clashes/) lists them.

@@ -3653,6 +3653,138 @@ void main() {
   );
 
   testWidgets(
+    'the controller tells which clef, key or meter a tap is on, with a '
+    "finger's reach at every zoom, and a tap on a note is on none",
+    (tester) async {
+      final score = tune();
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        host(
+          SheetView(
+            score: score,
+            controller: controller,
+            followCursor: false,
+          ),
+          size: const Size(800, 400),
+        ),
+      );
+
+      Box signOf(InkRole ink) =>
+          shown(tester)
+              .systemAt(0)
+              .drawables
+              .where((drawable) => drawable.ink == ink)
+              .first
+              .bounds;
+      Offset middle(Box box, {double spacePx = staffSpace}) => onScreen(
+        tester,
+        0,
+        SpPoint(
+          (box.left + box.right) / 2,
+          shown(tester).tops[0] + (box.top + box.bottom) / 2,
+        ),
+        spacePx: spacePx,
+      );
+      final first = score.measures.first.id;
+      final staff = score.parts.single.staves.single.id;
+      final clef = SignatureHit(
+        staff: staff,
+        kind: SignatureKind.clef,
+        at: ScorePoint(first, Moment.zero),
+      );
+
+      final onClef = middle(signOf(InkRole.clef));
+      expect(controller.signatureAt(onClef), clef);
+      expect(
+        controller.signatureAt(middle(signOf(InkRole.timeSignature))),
+        SignatureHit(
+          staff: staff,
+          kind: SignatureKind.meter,
+          at: ScorePoint(first, Moment.zero),
+        ),
+      );
+      final head = headOf(score, 0, 0);
+      expect(controller.signatureAt(middleOf(tester, head)), isNull);
+      expect(
+        controller.hitTest(middleOf(tester, head))!.target,
+        ElementOwner(head),
+      );
+      for (final spacePx in [staffSpace, 2 * staffSpace]) {
+        controller.zoom = spacePx / staffSpace;
+        await tester.pump();
+        final box = signOf(InkRole.clef);
+        final edge = Offset(
+          middle(box, spacePx: spacePx).dx - box.width / 2 * spacePx,
+          middle(box, spacePx: spacePx).dy,
+        );
+        expect(controller.signatureAt(edge - const Offset(16, 0)), clef);
+        expect(
+          controller.signatureAt(edge - const Offset(20, 0)),
+          isNull,
+          reason: 'a finger reaches 18 px past the ink at every zoom',
+        );
+      }
+    },
+  );
+
+  testWidgets(
+    'the controller tells a tap on a tempo mark, with the bar and offset '
+    'it stands at',
+    (tester) async {
+      final plain = tune();
+      final second = plain.measures[1].id;
+      final half = Moment(Fraction(1, 2));
+      final score = (EditSession.start(plain).run(
+        SetTempoMarks(
+          second,
+          Seq([TempoMark(offset: half, tempo: const Tempo(72))]),
+        ),
+      ) as Applied).session.score;
+      final controller = SheetController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        host(
+          SheetView(
+            score: score,
+            controller: controller,
+            followCursor: false,
+          ),
+          size: const Size(800, 400),
+        ),
+      );
+
+      final system = shown(tester).systemAt(0);
+      // The blank score's own mark stands over the first bar.
+      final mark = system.drawables
+          .where(
+            (drawable) =>
+                drawable.ink == InkRole.tempo &&
+                drawable.bounds.left > system.bars[1].left,
+          )
+          .map((drawable) => drawable.bounds)
+          .reduce((a, b) => a.union(b));
+      final onMark = onScreen(
+        tester,
+        0,
+        SpPoint(
+          (mark.left + mark.right) / 2,
+          shown(tester).tops[0] + (mark.top + mark.bottom) / 2,
+        ),
+      );
+
+      expect(
+        controller.signatureAt(onMark),
+        SignatureHit(
+          staff: score.parts.single.staves.single.id,
+          kind: SignatureKind.tempo,
+          at: ScorePoint(second, half),
+        ),
+      );
+    },
+  );
+
+  testWidgets(
     'a tap is a tap on the sheet of the view tapped, when another view '
     'took the controller after it',
     (tester) async {

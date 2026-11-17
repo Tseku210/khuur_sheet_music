@@ -65,6 +65,6 @@ Your app owns the state and the decisions. The library owns the music, the geome
 
 `EditSession`, from the model, is how a score changes. The app holds one in a field, calls `session.run(edit)`, and keeps the session that comes back. It passes `session.score`, `session.cursor` and `session.selection` to `SheetView`. The view never edits a score itself. [The score model](/khuur_sheet_music/explanation/score-model/) explains why edits work this way.
 
-`SheetController`, from the shell, is how the app talks to a view. It holds the zoom, and it answers geometry questions in the view's local pixels through `hitTest`, `entryAt`, `rectOf`, `caretOf` and `rectsOf`. It also scrolls a bar into view with `ensureVisible` and draws systems to an image with `toImage`. An app places its own widgets over the sheet with these answers.
+`SheetController`, from the shell, is how the app talks to a view. It holds the zoom, and it answers geometry questions in the view's local pixels through `hitTest`, `signatureAt`, `entryAt`, `rectOf`, `caretOf` and `rectsOf`. It also scrolls a bar into view with `ensureVisible` and draws systems to an image with `toImage`. An app places its own widgets over the sheet with these answers.
 
 `MidiOutput`, from the shell, is how sound leaves the player. It is an interface of seven methods. An app that plays through another synthesizer passes its own output to `ScorePlayer(output: ...)`, and the player's tests pass a fake. [Play a score](/khuur_sheet_music/guides/play-a-score/) shows the player from the app's side.

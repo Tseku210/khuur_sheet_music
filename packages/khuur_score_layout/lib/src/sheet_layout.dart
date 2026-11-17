@@ -50,8 +50,8 @@ Box? _onTheBeat(SystemLayout system, EventRef ref) => system
 /// place through [systemCount], [tops] and [heightOf]. A system's drawables are
 /// assembled the first time [systemAt] is asked for it and kept by the system's
 /// key, so a view that shows five systems of a hundred assembles five.
-/// [hitTest], [boundsOf], [caretOf], [selectionBoxes] and [playheadAt]
-/// assemble the systems they read and lay nothing out.
+/// [hitTest], [signatureAt], [boundsOf], [caretOf], [selectionBoxes] and
+/// [playheadAt] assemble the systems they read and lay nothing out.
 ///
 /// Sheet space has its origin at the top-left of the header block, y down. The
 /// layout is a value to its readers. Nothing it reports ever changes.
@@ -289,6 +289,23 @@ final class SheetLayout {
     }
     return _entryIn(system, local, voice, grid, target);
   }
+
+  /// The clef, key signature, time signature or tempo mark a tap at [point]
+  /// in sheet space is on, or null when it is on none. Null also where
+  /// [hitTest] is null.
+  ///
+  /// The system is the one [hitTest] takes. On it the sign drawn nearest the
+  /// point within [reach] wins, unless a note, an event or a spanner is
+  /// drawn at least as near, so an app asks this before [hitTest] and a tap
+  /// on a note next to a clef still takes the note. A C major key and a
+  /// meter the bar does not print draw nothing here to tap.
+  ///
+  /// [reach] is a finger's reach in staff spaces, as for [hitTest].
+  SignatureHit? signatureAt(SpPoint point, {double reach = 0}) =>
+      switch (_systemUnder(point)) {
+        (final system, final local) => system.signatureAt(local, reach: reach),
+        null => null,
+      };
 
   /// Where a note entered at [point] in [voice] would go, whatever is drawn
   /// there. It is steps 1, 4 and 5 of [hitTest], so the hit has no target,
