@@ -16,6 +16,7 @@ environment:
 resolution: workspace
 
 dependencies:
+  archive: ^4.7.0
   xml: ^7.0.0
 
 dev_dependencies:

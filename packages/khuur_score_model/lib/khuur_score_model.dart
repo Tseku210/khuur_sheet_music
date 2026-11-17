@@ -25,6 +25,7 @@ export 'src/io/json.dart';
 export 'src/io/midi.dart';
 export 'src/io/musicxml.dart';
 export 'src/io/musicxml_import.dart';
+export 'src/io/mxl.dart';
 export 'src/measure.dart';
 export 'src/pitch.dart';
 export 'src/playback.dart'
