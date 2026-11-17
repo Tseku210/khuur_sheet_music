@@ -75,6 +75,69 @@ Uint8List declaring(Uint8List bytes, String name, int size) {
   throw StateError('no $name in the central directory');
 }
 
+/// An archive of [text] stored as [name], whose sizes are in a data
+/// descriptor that declares [size] once inflated. The central directory
+/// gives 0 for that size, as a streaming zip writer may.
+Uint8List withDescriptor(String name, String text, int size) {
+  final data = utf8.encode(text);
+  final path = utf8.encode(name);
+  final crc = getCrc32(data);
+  final out = BytesBuilder();
+  void u16(int value) => out.add([value & 0xFF, value >> 8 & 0xFF]);
+  void u32(int value) {
+    u16(value & 0xFFFF);
+    u16(value >> 16 & 0xFFFF);
+  }
+
+  u32(0x04034b50);
+  u16(20);
+  u16(0x08);
+  u16(0);
+  u16(0);
+  u16(0x21);
+  u32(0);
+  u32(0);
+  u32(0);
+  u16(path.length);
+  u16(0);
+  out
+    ..add(path)
+    ..add(data);
+  u32(0x08074b50);
+  u32(crc);
+  u32(data.length);
+  u32(size);
+  final central = out.length;
+  u32(0x02014b50);
+  u16(20);
+  u16(20);
+  u16(0x08);
+  u16(0);
+  u16(0);
+  u16(0x21);
+  u32(crc);
+  u32(data.length);
+  u32(0);
+  u16(path.length);
+  u16(0);
+  u16(0);
+  u16(0);
+  u16(0);
+  u32(0);
+  u32(0);
+  out.add(path);
+  final centralSize = out.length - central;
+  u32(0x06054b50);
+  u16(0);
+  u16(0);
+  u16(1);
+  u16(1);
+  u32(centralSize);
+  u32(central);
+  u16(0);
+  return out.toBytes();
+}
+
 void main() {
   group('scoreToMxl', () {
     test('reads back as the same score', () {
@@ -276,6 +339,22 @@ void main() {
       expect(
         () => scoreFromMusicXmlBytes(bytes),
         refusedAt('score.musicxml'),
+      );
+    });
+
+    test('an entry whose data descriptor declares more than allowed', () {
+      final size = utf8.encode(blank).length;
+
+      expect(
+        read(withDescriptor('score.musicxml', blank, size)),
+        read(zip({'score.musicxml': blank})),
+      );
+      expect(
+        () => scoreFromMusicXmlBytes(
+          withDescriptor('score.musicxml', blank, size + 1),
+          maxScoreBytes: size,
+        ),
+        refusedAt('score.musicxml', contains('bytes allowed')),
       );
     });
 
