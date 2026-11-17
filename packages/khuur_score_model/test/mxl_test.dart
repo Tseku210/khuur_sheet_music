@@ -339,6 +339,13 @@ void main() {
     });
   });
 
+  test('musicXmlFromBytes gives the document of an archive', () {
+    expect(
+      musicXmlFromBytes(scoreToMxl(showcase())),
+      scoreToMusicXml(showcase()),
+    );
+  });
+
   group('scoreFromMusicXmlBytes reads plain bytes', () {
     test('in UTF-8', () {
       expect(read(utf8.encode(golden)), golden);

@@ -20,41 +20,51 @@ const _container = 'META-INF/container.xml';
 
 /// Reads a MusicXML file into a [Score], given the file's bytes.
 ///
+/// It is [scoreFromMusicXml] of the text that [musicXmlFromBytes] finds in
+/// [bytes], a compressed `.mxl` file or an uncompressed `.musicxml` file.
+///
+/// Throws [ScoreFormatException] when [musicXmlFromBytes] or
+/// [scoreFromMusicXml] refuses the file. An error in the score keeps the
+/// element path that [scoreFromMusicXml] gives.
+Score scoreFromMusicXmlBytes(
+  Uint8List bytes, {
+  int maxScoreBytes = 64 << 20,
+}) => scoreFromMusicXml(
+  musicXmlFromBytes(bytes, maxScoreBytes: maxScoreBytes),
+);
+
+/// The text of the MusicXML document in a file, given the file's bytes.
+///
+/// For an app that changes the document before [scoreFromMusicXml] reads
+/// it. [scoreFromMusicXmlBytes] reads it without that step.
+///
 /// [bytes] are a compressed `.mxl` file or an uncompressed `.musicxml`
 /// file, told apart by the zip signature at the start. In an `.mxl` file
-/// the score is the entry that the first `<rootfile>` of
+/// the document is the entry that the first `<rootfile>` of
 /// `META-INF/container.xml` names. An archive without a container is read
 /// only when it holds exactly one `.musicxml` or `.xml` entry outside
 /// `META-INF/`.
 ///
 /// The document is UTF-16 when it starts with a UTF-16 byte order mark,
-/// and UTF-8 otherwise, with a UTF-8 byte order mark dropped. The text
-/// then goes to [scoreFromMusicXml].
+/// and UTF-8 otherwise, with a UTF-8 byte order mark dropped.
 ///
 /// [maxScoreBytes] is the largest document it reads, counted in the bytes
 /// of the file or of the archive entry once inflated. The container is
 /// held to it too. The default, 64 MiB, is meant to leave room for a long
-/// orchestral score. An entry whose
-/// archive declares a size over the limit is refused before any of it is
-/// inflated, and no entry is inflated past the size its archive declares,
-/// so a hostile archive cannot inflate more than [maxScoreBytes]. The
-/// archive's other entries are never inflated.
+/// orchestral score. An entry whose archive declares a size over the limit
+/// is refused before any of it is inflated, and no entry is inflated past
+/// the size its archive declares, so a hostile archive cannot inflate more
+/// than [maxScoreBytes]. The archive's other entries are never inflated.
 ///
 /// Throws [ScoreFormatException] when the bytes cannot be read. Its `path`
 /// is `/` for a damaged archive or a file whose text does not decode,
 /// `META-INF/container.xml` for a container that names no score, and the
 /// score entry's name for an entry that is too large, damaged or not
-/// UTF-8. An error in the score keeps the element path that
-/// [scoreFromMusicXml] gives.
-Score scoreFromMusicXmlBytes(
-  Uint8List bytes, {
-  int maxScoreBytes = 64 << 20,
-}) {
-  final text = _isZip(bytes)
-      ? _rootFile(bytes, maxScoreBytes)
-      : _text(_limited('/', bytes, maxScoreBytes));
-  return scoreFromMusicXml(text);
-}
+/// UTF-8.
+String musicXmlFromBytes(Uint8List bytes, {int maxScoreBytes = 64 << 20}) =>
+    _isZip(bytes)
+    ? _rootFile(bytes, maxScoreBytes)
+    : _text(_limited('/', bytes, maxScoreBytes));
 
 /// [score] as the bytes of a MusicXML 4.0 compressed `.mxl` file.
 ///

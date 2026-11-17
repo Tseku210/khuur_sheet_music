@@ -45,6 +45,14 @@ The text of the document is UTF-16 when it starts with a UTF-16 byte order mark,
 final score = scoreFromMusicXmlBytes(bytes, maxScoreBytes: 16 << 20);
 ```
 
+To change the document before it is read, call `musicXmlFromBytes`. It returns the text that `scoreFromMusicXmlBytes` would pass on, under the same rules and the same limit.
+
+```dart
+final score = scoreFromMusicXml(withoutCues(musicXmlFromBytes(bytes)));
+```
+
+Here `withoutCues` stands for the app's own change to the text.
+
 ### Handle a file that does not import
 
 `scoreFromMusicXml` throws a `ScoreFormatException` for a file that it cannot read. It never guesses. The exception's `path` names the element, such as `/score-partwise/part/measure[3]/note[2]`, and its `message` says why.
