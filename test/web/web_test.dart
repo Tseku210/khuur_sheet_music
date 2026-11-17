@@ -48,6 +48,14 @@ void main() {
     semantics.dispose();
   });
 
+  test('scoreToMxl writes a file that scoreFromMusicXmlBytes reads', () {
+    final score = arpeggio();
+    expect(
+      scoreToMusicXml(scoreFromMusicXmlBytes(scoreToMxl(score))),
+      scoreToMusicXml(score),
+    );
+  });
+
   testWidgets('ScorePlayer.play throws SynthUnavailable on the web', (
     tester,
   ) async {
