@@ -12,7 +12,7 @@ Sheet music for Flutter. `SheetView` shows a `Score` as a scrolling sheet. An ap
 - Edits that undo and redo: notes, chords, rests, tuplets, grace notes, ties, lyrics, slurs, hairpins, pedal lines, clefs, keys, meters, repeats and jumps.
 - Entry by tap, with a preview of the note under a held finger.
 - Playback through FluidSynth with the SoundFonts that the app supplies, with tempo, loops and reverb. The sheet marks the beat that plays and scrolls to keep it in view.
-- MusicXML import and export, MIDI export, and JSON save and load.
+- MusicXML import and export, compressed `.mxl` files included, MIDI export, and JSON save and load.
 - A palette and an engraving style that follow the app's theme, and the sheet's glyphs for the app's own buttons.
 - A score model and a layout engine in pure Dart, which a server or a command-line tool can use without Flutter.
 
