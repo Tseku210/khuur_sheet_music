@@ -4,7 +4,9 @@
 /// cross-bar `Spanner`s. Change it only through `EditSession.run`. Layout
 /// reads `Score.measureView` and `Score.changesSince`. Playback uses
 /// `PlaybackCompiler`, and `scoreToMidi` writes what it plays as a MIDI
-/// file. Persistence is `scoreToJson` and `scoreFromJson`.
+/// file. Persistence is `scoreToJson` and `scoreFromJson`. MusicXML is
+/// `scoreToMusicXml` and `scoreFromMusicXml`, and `scoreToMxl` and
+/// `scoreFromMusicXmlBytes` add the compressed `.mxl` file.
 library;
 
 export 'src/edit/edits.dart';

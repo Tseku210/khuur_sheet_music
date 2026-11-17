@@ -33,8 +33,8 @@ const _container = 'META-INF/container.xml';
 ///
 /// [maxScoreBytes] is the largest document it reads, counted in the bytes
 /// of the file or of the archive entry once inflated. The container is
-/// held to it too. The default, 64 MiB, is well above the largest
-/// orchestral scores, which are a few tens of megabytes. An entry whose
+/// held to it too. The default, 64 MiB, is meant to leave room for a long
+/// orchestral score. An entry whose
 /// archive declares a size over the limit is refused before any of it is
 /// inflated, and no entry is inflated past the size its archive declares,
 /// so a hostile archive cannot inflate more than [maxScoreBytes]. The
