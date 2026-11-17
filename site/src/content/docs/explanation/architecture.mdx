@@ -15,7 +15,7 @@ khuur_sheet_music is three Dart packages in one pub workspace. Each package owns
 
 ## What each package owns
 
-`khuur_score_model`, in `packages/khuur_score_model/`, owns the music as data. It holds the immutable `Score`, the edits and the `EditSession` that applies them, and the views that layout reads (`Score.measureView` and `Score.changesSince`). It also holds the `PlaybackCompiler` that turns a score into a `PlaybackScript`, JSON save and load, MusicXML import and export, and MIDI file export. Its only dependency is the `xml` package.
+`khuur_score_model`, in `packages/khuur_score_model/`, owns the music as data. It holds the immutable `Score`, the edits and the `EditSession` that applies them, and the views that layout reads (`Score.measureView` and `Score.changesSince`). It also holds the `PlaybackCompiler` that turns a score into a `PlaybackScript`, JSON save and load, MusicXML import and export with compressed `.mxl` files, and MIDI file export. It depends on the `xml` package, and on `archive` for `.mxl`.
 
 `khuur_score_layout`, in `packages/khuur_score_layout/`, owns geometry. Its entry point, `SheetLayout`, turns a `Score` into a vertical stack of systems at one width. Each system is a list of positioned drawables in staff spaces, with y pointing down. The same object answers the questions an editor asks about that geometry. It says what a tap at a point means, where an element is drawn, and where the caret and the playhead go. It depends on the model and on nothing else.
 

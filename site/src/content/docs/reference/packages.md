@@ -38,7 +38,7 @@ Two names of the score model clash with names in Flutter. [Name clashes](/khuur_
 import 'package:khuur_score_model/khuur_score_model.dart';
 ```
 
-The immutable score model. It holds `Score`, `EditSession` and the edits, JSON through `scoreToJson` and `scoreFromJson`, MusicXML through `scoreToMusicXml` and `scoreFromMusicXml`, MIDI files through `scoreToMidi`, and the timed playback script of `PlaybackCompiler`. It has no Flutter dependency, so it runs in a Dart server or command-line tool too. API reference: [khuur_score_model library](https://pub.dev/documentation/khuur_score_model/latest/khuur_score_model/khuur_score_model-library.html).
+The immutable score model. It holds `Score`, `EditSession` and the edits, JSON through `scoreToJson` and `scoreFromJson`, MusicXML through `scoreToMusicXml` and `scoreFromMusicXml`, compressed `.mxl` files through `scoreToMxl` and `scoreFromMusicXmlBytes`, MIDI files through `scoreToMidi`, and the timed playback script of `PlaybackCompiler`. It has no Flutter dependency, so it runs in a Dart server or command-line tool too. API reference: [khuur_score_model library](https://pub.dev/documentation/khuur_score_model/latest/khuur_score_model/khuur_score_model-library.html).
 
 `khuur_sheet_music` exports all of this package.
 

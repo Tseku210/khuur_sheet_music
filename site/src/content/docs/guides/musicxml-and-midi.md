@@ -1,6 +1,6 @@
 ---
 title: Read and write MusicXML, MIDI and JSON
-description: Import a score from MusicXML, export it as MusicXML or a MIDI file, and save and load it as JSON.
+description: Import a score from MusicXML or a compressed .mxl file, export it as MusicXML, .mxl or a MIDI file, and save and load it as JSON.
 sidebar:
   order: 11
 ---
@@ -25,7 +25,33 @@ final score = scoreFromMusicXml(
 );
 ```
 
-`scoreFromMusicXml` reads a `score-partwise` document. It reads everything that `scoreToMusicXml` writes, and the common notation of files from other programs. What the model has no place for is left out. It takes the text of the document, so it does not open a compressed `.mxl` archive.
+`scoreFromMusicXml` reads a `score-partwise` document. It reads everything that `scoreToMusicXml` writes, and the common notation of files from other programs. What the model has no place for is left out. It takes the text of the document. To open a compressed `.mxl` file, pass its bytes to `scoreFromMusicXmlBytes`.
+
+### Read the bytes of a `.mxl` or `.musicxml` file
+
+`scoreFromMusicXmlBytes` takes the bytes of a file, compressed or not, and returns a `Score`. Use it for a file that a user picks, where the app does not know which kind it is. MuseScore, Dorico, Sibelius and Finale export `.mxl` by default.
+
+```dart
+final score = scoreFromMusicXmlBytes(File(path).readAsBytesSync());
+```
+
+It tells a `.mxl` file by the zip signature at its start. In the archive, `META-INF/container.xml` names the score in its first `<rootfile>`. An archive without a container is read only when it holds exactly one `.musicxml` or `.xml` file outside `META-INF/`.
+
+The text of the document is UTF-16 when it starts with a UTF-16 byte order mark, and UTF-8 otherwise. A UTF-8 byte order mark is dropped, and bytes that are not valid UTF-8 are refused. The text then goes to `scoreFromMusicXml`.
+
+`maxScoreBytes` is the largest document it reads. The default, 64 MiB, is meant to leave room for a long orchestral score. In a `.mxl` file the limit counts the score once inflated, and an entry that the archive declares larger is refused before any of it is inflated. An entry is refused as soon as it inflates past the size its archive declares, on the web as on Android, iOS and the desktop, so a hostile archive cannot fill the app's memory. Lower the limit for files from untrusted sources on a small device.
+
+```dart
+final score = scoreFromMusicXmlBytes(bytes, maxScoreBytes: 16 << 20);
+```
+
+To change the document before it is read, call `musicXmlFromBytes`. It returns the text that `scoreFromMusicXmlBytes` would pass on, under the same rules and the same limit.
+
+```dart
+final score = scoreFromMusicXml(withoutCues(musicXmlFromBytes(bytes)));
+```
+
+Here `withoutCues` stands for the app's own change to the text.
 
 ### Handle a file that does not import
 
@@ -38,6 +64,8 @@ try {
   // error.path names the element, error.message the problem.
 }
 ```
+
+`scoreFromMusicXmlBytes` throws only `ScoreFormatException` too. Its `path` is `/` for a damaged archive or text that does not decode, `META-INF/container.xml` for a container that names no score, and the name of the score's entry for an entry that is too large or damaged.
 
 Import refuses these files, among others:
 
@@ -59,6 +87,12 @@ File('study.musicxml').writeAsStringSync(scoreToMusicXml(score));
 ```
 
 Pitches are written as the part reads them, so a transposing part carries `<transpose>`. A hidden part is kept, with its staves marked as not printed. A few values of the model have no place in MusicXML, and export leaves them out. They are an instrument's key, range and clef, a tempo line's factor, and `SignatureDisplay.noCourtesy`.
+
+To write a compressed `.mxl` file, call `scoreToMxl`. It returns the bytes of a MusicXML 4.0 compressed file that holds the same document as `score.musicxml`.
+
+```dart
+File('study.mxl').writeAsBytesSync(scoreToMxl(score));
+```
 
 ## Write a MIDI file
 

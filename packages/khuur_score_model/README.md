@@ -1,6 +1,6 @@
 # khuur_score_model
 
-An immutable score model for sheet music, in pure Dart. It holds the notes of a score, edits them with undo and redo, reads and writes MusicXML, writes MIDI, and compiles a timed playback script.
+An immutable score model for sheet music, in pure Dart. It holds the notes of a score, edits them with undo and redo, reads and writes MusicXML and compressed `.mxl` files, writes MIDI, and compiles a timed playback script.
 
 It has no Flutter dependency, so it runs in a Flutter app, on a server or in a command-line tool. [`khuur_sheet_music`](https://pub.dev/packages/khuur_sheet_music) builds a scrolling, editable sheet view and a player on top of it.
 
@@ -8,7 +8,7 @@ It has no Flutter dependency, so it runs in a Flutter app, on a server or in a c
 
 - `Score` is a value shaped like a MusicXML timewise score: a list of measure columns, each with the bar-level facts that every staff shares, and voices that fill each bar exactly. Slurs, hairpins and other marks that cross barlines live beside the columns.
 - `EditSession` runs `Edit`s such as `EnterNote`, `AddToChord` or `Transpose`. Each run returns `Applied`, with a new score, cursor, selection and undo history, or `Refused`, with the reason.
-- `scoreFromMusicXml` and `scoreToMusicXml` read and write MusicXML. `scoreToMidi` writes a standard MIDI file.
+- `scoreFromMusicXml` and `scoreToMusicXml` read and write MusicXML. `scoreFromMusicXmlBytes` reads the bytes of a `.musicxml` or a compressed `.mxl` file, and `scoreToMxl` writes `.mxl`. `scoreToMidi` writes a standard MIDI file.
 - `scoreToJson` and `scoreFromJson` save and load a score with every id kept.
 - `PlaybackCompiler` compiles a `PlaybackScript` of timed MIDI notes, each pointing back at the event that produced it.
 
