@@ -11,13 +11,10 @@ import 'support.dart';
 
 final String golden = File('test/golden/showcase.musicxml').readAsStringSync();
 
-/// A short score that differs from the showcase.
 final String blank = scoreToMusicXml(
   Score.blank(parts: const [morinKhuur], measureCount: 2),
 );
 
-/// The `.mxl` of another program: [entries] by name, deflated unless
-/// [stored] names them.
 Uint8List zip(Map<String, String> entries, {Set<String> stored = const {}}) {
   final archive = Archive();
   for (final MapEntry(:key, :value) in entries.entries) {
@@ -37,7 +34,6 @@ String container(List<String> paths) =>
     '${paths.map((path) => '<rootfile full-path="$path"/>').join()}'
     '</rootfiles></container>';
 
-/// The export of the score that [bytes] read as.
 String read(Uint8List bytes, {int? maxScoreBytes}) => scoreToMusicXml(
   maxScoreBytes == null
       ? scoreFromMusicXmlBytes(bytes)
@@ -58,7 +54,6 @@ Uint8List utf16(String text, Endian endian) {
   return data.buffer.asUint8List();
 }
 
-/// [bytes] with the central directory declaring [size] bytes for [name].
 Uint8List declaring(Uint8List bytes, String name, int size) {
   final copy = Uint8List.fromList(bytes);
   final data = ByteData.sublistView(copy);
@@ -75,9 +70,6 @@ Uint8List declaring(Uint8List bytes, String name, int size) {
   throw StateError('no $name in the central directory');
 }
 
-/// An archive of [text] stored as [name], whose sizes are in a data
-/// descriptor that declares [size] once inflated. The central directory
-/// gives 0 for that size, as a streaming zip writer may.
 Uint8List withDescriptor(String name, String text, int size) {
   final data = utf8.encode(text);
   final path = utf8.encode(name);

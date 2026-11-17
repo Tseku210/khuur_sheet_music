@@ -1,8 +1,4 @@
 /// MusicXML from file bytes, and the compressed `.mxl` format.
-///
-/// A compressed MusicXML file is a zip archive. Its first entry is a
-/// stored `mimetype`, `META-INF/container.xml` names the score in its first
-/// `<rootfile>`, and the score is an entry of its own.
 library;
 
 import 'dart:convert';
@@ -53,16 +49,19 @@ Score scoreFromMusicXmlBytes(
 /// held to it too. The default, 64 MiB, is meant to leave room for a long
 /// orchestral score. An entry whose archive declares a size over the limit
 /// is refused before any of it is inflated. On native platforms no entry is
-/// inflated much past the size its archive declares. On the web, the
-/// inflater checks that size between deflate blocks, so a crafted archive
-/// can inflate one block past it before it is refused. The archive's other
-/// entries are never inflated.
+/// inflated much past the size its archive declares. On the web, an entry
+/// is inflated whole before its size is checked, so an entry that declares
+/// a small size can take up to about a thousand times its compressed size
+/// in memory before it is refused. The archive's other entries are never
+/// inflated.
 ///
 /// Throws [ScoreFormatException] when the bytes cannot be read. Its `path`
-/// is `/` for a damaged archive or a file whose text does not decode,
-/// `META-INF/container.xml` for a container that names no score, and the
-/// score entry's name for an entry that is too large, damaged or not
-/// UTF-8.
+/// is `/` for a damaged archive, or for an uncompressed file that is too
+/// large or whose text does not decode. It is `META-INF/container.xml` for
+/// a container that cannot be read or names no score, and for an archive
+/// without a container that does not hold exactly one score. It is the
+/// score entry's name for an entry that is too large, damaged or does not
+/// decode.
 String musicXmlFromBytes(Uint8List bytes, {int maxScoreBytes = 64 << 20}) =>
     _isZip(bytes)
     ? _rootFile(bytes, maxScoreBytes)
@@ -108,7 +107,6 @@ bool _isZip(Uint8List bytes) =>
     bytes[2] == 0x03 &&
     bytes[3] == 0x04;
 
-/// The text of the score's entry in the zip archive [bytes].
 String _rootFile(Uint8List bytes, int maxScoreBytes) {
   // ZipDecoder reads a symbolic link's target while it lists the archive,
   // inflating up to the size the archive declares. The directory alone
@@ -170,7 +168,6 @@ bool _isScoreName(String name) {
       (lower.endsWith('.musicxml') || lower.endsWith('.xml'));
 }
 
-/// The `full-path` of the first `<rootfile>` in [container].
 String _rootPath(Uint8List container) {
   final XmlDocument document;
   try {
@@ -191,7 +188,6 @@ String _rootPath(Uint8List container) {
   return path;
 }
 
-/// The inflated bytes of the one entry in [entries], all named [name].
 Uint8List _inflate(List<ZipFileHeader> entries, String name, int maxBytes) {
   if (entries.length > 1) {
     throw ScoreFormatException(
@@ -203,8 +199,8 @@ Uint8List _inflate(List<ZipFileHeader> entries, String name, int maxBytes) {
     final file = entries.single.file!
       ..verify = true
       ..throwOnError = true;
-    // The size the entry inflates to at most. It is the central directory's,
-    // or the data descriptor's where the directory gives 0.
+    // archive takes this from the data descriptor where the central
+    // directory gives 0.
     final declared = file.uncompressedSize;
     if (declared < 0 || declared > maxBytes) {
       throw ScoreFormatException(
@@ -225,7 +221,6 @@ Uint8List _limited(String path, Uint8List bytes, int maxBytes) {
   return bytes;
 }
 
-/// [bytes] as text: UTF-16 after a UTF-16 byte order mark, else UTF-8.
 String _text(Uint8List bytes, {String path = '/'}) {
   final endian = bytes.length < 2
       ? null
