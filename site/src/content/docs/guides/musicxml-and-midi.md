@@ -39,7 +39,7 @@ It tells a `.mxl` file by the zip signature at its start. In the archive, `META-
 
 The text of the document is UTF-16 when it starts with a UTF-16 byte order mark, and UTF-8 otherwise. A UTF-8 byte order mark is dropped, and bytes that are not valid UTF-8 are refused. The text then goes to `scoreFromMusicXml`.
 
-`maxScoreBytes` is the largest document it reads. The default, 64 MiB, is meant to leave room for a long orchestral score. In a `.mxl` file the limit counts the score once inflated, and an entry that the archive declares larger is refused before any of it is inflated. On Android, iOS and the desktop, no entry is inflated much past the size its archive declares, so a hostile archive cannot fill the app's memory. On the web, an entry is inflated whole before its size is checked, so a crafted entry that declares a small size can take up to about a thousand times its compressed size in memory before it is refused. Lower the limit for files from untrusted sources on a small device.
+`maxScoreBytes` is the largest document it reads. The default, 64 MiB, is meant to leave room for a long orchestral score. In a `.mxl` file the limit counts the score once inflated, and an entry that the archive declares larger is refused before any of it is inflated. An entry is refused as soon as it inflates past the size its archive declares, on the web as on Android, iOS and the desktop, so a hostile archive cannot fill the app's memory. Lower the limit for files from untrusted sources on a small device.
 
 ```dart
 final score = scoreFromMusicXmlBytes(bytes, maxScoreBytes: 16 << 20);

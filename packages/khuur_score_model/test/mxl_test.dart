@@ -54,6 +54,25 @@ Uint8List utf16(String text, Endian endian) {
   return data.buffer.asUint8List();
 }
 
+Uint8List withHeaderField(
+  Uint8List bytes, {
+  required int local,
+  required int central,
+  required int value,
+}) {
+  final copy = Uint8List.fromList(bytes);
+  final data = ByteData.sublistView(copy);
+  for (var at = 0; at + 46 <= copy.length; at++) {
+    switch (data.getUint32(at, Endian.little)) {
+      case 0x04034b50:
+        data.setUint16(at + local, value, Endian.little);
+      case 0x02014b50:
+        data.setUint16(at + central, value, Endian.little);
+    }
+  }
+  return copy;
+}
+
 Uint8List declaring(Uint8List bytes, String name, int size) {
   final copy = Uint8List.fromList(bytes);
   final data = ByteData.sublistView(copy);
@@ -331,6 +350,45 @@ void main() {
       expect(
         () => scoreFromMusicXmlBytes(bytes),
         refusedAt('score.musicxml'),
+      );
+    });
+
+    test('an encrypted entry', () {
+      final bytes = withHeaderField(
+        zip({'score.musicxml': blank}),
+        local: 6,
+        central: 8,
+        value: 1,
+      );
+
+      expect(
+        () => scoreFromMusicXmlBytes(bytes),
+        refusedAt('score.musicxml', 'encrypted'),
+      );
+    });
+
+    test('an entry compressed with a method other than deflate', () {
+      final bytes = withHeaderField(
+        zip({'score.musicxml': blank}),
+        local: 8,
+        central: 10,
+        value: 12,
+      );
+
+      expect(
+        () => scoreFromMusicXmlBytes(bytes),
+        refusedAt('score.musicxml', contains('method 12')),
+      );
+    });
+
+    test('a stored entry whose bytes do not match its CRC', () {
+      final bytes = zip({'score.musicxml': blank}, stored: {'score.musicxml'});
+      final at = String.fromCharCodes(bytes).indexOf('<score-partwise');
+      bytes[at + 1] = 'S'.codeUnitAt(0);
+
+      expect(
+        () => scoreFromMusicXmlBytes(bytes),
+        refusedAt('score.musicxml', contains('CRC')),
       );
     });
 

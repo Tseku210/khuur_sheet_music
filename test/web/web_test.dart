@@ -1,6 +1,8 @@
 @TestOn('browser')
 library;
 
+import 'dart:typed_data';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:khuur_sheet_music/khuur_sheet_music.dart';
@@ -55,6 +57,31 @@ void main() {
       scoreToMusicXml(score),
     );
   });
+
+  test(
+    'scoreFromMusicXmlBytes refuses an entry that inflates past its size',
+    () {
+      final bytes = scoreToMxl(arpeggio());
+      final data = ByteData.sublistView(bytes);
+      for (var at = 0; at + 46 <= bytes.length; at++) {
+        if (data.getUint32(at, Endian.little) == 0x02014b50 &&
+            String.fromCharCodes(bytes, at + 46, at + 60) == 'score.musicxml') {
+          data.setUint32(at + 24, 100, Endian.little);
+        }
+      }
+
+      expect(
+        () => scoreFromMusicXmlBytes(bytes),
+        throwsA(
+          isA<ScoreFormatException>().having(
+            (e) => e.message,
+            'message',
+            contains('inflates past the 100 bytes'),
+          ),
+        ),
+      );
+    },
+  );
 
   testWidgets('ScorePlayer.play throws SynthUnavailable on the web', (
     tester,

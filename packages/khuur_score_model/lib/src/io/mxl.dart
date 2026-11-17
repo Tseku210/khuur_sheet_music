@@ -48,12 +48,9 @@ Score scoreFromMusicXmlBytes(
 /// of the file or of the archive entry once inflated. The container is
 /// held to it too. The default, 64 MiB, is meant to leave room for a long
 /// orchestral score. An entry whose archive declares a size over the limit
-/// is refused before any of it is inflated. On native platforms no entry is
-/// inflated much past the size its archive declares. On the web, an entry
-/// is inflated whole before its size is checked, so an entry that declares
-/// a small size can take up to about a thousand times its compressed size
-/// in memory before it is refused. The archive's other entries are never
-/// inflated.
+/// is refused before any of it is inflated, and an entry is refused as soon
+/// as it inflates past the size its archive declares, on every platform.
+/// The archive's other entries are never inflated.
 ///
 /// Throws [ScoreFormatException] when the bytes cannot be read. Its `path`
 /// is `/` for a damaged archive, or for an uncompressed file that is too
@@ -130,7 +127,7 @@ String _rootFile(Uint8List bytes, int maxScoreBytes) {
   final containers = _named(entries, _container);
   final String path;
   if (containers.isNotEmpty) {
-    path = _rootPath(_inflate(containers, _container, maxScoreBytes));
+    path = _rootPath(_inflate(bytes, containers, _container, maxScoreBytes));
   } else {
     final candidates = [
       for (final entry in entries)
@@ -154,7 +151,7 @@ String _rootFile(Uint8List bytes, int maxScoreBytes) {
       'names $path, which is not in the archive',
     );
   }
-  return _text(_inflate(root, path, maxScoreBytes), path: path);
+  return _text(_inflate(bytes, root, path, maxScoreBytes), path: path);
 }
 
 List<ZipFileHeader> _named(List<ZipFileHeader> entries, String name) => [
@@ -188,29 +185,142 @@ String _rootPath(Uint8List container) {
   return path;
 }
 
-Uint8List _inflate(List<ZipFileHeader> entries, String name, int maxBytes) {
+Uint8List _inflate(
+  Uint8List archive,
+  List<ZipFileHeader> entries,
+  String name,
+  int maxBytes,
+) {
   if (entries.length > 1) {
     throw ScoreFormatException(
       name,
       'the archive has ${entries.length} entries of this name',
     );
   }
+  final header = entries.single;
+  final ZipFile file;
   try {
-    final file = entries.single.file!
+    file = header.file!
       ..verify = true
       ..throwOnError = true;
-    // archive takes this from the data descriptor where the central
-    // directory gives 0.
-    final declared = file.uncompressedSize;
-    if (declared < 0 || declared > maxBytes) {
-      throw ScoreFormatException(
-        name,
-        'larger than the $maxBytes bytes allowed',
-      );
-    }
-    return _limited(name, file.getStream().toUint8List(), maxBytes);
   } on FormatException catch (e) {
     throw ScoreFormatException(name, 'cannot be read: ${e.message}');
+  }
+  // archive takes this from the data descriptor where the central
+  // directory gives 0.
+  final declared = file.uncompressedSize;
+  if (declared < 0 || declared > maxBytes) {
+    throw ScoreFormatException(name, 'larger than the $maxBytes bytes allowed');
+  }
+  if (file.flags & 1 != 0) {
+    throw ScoreFormatException(name, 'encrypted');
+  }
+  final data = _entryData(archive, header, file, name);
+  final content = switch (header.compressionMethod) {
+    0 => data,
+    8 => _deflated(data, declared, name),
+    final method => throw ScoreFormatException(
+      name,
+      'compressed with method $method, where .mxl uses deflate',
+    ),
+  };
+  if (content.length != declared || getCrc32(content) != file.crc32) {
+    throw ScoreFormatException(
+      name,
+      'damaged: its size or CRC does not match the archive',
+    );
+  }
+  return content;
+}
+
+/// The bytes of [file] as the archive stores them, after its local header.
+Uint8List _entryData(
+  Uint8List archive,
+  ZipFileHeader header,
+  ZipFile file,
+  String name,
+) {
+  final at = header.localHeaderOffset;
+  if (at < 0 || at + 30 > archive.length) {
+    throw ScoreFormatException(name, 'damaged: no local header');
+  }
+  final fields = ByteData.sublistView(archive, at);
+  final start =
+      at +
+      30 +
+      fields.getUint16(26, Endian.little) +
+      fields.getUint16(28, Endian.little);
+  final end = start + file.compressedSize;
+  if (end > archive.length) {
+    throw ScoreFormatException(name, 'damaged: its data is truncated');
+  }
+  return Uint8List.sublistView(archive, start, end);
+}
+
+/// [data] inflated, refused once it passes [limit] bytes.
+///
+/// archive's own size check sees the output only after the web inflater
+/// has inflated the whole entry into a buffer of its own. That inflater
+/// writes straight into an [OutputMemoryStream], so [_Capped] counts every
+/// write and stops it in the middle of a deflate block.
+Uint8List _deflated(Uint8List data, int limit, String name) {
+  final output = _Capped(limit);
+  try {
+    const ZLibDecoder().decodeStream(
+      InputMemoryStream(data),
+      output,
+      raw: true,
+      throwOnError: true,
+    );
+  } on Object catch (e) {
+    if (!output.exceeded) {
+      throw ScoreFormatException(name, 'cannot be inflated: $e');
+    }
+  }
+  if (output.exceeded) {
+    throw ScoreFormatException(
+      name,
+      'inflates past the $limit bytes the archive declares',
+    );
+  }
+  return output.getBytes();
+}
+
+final class _Capped extends OutputMemoryStream {
+  _Capped(this.limit);
+
+  final int limit;
+  bool exceeded = false;
+
+  void _room(int count) {
+    if (length + count > limit) {
+      exceeded = true;
+      throw StateError('more than $limit bytes');
+    }
+  }
+
+  @override
+  void writeByte(int value) {
+    _room(1);
+    super.writeByte(value);
+  }
+
+  @override
+  void writeBytes(List<int> bytes, {int? length}) {
+    _room(length ?? bytes.length);
+    super.writeBytes(bytes, length: length);
+  }
+
+  @override
+  void writeStream(InputStream stream) {
+    _room(stream.length);
+    super.writeStream(stream);
+  }
+
+  @override
+  void writeBackReference(int distance, int count) {
+    _room(count);
+    super.writeBackReference(distance, count);
   }
 }
 
