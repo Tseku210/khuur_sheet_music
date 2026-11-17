@@ -196,20 +196,23 @@ Uint8List _inflate(List<ZipFileHeader> entries, String name, int maxBytes) {
       'the archive has ${entries.length} entries of this name',
     );
   }
-  final declared = entries.single.uncompressedSize;
-  if (declared < 0 || declared > maxBytes) {
-    throw ScoreFormatException(name, 'larger than the $maxBytes bytes allowed');
-  }
-  final Uint8List content;
   try {
     final file = entries.single.file!
       ..verify = true
       ..throwOnError = true;
-    content = file.getStream().toUint8List();
+    // The size the entry inflates to at most. It is the central directory's,
+    // or the data descriptor's where the directory gives 0.
+    final declared = file.uncompressedSize;
+    if (declared < 0 || declared > maxBytes) {
+      throw ScoreFormatException(
+        name,
+        'larger than the $maxBytes bytes allowed',
+      );
+    }
+    return _limited(name, file.getStream().toUint8List(), maxBytes);
   } on FormatException catch (e) {
     throw ScoreFormatException(name, 'cannot be read: ${e.message}');
   }
-  return _limited(name, content, maxBytes);
 }
 
 Uint8List _limited(String path, Uint8List bytes, int maxBytes) {
