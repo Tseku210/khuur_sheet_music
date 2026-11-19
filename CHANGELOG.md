@@ -8,6 +8,7 @@
 * Playback trills the notes a trill line is drawn over, so a score sounds the same after a MusicXML export and import. A trilled note trills on through its tie.
 * A meter change keeps a slur, glissando or trill line on the note it starts and ends on. A split note no longer starts to trill halfway through.
 * Tied notes sound as long as the one note they stand for, so a note that a meter change splits sounds as before. A staccato or tenuto on a split note keeps its length too.
+* Inserting, deleting or changing the length of a note with ripple on, and changing a bar's length, keep a slur, glissando or trill line on the note it starts and ends on.
 
 ## 0.3.4
 * An app opens a compressed `.mxl` file, the default export of MuseScore, Dorico, Sibelius and Finale, by passing its bytes to `scoreFromMusicXmlBytes`. The same call reads an uncompressed `.musicxml` file in UTF-8 or UTF-16. `scoreToMxl` writes `.mxl`. Both come from `khuur_score_model`.

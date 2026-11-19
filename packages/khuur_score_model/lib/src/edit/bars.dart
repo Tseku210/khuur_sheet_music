@@ -461,6 +461,8 @@ Score _setBarLength(Score score, int index, Length? length, _Ids ids) {
   );
   bool removed(ScorePoint point) =>
       point.measure == bar.id && point.offset >= newEnd;
+  ScorePoint onItsNote(Spanner spanner, ScorePoint point) =>
+      point.measure == bar.id ? _onItsNote(untied, spanner, point) : point;
   final resume = next == null ? null : ScorePoint(next.id, Moment.zero);
   final cut = untied.copyWith(
     measures: untied.measures.replaceAt(index, resized),
@@ -470,9 +472,14 @@ Score _setBarLength(Score score, int index, Length? length, _Ids ids) {
     spanners: _moveSpanners(
       cut,
       untied.spanners,
-      first: (spanner) => removed(spanner.first) ? resume : spanner.first,
-      last: (spanner) =>
-          removed(spanner.last) ? _lastOnset(resized, spanner) : spanner.last,
+      first: (spanner) {
+        final first = onItsNote(spanner, spanner.first);
+        return removed(first) ? resume : first;
+      },
+      last: (spanner) {
+        final last = onItsNote(spanner, spanner.last);
+        return removed(last) ? _lastOnset(resized, spanner) : last;
+      },
     ),
   );
 }
