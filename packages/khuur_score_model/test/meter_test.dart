@@ -51,6 +51,14 @@ Score irregular(Score score, int bar, Length length, List<VoiceItem> items) =>
 EditSession rebarred(EditSession session, Meter meter, {int from = 0}) =>
     applied(session.run(SetMeter(from: idOf(session, from), meter: meter)));
 
+/// Each note [score] plays, as (start, duration, key), times in
+/// milliseconds.
+List<(int, int, int)> heard(Score score) => [
+  for (final note
+      in PlaybackCompiler().compile(score).notesBetween(0, double.infinity))
+    ((note.start * 1000).round(), (note.duration * 1000).round(), note.key),
+];
+
 final threeEight = Meter.simple(3, 8);
 final fiveFour = Meter.simple(5, 4);
 
@@ -897,6 +905,60 @@ void main() {
         ],
         ['F4/half.'],
       ]);
+    });
+  });
+
+  group('SetMeter split notes', () {
+    /// C4 D4 E4/half | F4 G4 in 4/4, with a [kind] spanner from bar 1 beat
+    /// 4, while E4 sounds, to bar 2 beat 2, and the score re-barred in 3/4,
+    /// which splits E4 into tied quarters.
+    (Score, Score) rebarredUnder(SpannerKind kind) {
+      var session = blank();
+      for (final (bar, offset, pitch, value) in [
+        (0, Moment.zero, 'C4', NoteValue.quarter),
+        (0, at(1, 4), 'D4', NoteValue.quarter),
+        (0, at(1, 2), 'E4', NoteValue.half),
+        (1, Moment.zero, 'F4', NoteValue.quarter),
+        (1, at(1, 4), 'G4', NoteValue.quarter),
+      ]) {
+        session = enterAt(
+          session,
+          bar,
+          offset,
+          tone: Pitch.parse(pitch),
+          value: value,
+        );
+      }
+      final score = withSpanner(
+        session.score,
+        kind,
+        pointAt(session.score, 0, at(3, 4)),
+        pointAt(session.score, 1, at(1, 4)),
+      );
+      final next = rebarred(EditSession.start(score), Meter.threeFour).score;
+      expect(bars(next).take(2), [
+        ['C4/quarter', 'D4/quarter', 'E4/quarter~'],
+        ['E4/quarter', 'F4/quarter', 'G4/quarter'],
+      ]);
+      return (score, next);
+    }
+
+    test('do not start to trill where a trill line starts on the tied '
+        'note', () {
+      final (score, next) = rebarredUnder(const TrillLine());
+
+      // A tie chain releases as its last note does, so only the split
+      // note's length differs.
+      List<(int, int)> onsets(Score score) => [
+        for (final (start, _, key) in heard(score)) (start, key),
+      ];
+      expect(onsets(next), onsets(score));
+    });
+
+    test('play as before where a slur starts on the tied note', () {
+      final (score, next) = rebarredUnder(const Slur());
+
+      expect(heard(next), heard(score));
     });
   });
 

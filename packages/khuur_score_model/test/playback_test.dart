@@ -844,6 +844,38 @@ void main() {
       ]);
     });
 
+    test('trills a tie chain all through or not at all, as the one note it '
+        'is', () {
+      final tied = sessionWith([
+        [
+          quarters(1, 'C4'),
+          chordOf(2, 'E4', tie: true),
+          chordOf(3, 'E4', tie: true),
+          quarters(4, 'E4'),
+        ],
+      ]).score;
+      final held = sessionWith([
+        [quarters(1, 'C4'), chordOf(2, 'E4', value: NoteValue.half.dotted)],
+      ]).score;
+      List<(double, int)> heard(Score score, Moment from) => [
+        for (final (start, key, _) in attacks(
+          compiled(
+            withLine(
+              score,
+              const TrillLine(),
+              pointAt(score, 0, from),
+              pointAt(score, 0, from),
+            ),
+          ),
+        ))
+          (start, key),
+      ];
+
+      for (final from in [at(1, 4), at(1, 2), at(3, 4)]) {
+        expect(heard(tied, from), heard(held, from), reason: '$from');
+      }
+    });
+
     test('merges a tie chain into one note from its first event', () {
       final score = sessionWith([
         [
