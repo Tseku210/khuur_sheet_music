@@ -2,7 +2,9 @@ import 'package:khuur_score_layout/src/bar_layout.dart';
 import 'package:khuur_score_layout/src/bar_space.dart';
 import 'package:khuur_score_layout/src/breaking.dart';
 import 'package:khuur_score_layout/src/drawable.dart';
+import 'package:khuur_score_layout/src/geometry.dart';
 import 'package:khuur_score_layout/src/glyphs.dart';
+import 'package:khuur_score_layout/src/sheet_layout.dart';
 import 'package:khuur_score_layout/src/spacing.dart';
 import 'package:khuur_score_layout/src/style.dart';
 import 'package:khuur_score_model/khuur_score_model.dart';
@@ -66,6 +68,37 @@ void main() {
     expect(digitX, closeTo(first.xs.last, 1e-9));
     expect(digitBottom, lessThan(0));
     expect(second.glyphs, isEmpty);
+  });
+
+  test('the playing column covers the whole of a bar under a sign, on '
+      'both bars of a two-bar sign', () {
+    final pair = repeated([4, 4, 4, 4, 4], 2, 2);
+    final score = after(pair, [
+      SetMeasureRepeat(pair.measures[4].id, bars: 1),
+    ]);
+    final layout = SheetLayout(
+      score,
+      width: 1000,
+      text: const FakeMeasurer(),
+    );
+    final system = layout.systemAt(0);
+
+    for (final bar in [2, 3, 4]) {
+      final column = score.measures[bar];
+      final rest = column.staves.first.voices.first.items.single as Event;
+      final placed = system.barOf(column.id)!;
+      expect(
+        layout.playingIn(0, [
+          EventRef(
+            measure: column.id,
+            staff: column.staves.first.staff,
+            id: rest.id,
+          ),
+        ]),
+        Box(placed.left, 0, placed.right, layout.heightOf(0)),
+        reason: 'bar $bar',
+      );
+    }
   });
 
   test('a bar under a sign does not fold into a multi-measure rest', () {

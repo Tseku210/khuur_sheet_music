@@ -445,14 +445,18 @@ final class SheetLayout {
   /// which sound off the beat, or its ties and marks, which may reach into
   /// the next bar. A `MeasureRest` is centred in its bar, not drawn at its
   /// onset, so it gives the column its width only when nothing else started
-  /// with it. Events on another system or a hidden staff have no part in it.
+  /// with it. The rest of a staff under a measure-repeat sign stands for
+  /// the whole bar the sign repeats, and gives the bar's width, on both bars
+  /// of a two-bar sign. Events on another system or a hidden staff have no
+  /// part in it.
   Box? playingIn(int index, Iterable<EventRef> events) {
     final system = systemAt(index);
     final drawn = [
       for (final ref in events)
         if (score.lookup(ref) case final timed?
             when systemOf(timed.ref.measure) == index)
-          if (_onTheBeat(system, ref) case final bounds?)
+          if (_underSign(system, ref) ?? _onTheBeat(system, ref)
+              case final bounds?)
             (timed: timed, bounds: bounds),
     ];
     if (drawn.isEmpty) {
@@ -471,6 +475,19 @@ final class SheetLayout {
         .map((d) => d.bounds)
         .reduce((a, b) => a.union(b));
     return Box(across.left, 0, across.right, heightOf(index));
+  }
+
+  /// The width of the bar of [ref] on [system], when [ref]'s staff there
+  /// is drawn and under a measure-repeat sign.
+  Box? _underSign(SystemLayout system, EventRef ref) {
+    final EventRef(:measure, :staff) = ref;
+    final sign = score.measures[score.indexOf(measure)]
+        .staff(staff)
+        .measureRepeat;
+    return switch ((sign, system.barOf(measure), system.staffOf(staff))) {
+      (_?, final bar?, _?) => Box(bar.left, 0, bar.right, 0),
+      _ => null,
+    };
   }
 
   /// The box of what is drawn for [preview], in sheet space: its head, its
