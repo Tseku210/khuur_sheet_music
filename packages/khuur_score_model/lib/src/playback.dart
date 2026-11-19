@@ -15,6 +15,7 @@ import 'dart:math';
 
 import 'events.dart';
 import 'measure.dart';
+import 'measure_repeats.dart';
 import 'pitch.dart';
 import 'refs.dart';
 import 'rules.dart';
@@ -43,10 +44,76 @@ final class PlaybackCompiler {
   /// die with their columns.
   final Expando<_Fragment> _fragments = Expando('playback fragments');
 
+  /// The fragment of a bar under a measure-repeat sign, with the columns it
+  /// borrows notes from. It is reused only while those are the same objects
+  /// too, since an edit to a repeated bar leaves the repeating column as it
+  /// was.
+  final Expando<(List<MeasureColumn>, _Fragment)> _borrowed = Expando(
+    'playback fragments of measure repeats',
+  );
+
+  _Fragment _fragmentOf(MeasureColumn column) =>
+      _fragments[column] ??= _compileBar(column);
+
+  /// What bar [index] plays. A staff under a measure-repeat sign plays the
+  /// chords and fermatas of the bar the sign repeats on that staff, and
+  /// keeps its own whole-bar rest as the event playing, so the sheet marks
+  /// the sign.
+  _Fragment _played(Seq<MeasureColumn> measures, int index) {
+    final column = measures[index];
+    final own = _fragmentOf(column);
+    final from = <StaffId, MeasureColumn>{
+      for (final (k, staff) in column.staves.indexed)
+        if (playedBar(measures, index, k) case final bar when bar != index)
+          staff.staff: measures[bar],
+    };
+    if (from.isEmpty) {
+      return own;
+    }
+    final sources = from.values.toList();
+    if (_borrowed[column] case (final was, final fragment)
+        when was.length == sources.length &&
+            Iterable<int>.generate(
+              was.length,
+            ).every((k) => identical(was[k], sources[k]))) {
+      return fragment;
+    }
+    final chords = <_Chord>[];
+    final holds = [
+      for (final timed in own.events)
+        if (!from.containsKey(timed.ref.staff) &&
+            timed.event.articulations.contains(Articulation.fermata))
+          (timed.onset, timed.onset + timed.duration),
+    ];
+    for (final staff in column.staves) {
+      final source = from[staff.staff];
+      final fragment = source == null ? own : _fragmentOf(source);
+      chords.addAll(
+        fragment.chords.where((c) => c.timed.ref.staff == staff.staff),
+      );
+      if (source != null) {
+        holds.addAll([
+          for (final timed in fragment.events)
+            if (timed.ref.staff == staff.staff &&
+                timed.event.articulations.contains(Articulation.fermata))
+              (timed.onset, timed.onset + timed.duration),
+        ]);
+      }
+    }
+    final fragment = _Fragment(own.events, chords, holds);
+    _borrowed[column] = (sources, fragment);
+    return fragment;
+  }
+
   /// Compiles [score] into a script, playing what [options] asks.
   ///
   /// A bar whose column an edit did not replace reuses the fragment cached from
   /// an earlier compile.
+  ///
+  /// A staff's bar under a measure-repeat sign plays the notes of the bar
+  /// the sign repeats, at its own place in the play order, so on every pass
+  /// of a repeat and under a volta too. Its dynamics, slurs and trill lines
+  /// are the ones at the repeating bar, not those of the bar repeated.
   PlaybackScript compile(
     Score score, [
     PlaybackOptions options = const PlaybackOptions(),
@@ -74,7 +141,7 @@ final class PlaybackCompiler {
     var seconds = 0.0;
     for (final (k, (:index, :pass, :from, :to)) in windows.indexed) {
       final column = measures[index];
-      final fragment = _fragments[column] ??= _compileBar(column);
+      final fragment = _played(measures, index);
       final clock = _Clock(
         tempo,
         Moment.zero + time.startOf(index),
@@ -583,7 +650,8 @@ final class PlaybackNote {
   final int channel;
 
   /// The event that produced this note. A tie chain reports its first
-  /// event; a grace note reports the grace chord's id.
+  /// event; a grace note reports the grace chord's id. A note a
+  /// measure-repeat sign plays reports the written event it repeats.
   final EventRef source;
 }
 

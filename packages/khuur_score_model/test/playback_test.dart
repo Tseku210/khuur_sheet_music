@@ -532,6 +532,101 @@ void main() {
     });
   });
 
+  group('measure repeats', () {
+    /// [score] with each bar of [signs], counted from 0, under a sign
+    /// repeating that many bars.
+    Score repeating(Score score, Map<int, int> signs) =>
+        signs.entries.fold(
+          EditSession.start(score),
+          (session, sign) => applied(
+            session.run(
+              SetMeasureRepeat(
+                session.score.measures[sign.key].id,
+                bars: sign.value,
+              ),
+            ),
+          ),
+        ).score;
+
+    List<int> heard(Score score) => [
+      for (final note in notes(compiled(score))) note.$5,
+    ];
+
+    test('a one-bar repeat plays the bar before it', () {
+      expect(heard(repeating(beats(3), {1: 1})), [
+        11, 12, 13, 14, 11, 12, 13, 14, 31, 32, 33, 34,
+      ]);
+    });
+
+    test('a two-bar repeat plays the two bars before it', () {
+      expect(heard(repeating(beats(5), {2: 2})), [
+        11, 12, 13, 14, 21, 22, 23, 24,
+        11, 12, 13, 14, 21, 22, 23, 24,
+        51, 52, 53, 54,
+      ]);
+    });
+
+    test('a repeat of a repeated bar plays the bar written', () {
+      expect(heard(repeating(beats(3), {1: 1, 2: 1})), [
+        for (var bar = 0; bar < 3; bar++) ...[11, 12, 13, 14],
+      ]);
+    });
+
+    test('plays on every pass of a repeat and under an ending', () {
+      final score = changeBar(
+        changeBar(
+          repeating(beats(4), {2: 1, 3: 1}),
+          2,
+          ending([1], repeat: true),
+        ),
+        3,
+        ending([2]),
+      );
+
+      expect(played(score), ['1', '2', '3', '1#2', '2#2', '4']);
+      expect(heard(score), [
+        for (final bar in [1, 2, 2, 1, 2, 2])
+          for (var beat = 1; beat <= 4; beat++) 10 * bar + beat,
+      ]);
+    });
+
+    test('marks its own rest as playing while it plays', () {
+      final score = repeating(beats(2), {1: 1});
+      final script = compiled(score);
+      final rest = score.measures[1].staves.first.voices.first.items.single;
+
+      expect(
+        sources(script, script.bars[1].start + 0.01),
+        [(rest as MeasureRest).id.value],
+      );
+    });
+
+    test('plays what the bar it repeats holds after that bar is edited', () {
+      final compiler = PlaybackCompiler();
+      final score = repeating(beats(2), {1: 1});
+      compiler.compile(score);
+      final edited = changeBar(
+        score,
+        0,
+        (c) => c.withStaff(
+          c.staves.first.copyWith(
+            voices: Seq([
+              Voice(
+                slot: VoiceSlot.one,
+                items: Seq([wholes(15, 'D4')]),
+              ),
+            ]),
+          ),
+        ),
+      );
+
+      expect(
+        [for (final note in notes(compiler.compile(edited))) note.$5],
+        [15, 15],
+      );
+    });
+  });
+
   group('notes', () {
     test('plays each head at its time, 0.9 of its length, at mf', () {
       final score = sessionWith([

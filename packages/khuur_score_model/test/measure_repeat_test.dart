@@ -247,7 +247,7 @@ void main() {
       ]);
       expect(json, contains('"measureRepeat":"twoBarsFirst"'));
       expect(
-        jsonEncode(scoreToJson(blank(bars: 2).score)),
+        jsonEncode(scoreToJson(blank(bars: 3).score)),
         isNot(contains('measureRepeat')),
       );
     });
