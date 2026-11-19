@@ -516,8 +516,9 @@ SliceReach measureRepeatReach(
 /// The sign of a bar under [sign], drawn for its whole-bar rest [timed] in
 /// place of the rest, on the middle line. A one-bar sign is centred in its
 /// bar. A two-bar sign is drawn once, from the first bar, centred on its
-/// end slice [end], which is the barline into the second bar. The second
-/// bar draws nothing.
+/// end slice [end], which is the barline into the second bar, with a 2 in
+/// `timeSig` digits over it, as high as a rest run's count. The second bar
+/// draws nothing.
 List<BarItem> placeMeasureRepeat({
   required MeasureRepeat sign,
   required TimedEvent timed,
@@ -534,22 +535,44 @@ List<BarItem> placeMeasureRepeat({
   if (glyph == null) {
     return const [];
   }
-  final box = style.font[glyph].box;
-  final origin = SpPoint(-box.width / 2 - box.left, yOfStep(4));
-  return [
+  final font = style.font;
+  final owner = ElementOwner(timed.ref);
+  final box = font[glyph].box;
+  final items = [
     BarItem(
       at,
       staff,
       glyphAt(
-        style.font,
+        font,
         glyph,
-        origin,
+        SpPoint(-box.width / 2 - box.left, yOfStep(4)),
         ink: InkRole.rest,
-        owner: ElementOwner(timed.ref),
+        owner: owner,
       ),
       centred: centred,
     ),
   ];
+  if (sign.bars > 1) {
+    final digits = [...digitGlyphs(sign.bars)];
+    var x = -digits.fold<double>(0, (w, d) => w + font[d].advance) / 2;
+    for (final digit in digits) {
+      items.add(
+        BarItem(
+          at,
+          staff,
+          glyphAt(
+            font,
+            digit,
+            SpPoint(x, _countY),
+            ink: InkRole.rest,
+            owner: owner,
+          ),
+        ),
+      );
+      x += font[digit].advance;
+    }
+  }
+  return items;
 }
 
 /// The y a rest's origin sits on. A whole rest hangs from the line above

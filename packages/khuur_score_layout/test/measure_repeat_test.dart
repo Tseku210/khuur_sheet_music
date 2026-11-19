@@ -12,9 +12,13 @@ import 'breaking_test.dart' show barsOf, breaksOf, layoutsOf, startsOf;
 import 'support/bars.dart' show after;
 import 'support/fake_measurer.dart';
 
-/// The glyphs bar [bar] of [score] draws, each with its x centre in a frame
-/// at its natural width, and that frame's slice xs.
-({List<(Glyph, double)> glyphs, List<double> xs}) drawn(Score score, int bar) {
+/// The glyphs bar [bar] of [score] draws, each with its x centre and its
+/// bottom in a frame at its natural width with the staff's top line at 0,
+/// and that frame's slice xs.
+({List<(Glyph, double, double)> glyphs, List<double> xs}) drawn(
+  Score score,
+  int bar,
+) {
   final layout = layoutBar(
     score.measureView(score.measures[bar].id),
     EngravingStyle.standard,
@@ -26,7 +30,11 @@ import 'support/fake_measurer.dart';
     glyphs: [
       for (final item in layout.items)
         if (frame.place(item) case final GlyphDraw glyph)
-          (glyph.glyph, (glyph.bounds.left + glyph.bounds.right) / 2),
+          (
+            glyph.glyph,
+            (glyph.bounds.left + glyph.bounds.right) / 2,
+            glyph.bounds.bottom,
+          ),
     ],
     xs: xs,
   );
@@ -46,13 +54,17 @@ void main() {
   });
 
   test('a two-bar repeat draws its sign once, centred on the barline '
-      'between its bars', () {
+      'between its bars, with a 2 over it clear of the staff', () {
     final score = repeated([4, 4, 4, 4], 2, 2);
     final first = drawn(score, 2);
     final second = drawn(score, 3);
 
-    expect(first.glyphs.single.$1, Glyph.repeat2Bars);
-    expect(first.glyphs.single.$2, closeTo(first.xs.last, 1e-9));
+    final [(sign, signX, _), (digit, digitX, digitBottom)] = first.glyphs;
+    expect(sign, Glyph.repeat2Bars);
+    expect(signX, closeTo(first.xs.last, 1e-9));
+    expect(digit, Glyph.timeSig2);
+    expect(digitX, closeTo(first.xs.last, 1e-9));
+    expect(digitBottom, lessThan(0));
     expect(second.glyphs, isEmpty);
   });
 
