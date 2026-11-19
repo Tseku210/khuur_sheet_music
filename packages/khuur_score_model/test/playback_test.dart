@@ -964,10 +964,51 @@ void main() {
       ]).score;
 
       expect(notes(compiled(score)), [
-        (0.0, 1.14, 60, 0, 1),
+        (0.0, 1.08, 60, 0, 1),
         (0.0, 0.54, 64, 0, 1),
-        (1.2, 3.36, 67, 0, 3),
+        (1.2, 3.24, 67, 0, 3),
       ]);
+    });
+
+    test('plays a tie chain as long as the one note it stands for, and a '
+        'staccato or tenuto from the note it is on', () {
+      ChordEvent marked(ChordEvent chord, Articulation? mark) =>
+          chord.copyWith(articulations: {?mark});
+      (double, double) heldE4(List<ChordEvent> events) {
+        final (start, duration, _, _, _) = notes(
+          compiled(sessionWith([events]).score),
+        ).singleWhere((n) => n.$3 == 64);
+        return (start, duration);
+      }
+
+      for (final (mark, gate) in [
+        (null, 0.9),
+        (Articulation.staccato, 0.5),
+        (Articulation.staccatissimo, 0.25),
+        (Articulation.tenuto, 1.0),
+      ]) {
+        List<ChordEvent> tied({required bool onFirst}) => [
+          quarters(1, 'C4'),
+          marked(chordOf(2, 'E4', tie: true), onFirst ? mark : null),
+          marked(quarters(4, 'E4'), onFirst ? null : mark),
+          quarters(3, 'G4'),
+        ];
+
+        expect(
+          heldE4(tied(onFirst: true)),
+          heldE4([
+            quarters(1, 'C4'),
+            marked(halves(2, 'E4'), mark),
+            quarters(3, 'G4'),
+          ]),
+          reason: '$mark on the first note',
+        );
+        expect(
+          heldE4(tied(onFirst: false)),
+          (0.6, mark == null ? 1.08 : ms(0.6 + 0.6 * gate)),
+          reason: '$mark on the last note',
+        );
+      }
     });
 
     test('a tie stays in its staff and voice', () {
@@ -1883,8 +1924,8 @@ void main() {
         (4.031, 60, 6),
         (4.5, 67, 11),
       ]);
-      expect(ms(script.notesBetween(0.3, 0.4).single.duration), 1.05);
-      expect(ms(script.notesBetween(4.4, 4.6).single.duration), 0.684);
+      expect(ms(script.notesBetween(0.3, 0.4).single.duration), 1.013);
+      expect(ms(script.notesBetween(4.4, 4.6).single.duration), 0.675);
     });
   });
 
@@ -2082,10 +2123,10 @@ void main() {
       );
 
       // The pedal lifts at second 4, under the tied D4, which is let go at
-      // 5.8.
+      // 5.6.
       expect(notes(compiled(score)), [
         (0.0, 4.0, 60, 0, 1),
-        (2.0, 3.8, 62, 0, 2),
+        (2.0, 3.6, 62, 0, 2),
         (6.0, 1.8, 64, 0, 4),
       ]);
     });

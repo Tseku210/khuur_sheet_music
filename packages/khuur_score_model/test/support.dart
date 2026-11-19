@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:khuur_score_model/khuur_score_model.dart';
+import 'package:test/test.dart';
 
 /// One token per item: `F4/quarter`, `F4/quarter~` (tied), `rest/half`,
 /// `measure-rest`, `gap 1/4`, and `3:2[...]` for a tuplet's members.
@@ -380,3 +381,37 @@ String mark(StaffDirection direction) =>
       TextMark(:final text, :final above) => '$text${above ? '' : ' below'}',
       ChordSymbol(:final root, :final quality, :final bass) => '${root.step.name}$quality${bass == null ? '' : '/${bass.step.name}'}',
     }}';
+
+/// Each note the score plays, as (start, duration, key, velocity), times
+/// in milliseconds.
+List<(int, int, int, int)> heard(Score score) => [
+  for (final note
+      in PlaybackCompiler()
+          .compile(score)
+          .notesBetween(
+            0,
+            double.infinity,
+          ))
+    (
+      (note.start * 1000).round(),
+      (note.duration * 1000).round(),
+      note.key,
+      note.velocity,
+    ),
+];
+
+/// Checks that [actual] plays [expected]: the same notes at the same
+/// velocities, with times within a millisecond, as rounding leaves them.
+void expectHeard(Score actual, Score expected, {String? reason}) {
+  final heardActual = heard(actual);
+  final heardExpected = heard(expected);
+  expect(heardActual, hasLength(heardExpected.length), reason: reason);
+  for (final (i, (start, duration, key, velocity)) in heardExpected.indexed) {
+    final (s, d, k, v) = heardActual[i];
+    expect(
+      (k, v, (s - start).abs() <= 1, (d - duration).abs() <= 1),
+      (key, velocity, true, true),
+      reason: '$reason, note $i',
+    );
+  }
+}

@@ -54,21 +54,6 @@ Score irregular(Score score, int bar, Length length, List<VoiceItem> items) =>
 EditSession rebarred(EditSession session, Meter meter, {int from = 0}) =>
     applied(session.run(SetMeter(from: idOf(session, from), meter: meter)));
 
-/// Each note [score] plays, as (start, duration, key), times in
-/// milliseconds.
-List<(int, int, int)> heard(Score score) => [
-  for (final note
-      in PlaybackCompiler().compile(score).notesBetween(0, double.infinity))
-    ((note.start * 1000).round(), (note.duration * 1000).round(), note.key),
-];
-
-/// When each note [score] plays starts, in milliseconds, with its key. A tie
-/// chain releases as its last note does, so a re-bar that splits a note
-/// changes its length (#97) but not these.
-List<(int, int)> onsets(Score score) => [
-  for (final (start, _, key) in heard(score)) (start, key),
-];
-
 final threeEight = Meter.simple(3, 8);
 final fiveFour = Meter.simple(5, 4);
 
@@ -974,13 +959,38 @@ void main() {
     test('trill the split note as before', () {
       final (score, next) = rebarredUnder(const TrillLine());
 
-      expect(onsets(next), onsets(score));
+      expectHeard(next, score);
+    });
+
+    test('play a split note with a staccato or tenuto as before', () {
+      for (final mark in [Articulation.staccato, Articulation.tenuto]) {
+        final score = sessionWith([
+          [
+            chordOf(1, 'C4'),
+            chordOf(2, 'D4'),
+            chordOf(
+              3,
+              'E4',
+              value: NoteValue.half,
+            ).copyWith(articulations: {mark}),
+          ],
+          [
+            chordOf(4, 'F4'),
+            chordOf(5, 'G4'),
+            chordOf(6, 'A4', value: NoteValue.half),
+          ],
+        ]);
+
+        final next = rebarred(score, Meter.threeFour);
+
+        expectHeard(next.score, score.score, reason: '$mark');
+      }
     });
 
     test('play as before where a slur starts on the tied note', () {
       final (score, next) = rebarredUnder(const Slur());
 
-      expect(heard(next), heard(score));
+      expectHeard(next, score);
     });
   });
 
@@ -1037,10 +1047,10 @@ void main() {
 
       final next = rebarred(session, meter);
 
-      expect(onsets(next.score), onsets(session.score), reason: 'seed $seed');
-      expect(
-        onsets(scoreFromMusicXml(scoreToMusicXml(session.score))),
-        onsets(session.score),
+      expectHeard(next.score, session.score, reason: 'seed $seed');
+      expectHeard(
+        scoreFromMusicXml(scoreToMusicXml(session.score)),
+        session.score,
         reason: 'seed $seed',
       );
     }
