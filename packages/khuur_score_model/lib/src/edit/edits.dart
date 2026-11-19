@@ -647,9 +647,14 @@ final class RemoveSpanner extends Edit {
 /// A kept bar keeps its measure-repeat signs where the bars they repeat
 /// take the meter too. Where re-barring cuts a sign or the bars it repeats,
 /// or only some of them keep their bars, the notes it repeats are written
-/// out in its bar first, without lyrics or the slurs and other spanners on
-/// them, so the music goes on sounding. Its bar then re-bars as written, and
-/// a kept bar too long for the meter is refused.
+/// out in its bar first, so the music goes on sounding as it did. The copy
+/// has the slurs, trill lines, hairpins and other lines that start and end
+/// in the bar it repeats, and that bar's dynamics, with one at its start
+/// where the level differs there. A hairpin that ends where the copy starts
+/// then leads to that dynamic. It has no lyrics, and no tempo or pedal
+/// line. A dynamic written under the sign plays from where it stands, as
+/// before. Its bar then re-bars as written, and a kept bar too long for the
+/// meter is refused.
 final class SetMeter extends Edit {
   /// Sets [meter] from bar [from] onward.
   const SetMeter({

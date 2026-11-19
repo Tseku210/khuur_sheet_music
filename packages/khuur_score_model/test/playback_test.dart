@@ -533,11 +533,10 @@ void main() {
   });
 
   group('measure repeats', () {
-
     /// [score] with each bar of [signs], counted from 0, under a sign
     /// repeating that many bars.
-    Score repeating(Score score, Map<int, int> signs) =>
-        signs.entries.fold(
+    Score repeating(Score score, Map<int, int> signs) => signs.entries
+        .fold(
           EditSession.start(score),
           (session, sign) => applied(
             session.run(
@@ -547,7 +546,8 @@ void main() {
               ),
             ),
           ),
-        ).score;
+        )
+        .score;
 
     List<int> heard(Score score) => [
       for (final note in notes(compiled(score))) note.$5,
@@ -572,15 +572,43 @@ void main() {
 
     test('a one-bar repeat plays the bar before it', () {
       expect(heard(repeating(beats(3), {1: 1})), [
-        11, 12, 13, 14, 11, 12, 13, 14, 31, 32, 33, 34,
+        11,
+        12,
+        13,
+        14,
+        11,
+        12,
+        13,
+        14,
+        31,
+        32,
+        33,
+        34,
       ]);
     });
 
     test('a two-bar repeat plays the two bars before it', () {
       expect(heard(repeating(beats(5), {2: 2})), [
-        11, 12, 13, 14, 21, 22, 23, 24,
-        11, 12, 13, 14, 21, 22, 23, 24,
-        51, 52, 53, 54,
+        11,
+        12,
+        13,
+        14,
+        21,
+        22,
+        23,
+        24,
+        11,
+        12,
+        13,
+        14,
+        21,
+        22,
+        23,
+        24,
+        51,
+        52,
+        53,
+        54,
       ]);
     });
 
@@ -667,6 +695,23 @@ void main() {
       expect(velocities(compiled(across)), [
         for (final level in [p, p, ff, ff]) ...List.filled(4, level),
       ]);
+    });
+
+    test('replays the dynamics of a bar whose hairpin ends at the sign', () {
+      final score = withDynamics(beats(2), 0, {Moment.zero: Dynamic.f});
+      final faded = repeating(
+        withLine(
+          score,
+          const Hairpin(crescendo: false),
+          pointAt(score, 0, at(1, 2)),
+          pointAt(score, 0, at(3, 4)),
+        ),
+        {1: 1},
+      );
+
+      final heard = velocities(compiled(faded));
+
+      expect(heard.sublist(4), heard.sublist(0, 4));
     });
 
     test('plays the slurs and trill lines of the bars it repeats', () {

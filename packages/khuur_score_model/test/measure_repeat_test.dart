@@ -43,8 +43,9 @@ EditSession tune(int bars, {int beats = 4}) {
   return session;
 }
 
-/// Each note the score plays, as (start, duration, key), in milliseconds.
-List<(int, int, int)> heard(Score score) => [
+/// Each note the score plays, as (start, duration, key, velocity), times
+/// in milliseconds.
+List<(int, int, int, int)> heard(Score score) => [
   for (final note
       in PlaybackCompiler()
           .compile(score)
@@ -56,8 +57,50 @@ List<(int, int, int)> heard(Score score) => [
       (note.start * 1000).round(),
       (note.duration * 1000).round(),
       note.key,
+      note.velocity,
     ),
 ];
+
+/// Checks that [actual] plays [expected]: the same notes at the same
+/// velocities, with times within a millisecond, as rounding leaves them.
+void expectHeard(Score actual, Score expected, {String? reason}) {
+  final heardActual = heard(actual);
+  final heardExpected = heard(expected);
+  expect(heardActual, hasLength(heardExpected.length), reason: reason);
+  for (final (i, (start, duration, key, velocity)) in heardExpected.indexed) {
+    final (s, d, k, v) = heardActual[i];
+    expect(
+      (k, v, (s - start).abs() <= 1, (d - duration).abs() <= 1),
+      (key, velocity, true, true),
+      reason: '$reason, note $i',
+    );
+  }
+}
+
+/// [session] after [edits], each refused edit failing the test.
+EditSession after(EditSession session, List<Edit Function(Score)> edits) =>
+    edits.fold(session, (s, edit) => applied(s.run(edit(s.score))));
+
+Edit Function(Score) dynamics(int bar, Map<Moment, Dynamic> marks) =>
+    (score) => SetDirections(
+      staff: score.staves.first.id,
+      measure: score.measures[bar].id,
+      directions: Seq([
+        for (final MapEntry(key: offset, value: level) in marks.entries)
+          DynamicMark(offset, level),
+      ]),
+    );
+
+Edit Function(Score) line(SpannerKind kind, int bar, Moment from, Moment to) =>
+    (score) => AddSpanner(
+      kind: kind,
+      staff: score.staves.first.id,
+      first: pointAt(score, bar, from),
+      last: pointAt(score, bar, to),
+    );
+
+Edit Function(Score) sign(int bar, int bars) =>
+    (score) => SetMeasureRepeat(score.measures[bar].id, bars: bars);
 
 void main() {
   group('SetMeasureRepeat', () {
@@ -326,12 +369,61 @@ void main() {
 
         expect(signs(changed.score), everyElement(isNull), reason: '$sign');
         expect(
-          [for (final (_, _, key) in heard(changed.score)) key],
-          [for (final (_, _, key) in heard(session.score)) key],
+          [for (final (_, _, key, _) in heard(changed.score)) key],
+          [for (final (_, _, key, _) in heard(session.score)) key],
           reason: '$sign',
         );
         expect(heard(changed.score), hasLength(3 * (at + sign)));
       }
+    });
+
+    test('writes out the dynamics, slurs and trills of the bar it repeats', () {
+      for (final (name, marks) in <(String, List<Edit Function(Score)>)>[
+        (
+          'a dynamic inside the bar',
+          [
+            dynamics(0, {Moment.zero: Dynamic.p}),
+            dynamics(1, {at(1, 2): Dynamic.f}),
+          ],
+        ),
+        (
+          'a hairpin inside the bar',
+          [
+            dynamics(0, {Moment.zero: Dynamic.p}),
+            line(const Hairpin(crescendo: true), 1, Moment.zero, at(1, 2)),
+          ],
+        ),
+        ('a slur', [line(const Slur(), 1, Moment.zero, at(1, 2))]),
+        ('a trill line', [line(const TrillLine(), 1, at(1, 4), at(1, 2))]),
+      ]) {
+        for (final (bars, at) in [(1, 2), (2, 2)]) {
+          final session = after(tune(5), [...marks, sign(at, bars)]);
+
+          final changed = applied(
+            session.run(
+              SetMeter(from: idOf(session, 0), meter: Meter.threeFour),
+            ),
+          );
+
+          expectHeard(changed.score, session.score, reason: '$name, $bars');
+        }
+      }
+    });
+
+    test('writes out no dynamic of the bar it repeats after one written '
+        'under the sign', () {
+      final session = after(tune(4), [
+        dynamics(0, {Moment.zero: Dynamic.p}),
+        dynamics(1, {at(1, 2): Dynamic.f}),
+        sign(2, 1),
+        dynamics(2, {at(1, 4): Dynamic.ff}),
+      ]);
+
+      final changed = applied(
+        session.run(SetMeter(from: idOf(session, 0), meter: Meter.threeFour)),
+      );
+
+      expectHeard(changed.score, session.score);
     });
 
     test('clears where a meter change leaves it a bar of another length '

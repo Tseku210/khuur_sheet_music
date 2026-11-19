@@ -255,6 +255,16 @@ final class PlaybackCompiler {
 
 typedef _Sound = ({int channel, Instrument instrument, _Loudness loudness});
 
+/// The level dynamic in force for the part that holds [staff] at [offset]
+/// into bar [bar] of [score], as playback reads it: the last one at or
+/// before that point, or the level a hairpin with no dynamic at its end
+/// arrives at, and mf before any.
+Dynamic levelAt(Score score, StaffId staff, int bar, Moment offset) {
+  final time = _Timeline(score);
+  final loudness = _Loudness(score, score.partOf(staff).staves, time);
+  return _levelAt(loudness._levels, offset + time.startOf(bar));
+}
+
 /// Where the run of bars under measure-repeat signs on [staff] that ends
 /// with bar [index] starts.
 Moment _underSignsFrom(
