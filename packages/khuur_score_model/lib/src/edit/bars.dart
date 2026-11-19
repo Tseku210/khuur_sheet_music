@@ -626,6 +626,21 @@ Score _withFittingSpanners(Score score) {
       : score.copyWith(spanners: Seq(kept));
 }
 
+/// [point] of [spanner] in [score] at the onset of the note it belongs to,
+/// for a slur, glissando or trill line, so an edit that moves it by time
+/// keeps it on that note and not on a part of the note that a new barline
+/// splits off. Other kinds keep their point.
+ScorePoint _onItsNote(Score score, Spanner spanner, ScorePoint point) =>
+    switch (spanner.kind.reach) {
+      SpannerReach.events => ScorePoint(
+        point.measure,
+        score
+            .anchorAt(spanner.staff, spanner.voice ?? VoiceSlot.one, point)!
+            .onset,
+      ),
+      SpannerReach.time => point,
+    };
+
 /// Where the last event of [spanner]'s voice in [column] starts, taking
 /// voice one when the spanner has no voice or its voice is absent there.
 ScorePoint _lastOnset(MeasureColumn column, Spanner spanner) {

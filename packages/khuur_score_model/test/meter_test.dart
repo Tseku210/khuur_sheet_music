@@ -1,6 +1,9 @@
+import 'dart:math';
+
 import 'package:khuur_score_model/khuur_score_model.dart';
 import 'package:test/test.dart';
 
+import 'random_edits.dart';
 import 'support.dart';
 
 List<List<String>> bars(Score score, {int staff = 0}) => [
@@ -57,6 +60,13 @@ List<(int, int, int)> heard(Score score) => [
   for (final note
       in PlaybackCompiler().compile(score).notesBetween(0, double.infinity))
     ((note.start * 1000).round(), (note.duration * 1000).round(), note.key),
+];
+
+/// When each note [score] plays starts, in milliseconds, with its key. A tie
+/// chain releases as its last note does, so a re-bar that splits a note
+/// changes its length (#97) but not these.
+List<(int, int)> onsets(Score score) => [
+  for (final (start, _, key) in heard(score)) (start, key),
 ];
 
 final threeEight = Meter.simple(3, 8);
@@ -943,15 +953,27 @@ void main() {
       return (score, next);
     }
 
-    test('do not start to trill where a trill line starts on the tied '
-        'note', () {
+    test('keep a trill line or slur on the note it starts inside', () {
+      for (final kind in const <SpannerKind>[TrillLine(), Slur()]) {
+        final (_, next) = rebarredUnder(kind);
+        final spanner = next.spanners.single;
+        final note = next.anchorAt(
+          spanner.staff,
+          VoiceSlot.one,
+          spanner.first,
+        )!;
+
+        expect(
+          (next.indexOf(note.ref.measure), note.onset),
+          (0, at(1, 2)),
+          reason: '$kind',
+        );
+      }
+    });
+
+    test('trill the split note as before', () {
       final (score, next) = rebarredUnder(const TrillLine());
 
-      // A tie chain releases as its last note does, so only the split
-      // note's length differs.
-      List<(int, int)> onsets(Score score) => [
-        for (final (start, _, key) in heard(score)) (start, key),
-      ];
       expect(onsets(next), onsets(score));
     });
 
@@ -960,6 +982,68 @@ void main() {
 
       expect(heard(next), heard(score));
     });
+  });
+
+  test('random notes under trill lines and slurs play the same after a '
+      're-bar and after MusicXML out and in', () {
+    final values = {
+      1: NoteValue.eighth,
+      2: NoteValue.quarter,
+      4: NoteValue.half,
+      6: NoteValue.half.dotted,
+    };
+    for (var seed = 0; seed < 300; seed++) {
+      final random = Random(seed);
+      var session = blank(bars: 3);
+      for (var bar = 0; bar < 3; bar++) {
+        for (var eighths = 0; eighths < 8;) {
+          final fit = [
+            for (final n in values.keys)
+              if (eighths + n <= 8) n,
+          ];
+          final n = pick(random, fit);
+          session = enterAt(
+            session,
+            bar,
+            at(eighths, 8),
+            tone: Pitch.parse('${pick(random, 'CDEFGAB'.split(''))}4'),
+            value: values[n]!,
+          );
+          eighths += n;
+        }
+      }
+      for (var i = 0; i < 3; i++) {
+        final (a, b) = (random.nextInt(24), random.nextInt(24));
+        ScorePoint point(int eighths) =>
+            pointAt(session.score, eighths ~/ 8, at(eighths % 8, 8));
+        final outcome = session.run(
+          AddSpanner(
+            kind: random.nextBool() ? const TrillLine() : const Slur(),
+            staff: session.score.staves.first.id,
+            first: point(min(a, b)),
+            last: point(max(a, b)),
+          ),
+        );
+        if (outcome case Applied(session: final added)) {
+          session = added;
+        }
+      }
+      final meter = pick(random, [
+        Meter.threeFour,
+        Meter.twoFour,
+        fiveFour,
+        threeEight,
+      ]);
+
+      final next = rebarred(session, meter);
+
+      expect(onsets(next.score), onsets(session.score), reason: 'seed $seed');
+      expect(
+        onsets(scoreFromMusicXml(scoreToMusicXml(session.score))),
+        onsets(session.score),
+        reason: 'seed $seed',
+      );
+    }
   });
 
   group('SetMeter keeping bars', () {
