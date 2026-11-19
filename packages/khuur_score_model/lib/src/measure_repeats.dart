@@ -56,12 +56,14 @@ Seq<MeasureColumn> withStandingMeasureRepeats(Seq<MeasureColumn> measures) {
 
 /// The index of the bar whose notes staff [staff] of bar [bar] plays: [bar]
 /// itself, or for a bar under a standing sign the bar it repeats, followed
-/// back through any sign that bar is under.
+/// back through any sign that bar is under. A sign that does not stand,
+/// which only a score built outside edits and loading can hold, plays its
+/// own rest.
 int playedBar(Seq<MeasureColumn> measures, int bar, int staff) {
   var source = bar;
   for (
     var sign = measures[source].staves[staff].measureRepeat;
-    sign != null;
+    sign != null && measureRepeatStands(measures, source, staff);
     sign = measures[source].staves[staff].measureRepeat
   ) {
     source -= sign.bars;

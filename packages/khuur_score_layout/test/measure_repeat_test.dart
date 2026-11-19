@@ -82,4 +82,28 @@ void main() {
     }
     expect(splits, isPositive, reason: 'some width splits bars 4 and 5');
   });
+
+  test('breaking resumed after an edit next to a two-bar repeat equals a '
+      'fresh break', () {
+    Score build(List<int> counts) {
+      final score = barsOf(counts, staves: 2);
+      return after(score, [
+        SetMeasureRepeat(
+          score.measures[3].id,
+          bars: 2,
+          staff: score.staves.first.id,
+        ),
+      ]);
+    }
+
+    final before = layoutsOf(build([4, 4, 4, 4, 8, 4, 4, 4]));
+    final edited = layoutsOf(build([4, 4, 4, 4, 1, 4, 4, 4]));
+    for (var width = 20.0; width < 200; width += 0.25) {
+      expect(
+        startsOf(breaksOf(edited, width, previous: breaksOf(before, width))),
+        startsOf(breaksOf(edited, width)),
+        reason: 'width $width',
+      );
+    }
+  });
 }

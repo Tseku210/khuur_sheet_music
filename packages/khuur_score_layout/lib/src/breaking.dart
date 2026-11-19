@@ -476,7 +476,14 @@ List<MeasureId> _starts(
       for (final (index, unit) in previous.units.indexed)
         unit.first.measure: index,
     };
-    final before = math.max(dirty.first - 1, 0);
+    // A system that backs off before a two-bar repeat read past its end
+    // into the pair and the courtesy after it, so the resume starts back
+    // past any pair that ends next to the dirt.
+    var before = math.max(dirty.first - 1, 0);
+    while (before > 0 &&
+        (units[before].last.holdsNext || units[before - 1].last.holdsNext)) {
+      before--;
+    }
     final kept = [...old.takeWhile((id) => oldIndex[id]! <= before)];
     starts.addAll(kept.take(kept.length - 1));
     start = oldIndex[kept.last]!;
@@ -542,7 +549,9 @@ double _courtesyAfter(List<BreakUnit> units, int index) =>
 /// a system ends reads its own units, the unit after its end, and the
 /// courtesy of the unit after that. With the courtesy counted against the
 /// unit before it, a system reads dirt from no unit past the one after its
-/// end. That is what makes the resume point in [breakSystems] exact.
+/// end, except where it backs off before a two-bar repeat, which the
+/// resume point in [breakSystems] steps back over. That is what makes the
+/// resume point exact.
 ///
 /// Widths are compared by value, so a bar laid out again at the same
 /// widths is clean and the breaks stand.

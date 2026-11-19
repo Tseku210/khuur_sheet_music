@@ -533,6 +533,7 @@ void main() {
   });
 
   group('measure repeats', () {
+
     /// [score] with each bar of [signs], counted from 0, under a sign
     /// repeating that many bars.
     Score repeating(Score score, Map<int, int> signs) =>
@@ -551,6 +552,23 @@ void main() {
     List<int> heard(Score score) => [
       for (final note in notes(compiled(score))) note.$5,
     ];
+
+    test('a sign built outside edits that does not stand plays its rest', () {
+      final score = blankScore();
+      final first = score.measures[0];
+      final built = score.copyWith(
+        measures: score.measures.replaceAt(
+          0,
+          first.withStaff(
+            first.staves.first.copyWith(
+              measureRepeat: () => MeasureRepeat.oneBar,
+            ),
+          ),
+        ),
+      );
+
+      expect(heard(built), isEmpty);
+    });
 
     test('a one-bar repeat plays the bar before it', () {
       expect(heard(repeating(beats(3), {1: 1})), [
