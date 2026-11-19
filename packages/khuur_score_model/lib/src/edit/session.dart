@@ -33,6 +33,7 @@ part 'context.dart';
 part 'directions.dart';
 part 'erase.dart';
 part 'lane_writer.dart';
+part 'measure_repeat_edits.dart';
 part 'notes.dart';
 part 'parts.dart';
 part 'rebar.dart';

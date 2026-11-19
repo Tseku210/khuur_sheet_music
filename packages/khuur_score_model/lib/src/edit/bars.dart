@@ -75,113 +75,6 @@ _Result _setVolta(
   );
 }
 
-_Result _setMeasureRepeat(
-  Score score,
-  MeasureId measure,
-  StaffId? staff,
-  int? bars,
-  _Ids ids,
-) {
-  if (bars != null && bars != 1 && bars != 2) {
-    throw const _Refuse(InvalidValue('a measure repeat repeats 1 or 2 bars'));
-  }
-  if (staff != null) {
-    _staff(score, staff);
-  }
-  final at = _barIndex(score, measure);
-  final measures = score.measures;
-  final staves = [
-    for (final (k, slice) in measures[at].staves.indexed)
-      if (staff == null || slice.staff == staff) k,
-  ];
-  if (bars == null) {
-    var cleared = measures;
-    for (final k in staves) {
-      final covered = switch (measures[at].staves[k].measureRepeat) {
-        null => const <int>[],
-        MeasureRepeat.oneBar => [at],
-        MeasureRepeat.twoBarsFirst => [at, at + 1],
-        MeasureRepeat.twoBarsSecond => [at - 1, at],
-      };
-      for (final i in covered) {
-        final column = cleared[i];
-        cleared = cleared.replaceAt(
-          i,
-          column.withStaff(
-            column.staves[k].copyWith(measureRepeat: () => null),
-          ),
-        );
-      }
-    }
-    return _Result(
-      identical(cleared, measures) ? score : score.copyWith(measures: cleared),
-    );
-  }
-  if (at < bars) {
-    throw _Refuse(InvalidValue('no $bars bars before to repeat'));
-  }
-  final covered = [at, if (bars == 2) at + 1];
-  if (covered.last >= measures.length) {
-    throw const _Refuse(InvalidValue('a two-bar repeat needs a bar after'));
-  }
-  if (bars == 2 && measures[covered.last].breakBefore != null) {
-    throw const _Refuse(
-      InvalidValue('a two-bar repeat has no layout break between its bars'),
-    );
-  }
-  if (covered.any((i) => measures[i].length != measures[i - bars].length)) {
-    throw const _Refuse(
-      InvalidValue('a measure repeat repeats bars of its own length'),
-    );
-  }
-  final signs = bars == 1
-      ? const [MeasureRepeat.oneBar]
-      : const [MeasureRepeat.twoBarsFirst, MeasureRepeat.twoBarsSecond];
-  var next = score;
-  for (final k in staves) {
-    for (final (h, i) in covered.indexed) {
-      final column = next.measures[i];
-      final slice = column.staves[k];
-      if (slice.measureRepeat == signs[h]) {
-        continue;
-      }
-      final rest = switch (slice.voices.first.items.singleOrNull) {
-        final MeasureRest rest when slice.voices.length == 1 => rest,
-        _ => MeasureRest(id: ids.event(), span: column.length),
-      };
-      for (final voice in measures[i - 1].staves[k].voices) {
-        next = _untieInto(
-          next,
-          VoicePoint(
-            staff: slice.staff,
-            voice: voice.slot,
-            at: ScorePoint(column.id, Moment.zero),
-          ),
-          const {},
-        );
-      }
-      final updated = next.measures[i];
-      next = next.copyWith(
-        measures: next.measures.replaceAt(
-          i,
-          updated.withStaff(
-            StaffMeasure(
-              staff: slice.staff,
-              clef: slice.clef,
-              directions: slice.directions,
-              voices: Seq([
-                Voice(slot: VoiceSlot.one, items: Seq([rest])),
-              ]),
-              measureRepeat: signs[h],
-            ),
-          ),
-        ),
-      );
-    }
-  }
-  return _Result(next);
-}
-
 _Result _setNavigation(
   Score score,
   MeasureId measure,
@@ -719,16 +612,6 @@ Seq<Spanner> _moveSpanners(
     }
   }
   return moved ? Seq(kept) : spanners;
-}
-
-/// [score] with every measure-repeat sign an edit has left unable to stand
-/// cleared, such as a half of a two-bar repeat whose other half was
-/// deleted or written into.
-Score _withStandingMeasureRepeats(Score score) {
-  final measures = withStandingMeasureRepeats(score.measures);
-  return identical(measures, score.measures)
-      ? score
-      : score.copyWith(measures: measures);
 }
 
 /// [score] without the spanners an edit has left unable to stand, such as a

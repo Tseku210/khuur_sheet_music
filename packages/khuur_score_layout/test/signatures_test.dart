@@ -965,6 +965,7 @@ void main() {
         length: bar.length,
         breakBefore: bar.breakBefore,
         restOnly: bar.restOnly,
+        holdsNext: bar.holdsNext,
         widths: bar.widths,
         lead: bar.lead,
         slices: bar.slices,

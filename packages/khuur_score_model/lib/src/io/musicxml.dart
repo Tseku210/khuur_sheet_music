@@ -86,10 +86,6 @@ _At _firstWritten(_Ends line) =>
 _At _lastWritten(_Ends line) =>
     _writtenBefore(line.stop, line.start) ? line.start : line.stop;
 
-/// The copy written in a bar under a measure-repeat sign on one staff: the
-/// bar it copies, and the id of each copied event by its source event.
-typedef _Copy = ({int source, Map<EventId, EventId> ids});
-
 /// Where a spanner's ends are written. A spanner written on notes has the
 /// events that carry its ends in `from` and `to`; a direction spanner has
 /// neither.
@@ -114,12 +110,13 @@ final class _Export {
   /// [score] with every part shown, so the views hold every staff.
   final Score shown;
 
-  /// The copies [written] holds, by bar and staff.
-  final Map<(int, StaffId), _Copy> copies = {};
-
   /// [shown] with each staff under a standing measure-repeat sign holding a
-  /// copy of the voices of the bar it plays, so the views write its notes.
-  late final Score written = _withCopies();
+  /// copy of the voices of the bar it plays, so the views write its notes,
+  /// and those copies by bar and staff.
+  late final ({Score score, Map<(int, StaffId), PlayedCopy> copies}) _written =
+      _withCopies();
+
+  Score get written => _written.score;
 
   late final List<MeasureView> views = [
     for (final column in written.measures) written.measureView(column.id),
@@ -241,33 +238,29 @@ final class _Export {
   /// directions. The copy has no sign, which a bar holding notes may not
   /// have, so the signs are read from [score]. A bar that plays a
   /// whole-bar rest keeps its own.
-  Score _withCopies() {
+  ({Score score, Map<(int, StaffId), PlayedCopy> copies}) _withCopies() {
     final measures = shown.measures;
     var next = largestId(score);
     int mint() => ++next;
+    final copies = <(int, StaffId), PlayedCopy>{};
     var columns = measures;
     for (final (bar, column) in measures.indexed) {
       var copied = column;
       for (final (k, slice) in column.staves.indexed) {
-        final ids = <EventId, EventId>{};
-        EventId event(EventId id) => ids[id] = EventId(mint());
-        final voices = playedVoices(measures, bar, k, event: event, mint: mint);
-        if (voices == null) {
+        final copy = playedVoices(measures, bar, k, mint);
+        if (copy == null) {
           continue;
         }
-        copies[(bar, slice.staff)] = (
-          source: playedBar(measures, bar, k),
-          ids: ids,
-        );
+        copies[(bar, slice.staff)] = copy;
         copied = copied.withStaff(
-          slice.copyWith(voices: voices, measureRepeat: () => null),
+          slice.copyWith(voices: copy.voices, measureRepeat: () => null),
         );
       }
       if (!identical(copied, column)) {
         columns = columns.replaceAt(bar, copied);
       }
     }
-    return shown.copyWith(measures: columns);
+    return (score: shown.copyWith(measures: columns), copies: copies);
   }
 
   XmlElement _measure(int p, int bar) {
@@ -502,7 +495,7 @@ final class _Export {
   ) {
     final part = staff.part;
     final number = '${_voice(k, voice)}';
-    final copy = copies[(bar, staff.source.staff)];
+    final copy = _written.copies[(bar, staff.source.staff)];
     final beamed = copy == null
         ? voice
         : views[copy.source].staves

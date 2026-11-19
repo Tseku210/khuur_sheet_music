@@ -35,7 +35,7 @@ final class BarLayout {
     required this.length,
     required this.breakBefore,
     required this.restOnly,
-    this.holdsNext = false,
+    required this.holdsNext,
     required this.widths,
     required this.lead,
     required this.slices,

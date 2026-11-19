@@ -818,6 +818,7 @@ void main() {
           length: bars[0].length,
           breakBefore: null,
           restOnly: false,
+          holdsNext: false,
           widths: bars[0].widths,
           lead: bars[0].lead,
           slices: bars[0].slices,

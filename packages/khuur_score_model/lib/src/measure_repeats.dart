@@ -73,32 +73,45 @@ int playedBar(Seq<MeasureColumn> measures, int bar, int staff) {
   return source;
 }
 
+/// A copy of the voices a bar under a measure-repeat sign plays: the bar it
+/// copies, the voices, and the id of each copied event, chord and grace by
+/// the id it has in the bar it copies.
+typedef PlayedCopy = ({
+  int source,
+  Seq<Voice> voices,
+  Map<EventId, EventId> ids,
+});
+
 /// The voices staff [staff] of bar [bar] plays, written out: a copy of the
-/// voices of its [playedBar], with new ids from [mint] and no lyrics.
-/// [event] gives each copied event, chord or grace the id of its copy. Null
+/// voices of its [playedBar], with new ids from [mint] and no lyrics. Null
 /// when the bar plays its own voices or a whole-bar rest.
-Seq<Voice>? playedVoices(
+PlayedCopy? playedVoices(
   Seq<MeasureColumn> measures,
   int bar,
-  int staff, {
-  required EventId Function(EventId source) event,
-  required int Function() mint,
-}) {
+  int staff,
+  int Function() mint,
+) {
   final source = playedBar(measures, bar, staff);
   final voices = measures[source].staves[staff].voices;
   if (source == bar ||
       voices.length == 1 && voices.first.items.singleOrNull is MeasureRest) {
     return null;
   }
-  return Seq([
-    for (final voice in voices)
-      Voice(
-        slot: voice.slot,
-        items: Seq([
-          for (final item in voice.items) _copied(item, event, mint),
-        ]),
-      ),
-  ]);
+  final ids = <EventId, EventId>{};
+  EventId event(EventId id) => ids[id] = EventId(mint());
+  return (
+    source: source,
+    voices: Seq([
+      for (final voice in voices)
+        Voice(
+          slot: voice.slot,
+          items: Seq([
+            for (final item in voice.items) _copied(item, event, mint),
+          ]),
+        ),
+    ]),
+    ids: ids,
+  );
 }
 
 /// [item] with a new id on every event, note, grace and tuplet in it, taken

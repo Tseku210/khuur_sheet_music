@@ -79,12 +79,13 @@ final class PlaybackCompiler {
       return fragment;
     }
     final chords = <_Chord>[];
-    final holds = [
-      for (final timed in own.events)
-        if (!from.containsKey(timed.ref.staff) &&
+    List<(Moment, Moment)> held(_Fragment of, bool Function(StaffId) on) => [
+      for (final timed in of.events)
+        if (on(timed.ref.staff) &&
             timed.event.articulations.contains(Articulation.fermata))
           (timed.onset, timed.onset + timed.duration),
     ];
+    final holds = held(own, (staff) => !from.containsKey(staff));
     for (final staff in column.staves) {
       final source = from[staff.staff];
       final fragment = source == null ? own : _fragmentOf(source);
@@ -92,12 +93,7 @@ final class PlaybackCompiler {
         fragment.chords.where((c) => c.timed.ref.staff == staff.staff),
       );
       if (source != null) {
-        holds.addAll([
-          for (final timed in fragment.events)
-            if (timed.ref.staff == staff.staff &&
-                timed.event.articulations.contains(Articulation.fermata))
-              (timed.onset, timed.onset + timed.duration),
-        ]);
+        holds.addAll(held(fragment, (id) => id == staff.staff));
       }
     }
     final fragment = _Fragment(own.events, chords, holds);
@@ -254,16 +250,6 @@ final class PlaybackCompiler {
 }
 
 typedef _Sound = ({int channel, Instrument instrument, _Loudness loudness});
-
-/// The level dynamic in force for the part that holds [staff] at [offset]
-/// into bar [bar] of [score], as playback reads it: the last one at or
-/// before that point, or the level a hairpin with no dynamic at its end
-/// arrives at, and mf before any.
-Dynamic levelAt(Score score, StaffId staff, int bar, Moment offset) {
-  final time = _Timeline(score);
-  final loudness = _Loudness(score, score.partOf(staff).staves, time);
-  return _levelAt(loudness._levels, offset + time.startOf(bar));
-}
 
 /// Where the run of bars under measure-repeat signs on [staff] that ends
 /// with bar [index] starts.
