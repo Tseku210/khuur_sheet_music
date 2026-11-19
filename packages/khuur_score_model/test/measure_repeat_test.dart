@@ -233,6 +233,47 @@ void main() {
       expect(signs(edited.score), [null, null, MeasureRepeat.oneBar]);
     });
 
+    test('stays through a meter change that keeps every bar', () {
+      final session = applied(
+        blank(bars: 3).run(SetMeasureRepeat(idOf(blank(bars: 3), 1), bars: 1)),
+      );
+
+      final kept = applied(
+        session.run(
+          SetMeter(
+            from: idOf(session, 0),
+            meter: Meter.threeFour,
+            content: MeterContent.keepBars,
+          ),
+        ),
+      );
+
+      expect(signs(kept.score), [null, MeasureRepeat.oneBar, null]);
+    });
+
+    test('clears where a meter change leaves it a bar of another length, '
+        'or re-bars it', () {
+      final session = applied(
+        blank(bars: 3).run(SetMeasureRepeat(idOf(blank(bars: 3), 1), bars: 1)),
+      );
+
+      for (final (from, content) in [
+        (1, MeterContent.keepBars),
+        (0, MeterContent.rebar),
+      ]) {
+        final changed = applied(
+          session.run(
+            SetMeter(
+              from: idOf(session, from),
+              meter: Meter.threeFour,
+              content: content,
+            ),
+          ),
+        );
+        expect(signs(changed.score), everyElement(isNull), reason: '$content');
+      }
+    });
+
     test('refuses a bar with notes under it', () {
       expect(
         () => StaffMeasure(

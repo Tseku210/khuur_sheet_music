@@ -643,6 +643,10 @@ final class RemoveSpanner extends Edit {
 /// keeps its own content under the new meter. Trailing rests are dropped
 /// first; a bar that is still too long refuses the edit with
 /// [WouldCrossBarline], and a short bar is padded.
+///
+/// A kept bar keeps its measure-repeat signs, and a sign stays where it
+/// still stands. Re-barring clears every sign in the sections it cuts, and
+/// a bar a sign covered is rests from then on.
 final class SetMeter extends Edit {
   /// Sets [meter] from bar [from] onward.
   const SetMeter({

@@ -233,7 +233,12 @@ _Section _rebar(
   }
   final staves = [
     for (final staff in first.staves)
-      _staffBars(old, staff.staff, count, length, voices),
+      [
+        for (final bar in _staffBars(old, staff.staff, count, length, voices))
+          keep && staff.measureRepeat != null
+              ? bar.copyWith(measureRepeat: () => staff.measureRepeat)
+              : bar,
+      ],
   ];
   return _Section(old, [
     for (var k = 0; k < count; k++)
