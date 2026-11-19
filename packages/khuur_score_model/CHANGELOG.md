@@ -1,3 +1,10 @@
+## 0.3.5
+* `StaffMeasure.measureRepeat` puts a staff of a bar under a measure-repeat sign: `MeasureRepeat.oneBar` repeats the bar before, and `twoBarsFirst` with `twoBarsSecond` on the bar after repeat the two bars before. A covered staff holds one `MeasureRest` and no clef change, which the constructor checks. `copyWith` drops the sign when it writes other content. A sign stands only with its bars before it at its own length, next to its other half, and with no layout break between the halves.
+* `SetMeasureRepeat(measure, bars: 1 | 2 | null, staff:)` sets or clears a sign as one undo step and is refused with `InvalidValue` where it cannot stand. After every edit, a sign that no longer stands is cleared and its bar keeps its rest.
+* `PlaybackCompiler` plays a bar under a sign as the bars it repeats, followed back through a chain of signs, on each pass of a repeat or an ending. `playingAt` reports the bar's own rest, and a `PlaybackNote.source` is the repeated event. Dynamics, slurs and trills are those in force at the repeating bar.
+* `scoreToJson` writes the sign as `measureRepeat`, and `scoreFromJson` refuses one that does not stand. JSON without the key reads as before.
+* `scoreToMusicXml` writes a run of signs as `<measure-style><measure-repeat type="start">` at its first bar and `type="stop"` at the bar after it, numbered by staff in a part of several staves. `scoreFromMusicXml` reads them, drops the notes of covered bars, and drops a sign of another count or one that does not stand.
+
 ## 0.3.4
 * `scoreFromMusicXmlBytes` reads a `Score` from the bytes of a file, a compressed `.mxl` file or an uncompressed `.musicxml` file. It finds the score through `META-INF/container.xml`, and reads an archive without a container when it holds one `.musicxml` or `.xml` file. It decodes UTF-8, with or without a byte order mark, and UTF-16 after a byte order mark, so an app no longer decodes the text itself.
 * `musicXmlFromBytes` returns the text of the document in those bytes, by the same rules, for an app that changes the document before `scoreFromMusicXml` reads it.
