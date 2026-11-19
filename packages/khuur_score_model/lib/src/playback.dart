@@ -225,24 +225,24 @@ final class PlaybackCompiler {
           final (key, cents) = _key(attack.note, instrument);
           final start = bar.secondsAt(attack.onset);
           final end = bar.secondsAt(attack.onset + attack.length);
-          final legato = slurred && attack.gate == null;
-          final release = legato
-              ? 0.0
-              : (end - start) * (1 - (attack.gate ?? 0.9));
           final lane = (staff, voice, attack.note.tone);
           final _Sounding note;
           if (ties.remove(lane) case (final held, final at)
               when at == (k, attack.onset)) {
-            note = held
-              ..end = end
-              ..release = release
-              ..legato = legato;
+            note = held..end = end;
+            if (attack.gate case final gate?) {
+              note
+                ..gate = gate
+                ..gatedFrom = start;
+            }
+            note.legato = slurred && note.gate == null;
           } else {
             note = _Sounding(
               start: start,
               end: end,
-              release: release,
-              legato: legato,
+              gate: attack.gate,
+              gatedFrom: start,
+              legato: slurred && attack.gate == null,
               key: key,
               cents: cents,
               velocity: min((level * attack.stress).round(), 127),
@@ -806,7 +806,8 @@ final class _Sounding {
   _Sounding({
     required this.start,
     required this.end,
-    required this.release,
+    required this.gate,
+    required this.gatedFrom,
     required this.legato,
     required this.key,
     required this.cents,
@@ -819,12 +820,22 @@ final class _Sounding {
   final double start;
   double end;
 
-  /// Seconds cut from the end, set by the chain's last note.
-  double release;
+  /// The share it sounds of the time from [gatedFrom] to its end, set by the
+  /// staccato or tenuto of the chain's last note that has one, or null where
+  /// none has.
+  double? gate;
+
+  /// The start of the note whose mark sets [gate], or of the chain where no
+  /// note has one.
+  double gatedFrom;
 
   /// Whether the chain's last note is slurred to the note after it and no
   /// mark sets its length.
   bool legato;
+
+  /// Seconds cut from the end. A mark shortens the chain from the note it is
+  /// on, and a chain with none is cut as the one note it stands for.
+  double get release => legato ? 0 : (end - gatedFrom) * (1 - (gate ?? 0.9));
   double overlap = 0;
   final int key;
   final int cents;
