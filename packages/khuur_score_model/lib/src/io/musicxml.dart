@@ -21,6 +21,13 @@
 ///
 /// A string instrument's open strings are its staves' tunings.
 ///
+/// A bar under a measure-repeat sign is written with the notes of the bar
+/// it plays, as MusicXML asks, beamed as there. Ties, accidentals and
+/// tuplets are resolved where the copy stands. The copy leaves out what
+/// belongs to the events it copies: their lyrics, and the slurs and other
+/// spanners on them. A spanner whose end the score puts in the covered bar
+/// ends on the copy.
+///
 /// Some of the model has no MusicXML home and is left out: an instrument's
 /// key, range and clef, a tempo line's factor, and a
 /// [SignatureDisplay.noCourtesy]. An [AccidentalRequest.never] is kept. The
@@ -31,9 +38,11 @@ import 'package:xml/xml.dart';
 
 import '../events.dart';
 import '../measure.dart';
+import '../measure_repeats.dart';
 import '../pitch.dart';
 import '../refs.dart';
 import '../score.dart';
+import '../score_ids.dart';
 import '../seq.dart';
 import '../stable_sort.dart';
 import '../time.dart';
@@ -77,6 +86,10 @@ _At _firstWritten(_Ends line) =>
 _At _lastWritten(_Ends line) =>
     _writtenBefore(line.stop, line.start) ? line.start : line.stop;
 
+/// The copy written in a bar under a measure-repeat sign on one staff: the
+/// bar it copies, and the id of each copied event by its source event.
+typedef _Copy = ({int source, Map<EventId, EventId> ids});
+
 /// Where a spanner's ends are written. A spanner written on notes has the
 /// events that carry its ends in `from` and `to`; a direction spanner has
 /// neither.
@@ -101,8 +114,15 @@ final class _Export {
   /// [score] with every part shown, so the views hold every staff.
   final Score shown;
 
+  /// The copies [written] holds, by bar and staff.
+  final Map<(int, StaffId), _Copy> copies = {};
+
+  /// [shown] with each staff under a standing measure-repeat sign holding a
+  /// copy of the voices of the bar it plays, so the views write its notes.
+  late final Score written = _withCopies();
+
   late final List<MeasureView> views = [
-    for (final column in shown.measures) shown.measureView(column.id),
+    for (final column in written.measures) written.measureView(column.id),
   ];
   late final List<_Ends> ends = [
     for (final spanner in score.spanners) _endsOf(spanner),
@@ -216,8 +236,53 @@ final class _Export {
     );
   }
 
+  /// [shown] with every staff that plays another bar holding a copy of
+  /// that bar's voices, with new ids and no lyrics, and its own clef and
+  /// directions. The copy has no sign, which a bar holding notes may not
+  /// have, so the signs are read from [score]. A bar that plays a
+  /// whole-bar rest keeps its own.
+  Score _withCopies() {
+    final measures = shown.measures;
+    var next = largestId(score);
+    int mint() => ++next;
+    var columns = measures;
+    for (final (bar, column) in measures.indexed) {
+      var copied = column;
+      for (final (k, slice) in column.staves.indexed) {
+        final source = playedBar(measures, bar, k);
+        final voices = measures[source].staves[k].voices;
+        if (source == bar ||
+            voices.length == 1 &&
+                voices.first.items.singleOrNull is MeasureRest) {
+          continue;
+        }
+        final ids = <EventId, EventId>{};
+        EventId event(EventId id) => ids[id] = EventId(mint());
+        copies[(bar, slice.staff)] = (source: source, ids: ids);
+        copied = copied.withStaff(
+          slice.copyWith(
+            voices: Seq([
+              for (final voice in voices)
+                Voice(
+                  slot: voice.slot,
+                  items: Seq([
+                    for (final item in voice.items) _copied(item, event, mint),
+                  ]),
+                ),
+            ]),
+            measureRepeat: () => null,
+          ),
+        );
+      }
+      if (!identical(copied, column)) {
+        columns = columns.replaceAt(bar, copied);
+      }
+    }
+    return shown.copyWith(measures: columns);
+  }
+
   XmlElement _measure(int p, int bar) {
-    final part = shown.parts[p];
+    final part = written.parts[p];
     final view = views[bar];
     final staves = [
       for (final staff in part.staves)
@@ -301,7 +366,7 @@ final class _Export {
   /// two-bar repeats starts at its first bar, with the bars it repeats, and
   /// stops at the first bar after it, which the file shows as usual.
   List<XmlElement> _measureRepeat(int bar, StaffView staff, int? number) {
-    final sign = staff.source.measureRepeat;
+    final sign = score.measures[bar].staff(staff.source.staff).measureRepeat;
     final before = bar == 0
         ? null
         : score.measures[bar - 1].staff(staff.source.staff).measureRepeat;
@@ -351,7 +416,7 @@ final class _Export {
       }
 
       for (final voice in staff.voices) {
-        final write = _writer(p, staff, k, voice);
+        final write = _writer(p, bar, staff, k, voice);
         moveTo(Moment.zero);
         for (final timed in voice.events) {
           if (voice.slot == VoiceSlot.one) {
@@ -437,18 +502,28 @@ final class _Export {
   }
 
   /// Writes the `<note>`s of each event of [voice] on staff [k] of part
-  /// [p].
+  /// [p] in [bar]. A copy under a measure-repeat sign takes its beams from
+  /// the bar it copies, whose meter may group them otherwise.
   List<XmlElement> Function(TimedEvent) _writer(
     int p,
+    int bar,
     StaffView staff,
     int k,
     VoiceView voice,
   ) {
     final part = staff.part;
     final number = '${_voice(k, voice)}';
+    final copy = copies[(bar, staff.source.staff)];
+    final beamed = copy == null
+        ? voice
+        : views[copy.source].staves
+              .firstWhere((s) => s.source.staff == staff.source.staff)
+              .voices
+              .firstWhere((v) => v.slot == voice.slot);
     final beams = {
-      for (final group in voice.beams)
-        for (final (i, id) in group.events.indexed) id: group.joins[i],
+      for (final group in beamed.beams)
+        for (final (i, id) in group.events.indexed)
+          copy?.ids[id] ?? id: group.joins[i],
     };
     final tuplets = {for (final view in voice.tuplets) view.tuplet.id: view};
     final tupletMarks = <EventId, List<XmlElement>>{};
@@ -723,8 +798,9 @@ final class _Export {
     final staves = score.partOf(spanner.staff).staves;
     final staffIndex = staves.indexWhere((staff) => staff.id == spanner.staff);
     int stream(VoiceSlot voice) => voiceNumber(staffIndex, voice);
+    // An end in a covered bar lands on the copy written there.
     (TimedEvent, int) eventAt(VoiceSlot voice, ScorePoint point) {
-      final timed = score.anchorAt(spanner.staff, voice, point)!;
+      final timed = written.anchorAt(spanner.staff, voice, point)!;
       return (timed, stream(timed.voice));
     }
 
@@ -841,6 +917,56 @@ final class _Export {
 /// A slur, glissando or trill line end on an event: the spanner, and
 /// whether it starts there.
 typedef _Mark = (Spanner, bool);
+
+/// [item] with a new id on every event, note, grace and tuplet in it, taken
+/// from [event] for events and [mint] for the rest, and no lyrics.
+VoiceItem _copied(
+  VoiceItem item,
+  EventId Function(EventId source) event,
+  int Function() mint,
+) {
+  Seq<Note> heads(Seq<Note> notes) => Seq([
+    for (final note in notes) note.copyWith(id: NoteId(mint())),
+  ]);
+  return switch (item) {
+    Gap() => item,
+    ChordEvent(:final graces) => item.copyWith(
+      id: event(item.id),
+      notes: heads(item.notes),
+      graces: Seq([
+        for (final grace in graces)
+          GraceChord(
+            id: event(grace.id),
+            kind: grace.kind,
+            value: grace.value,
+            notes: heads(grace.notes),
+          ),
+      ]),
+      lyrics: const Seq.empty(),
+    ),
+    RestEvent(:final id, :final value, :final articulations, :final hidden) =>
+      RestEvent(
+        id: event(id),
+        value: value,
+        articulations: articulations,
+        hidden: hidden,
+      ),
+    MeasureRest(:final id, :final span, :final articulations) => MeasureRest(
+      id: event(id),
+      span: span,
+      articulations: articulations,
+    ),
+    Tuplet(:final ratio, :final unit, :final members, :final bracket) => Tuplet(
+      id: TupletId(mint()),
+      ratio: ratio,
+      unit: unit,
+      members: Seq([
+        for (final member in members) _copied(member, event, mint) as Content,
+      ]),
+      bracket: bracket,
+    ),
+  };
+}
 
 XmlElement _navigation(NavigationMark mark, XmlElement? staff) {
   final (types, sound) = switch (mark) {

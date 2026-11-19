@@ -127,6 +127,22 @@ List<String> notesIn(List<Placed> children) => [
 /// The same lines as [notesIn] reads, made from the model.
 List<String> notesOf(Score score) {
   final shown = showAll(score);
+  // A staff under a measure-repeat sign writes the notes of the bar it
+  // plays. Edits keep every sign standing, so that bar is found by
+  // stepping back over the signs.
+  StaffView played(int bar, StaffView staff) {
+    MeasureRepeat? signAt(int bar) =>
+        shown.measures[bar].staff(staff.source.staff).measureRepeat;
+    var source = bar;
+    for (var sign = signAt(source); sign != null; sign = signAt(source)) {
+      source -= sign.bars;
+    }
+    return shown
+        .measureView(shown.measures[source].id)
+        .staves
+        .firstWhere((s) => s.source.staff == staff.source.staff);
+  }
+
   String written(Part part, Event event, Note? note) => switch ((note, event)) {
     (PitchedNote(:final pitch), _) =>
       '${pitch.transpose(-part.instrument.transposition)}',
@@ -148,7 +164,7 @@ List<String> notesOf(Score score) {
       for (final (bar, column) in shown.measures.indexed)
         for (final staff in shown.measureView(column.id).staves)
           if (staff.part.id == part.id)
-            for (final voice in staff.voices)
+            for (final voice in played(bar, staff).voices)
               for (final timed in voice.events)
                 for (final (grace, note) in heads(timed.event))
                   noteLine(

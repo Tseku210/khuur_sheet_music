@@ -40,6 +40,55 @@ String stop([String number = '']) =>
     '<attributes><measure-style$number>'
     '<measure-repeat type="stop"/></measure-style></attributes>';
 
+/// The `<note>`s of bar [bar] of part [part], both from 0, each as its XML.
+List<String> notesAt(String xml, int bar, {int part = 0}) => [
+  for (final note
+      in XmlDocument.parse(xml)
+          .findAllElements('part')
+          .elementAt(part)
+          .findElements('measure')
+          .elementAt(bar)
+          .findElements('note'))
+    note.toXmlString(),
+];
+
+/// The children of bar [bar] of the first part, from 0, as element names
+/// and the `type` of each `<tie>`, `<slur>` and `<wedge>` in them.
+List<String> contentsAt(String xml, int bar) => [
+  for (final child in XmlDocument.parse(
+    xml,
+  ).findAllElements('measure').elementAt(bar).childElements)
+    [
+      child.name.local,
+      for (final mark in child.descendantElements)
+        if (const {'tie', 'slur', 'wedge'}.contains(mark.name.local))
+          '${mark.name.local}:${mark.getAttribute('type')}',
+    ].join(' '),
+];
+
+/// [score] with the measure-repeat signs [signs] set, each a bar index
+/// and the bars it repeats, on staff [staff] of the score or every staff.
+Score withSigns(Score score, List<(int, int)> signs, {int? staff}) =>
+    signs.fold(EditSession.start(score), (session, sign) {
+      final (bar, bars) = sign;
+      return applied(
+        session.run(
+          SetMeasureRepeat(
+            idOf(session, bar),
+            bars: bars,
+            staff: staff == null ? null : score.staves[staff].id,
+          ),
+        ),
+      );
+    }).score;
+
+/// [xml] read back, checking that its export is [xml] itself.
+Score readBack(String xml) {
+  final score = imported(xml);
+  expect(scoreToMusicXml(score), xml);
+  return score;
+}
+
 void main() {
   test('export opens a run at its first bar and stops it at the bar after, '
       'and import reads the signs back', () {
@@ -147,5 +196,149 @@ void main() {
 
     expect(signsOf(score).expand((s) => s), everyElement(isNull));
     expect(bar(score, 0), isNot(['measure-rest']));
+  });
+
+  test('export writes, in each bar of a chain of one-bar repeats, the '
+      'notes of the bar they repeat, with its beams and tuplet', () {
+    final score = withSigns(
+      fill(blankScore(bars: 5), 0, [
+        chordOf(101, 'C5', value: NoteValue.eighth),
+        chordOf(102, 'D5', value: NoteValue.eighth),
+        tripletOfEighths(103, [
+          chordOf(104, 'E5', value: NoteValue.eighth),
+          chordOf(105, 'F#5', value: NoteValue.eighth),
+          chordOf(106, 'G5', value: NoteValue.eighth),
+        ]),
+        chordOf(107, 'A5', value: NoteValue.half),
+      ]),
+      [(1, 1), (2, 1), (3, 1)],
+    );
+
+    final xml = scoreToMusicXml(score);
+
+    for (final bar in [1, 2, 3]) {
+      expect(notesAt(xml, bar), notesAt(xml, 0), reason: 'bar $bar');
+    }
+    expect(
+      notesAt(xml, 0).join(),
+      allOf(contains('<beam'), contains('<tuplet')),
+    );
+    expect(notesAt(xml, 4).single, contains('<rest measure="yes"/>'));
+    final back = readBack(xml);
+    expect(signsOf(back), signsOf(score));
+    expect(
+      [
+        for (final i in [1, 2, 3]) bar(back, i),
+      ],
+      [
+        for (final _ in [1, 2, 3]) ['measure-rest'],
+      ],
+    );
+  });
+
+  test('a copied bar keeps the tie inside it, and leaves the slur and the '
+      'lyric to the bar it copies', () {
+    final source = fill(blankScore(bars: 3), 0, [
+      chordOf(101, 'C5', tie: true).copyWith(
+        lyrics: Seq(const [Lyric(verse: 1, text: 'la')]),
+      ),
+      chordOf(102, 'C5'),
+      chordOf(103, 'D5'),
+      chordOf(104, 'E5'),
+    ]);
+    final score = withSigns(
+      withSlur(
+        source,
+        pointAt(source, 0, at(1, 2)),
+        pointAt(source, 0, at(3, 4)),
+      ),
+      [(1, 1)],
+    );
+
+    final xml = scoreToMusicXml(score);
+
+    expect(contentsAt(xml, 1), [
+      'attributes',
+      'note tie:start',
+      'note tie:stop',
+      'note',
+      'note',
+    ]);
+    expect(contentsAt(xml, 0).where((child) => child.startsWith('note')), [
+      'note tie:start',
+      'note tie:stop',
+      'note slur:start',
+      'note slur:stop',
+    ]);
+    expect(notesAt(xml, 1).join(), isNot(contains('<lyric')));
+    expect(notesAt(xml, 0).join(), contains('<lyric'));
+    final back = readBack(xml);
+    expect(back.spanners, hasLength(1));
+    expect(bar(back, 0), [
+      'C5/quarter~',
+      'C5/quarter',
+      'D5/quarter',
+      'E5/quarter',
+    ]);
+  });
+
+  test('a slur and a hairpin that end under the sign end on its copy', () {
+    final source = fill(blankScore(bars: 3), 0, [
+      chordOf(101, 'C5'),
+      chordOf(102, 'D5'),
+      chordOf(103, 'E5'),
+      chordOf(104, 'F5'),
+    ]);
+    final end = pointAt(source, 1, Moment.zero);
+    final score = withSigns(
+      withSpanner(
+        withSlur(source, pointAt(source, 0, at(3, 4)), end),
+        const Hairpin(crescendo: true),
+        pointAt(source, 0, Moment.zero),
+        end,
+      ),
+      [(1, 1)],
+    );
+
+    final xml = scoreToMusicXml(score);
+
+    expect(contentsAt(xml, 1), [
+      'attributes',
+      'note slur:stop',
+      'note',
+      'note',
+      'note',
+      'direction wedge:stop',
+    ]);
+    readBack(xml);
+  });
+
+  test('a two-bar repeat on the lower staff of a second part copies both '
+      'bars there, voice two and the tie between them included', () {
+    var source = blankScore(parts: const [morinKhuur, piano], bars: 5);
+    source = fill(source, 0, [
+      chordOf(201, 'C3', value: NoteValue.whole, tie: true),
+    ], staff: 2);
+    source = fill(source, 1, [
+      chordOf(202, 'C3', value: NoteValue.whole),
+    ], staff: 2);
+    source = fill(
+      source,
+      0,
+      [Gap(len(1, 2)), chordOf(203, 'G2', value: NoteValue.half)],
+      staff: 2,
+      slot: VoiceSlot.two,
+    );
+    final score = withSigns(source, [(2, 2)], staff: 2);
+
+    final xml = scoreToMusicXml(score);
+
+    expect(notesAt(xml, 2, part: 1), notesAt(xml, 0, part: 1));
+    expect(notesAt(xml, 3, part: 1), notesAt(xml, 1, part: 1));
+    expect(notesAt(xml, 2, part: 1).join(), contains('<tie type="start"/>'));
+    expect(notesAt(xml, 3, part: 1).join(), contains('<tie type="stop"/>'));
+    expect(notesAt(xml, 2, part: 1), hasLength(3));
+    expect(notesAt(xml, 2).single, contains('<rest measure="yes"/>'));
+    expect(signsOf(readBack(xml)), signsOf(score));
   });
 }
