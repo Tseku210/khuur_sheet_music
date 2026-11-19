@@ -844,6 +844,115 @@ void main() {
       ]);
     });
 
+    test('trills from the note a trill line starts inside, as the sheet '
+        'draws it', () {
+      final score = sessionWith([
+        [
+          quarters(1, 'C4'),
+          chordOf(2, 'E4', value: NoteValue.half),
+          quarters(3, 'G4'),
+        ],
+      ]).score;
+      List<(double, int)> heard(Moment from) => [
+        for (final (start, key, _) in attacks(
+          compiled(
+            withLine(
+              score,
+              const TrillLine(),
+              pointAt(score, 0, from),
+              pointAt(score, 0, from),
+            ),
+          ),
+        ))
+          (start, key),
+      ];
+
+      expect(heard(at(1, 2)), heard(at(1, 4)));
+      expect(heard(at(1, 4)), contains((0.675, 65)));
+    });
+
+    test('holds a tied note and trills the note it is tied to when a trill '
+        'line starts there', () {
+      final score = sessionWith([
+        [
+          quarters(1, 'C4'),
+          chordOf(2, 'E4', tie: true),
+          quarters(3, 'E4'),
+          quarters(4, 'G4'),
+        ],
+      ]).score;
+      final heard = attacks(
+        compiled(
+          withLine(
+            score,
+            const TrillLine(),
+            pointAt(score, 0, at(1, 2)),
+            pointAt(score, 0, at(1, 2)),
+          ),
+        ),
+      );
+
+      expect(
+        [
+          for (final (start, key, _) in heard)
+            if (start < 1.2) (start, key),
+        ],
+        [(0.0, 60), (0.6, 64)],
+      );
+      expect(heard, contains((1.275, 65, 3)));
+    });
+
+    test('trills a tied note on to its end when a trill line ends on it', () {
+      final tied = sessionWith([
+        [
+          quarters(1, 'C4'),
+          chordOf(2, 'E4', tie: true),
+          quarters(3, 'E4'),
+          quarters(4, 'G4'),
+        ],
+      ]).score;
+      final held = sessionWith([
+        [quarters(1, 'C4'), halves(2, 'E4'), quarters(4, 'G4')],
+      ]).score;
+      List<(double, int)> heard(Score score) => [
+        for (final (start, key, _) in attacks(
+          compiled(
+            withLine(
+              score,
+              const TrillLine(),
+              pointAt(score, 0, Moment.zero),
+              pointAt(score, 0, at(1, 4)),
+            ),
+          ),
+        ))
+          (start, key),
+      ];
+
+      expect(heard(tied), heard(held));
+    });
+
+    test('plays a trill line from inside a note the same after MusicXML out '
+        'and in', () {
+      final written = sessionWith([
+        [
+          quarters(1, 'C4'),
+          chordOf(2, 'E4', value: NoteValue.half),
+          quarters(3, 'G4'),
+        ],
+      ]).score;
+      final score = withLine(
+        written,
+        const TrillLine(),
+        pointAt(written, 0, at(1, 2)),
+        pointAt(written, 0, at(3, 4)),
+      );
+      List<(double, int)> heard(Score score) => [
+        for (final (start, key, _) in attacks(compiled(score))) (start, key),
+      ];
+
+      expect(heard(scoreFromMusicXml(scoreToMusicXml(score))), heard(score));
+    });
+
     test('merges a tie chain into one note from its first event', () {
       final score = sessionWith([
         [

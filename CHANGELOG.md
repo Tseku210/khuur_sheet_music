@@ -5,6 +5,8 @@
 * Playback and MIDI export play a bar under a sign as the bars it repeats, on every pass through a repeat or an ending, each note as loud as the note it repeats and under its slur and trill line. A dynamic or hairpin written in the bars under signs takes over from where it stands, and a hairpin that ends on the barline before them does not. While a bar under a sign plays, the sheet highlights the whole bar, on both bars of a two-bar sign.
 * JSON stores the sign as `measureRepeat` on a staff of a bar, and MusicXML reads and writes `<measure-style><measure-repeat>`. A file without them reads as before.
 * MusicXML export writes, in each bar under a sign, the notes of the bar it repeats, as MusicXML asks, so another app that ignores the sign shows and plays them. They keep the beams and tuplets of that bar and the ties inside it, and leave its lyrics and slurs to it.
+* Playback trills the notes a trill line is drawn over, so a score sounds the same after a MusicXML export and import. A trilled note trills on through its tie.
+* A meter change keeps a slur, glissando or trill line on the note it starts and ends on. A split note no longer starts to trill halfway through.
 
 ## 0.3.4
 * An app opens a compressed `.mxl` file, the default export of MuseScore, Dorico, Sibelius and Finale, by passing its bytes to `scoreFromMusicXmlBytes`. The same call reads an uncompressed `.musicxml` file in UTF-8 or UTF-16. `scoreToMxl` writes `.mxl`. Both come from `khuur_score_model`.

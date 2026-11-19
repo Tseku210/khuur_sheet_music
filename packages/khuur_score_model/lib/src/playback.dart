@@ -135,7 +135,10 @@ final class PlaybackCompiler {
         : _range(score, options.from, options.to);
     final timeline = <_Bar>[];
     final sounding = <_Sounding>[];
-    final ties = <(StaffId, VoiceSlot, Tone), (_Sounding, int, Moment)>{};
+    // In each lane, the window and onset of the note a tie goes on to, with
+    // the note it holds and whether the chord it goes on from trills.
+    final ties = <(StaffId, VoiceSlot, Tone), (_Sounding, (int, Moment))>{};
+    final trilledTies = <(StaffId, VoiceSlot, Tone), ((int, Moment), bool)>{};
     var seconds = 0.0;
     for (final (k, (:index, :pass, :from, :to)) in windows.indexed) {
       final column = measures[index];
@@ -169,6 +172,9 @@ final class PlaybackCompiler {
         playing: fragment.events.where(plays).toList(),
       );
       timeline.add(bar);
+      (int, Moment) tiedOn(Moment end) => end == Moment.zero + column.length
+          ? (k + 1, Moment.zero)
+          : (k, end);
       for (final chord in bar.heard) {
         final TimedEvent(:onset, :voice, ref: EventRef(:staff)) = chord.timed;
         final (:channel, :instrument, :loudness) = sounds[staff]!;
@@ -183,9 +189,30 @@ final class PlaybackCompiler {
               ? position
               : written,
         );
+        // A chord trills under a trill line, and on from a trilled chord
+        // every note of it is tied from, as one long note trills to its
+        // end. So a line that ends on a note trills all of it, however it
+        // is split into tied notes.
+        final continued = [
+          for (final note in chord.event.notes)
+            if (trilledTies.remove((staff, voice, note.tone))
+                case (final at, final trilled)
+                when at == (k, onset))
+              trilled,
+        ];
         final trilled =
-            trills[staff]?.any((t) => t.$1 <= written && written <= t.$2) ??
-            false;
+            (trills[staff]?.any((t) => t.$1 <= written && written <= t.$2) ??
+                false) ||
+            continued.length == chord.event.notes.length &&
+                continued.contains(true);
+        for (final note in chord.event.notes) {
+          if (note.tie) {
+            trilledTies[(staff, voice, note.tone)] = (
+              tiedOn(onset + chord.timed.duration),
+              trilled,
+            );
+          }
+        }
         final slurred =
             slurs[(staff, voice)]?.any(
               (s) => s.$1 <= written && written < s.$2,
@@ -204,8 +231,8 @@ final class PlaybackCompiler {
               : (end - start) * (1 - (attack.gate ?? 0.9));
           final lane = (staff, voice, attack.note.tone);
           final _Sounding note;
-          if (ties.remove(lane) case (final held, final window, final expected)
-              when window == k && expected == attack.onset) {
+          if (ties.remove(lane) case (final held, final at)
+              when at == (k, attack.onset)) {
             note = held
               ..end = end
               ..release = release
@@ -226,10 +253,7 @@ final class PlaybackCompiler {
             sounding.add(note);
           }
           if (attack.note.tie) {
-            final after = attack.onset + attack.length;
-            ties[lane] = after == Moment.zero + column.length
-                ? (note, k + 1, Moment.zero)
-                : (note, k, after);
+            ties[lane] = (note, tiedOn(attack.onset + attack.length));
           }
         }
       }
@@ -379,8 +403,9 @@ final class _Timeline {
   return (channels: channels, sounds: sounds);
 }
 
-/// The spans of every trill line, from its first point to its last point, by
-/// staff.
+/// The spans of every trill line, by staff, from the onset of the note it
+/// starts on to the onset of the note it ends on, the notes the sheet draws
+/// it over.
 Map<StaffId, List<(Moment, Moment)>> _trillSpans(
   Score score,
   _Timeline time,
@@ -388,10 +413,11 @@ Map<StaffId, List<(Moment, Moment)>> _trillSpans(
   final trills = <StaffId, List<(Moment, Moment)>>{};
   for (final Spanner(:kind, :staff, :first, :last) in score.spanners) {
     if (kind is TrillLine) {
-      (trills[staff] ??= []).add((
-        time.of(first.measure, first.offset),
-        time.of(last.measure, last.offset),
-      ));
+      Moment onsetAt(ScorePoint point) => time.of(
+        point.measure,
+        score.anchorAt(staff, VoiceSlot.one, point)!.onset,
+      );
+      (trills[staff] ??= []).add((onsetAt(first), onsetAt(last)));
     }
   }
   return trills;

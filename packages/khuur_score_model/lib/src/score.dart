@@ -936,7 +936,8 @@ final class OctaveLine extends SpannerKind {
 }
 
 /// A trill sign with a wavy line, for a trill held over several notes.
-/// Playback trills the notes under it.
+/// Playback trills the notes from the one it starts on to the one it ends
+/// on, as the sheet draws it, and a trilled note on through its tie.
 final class TrillLine extends SpannerKind {
   /// The trill line, which has no fields.
   const TrillLine();

@@ -16,7 +16,8 @@ part of 'session.dart';
 /// re-barring with every bar its own section that may not grow.
 ///
 /// The cursor, a range selection and spanner ends follow the music by
-/// time. A meter of the same length only replaces the meter.
+/// time. The ends of a slur, glissando or trill line follow the notes they
+/// are on. A meter of the same length only replaces the meter.
 _Result _setMeter(Score score, SetMeter edit, _Ids ids, EditSession session) {
   final measures = score.measures;
   final start = _barIndex(score, edit.from);
@@ -67,12 +68,14 @@ _Result _setMeter(Score score, SetMeter edit, _Ids ids, EditSession session) {
   final spanners = _moveSpanners(
     rebarred,
     written.spanners,
-    first: (spanner) => onset(spanner.first),
+    first: (spanner) => holding.containsKey(spanner.first.measure)
+        ? onset(_onItsNote(written, spanner, spanner.first))
+        : spanner.first,
     last: (spanner) {
       final section = holding[spanner.last.measure];
       return section == null
           ? spanner.last
-          : section.moved(spanner.last) ??
+          : section.moved(_onItsNote(written, spanner, spanner.last)) ??
                 _lastOnset(section.bars.last, spanner);
     },
   );
