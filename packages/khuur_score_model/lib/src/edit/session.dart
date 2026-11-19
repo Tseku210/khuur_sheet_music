@@ -11,6 +11,7 @@ import 'dart:math';
 import '../empty_bar.dart';
 import '../events.dart';
 import '../measure.dart';
+import '../measure_repeats.dart';
 import '../pitch.dart';
 import '../playback.dart';
 import '../refs.dart';
@@ -167,7 +168,7 @@ final class EditSession {
     final result = _apply(score, edit, ids, this);
     final next = identical(result.score, score)
         ? score
-        : _withFittingSpanners(result.score);
+        : _withFittingSpanners(_withStandingMeasureRepeats(result.score));
     return EditSession._(
       next,
       result.cursor ?? _revalidateCursor(cursor, score, next),

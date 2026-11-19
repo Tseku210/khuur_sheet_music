@@ -842,6 +842,38 @@ final class SetVolta extends Edit {
   String get label => 'Ending';
 }
 
+/// Puts [measure] under a measure-repeat sign that repeats the [bars] bars
+/// before it, or clears the sign when [bars] is null. Idempotent.
+///
+/// [staff] names the staff the sign goes on, and null puts it on every
+/// staff. A one-bar repeat covers [measure]. A two-bar repeat covers
+/// [measure] and the bar after it, and its sign prints over the barline
+/// between them. A covered bar's notes and clef changes give way to one
+/// whole-bar rest, and a tie into it is cleared. Clearing keeps the rest and
+/// clears both halves of a two-bar repeat. Writing notes into a covered bar
+/// clears its sign too.
+///
+/// Refused with [InvalidValue] when [bars] is not 1 or 2, when there are
+/// fewer than [bars] bars before [measure], when a two-bar repeat has no
+/// bar after [measure], or when the bars repeated are not as long as the
+/// bars that repeat them.
+final class SetMeasureRepeat extends Edit {
+  /// Puts [measure] of [staff] under a sign repeating [bars] bars.
+  const SetMeasureRepeat(this.measure, {required this.bars, this.staff});
+
+  /// The bar the sign covers, the first of two for a two-bar repeat.
+  final MeasureId measure;
+
+  /// The staff the sign goes on, or null for every staff.
+  final StaffId? staff;
+
+  /// How many bars the sign repeats, 1 or 2, or null to clear it.
+  final int? bars;
+
+  @override
+  String get label => 'Measure repeat';
+}
+
 /// Replaces the navigation marks of [measure], such as segno, coda, fine and
 /// jumps. Idempotent.
 final class SetNavigation extends Edit {

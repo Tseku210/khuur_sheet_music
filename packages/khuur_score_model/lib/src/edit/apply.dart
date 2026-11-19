@@ -241,6 +241,8 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
       last,
       volta,
     ),
+    SetMeasureRepeat(:final measure, :final staff, :final bars) =>
+      _setMeasureRepeat(score, measure, staff, bars, ids),
     SetNavigation(:final measure, :final marks) => _setNavigation(
       score,
       measure,

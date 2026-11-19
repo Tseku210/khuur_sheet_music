@@ -15,6 +15,7 @@ library;
 
 import '../events.dart';
 import '../measure.dart';
+import '../measure_repeats.dart';
 import '../pitch.dart';
 import '../refs.dart';
 import '../rules.dart';
@@ -91,6 +92,7 @@ final class ScoreFormatException implements Exception {
   /// A JSON path or a MusicXML element path to the offending value, such as
   /// `$.measures[12].staves[0]` or `/score-partwise/part/measure[3]/note[2]`.
   final String path;
+
   /// Why the value is refused, such as `missing` or `fifths outside -7..7`.
   final String message;
 
