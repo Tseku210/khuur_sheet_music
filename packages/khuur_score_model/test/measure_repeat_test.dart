@@ -45,40 +45,6 @@ EditSession tune(int bars, {int beats = 4}) {
   return session;
 }
 
-/// Each note the score plays, as (start, duration, key, velocity), times
-/// in milliseconds.
-List<(int, int, int, int)> heard(Score score) => [
-  for (final note
-      in PlaybackCompiler()
-          .compile(score)
-          .notesBetween(
-            0,
-            double.infinity,
-          ))
-    (
-      (note.start * 1000).round(),
-      (note.duration * 1000).round(),
-      note.key,
-      note.velocity,
-    ),
-];
-
-/// Checks that [actual] plays [expected]: the same notes at the same
-/// velocities, with times within a millisecond, as rounding leaves them.
-void expectHeard(Score actual, Score expected, {String? reason}) {
-  final heardActual = heard(actual);
-  final heardExpected = heard(expected);
-  expect(heardActual, hasLength(heardExpected.length), reason: reason);
-  for (final (i, (start, duration, key, velocity)) in heardExpected.indexed) {
-    final (s, d, k, v) = heardActual[i];
-    expect(
-      (k, v, (s - start).abs() <= 1, (d - duration).abs() <= 1),
-      (key, velocity, true, true),
-      reason: '$reason, note $i',
-    );
-  }
-}
-
 /// [session] after [edits], each refused edit failing the test.
 EditSession after(EditSession session, List<Edit Function(Score)> edits) =>
     edits.fold(session, (s, edit) => applied(s.run(edit(s.score))));

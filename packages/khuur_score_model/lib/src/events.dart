@@ -488,6 +488,10 @@ enum BeamMode {
 /// Stackable event marks. A string note can still carry down-bow,
 /// accent and trill at once, through [ChordEvent.bowing],
 /// [Event.articulations] and [ChordEvent.ornament].
+///
+/// In a tie chain, the time a [staccato], [staccatissimo] or [tenuto] sets
+/// runs from the note it is on to the end of the chain, and the last marked
+/// note's mark counts.
 enum Articulation {
   /// A dot. The note sounds for half its time, or three quarters under a
   /// [tenuto].
