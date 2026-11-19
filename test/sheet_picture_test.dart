@@ -1293,4 +1293,38 @@ void main() {
     expect(short, hasLength(1));
     expect(short.single.width, closeTo(0.9 * spacePx, 1e-3));
   });
+
+  testWidgets('a sheet paints a one-bar repeat sign in its bar and a '
+      'two-bar sign over its barline, inside the bands', (tester) async {
+    await tester.runAsync(() async {
+      final painter = bravuraPainter();
+      await loadBravura(painter);
+      await loadTextFont();
+      var score = Score.blank(parts: const [grand], measureCount: 5);
+      for (final (bar, pitch) in [(0, 'C5'), (1, 'E5')]) {
+        score = edit(
+          score,
+          EnterNote(
+            at: point(score, bar, Moment.zero),
+            tone: Pitch.parse(pitch),
+            value: half,
+            appendBar: false,
+          ),
+        );
+      }
+      score = edit(score, SetMeasureRepeat(score.measures[2].id, bars: 1));
+      score = edit(score, SetMeasureRepeat(score.measures[3].id, bars: 2));
+      final layout = layoutOf(score);
+
+      final glyphs = [
+        for (var i = 0; i < layout.systemCount; i++)
+          ...layout.systemAt(i).drawables.whereType<GlyphDraw>().map(
+            (glyph) => glyph.glyph,
+          ),
+      ];
+      expect(glyphs.where((g) => g == Glyph.repeat1Bar), hasLength(2));
+      expect(glyphs.where((g) => g == Glyph.repeat2Bars), hasLength(2));
+      writeSnapshot('sheet_measure_repeats', await pictureOf(layout, painter));
+    });
+  });
 }
