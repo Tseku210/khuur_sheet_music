@@ -95,7 +95,8 @@ enum InkRole {
   /// An augmentation dot, of a chord or of a rest.
   dot,
 
-  /// A rest, and the bar and the count of a rest of several bars.
+  /// A rest, the bar and the count of a rest of several bars, and a
+  /// measure-repeat sign, drawn for its bar's whole-bar rest.
   rest,
 
   /// A tuplet's number and its bracket.

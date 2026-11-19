@@ -1081,6 +1081,14 @@ const bravuraGlyphs = <Glyph, GlyphMetrics>{
     box: Box(0, -0.2, 0.4, 0.2),
     advance: 0.4,
   ),
+  Glyph.repeat1Bar: GlyphMetrics(
+    box: Box(0, -1.116, 2.128, 1),
+    advance: 2.132,
+  ),
+  Glyph.repeat2Bars: GlyphMetrics(
+    box: Box(0, -1.116, 3.048, 1),
+    advance: 3.044,
+  ),
   Glyph.dalSegno: GlyphMetrics(
     box: Box(0.044, -1.768, 4.328, 0.036),
     advance: 4.328,

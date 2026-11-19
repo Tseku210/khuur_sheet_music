@@ -500,7 +500,10 @@ List<MeasureId> _starts(
 ///
 /// The first unit is taken whatever its width. Each later unit is taken
 /// when the system still fits with it as the last one, which counts the
-/// courtesy of the unit after it.
+/// courtesy of the unit after it. The two bars of a two-bar repeat go
+/// whole, since the sign prints over their barline: a system that would end
+/// between them ends before them, or takes them both when they are its
+/// first. The model allows no layout break between them.
 int _endOf(List<BreakUnit> units, int start, double room) {
   var used = units[start].widths.systemHead + units[start].widths.body;
   var end = start;
@@ -514,6 +517,14 @@ int _endOf(List<BreakUnit> units, int start, double room) {
       break;
     }
     used = grown;
+    end++;
+  }
+  bool holds(int index) =>
+      index + 1 < units.length && units[index].last.holdsNext;
+  while (end > start && holds(end)) {
+    end--;
+  }
+  while (holds(end)) {
     end++;
   }
   return end;
@@ -549,6 +560,7 @@ List<int> _dirty(List<BreakUnit> old, List<BreakUnit> fresh) {
           old[was].last.measure != unit.last.measure ||
               old[was].widths != unit.widths ||
               old[was].breakBefore != unit.breakBefore ||
+              old[was].last.holdsNext != unit.last.holdsNext ||
               idAt(old, was - 1) != idAt(fresh, index - 1) ||
               idAt(old, was + 1) != idAt(fresh, index + 1) ||
               _courtesyAfter(old, was) != _courtesyAfter(fresh, index),

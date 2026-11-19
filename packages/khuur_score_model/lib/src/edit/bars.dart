@@ -124,6 +124,11 @@ _Result _setMeasureRepeat(
   if (covered.last >= measures.length) {
     throw const _Refuse(InvalidValue('a two-bar repeat needs a bar after'));
   }
+  if (bars == 2 && measures[covered.last].breakBefore != null) {
+    throw const _Refuse(
+      InvalidValue('a two-bar repeat has no layout break between its bars'),
+    );
+  }
   if (covered.any((i) => measures[i].length != measures[i - bars].length)) {
     throw const _Refuse(
       InvalidValue('a measure repeat repeats bars of its own length'),

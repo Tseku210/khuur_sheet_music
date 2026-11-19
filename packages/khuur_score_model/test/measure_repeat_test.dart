@@ -206,6 +206,23 @@ void main() {
       expect(signs(inserted.score), everyElement(isNull));
     });
 
+    test('clears a two-bar repeat when a break comes between its bars, '
+        'and refuses one over a break', () {
+      final session = applied(
+        blank(bars: 4).run(SetMeasureRepeat(idOf(blank(bars: 4), 2), bars: 2)),
+      );
+
+      final broken = applied(
+        session.run(SetBreak(idOf(session, 3), LayoutBreak.system)),
+      );
+
+      expect(signs(broken.score), everyElement(isNull));
+      expect(
+        refusal(broken.run(SetMeasureRepeat(idOf(broken, 2), bars: 2))),
+        isA<InvalidValue>(),
+      );
+    });
+
     test('stays through an edit that leaves its bar alone', () {
       final session = applied(
         withNotes(3).run(SetMeasureRepeat(idOf(withNotes(3), 2), bars: 1)),

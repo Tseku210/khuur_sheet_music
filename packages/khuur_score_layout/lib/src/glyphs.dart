@@ -625,6 +625,12 @@ enum Glyph {
   /// Single repeat dot.
   repeatDot(0xE044),
 
+  /// Repeat the bar before, a slash between two dots.
+  repeat1Bar(0xE500),
+
+  /// Repeat the two bars before, two slashes between two dots.
+  repeat2Bars(0xE501),
+
   /// Dal segno sign (D.S.).
   dalSegno(0xE045),
 

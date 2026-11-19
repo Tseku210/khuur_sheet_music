@@ -327,7 +327,8 @@ bool _holdsOnlyMeasureRest(Seq<Voice> voices, Seq<ClefChange> clefChanges) =>
 /// The sign is per staff, as MusicXML's `measure-repeat` is per part or per
 /// staff. It stands only where it can: there are [bars] bars before it,
 /// the bars it repeats have its length, and a half of a two-bar repeat sits
-/// next to its other half. `scoreFromJson` refuses a sign that does not
+/// next to its other half with no layout break between them, since its
+/// sign prints over the barline they share. `scoreFromJson` refuses a sign that does not
 /// stand, edits clear one, and MusicXML import drops one.
 enum MeasureRepeat {
   /// Repeats the bar before. One slash between two dots, in the bar.

@@ -851,12 +851,13 @@ final class SetVolta extends Edit {
 /// between them. A covered bar's notes and clef changes give way to one
 /// whole-bar rest, and a tie into it is cleared. Clearing keeps the rest and
 /// clears both halves of a two-bar repeat. Writing notes into a covered bar
-/// clears its sign too.
+/// clears its sign too, and so does a layout break between the two bars of
+/// a two-bar repeat.
 ///
 /// Refused with [InvalidValue] when [bars] is not 1 or 2, when there are
 /// fewer than [bars] bars before [measure], when a two-bar repeat has no
-/// bar after [measure], or when the bars repeated are not as long as the
-/// bars that repeat them.
+/// bar after [measure] or a layout break before that bar, or when the bars
+/// repeated are not as long as the bars that repeat them.
 final class SetMeasureRepeat extends Edit {
   /// Puts [measure] of [staff] under a sign repeating [bars] bars.
   const SetMeasureRepeat(this.measure, {required this.bars, this.staff});

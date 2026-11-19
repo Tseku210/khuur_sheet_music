@@ -6,7 +6,8 @@ import 'seq.dart';
 
 /// Whether the sign on staff [staff] of bar [bar] stands: it has the bars
 /// it repeats, they have its length, and a half of a two-bar repeat sits
-/// next to its other half, which stands too. True for a bar with no sign.
+/// next to its other half, which stands too, with no layout break before
+/// the second half. True for a bar with no sign.
 bool measureRepeatStands(Seq<MeasureColumn> measures, int bar, int staff) {
   bool alone(int i) {
     final sign = measures[i].staves[staff].measureRepeat;
@@ -23,10 +24,14 @@ bool measureRepeatStands(Seq<MeasureColumn> measures, int bar, int staff) {
     MeasureRepeat.oneBar => alone(bar),
     MeasureRepeat.twoBarsFirst =>
       at(bar + 1) == MeasureRepeat.twoBarsSecond &&
+          measures[bar + 1].breakBefore == null &&
           alone(bar) &&
           alone(bar + 1),
     MeasureRepeat.twoBarsSecond =>
-      at(bar - 1) == MeasureRepeat.twoBarsFirst && alone(bar - 1) && alone(bar),
+      at(bar - 1) == MeasureRepeat.twoBarsFirst &&
+          measures[bar].breakBefore == null &&
+          alone(bar - 1) &&
+          alone(bar),
   };
 }
 
