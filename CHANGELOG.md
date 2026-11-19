@@ -7,6 +7,7 @@
 * MusicXML export writes, in each bar under a sign, the notes of the bar it repeats, as MusicXML asks, so another app that ignores the sign shows and plays them. They keep the beams and tuplets of that bar and the ties inside it, and leave its lyrics and slurs to it.
 * Playback trills the notes a trill line is drawn over, so a score sounds the same after a MusicXML export and import. A trilled note trills on through its tie.
 * A meter change keeps a slur, glissando or trill line on the note it starts and ends on. A split note no longer starts to trill halfway through.
+* Inserting, deleting or changing the length of a note with ripple on, and changing a bar's length, keep a slur, glissando or trill line on the note it starts and ends on.
 
 ## 0.3.4
 * An app opens a compressed `.mxl` file, the default export of MuseScore, Dorico, Sibelius and Finale, by passing its bytes to `scoreFromMusicXmlBytes`. The same call reads an uncompressed `.musicxml` file in UTF-8 or UTF-16. `scoreToMxl` writes `.mxl`. Both come from `khuur_score_model`.

@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:khuur_score_model/khuur_score_model.dart';
 import 'package:test/test.dart';
 
@@ -1299,6 +1301,150 @@ void main() {
 
       expect(next.cursor, cursor);
       expect(next.score.spanners.single, same(score.spanners.single));
+    });
+  });
+
+  group('A line end a ripple or a bar length change moves', () {
+    test('stays on the note it is inside when a barline splits the note', () {
+      var session = barsOf([
+        [
+          chordOf(1, 'C4', value: NoteValue.half.dotted),
+          chordOf(2, 'D4', value: NoteValue.eighth),
+          chordOf(3, 'E4', value: NoteValue.eighth),
+        ],
+        [
+          chordOf(4, 'A4', value: NoteValue.half),
+          chordOf(5, 'A4', value: NoteValue.half),
+        ],
+      ]);
+      final staff = session.score.staves.first.id;
+      session = applied(
+        session.run(
+          AddSpanner(
+            kind: const TrillLine(),
+            staff: staff,
+            first: pointAt(session.score, 1, at(1, 8)),
+            last: pointAt(session.score, 1, at(1, 2)),
+          ),
+        ),
+      );
+
+      final score = applied(pull(session, [3])).score;
+      final trill = score.spanners.single;
+
+      expect(bar(score, 0), [
+        'C4/half.',
+        'D4/eighth',
+        'A4/eighth~',
+      ]);
+      expect(
+        [
+          for (final point in [trill.first, trill.last])
+            score.anchorAt(staff, VoiceSlot.one, point)!.event.id,
+        ],
+        [const EventId(4), const EventId(5)],
+      );
+    });
+
+    test('stays on its note when that note is still there, for random '
+        'notes, lines and edits', () {
+      T pick<T>(Random random, List<T> items) =>
+          items[random.nextInt(items.length)];
+      final values = {
+        1: NoteValue.eighth,
+        2: NoteValue.quarter,
+        4: NoteValue.half,
+        6: NoteValue.half.dotted,
+      };
+      for (var seed = 0; seed < 300; seed++) {
+        final random = Random(seed);
+        var session = blank(bars: 3);
+        for (var b = 0; b < 3; b++) {
+          for (var eighths = 0; eighths < 8;) {
+            final n = pick(random, [
+              for (final n in values.keys)
+                if (eighths + n <= 8) n,
+            ]);
+            session = enterAt(
+              session,
+              b,
+              at(eighths, 8),
+              tone: Pitch.parse('${pick(random, 'CDEFGAB'.split(''))}4'),
+              value: values[n]!,
+            );
+            eighths += n;
+          }
+        }
+        final staff = session.score.staves.first.id;
+        for (var i = 0; i < 3; i++) {
+          final (a, b) = (random.nextInt(24), random.nextInt(24));
+          ScorePoint point(int eighths) =>
+              pointAt(session.score, eighths ~/ 8, at(eighths % 8, 8));
+          final outcome = session.run(
+            AddSpanner(
+              kind: random.nextBool() ? const TrillLine() : const Slur(),
+              staff: staff,
+              first: point(min(a, b)),
+              last: point(max(a, b)),
+            ),
+          );
+          if (outcome case Applied(session: final added)) {
+            session = added;
+          }
+        }
+        final score = session.score;
+        final events = [
+          for (final column in score.measures)
+            for (final item in column.staff(staff).voice(VoiceSlot.one)!.items)
+              if (item is Event)
+                EventRef(measure: column.id, staff: staff, id: item.id),
+        ];
+        final b = random.nextInt(3);
+        final ripple = random.nextBool() ? Ripple.part : Ripple.staff;
+        final value = pick(random, values.values.toList());
+        final edit = switch (random.nextInt(4)) {
+          0 => EnterNote(
+            at: VoicePoint(
+              staff: staff,
+              voice: VoiceSlot.one,
+              at: pointAt(score, b, at(random.nextInt(8), 8)),
+            ),
+            tone: Pitch.parse('C5'),
+            value: value,
+            ripple: ripple,
+          ),
+          1 => Erase(
+            ItemSelection(Seq([pick(random, events)])),
+            ripple: ripple,
+          ),
+          2 => SetValue(pick(random, events), value, ripple: ripple),
+          _ => SetBarLength(
+            score.measures[b].id,
+            len(1 + random.nextInt(11), 8),
+          ),
+        };
+        if (session.run(edit) case Applied(session: final edited)) {
+          final after = edited.score;
+          for (final line in score.spanners) {
+            final kept = after.spanners.where((s) => s.id == line.id);
+            for (final moved in kept) {
+              for (final (was, now) in [
+                (line.first, moved.first),
+                (line.last, moved.last),
+              ]) {
+                final note = score.anchorAt(staff, VoiceSlot.one, was)!.event;
+                if (after.locate(note.id) != null) {
+                  expect(
+                    after.anchorAt(staff, VoiceSlot.one, now)?.event.id,
+                    note.id,
+                    reason: 'seed $seed, ${edit.label}, $was to $now',
+                  );
+                }
+              }
+            }
+          }
+        }
+      }
     });
   });
 

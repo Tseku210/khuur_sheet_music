@@ -471,6 +471,10 @@ _Rippled _ripple(
     final i? => length * Fraction(i) + Moment.zero.until(point.offset),
     null => null,
   };
+  ScorePoint onItsNote(Spanner spanner, ScorePoint point) =>
+      index.containsKey(point.measure)
+      ? _onItsNote(score, spanner, point)
+      : point;
   final last = rebuilt.measures[a + count - 1];
   final sectionEnd = ScorePoint(last.id, _barEnd(last));
 
@@ -485,10 +489,13 @@ _Rippled _ripple(
   final spanners = _moveSpanners(
     rebuilt,
     score.spanners,
-    first: (spanner) =>
-        moving.contains(spanner.staff) ? onset(spanner.first) : spanner.first,
+    first: (spanner) => moving.contains(spanner.staff)
+        ? onset(onItsNote(spanner, spanner.first))
+        : spanner.first,
     last: (spanner) {
-      final time = moving.contains(spanner.staff) ? timeOf(spanner.last) : null;
+      final time = moving.contains(spanner.staff)
+          ? timeOf(onItsNote(spanner, spanner.last))
+          : null;
       if (time == null) {
         return spanner.last;
       }

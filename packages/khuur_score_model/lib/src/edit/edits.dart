@@ -206,7 +206,8 @@ enum Overfill {
 ///   dropped, as [DeleteMeasures] drops it. A clef change there moves to
 ///   where the time was removed, so the clef that follows is kept. A
 ///   spanner start there moves to the music after it and an end to the
-///   last onset before it.
+///   last onset before it. A slur, glissando or trill line end inside a
+///   note moves with the note's onset, so it stays on that note.
 ///   Tempo marks, breaks and signature displays belong to every part, so
 ///   they stay with their bars.
 enum Ripple {
@@ -918,7 +919,8 @@ final class SetRehearsal extends Edit {
 /// meter's length (null). Content beyond a shortened length is cut from the
 /// end, with the event crossing the new end keeping its head, and so are
 /// clef changes, directions and tempo marks there. Spanner ends in the cut
-/// move as for [DeleteMeasures]. A lengthened bar is padded with rests in
+/// move as for [DeleteMeasures], and a slur, glissando or trill line end
+/// inside the note that crosses the new end stays on it. A lengthened bar is padded with rests in
 /// voice one and a gap in the other voices. Ties at the bar's end follow the
 /// [DeleteMeasures] rule. Refused with [WouldSplitTuplet] when the new end
 /// cuts a tuplet, and with [InvalidValue] for a length that is not a whole
