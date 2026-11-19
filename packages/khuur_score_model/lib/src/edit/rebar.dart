@@ -40,15 +40,18 @@ _Result _setMeter(Score score, SetMeter edit, _Ids ids, EditSession session) {
     );
   }
   final keep = edit.content == MeterContent.keepBars;
+  final written = score.copyWith(
+    measures: _writtenOut(measures, start, end, ids, keep: keep),
+  );
   final sections = [
     for (final (a, b)
         in keep
             ? [for (var i = start; i < end; i++) (i, i + 1)]
             : _sections(measures, start, end))
-      _rebar(score, a, b, meter, ids, keep: keep),
+      _rebar(written, a, b, meter, ids, keep: keep),
   ];
   final rebarred = score.copyWith(
-    measures: measures.replaceRange(start, end, [
+    measures: written.measures.replaceRange(start, end, [
       for (final section in sections) ...section.bars,
     ]),
     spanners: const Seq.empty(),
@@ -90,6 +93,60 @@ _Result _setMeter(Score score, SetMeter edit, _Ids ids, EditSession session) {
     cursor: followed.cursor,
     selection: followed.selection,
   );
+}
+
+/// [measures] with the notes written out on every staff under a
+/// measure-repeat sign that a new meter on bars [start] up to [end] would
+/// break, so the music goes on sounding. A sign breaks when it or a bar it
+/// repeats is re-barred, or with [keep] when only some of its bars take the
+/// meter. Both halves of a two-bar sign go together.
+Seq<MeasureColumn> _writtenOut(
+  Seq<MeasureColumn> measures,
+  int start,
+  int end,
+  _Ids ids, {
+  required bool keep,
+}) {
+  var columns = measures;
+  for (var k = 0; k < measures.first.staves.length; k++) {
+    for (var bar = 0; bar < measures.length; bar++) {
+      final last = switch (measures[bar].staves[k].measureRepeat) {
+        null => null,
+        MeasureRepeat.twoBarsFirst => bar + 1,
+        _ => bar,
+      };
+      if (last == null) {
+        continue;
+      }
+      final first = [
+        for (var i = bar; i <= last; i++) playedBar(measures, i, k),
+      ].reduce(min);
+      final touched = first < end && start <= last;
+      final inside = start <= first && last < end;
+      if (touched && !(keep && inside)) {
+        for (var i = bar; i <= last; i++) {
+          final staff = measures[i].staves[k];
+          if (playedVoices(
+                measures,
+                i,
+                k,
+                event: (_) => ids.event(),
+                mint: () => ids.next++,
+              )
+              case final voices?) {
+            columns = columns.replaceAt(
+              i,
+              columns[i].withStaff(
+                staff.copyWith(voices: voices, measureRepeat: () => null),
+              ),
+            );
+          }
+        }
+      }
+      bar = last;
+    }
+  }
+  return columns;
 }
 
 /// Bars [start] up to [end] as runs of bars that re-bar together, each a

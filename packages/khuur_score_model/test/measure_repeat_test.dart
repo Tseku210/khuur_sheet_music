@@ -26,6 +26,39 @@ EditSession withNotes(int bars) {
   return session;
 }
 
+/// [bars] bars of quarter notes, each bar on its own pitches, filled for
+/// [beats] beats and rests after them.
+EditSession tune(int bars, {int beats = 4}) {
+  var session = blank(bars: bars);
+  for (var b = 0; b < bars; b++) {
+    for (var beat = 0; beat < beats; beat++) {
+      session = enterAt(
+        session,
+        b,
+        at(beat, 4),
+        tone: Pitch.parse('${'CDEFGAB'[(b + beat) % 7]}4'),
+      );
+    }
+  }
+  return session;
+}
+
+/// Each note the score plays, as (start, duration, key), in milliseconds.
+List<(int, int, int)> heard(Score score) => [
+  for (final note
+      in PlaybackCompiler()
+          .compile(score)
+          .notesBetween(
+            0,
+            double.infinity,
+          ))
+    (
+      (note.start * 1000).round(),
+      (note.duration * 1000).round(),
+      note.key,
+    ),
+];
+
 void main() {
   group('SetMeasureRepeat', () {
     test('puts a bar under a one-bar repeat in place of its notes', () {
@@ -251,27 +284,74 @@ void main() {
       expect(signs(kept.score), [null, MeasureRepeat.oneBar, null]);
     });
 
-    test('clears where a meter change leaves it a bar of another length, '
-        'or re-bars it', () {
-      final session = applied(
-        blank(bars: 3).run(SetMeasureRepeat(idOf(blank(bars: 3), 1), bars: 1)),
-      );
+    test('writes its notes out where a meter change re-bars it', () {
+      for (final (sign, at) in [(1, 2), (2, 2)]) {
+        final tuned = tune(4);
+        final session = applied(
+          tuned.run(SetMeasureRepeat(idOf(tuned, at), bars: sign)),
+        );
 
-      for (final (from, content) in [
-        (1, MeterContent.keepBars),
-        (0, MeterContent.rebar),
-      ]) {
+        final changed = applied(
+          session.run(
+            SetMeter(
+              from: idOf(session, 0),
+              meter: Meter.threeFour,
+            ),
+          ),
+        );
+
+        expect(signs(changed.score), everyElement(isNull), reason: '$sign');
+        expect(heard(changed.score), heard(session.score), reason: '$sign');
+        expect(heard(changed.score), hasLength(16), reason: '$sign');
+      }
+    });
+
+    test('writes its notes out where a meter change keeps bars from '
+        'between it and the bar it repeats', () {
+      for (final (sign, at, from) in [(1, 1, 1), (2, 2, 3)]) {
+        final tuned = tune(at + sign, beats: 3);
+        final session = applied(
+          tuned.run(SetMeasureRepeat(idOf(tuned, at), bars: sign)),
+        );
+
         final changed = applied(
           session.run(
             SetMeter(
               from: idOf(session, from),
               meter: Meter.threeFour,
-              content: content,
+              content: MeterContent.keepBars,
             ),
           ),
         );
-        expect(signs(changed.score), everyElement(isNull), reason: '$content');
+
+        expect(signs(changed.score), everyElement(isNull), reason: '$sign');
+        expect(
+          [for (final (_, _, key) in heard(changed.score)) key],
+          [for (final (_, _, key) in heard(session.score)) key],
+          reason: '$sign',
+        );
+        expect(heard(changed.score), hasLength(3 * (at + sign)));
       }
+    });
+
+    test('clears where a meter change leaves it a bar of another length '
+        'and it repeats a rest', () {
+      final session = applied(
+        blank(bars: 3).run(SetMeasureRepeat(idOf(blank(bars: 3), 1), bars: 1)),
+      );
+
+      final changed = applied(
+        session.run(
+          SetMeter(
+            from: idOf(session, 1),
+            meter: Meter.threeFour,
+            content: MeterContent.keepBars,
+          ),
+        ),
+      );
+
+      expect(signs(changed.score), everyElement(isNull));
+      expect(bar(changed.score, 1), ['measure-rest']);
     });
 
     test('refuses a bar with notes under it', () {

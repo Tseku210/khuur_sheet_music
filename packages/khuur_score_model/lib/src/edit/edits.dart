@@ -644,9 +644,12 @@ final class RemoveSpanner extends Edit {
 /// first; a bar that is still too long refuses the edit with
 /// [WouldCrossBarline], and a short bar is padded.
 ///
-/// A kept bar keeps its measure-repeat signs, and a sign stays where it
-/// still stands. Re-barring clears every sign in the sections it cuts, and
-/// a bar a sign covered is rests from then on.
+/// A kept bar keeps its measure-repeat signs where the bars they repeat
+/// take the meter too. Where re-barring cuts a sign or the bars it repeats,
+/// or only some of them keep their bars, the notes it repeats are written
+/// out in its bar first, without lyrics or the slurs and other spanners on
+/// them, so the music goes on sounding. Its bar then re-bars as written, and
+/// a kept bar too long for the meter is refused.
 final class SetMeter extends Edit {
   /// Sets [meter] from bar [from] onward.
   const SetMeter({

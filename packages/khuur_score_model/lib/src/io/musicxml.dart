@@ -249,29 +249,18 @@ final class _Export {
     for (final (bar, column) in measures.indexed) {
       var copied = column;
       for (final (k, slice) in column.staves.indexed) {
-        final source = playedBar(measures, bar, k);
-        final voices = measures[source].staves[k].voices;
-        if (source == bar ||
-            voices.length == 1 &&
-                voices.first.items.singleOrNull is MeasureRest) {
-          continue;
-        }
         final ids = <EventId, EventId>{};
         EventId event(EventId id) => ids[id] = EventId(mint());
-        copies[(bar, slice.staff)] = (source: source, ids: ids);
+        final voices = playedVoices(measures, bar, k, event: event, mint: mint);
+        if (voices == null) {
+          continue;
+        }
+        copies[(bar, slice.staff)] = (
+          source: playedBar(measures, bar, k),
+          ids: ids,
+        );
         copied = copied.withStaff(
-          slice.copyWith(
-            voices: Seq([
-              for (final voice in voices)
-                Voice(
-                  slot: voice.slot,
-                  items: Seq([
-                    for (final item in voice.items) _copied(item, event, mint),
-                  ]),
-                ),
-            ]),
-            measureRepeat: () => null,
-          ),
+          slice.copyWith(voices: voices, measureRepeat: () => null),
         );
       }
       if (!identical(copied, column)) {
@@ -917,56 +906,6 @@ final class _Export {
 /// A slur, glissando or trill line end on an event: the spanner, and
 /// whether it starts there.
 typedef _Mark = (Spanner, bool);
-
-/// [item] with a new id on every event, note, grace and tuplet in it, taken
-/// from [event] for events and [mint] for the rest, and no lyrics.
-VoiceItem _copied(
-  VoiceItem item,
-  EventId Function(EventId source) event,
-  int Function() mint,
-) {
-  Seq<Note> heads(Seq<Note> notes) => Seq([
-    for (final note in notes) note.copyWith(id: NoteId(mint())),
-  ]);
-  return switch (item) {
-    Gap() => item,
-    ChordEvent(:final graces) => item.copyWith(
-      id: event(item.id),
-      notes: heads(item.notes),
-      graces: Seq([
-        for (final grace in graces)
-          GraceChord(
-            id: event(grace.id),
-            kind: grace.kind,
-            value: grace.value,
-            notes: heads(grace.notes),
-          ),
-      ]),
-      lyrics: const Seq.empty(),
-    ),
-    RestEvent(:final id, :final value, :final articulations, :final hidden) =>
-      RestEvent(
-        id: event(id),
-        value: value,
-        articulations: articulations,
-        hidden: hidden,
-      ),
-    MeasureRest(:final id, :final span, :final articulations) => MeasureRest(
-      id: event(id),
-      span: span,
-      articulations: articulations,
-    ),
-    Tuplet(:final ratio, :final unit, :final members, :final bracket) => Tuplet(
-      id: TupletId(mint()),
-      ratio: ratio,
-      unit: unit,
-      members: Seq([
-        for (final member in members) _copied(member, event, mint) as Content,
-      ]),
-      bracket: bracket,
-    ),
-  };
-}
 
 XmlElement _navigation(NavigationMark mark, XmlElement? staff) {
   final (types, sound) = switch (mark) {
