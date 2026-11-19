@@ -37,7 +37,21 @@ final class _Decoder {
     if (measures.isEmpty) {
       json['measures'].fail('a score has at least one measure');
     }
-    final bars = {for (final (i, column) in measures.indexed) column.id: i};
+    final bars = Seq(measures);
+    for (final (bar, column) in measures.indexed) {
+      for (final (staff, _) in column.staves.indexed) {
+        if (!measureRepeatStands(bars, bar, staff)) {
+          json['measures'].list[bar]['staves'].list[staff]['measureRepeat']
+              .fail(
+                'the measure repeat has no bars of its length to repeat, or '
+                'misses its other half',
+              );
+        }
+      }
+    }
+    final indexOf = {
+      for (final (i, column) in measures.indexed) column.id: i,
+    };
     final meta = json.maybe('meta');
     String text(String key) => meta?.maybe(key)?.string ?? '';
     final spanners = json.maybe('spanners')?.list ?? const <_In>[];
@@ -53,7 +67,12 @@ final class _Decoder {
       measures: Seq(measures),
       spanners: Seq([
         for (final spanner in spanners)
-          _spanner(spanner, measures, bars, {for (final (id, _) in staves) id}),
+          _spanner(
+            spanner,
+            measures,
+            indexOf,
+            {for (final (id, _) in staves) id},
+          ),
       ]),
     );
     for (final (i, spanner) in score.spanners.indexed) {
@@ -270,6 +289,18 @@ final class _Decoder {
     if (voices.firstOrNull?.slot != VoiceSlot.one) {
       json['voices'].fail('voice one comes first');
     }
+    final measureRepeat = json
+        .maybe('measureRepeat')
+        ?.name(MeasureRepeat.values);
+    if (measureRepeat != null &&
+        (voices.length != 1 ||
+            voices.first.items.singleOrNull is! MeasureRest ||
+            json.maybe('clefChanges') != null)) {
+      json['measureRepeat'].fail(
+        'a bar under a measure repeat holds one whole-bar rest and no clef '
+        'change',
+      );
+    }
     return StaffMeasure(
       staff: staff,
       clef: before != null && json.maybe('clef') == null
@@ -298,6 +329,7 @@ final class _Decoder {
         ),
       ),
       voices: Seq(voices),
+      measureRepeat: measureRepeat,
     );
   }
 

@@ -26,7 +26,7 @@ import 'text.dart';
 ///
 /// It also keeps no view. Everything a system needs from the bar is here in
 /// resolved form, with the head for each place the bar can land. Planning
-/// reads [widths], [staves], [lyrics] and [breakBefore]. Assembly reads the
+/// reads [widths], [staves], [lyrics], [breakBefore] and [holdsNext]. Assembly reads the
 /// rest.
 final class BarLayout {
   /// Holds a bar laid out by [layoutBar].
@@ -35,6 +35,7 @@ final class BarLayout {
     required this.length,
     required this.breakBefore,
     required this.restOnly,
+    required this.holdsNext,
     required this.widths,
     required this.lead,
     required this.slices,
@@ -63,6 +64,11 @@ final class BarLayout {
   /// Whether the bar can fold into a multi-measure rest, which is
   /// `MeasureView.isRestOnly`.
   final bool restOnly;
+
+  /// Whether a staff of the bar is the first half of a two-bar repeat sign,
+  /// which is drawn across the barline into the next bar. Line breaking
+  /// keeps the two bars on one system.
+  final bool holdsNext;
 
   /// The bar's widths for line breaking. See [BarWidths].
   final BarWidths widths;
@@ -119,6 +125,7 @@ final class BarLayout {
       other.length == length &&
       other.breakBefore == breakBefore &&
       other.restOnly == restOnly &&
+      other.holdsNext == holdsNext &&
       other.widths == widths &&
       other.lead == lead &&
       _same(other.slices, slices) &&
@@ -243,6 +250,14 @@ BarLayout layoutBar(
           );
           chords[event.id] = (plan: plan, slice: slice, staff: staff);
           reach[slice] = widest(reach[slice], plan.reach);
+        } else if (staffView.source.measureRepeat case final sign?) {
+          final end = times.length - 1;
+          for (final at in [slice, end]) {
+            reach[at] = widest(
+              reach[at],
+              measureRepeatReach(sign, at, end, style),
+            );
+          }
         } else {
           reach[slice] = widest(reach[slice], restReach(event, style));
         }
@@ -340,7 +355,18 @@ BarLayout layoutBar(
     for (final voice in staffView.voices) {
       for (final timed in voice.events) {
         final placed = chords[timed.event.id];
-        if (placed == null) {
+        if (staffView.source.measureRepeat case final sign?) {
+          items.addAll(
+            placeMeasureRepeat(
+              sign: sign,
+              timed: timed,
+              slice: times.indexOf(timed.onset),
+              end: times.length - 1,
+              staff: staff,
+              style: style,
+            ),
+          );
+        } else if (placed == null) {
           items.addAll(
             placeRest(
               timed: timed,
@@ -456,6 +482,9 @@ BarLayout layoutBar(
     length: column.length,
     breakBefore: column.breakBefore,
     restOnly: view.isRestOnly,
+    holdsNext: view.staves.any(
+      (staff) => staff.source.measureRepeat == MeasureRepeat.twoBarsFirst,
+    ),
     widths: BarWidths(
       inlineHead: heads.inline.width,
       systemHead:

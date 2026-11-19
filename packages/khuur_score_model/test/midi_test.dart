@@ -365,6 +365,18 @@ void main() {
       ]);
     });
 
+    test('plays a bar under a measure repeat as the bar it repeats', () {
+      final session = EditSession.start(quarters(2));
+      final score = applied(
+        session.run(SetMeasureRepeat(session.score.measures[1].id, bars: 1)),
+      ).score;
+      expectPlaysAsScript(score);
+
+      expect(onsets(exported(score)), [
+        for (var beat = 0; beat < 8; beat++) beat * quarter,
+      ]);
+    });
+
     test('writes a tempo mark in the middle of a bar as a tempo change', () {
       final score = tempoAt(
         quarters(2),

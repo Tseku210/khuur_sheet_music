@@ -65,20 +65,30 @@ final class _Loudness {
         );
       }
     }
-    return _Loudness._(strikes, levels, ramps);
+    return _Loudness._(strikes, written, levels, ramps);
   }
 
-  _Loudness._(this._strikes, this._levels, this._ramps);
+  _Loudness._(this._strikes, this._written, this._levels, this._ramps);
 
   /// sf, sfz, fp and rfz by position. Each strikes the chords there, and
   /// fp then leaves the level at p.
   final Map<Moment, Dynamic> _strikes;
+
+  /// Level dynamics as written, by position.
+  final List<(Moment, Dynamic)> _written;
 
   /// Level dynamics and the levels hairpins arrive at, by position.
   final List<(Moment, Dynamic)> _levels;
 
   /// By start.
   final List<_Ramp> _ramps;
+
+  /// Whether a dynamic or a hairpin is written from [from] to [to], both
+  /// included. The level a hairpin ending at [from] arrives at is not.
+  bool markedIn(Moment from, Moment to) =>
+      _strikes.keys.any((at) => from <= at && at <= to) ||
+      _written.any((level) => from <= level.$1 && level.$1 <= to) ||
+      _ramps.any((ramp) => ramp.from <= to && from < ramp.to);
 
   /// The velocity a chord starting at [position] strikes at, before its
   /// own marks. A strike there comes first, then the latest hairpin

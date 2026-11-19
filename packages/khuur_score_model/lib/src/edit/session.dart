@@ -11,11 +11,13 @@ import 'dart:math';
 import '../empty_bar.dart';
 import '../events.dart';
 import '../measure.dart';
+import '../measure_repeats.dart';
 import '../pitch.dart';
 import '../playback.dart';
 import '../refs.dart';
 import '../rules.dart';
 import '../score.dart';
+import '../score_ids.dart';
 import '../seq.dart';
 import '../spelling.dart';
 import '../stable_sort.dart';
@@ -31,6 +33,7 @@ part 'context.dart';
 part 'directions.dart';
 part 'erase.dart';
 part 'lane_writer.dart';
+part 'measure_repeat_edits.dart';
 part 'notes.dart';
 part 'parts.dart';
 part 'rebar.dart';
@@ -81,7 +84,7 @@ final class EditSession {
         const Selection.none(),
         const Seq.empty(),
         const Seq.empty(),
-        _ids(score).fold(0, max) + 1,
+        largestId(score) + 1,
         historyLimit,
       );
 
@@ -167,7 +170,7 @@ final class EditSession {
     final result = _apply(score, edit, ids, this);
     final next = identical(result.score, score)
         ? score
-        : _withFittingSpanners(result.score);
+        : _withFittingSpanners(_withStandingMeasureRepeats(result.score));
     return EditSession._(
       next,
       result.cursor ?? _revalidateCursor(cursor, score, next),
@@ -368,41 +371,6 @@ ScorePoint? _normalize(Score score, ScorePoint point) {
   return index + 1 < score.measures.length
       ? ScorePoint(score.measures[index + 1].id, Moment.zero)
       : null;
-}
-
-Iterable<int> _ids(Score score) sync* {
-  for (final part in score.parts) {
-    yield part.id.value;
-    yield* part.staves.map((staff) => staff.id.value);
-  }
-  for (final column in score.measures) {
-    yield column.id.value;
-    for (final staff in column.staves) {
-      for (final voice in staff.voices) {
-        yield* voice.items.expand(_itemIds);
-      }
-    }
-  }
-  yield* score.spanners.map((spanner) => spanner.id.value);
-}
-
-Iterable<int> _itemIds(VoiceItem item) sync* {
-  switch (item) {
-    case Gap():
-      break;
-    case Tuplet(:final id, :final members):
-      yield id.value;
-      yield* members.expand(_itemIds);
-    case ChordEvent(:final id, :final notes, :final graces):
-      yield id.value;
-      yield* notes.map((note) => note.id.value);
-      for (final grace in graces) {
-        yield grace.id.value;
-        yield* grace.notes.map((note) => note.id.value);
-      }
-    case RestEvent(:final id) || MeasureRest(:final id):
-      yield id.value;
-  }
 }
 
 /// Keeps [cursor] while its bar and staff exist, moving it to the bar start

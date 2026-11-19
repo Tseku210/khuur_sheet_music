@@ -123,6 +123,7 @@ Map<String, Object?> _staffMeasure(StaffMeasure staff, Clef? before) => {
           },
         },
     ],
+  if (staff.measureRepeat case final sign?) 'measureRepeat': sign.name,
   'voices': [
     for (final voice in staff.voices)
       {

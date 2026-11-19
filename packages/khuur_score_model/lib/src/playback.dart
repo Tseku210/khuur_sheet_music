@@ -15,6 +15,7 @@ import 'dart:math';
 
 import 'events.dart';
 import 'measure.dart';
+import 'measure_repeats.dart';
 import 'pitch.dart';
 import 'refs.dart';
 import 'rules.dart';
@@ -43,10 +44,74 @@ final class PlaybackCompiler {
   /// die with their columns.
   final Expando<_Fragment> _fragments = Expando('playback fragments');
 
+  /// The fragment of a bar under a measure-repeat sign, with the columns it
+  /// borrows notes from. It is reused only while those are the same objects
+  /// too, since an edit to a repeated bar leaves the repeating column as it
+  /// was.
+  final Expando<(List<MeasureColumn>, _Fragment)> _borrowed = Expando(
+    'playback fragments of measure repeats',
+  );
+
+  _Fragment _fragmentOf(MeasureColumn column) =>
+      _fragments[column] ??= _compileBar(column);
+
+  /// What bar [index] plays. A staff under a measure-repeat sign plays the
+  /// chords and fermatas of the bar the sign repeats on that staff, and
+  /// keeps its own whole-bar rest as the event playing, so the sheet marks
+  /// the sign.
+  _Fragment _played(Seq<MeasureColumn> measures, int index) {
+    final column = measures[index];
+    final own = _fragmentOf(column);
+    final from = <StaffId, MeasureColumn>{
+      for (final (k, staff) in column.staves.indexed)
+        if (playedBar(measures, index, k) case final bar when bar != index)
+          staff.staff: measures[bar],
+    };
+    if (from.isEmpty) {
+      return own;
+    }
+    final sources = from.values.toList();
+    if (_borrowed[column] case (final was, final fragment)
+        when was.length == sources.length &&
+            Iterable<int>.generate(
+              was.length,
+            ).every((k) => identical(was[k], sources[k]))) {
+      return fragment;
+    }
+    final chords = <_Chord>[];
+    List<(Moment, Moment)> held(_Fragment of, bool Function(StaffId) on) => [
+      for (final timed in of.events)
+        if (on(timed.ref.staff) &&
+            timed.event.articulations.contains(Articulation.fermata))
+          (timed.onset, timed.onset + timed.duration),
+    ];
+    final holds = held(own, (staff) => !from.containsKey(staff));
+    for (final staff in column.staves) {
+      final source = from[staff.staff];
+      final fragment = source == null ? own : _fragmentOf(source);
+      chords.addAll(
+        fragment.chords.where((c) => c.timed.ref.staff == staff.staff),
+      );
+      if (source != null) {
+        holds.addAll(held(fragment, (id) => id == staff.staff));
+      }
+    }
+    final fragment = _Fragment(own.events, chords, holds);
+    _borrowed[column] = (sources, fragment);
+    return fragment;
+  }
+
   /// Compiles [score] into a script, playing what [options] asks.
   ///
   /// A bar whose column an edit did not replace reuses the fragment cached from
   /// an earlier compile.
+  ///
+  /// A staff's bar under a measure-repeat sign plays the notes of the bar
+  /// the sign repeats, at its own place in the play order, so on every pass
+  /// of a repeat and under a volta too. Each note plays with the dynamics,
+  /// slur and trill line of the note it repeats. A dynamic or hairpin of the
+  /// part written in the run of bars under signs takes over from where it
+  /// stands to the end of the run.
   PlaybackScript compile(
     Score score, [
     PlaybackOptions options = const PlaybackOptions(),
@@ -74,7 +139,7 @@ final class PlaybackCompiler {
     var seconds = 0.0;
     for (final (k, (:index, :pass, :from, :to)) in windows.indexed) {
       final column = measures[index];
-      final fragment = _fragments[column] ??= _compileBar(column);
+      final fragment = _played(measures, index);
       final clock = _Clock(
         tempo,
         Moment.zero + time.startOf(index),
@@ -108,13 +173,22 @@ final class PlaybackCompiler {
         final TimedEvent(:onset, :voice, ref: EventRef(:staff)) = chord.timed;
         final (:channel, :instrument, :loudness) = sounds[staff]!;
         final position = onset + time.startOf(index);
-        final level = loudness.at(position);
+        final written = time.of(chord.timed.ref.measure, onset);
+        final level = loudness.at(
+          written == position ||
+                  loudness.markedIn(
+                    _underSignsFrom(measures, index, staff, time),
+                    position,
+                  )
+              ? position
+              : written,
+        );
         final trilled =
-            trills[staff]?.any((t) => t.$1 <= position && position <= t.$2) ??
+            trills[staff]?.any((t) => t.$1 <= written && written <= t.$2) ??
             false;
         final slurred =
             slurs[(staff, voice)]?.any(
-              (s) => s.$1 <= position && position < s.$2,
+              (s) => s.$1 <= written && written < s.$2,
             ) ??
             false;
         for (final attack
@@ -176,6 +250,22 @@ final class PlaybackCompiler {
 }
 
 typedef _Sound = ({int channel, Instrument instrument, _Loudness loudness});
+
+/// Where the run of bars under measure-repeat signs on [staff] that ends
+/// with bar [index] starts.
+Moment _underSignsFrom(
+  Seq<MeasureColumn> measures,
+  int index,
+  StaffId staff,
+  _Timeline time,
+) {
+  final k = measures[index].staves.indexWhere((s) => s.staff == staff);
+  var first = index;
+  while (first > 0 && measures[first - 1].staves[k].measureRepeat != null) {
+    first--;
+  }
+  return Moment.zero + time.startOf(first);
+}
 
 typedef _Lane = (StaffId, VoiceSlot);
 
@@ -583,7 +673,8 @@ final class PlaybackNote {
   final int channel;
 
   /// The event that produced this note. A tie chain reports its first
-  /// event; a grace note reports the grace chord's id.
+  /// event; a grace note reports the grace chord's id. A note a
+  /// measure-repeat sign plays reports the written event it repeats.
   final EventRef source;
 }
 

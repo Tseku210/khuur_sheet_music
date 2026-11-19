@@ -89,10 +89,10 @@ final class MeasureView {
   /// Layout may fold a run of these bars into a multi-measure rest. Every
   /// voice of every visible staff is a single [MeasureRest] with no fermata,
   /// and nothing is printed in or around the bar: no spanner, direction,
-  /// clef, key or meter change, tempo, rehearsal mark, repeat, volta,
-  /// navigation mark or special barline. Conservative: a mark that would not actually break the
-  /// rest still does. A run also ends before a bar with a
-  /// [MeasureColumn.breakBefore].
+  /// clef, key or meter change, measure-repeat sign, tempo, rehearsal
+  /// mark, repeat, volta, navigation mark or special barline. Conservative:
+  /// a mark that would not actually break the rest still does. A run also
+  /// ends before a bar with a [MeasureColumn.breakBefore].
   bool get isRestOnly =>
       !printsMeter &&
       !printsKey &&
@@ -108,6 +108,7 @@ final class MeasureView {
       staves.every(
         (staff) =>
             !staff.clefChanged &&
+            staff.source.measureRepeat == null &&
             staff.source.clefChanges.isEmpty &&
             staff.source.directions.isEmpty &&
             staff.source.voices.every(

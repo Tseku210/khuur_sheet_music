@@ -490,6 +490,91 @@ List<BarItem> placeRest({
   }
 }
 
+/// How far the sign of a bar under [sign] reaches from slice [slice] of
+/// [end], the bar's end slice, in place of its whole-bar rest. A one-bar
+/// sign is centred in its bar and reaches its width. A two-bar sign is
+/// centred on the barline between its bars, so it reaches half its width
+/// back from the first bar's end and half on from the second bar's start.
+SliceReach measureRepeatReach(
+  MeasureRepeat sign,
+  int slice,
+  int end,
+  EngravingStyle style,
+) {
+  final half = style.font[Glyph.repeat2Bars].box.width / 2;
+  return switch (sign) {
+    MeasureRepeat.oneBar => (
+      left: 0,
+      right: style.font[Glyph.repeat1Bar].box.width,
+    ),
+    MeasureRepeat.twoBarsFirst when slice == end => (left: half, right: 0),
+    MeasureRepeat.twoBarsSecond when slice == 0 => (left: 0, right: half),
+    _ => noReach,
+  };
+}
+
+/// The sign of a bar under [sign], drawn for its whole-bar rest [timed] in
+/// place of the rest, on the middle line. A one-bar sign is centred in its
+/// bar. A two-bar sign is drawn once, from the first bar, centred on its
+/// end slice [end], which is the barline into the second bar, with a 2 in
+/// `timeSig` digits over it, as high as a rest run's count. The second bar
+/// draws nothing.
+List<BarItem> placeMeasureRepeat({
+  required MeasureRepeat sign,
+  required TimedEvent timed,
+  required int slice,
+  required int end,
+  required int staff,
+  required EngravingStyle style,
+}) {
+  final (glyph, at, centred) = switch (sign) {
+    MeasureRepeat.oneBar => (Glyph.repeat1Bar, slice, true),
+    MeasureRepeat.twoBarsFirst => (Glyph.repeat2Bars, end, false),
+    MeasureRepeat.twoBarsSecond => (null, slice, false),
+  };
+  if (glyph == null) {
+    return const [];
+  }
+  final font = style.font;
+  final owner = ElementOwner(timed.ref);
+  final box = font[glyph].box;
+  final items = [
+    BarItem(
+      at,
+      staff,
+      glyphAt(
+        font,
+        glyph,
+        SpPoint(-box.width / 2 - box.left, yOfStep(4)),
+        ink: InkRole.rest,
+        owner: owner,
+      ),
+      centred: centred,
+    ),
+  ];
+  if (sign.bars > 1) {
+    final digits = [...digitGlyphs(sign.bars)];
+    var x = -digits.fold<double>(0, (w, d) => w + font[d].advance) / 2;
+    for (final digit in digits) {
+      items.add(
+        BarItem(
+          at,
+          staff,
+          glyphAt(
+            font,
+            digit,
+            SpPoint(x, _countY),
+            ink: InkRole.rest,
+            owner: owner,
+          ),
+        ),
+      );
+      x += font[digit].advance;
+    }
+  }
+  return items;
+}
+
 /// The y a rest's origin sits on. A whole rest hangs from the line above
 /// the middle, which a one-line staff does not have.
 double _restLine(DurationBase base, int lines) =>

@@ -199,11 +199,19 @@ final class StaffMeasure {
     required this.voices,
     this.clefChanges = const Seq.empty(),
     this.directions = const Seq.empty(),
+    this.measureRepeat,
   }) : assert(
          voices.isNotEmpty && voices.first.slot == VoiceSlot.one,
          'voice one always exists and comes first',
        ),
-       assert(_ascendingSlots(voices), 'voice slots unique and ascending');
+       assert(_ascendingSlots(voices), 'voice slots unique and ascending') {
+    if (measureRepeat != null && !_holdsOnlyMeasureRest(voices, clefChanges)) {
+      throw ArgumentError(
+        'staff ${staff.value}: a bar under a measure-repeat sign holds one '
+        'whole-bar rest and no clef change',
+      );
+    }
+  }
 
   /// The staff this slice belongs to.
   final StaffId staff;
@@ -222,6 +230,14 @@ final class StaffMeasure {
   /// Dynamics, text and chord symbols anchored to a time in this bar on this
   /// staff, ascending by offset.
   final Seq<StaffDirection> directions;
+
+  /// The measure-repeat sign this bar of the staff is under, or null for a
+  /// bar that plays what it holds. A bar under the sign holds one
+  /// [MeasureRest] in voice one and no clef change, which the constructor
+  /// checks, and plays the bars the sign repeats. Which bars those are, and
+  /// whether the sign still stands after a change to the bars around it, is
+  /// a rule across bars. See [MeasureRepeat].
+  final MeasureRepeat? measureRepeat;
 
   /// Clef in effect at the end of this bar, after its last clef change.
   Clef get clefAtEnd => clefChanges.isEmpty ? clef : clefChanges.last.clef;
@@ -250,18 +266,32 @@ final class StaffMeasure {
   }
 
   /// A copy with the given fields replaced and the same [staff].
+  ///
+  /// Without [measureRepeat], the copy keeps this bar's sign while it still
+  /// holds only its whole-bar rest and no clef change, and drops it
+  /// otherwise. So writing notes into a bar under the sign clears the sign.
   StaffMeasure copyWith({
     Clef? clef,
     Seq<ClefChange>? clefChanges,
     Seq<Voice>? voices,
     Seq<StaffDirection>? directions,
-  }) => StaffMeasure(
-    staff: staff,
-    clef: clef ?? this.clef,
-    voices: voices ?? this.voices,
-    clefChanges: clefChanges ?? this.clefChanges,
-    directions: directions ?? this.directions,
-  );
+    MeasureRepeat? Function()? measureRepeat,
+  }) {
+    final nextVoices = voices ?? this.voices;
+    final nextChanges = clefChanges ?? this.clefChanges;
+    return StaffMeasure(
+      staff: staff,
+      clef: clef ?? this.clef,
+      voices: nextVoices,
+      clefChanges: nextChanges,
+      directions: directions ?? this.directions,
+      measureRepeat: measureRepeat != null
+          ? measureRepeat()
+          : _holdsOnlyMeasureRest(nextVoices, nextChanges)
+          ? this.measureRepeat
+          : null,
+    );
+  }
 
   /// Replaces or adds the voice in the slot of [voice]. A secondary voice made only
   /// of gaps is dropped instead of stored.
@@ -278,6 +308,43 @@ final class StaffMeasure {
       voices: voices.insertAt(index < 0 ? voices.length : index, voice),
     );
   }
+}
+
+bool _holdsOnlyMeasureRest(Seq<Voice> voices, Seq<ClefChange> clefChanges) =>
+    clefChanges.isEmpty &&
+    voices.length == 1 &&
+    voices.first.items.singleOrNull is MeasureRest;
+
+/// A measure-repeat sign over one staff's bar: the bar plays the bar or
+/// two bars before it again, and prints the sign in place of notes.
+///
+/// A one-bar repeat covers one bar and repeats the bar before it. A two-bar
+/// repeat covers two bars, [twoBarsFirst] then [twoBarsSecond], and repeats
+/// the two bars before the first. Both halves of it repeat the bar
+/// [bars] before them. A bar repeated may itself be under a sign, and then
+/// plays what that sign repeats.
+///
+/// The sign is per staff, as MusicXML's `measure-repeat` is per part or per
+/// staff. It stands only where it can: there are [bars] bars before it,
+/// the bars it repeats have its length, and a half of a two-bar repeat sits
+/// next to its other half with no layout break between them, since its
+/// sign prints over the barline they share. `scoreFromJson` refuses a sign that does not
+/// stand, edits clear one, and MusicXML import drops one.
+enum MeasureRepeat {
+  /// Repeats the bar before. One slash between two dots, in the bar.
+  oneBar(1),
+
+  /// The first bar under a two-bar repeat. Two slashes between two dots,
+  /// over the barline after this bar.
+  twoBarsFirst(2),
+
+  /// The second bar under a two-bar repeat. The first half draws the sign.
+  twoBarsSecond(2);
+
+  MeasureRepeat(this.bars);
+
+  /// How many bars the sign repeats.
+  final int bars;
 }
 
 bool _ascendingSlots(Seq<Voice> voices) {

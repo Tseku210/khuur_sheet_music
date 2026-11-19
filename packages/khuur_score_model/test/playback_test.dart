@@ -532,6 +532,250 @@ void main() {
     });
   });
 
+  group('measure repeats', () {
+    /// [score] with each bar of [signs], counted from 0, under a sign
+    /// repeating that many bars.
+    Score repeating(Score score, Map<int, int> signs) => signs.entries
+        .fold(
+          EditSession.start(score),
+          (session, sign) => applied(
+            session.run(
+              SetMeasureRepeat(
+                session.score.measures[sign.key].id,
+                bars: sign.value,
+              ),
+            ),
+          ),
+        )
+        .score;
+
+    List<int> heard(Score score) => [
+      for (final note in notes(compiled(score))) note.$5,
+    ];
+
+    test('a sign built outside edits that does not stand plays its rest', () {
+      final score = blankScore();
+      final first = score.measures[0];
+      final built = score.copyWith(
+        measures: score.measures.replaceAt(
+          0,
+          first.withStaff(
+            first.staves.first.copyWith(
+              measureRepeat: () => MeasureRepeat.oneBar,
+            ),
+          ),
+        ),
+      );
+
+      expect(heard(built), isEmpty);
+    });
+
+    test('a one-bar repeat plays the bar before it', () {
+      expect(heard(repeating(beats(3), {1: 1})), [
+        11,
+        12,
+        13,
+        14,
+        11,
+        12,
+        13,
+        14,
+        31,
+        32,
+        33,
+        34,
+      ]);
+    });
+
+    test('a two-bar repeat plays the two bars before it', () {
+      expect(heard(repeating(beats(5), {2: 2})), [
+        11,
+        12,
+        13,
+        14,
+        21,
+        22,
+        23,
+        24,
+        11,
+        12,
+        13,
+        14,
+        21,
+        22,
+        23,
+        24,
+        51,
+        52,
+        53,
+        54,
+      ]);
+    });
+
+    test('a repeat of a repeated bar plays the bar written', () {
+      expect(heard(repeating(beats(3), {1: 1, 2: 1})), [
+        for (var bar = 0; bar < 3; bar++) ...[11, 12, 13, 14],
+      ]);
+    });
+
+    test('plays on every pass of a repeat and under an ending', () {
+      final score = changeBar(
+        changeBar(
+          repeating(beats(4), {2: 1, 3: 1}),
+          2,
+          ending([1], repeat: true),
+        ),
+        3,
+        ending([2]),
+      );
+
+      expect(played(score), ['1', '2', '3', '1#2', '2#2', '4']);
+      expect(heard(score), [
+        for (final bar in [1, 2, 2, 1, 2, 2])
+          for (var beat = 1; beat <= 4; beat++) 10 * bar + beat,
+      ]);
+    });
+
+    test('marks its own rest as playing while it plays', () {
+      final score = repeating(beats(2), {1: 1});
+      final script = compiled(score);
+      final rest = score.measures[1].staves.first.voices.first.items.single;
+
+      expect(
+        sources(script, script.bars[1].start + 0.01),
+        [(rest as MeasureRest).id.value],
+      );
+    });
+
+    test('plays the dynamics of the bars it repeats', () {
+      final p = Dynamic.p.velocity;
+      final f = Dynamic.f.velocity;
+      final twoBars = repeating(
+        withDynamics(
+          withDynamics(beats(4), 0, {Moment.zero: Dynamic.p}),
+          1,
+          {Moment.zero: Dynamic.f},
+        ),
+        {2: 2},
+      );
+      final oneBar = repeating(
+        withDynamics(beats(2), 0, {
+          Moment.zero: Dynamic.p,
+          at(1, 2): Dynamic.f,
+        }),
+        {1: 1},
+      );
+
+      expect(velocities(compiled(twoBars)), [
+        for (final level in [p, f, p, f]) ...List.filled(4, level),
+      ]);
+      expect(velocities(compiled(oneBar)), [p, p, f, f, p, p, f, f]);
+    });
+
+    test('plays a dynamic written under the sign from where it stands, '
+        'through the rest of the signs', () {
+      final p = Dynamic.p.velocity;
+      final ff = Dynamic.ff.velocity;
+      final mid = withDynamics(
+        repeating(withDynamics(beats(2), 0, {Moment.zero: Dynamic.p}), {
+          1: 1,
+        }),
+        1,
+        {at(1, 2): Dynamic.ff},
+      );
+      final across = withDynamics(
+        repeating(withDynamics(beats(4), 0, {Moment.zero: Dynamic.p}), {
+          2: 2,
+        }),
+        2,
+        {Moment.zero: Dynamic.ff},
+      );
+
+      expect(velocities(compiled(mid)), [p, p, p, p, p, p, ff, ff]);
+      expect(velocities(compiled(across)), [
+        for (final level in [p, p, ff, ff]) ...List.filled(4, level),
+      ]);
+    });
+
+    test('replays the dynamics of a bar whose hairpin ends at the sign', () {
+      final score = withDynamics(beats(2), 0, {Moment.zero: Dynamic.f});
+      final faded = repeating(
+        withLine(
+          score,
+          const Hairpin(crescendo: false),
+          pointAt(score, 0, at(1, 2)),
+          pointAt(score, 0, at(3, 4)),
+        ),
+        {1: 1},
+      );
+
+      final heard = velocities(compiled(faded));
+
+      expect(heard.sublist(4), heard.sublist(0, 4));
+    });
+
+    test('plays the slurs and trill lines of the bars it repeats', () {
+      final score = beats(3);
+      final slurred = repeating(
+        withLine(
+          score,
+          const Slur(),
+          pointAt(score, 0, Moment.zero),
+          pointAt(score, 0, at(3, 4)),
+        ),
+        {1: 1},
+      );
+      final trilled = repeating(
+        withLine(
+          score,
+          const TrillLine(),
+          pointAt(score, 0, Moment.zero),
+          pointAt(score, 0, at(3, 4)),
+        ),
+        {1: 1},
+      );
+      List<double> bar(List<double> all, int index) =>
+          all.sublist(4 * index, 4 * index + 4);
+
+      final lengthsOf = lengths(compiled(slurred));
+      expect(bar(lengthsOf, 1), bar(lengthsOf, 0));
+      expect(bar(lengthsOf, 1), isNot(bar(lengthsOf, 2)));
+
+      final heard = attacks(compiled(trilled));
+      final perBar = [
+        for (final played in compiled(trilled).bars)
+          heard.where((a) => a.$1 >= played.start && a.$1 < played.end).length,
+      ];
+      expect(perBar[1], perBar[0]);
+      expect(perBar[1], greaterThan(perBar[2]));
+    });
+
+    test('plays what the bar it repeats holds after that bar is edited', () {
+      final compiler = PlaybackCompiler();
+      final score = repeating(beats(2), {1: 1});
+      compiler.compile(score);
+      final edited = changeBar(
+        score,
+        0,
+        (c) => c.withStaff(
+          c.staves.first.copyWith(
+            voices: Seq([
+              Voice(
+                slot: VoiceSlot.one,
+                items: Seq([wholes(15, 'D4')]),
+              ),
+            ]),
+          ),
+        ),
+      );
+
+      expect(
+        [for (final note in notes(compiler.compile(edited))) note.$5],
+        [15, 15],
+      );
+    });
+  });
+
   group('notes', () {
     test('plays each head at its time, 0.9 of its length, at mf', () {
       final score = sessionWith([

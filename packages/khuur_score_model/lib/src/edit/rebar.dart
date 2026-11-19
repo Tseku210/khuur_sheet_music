@@ -40,15 +40,16 @@ _Result _setMeter(Score score, SetMeter edit, _Ids ids, EditSession session) {
     );
   }
   final keep = edit.content == MeterContent.keepBars;
+  final written = _writtenOut(score, start, end, ids, keep: keep);
   final sections = [
     for (final (a, b)
         in keep
             ? [for (var i = start; i < end; i++) (i, i + 1)]
             : _sections(measures, start, end))
-      _rebar(score, a, b, meter, ids, keep: keep),
+      _rebar(written, a, b, meter, ids, keep: keep),
   ];
   final rebarred = score.copyWith(
-    measures: measures.replaceRange(start, end, [
+    measures: written.measures.replaceRange(start, end, [
       for (final section in sections) ...section.bars,
     ]),
     spanners: const Seq.empty(),
@@ -65,7 +66,7 @@ _Result _setMeter(Score score, SetMeter edit, _Ids ids, EditSession session) {
 
   final spanners = _moveSpanners(
     rebarred,
-    score.spanners,
+    written.spanners,
     first: (spanner) => onset(spanner.first),
     last: (spanner) {
       final section = holding[spanner.last.measure];
@@ -233,7 +234,12 @@ _Section _rebar(
   }
   final staves = [
     for (final staff in first.staves)
-      _staffBars(old, staff.staff, count, length, voices),
+      [
+        for (final bar in _staffBars(old, staff.staff, count, length, voices))
+          keep && staff.measureRepeat != null
+              ? bar.copyWith(measureRepeat: () => staff.measureRepeat)
+              : bar,
+      ],
   ];
   return _Section(old, [
     for (var k = 0; k < count; k++)

@@ -331,9 +331,10 @@ SetLyric _lyric(EventRef event, Random random) {
 /// case, overwriting or rippling), rippled value changes and deletes,
 /// tuplets, chords, graces, event and note marks, beams, lyrics,
 /// voltas, keys, clefs, spanners, directions, tempo marks, barlines,
-/// repeats, navigation and rehearsal marks, inserted and deleted bars, bar
-/// lengths, meters, erased, pasted and transposed ranges, breaks, signature
-/// displays, and adding, removing, hiding and showing parts.
+/// repeats, measure repeats, navigation and rehearsal marks, inserted and
+/// deleted bars, bar lengths, meters, erased, pasted and transposed ranges,
+/// breaks, signature displays, and adding, removing, hiding and showing
+/// parts.
 ///
 /// A rippled value change or delete takes time out of every staff and
 /// voice of its part, and the music in that time with it. The two share
@@ -343,7 +344,7 @@ Score randomEdit(Score score, Random random) {
   final bar = random.nextInt(score.measures.length);
   final id = score.measures[bar].id;
   final beats = _beatsIn(score.measures[bar]);
-  switch (random.nextInt(36)) {
+  switch (random.nextInt(37)) {
     case 0 || 1 || 2:
       final staff = pick(random, score.staves).id;
       return edited(
@@ -669,6 +670,15 @@ Score randomEdit(Score score, Random random) {
         Erase(
           ItemSelection(Seq([event])),
           ripple: pick(random, [Ripple.part, Ripple.staff]),
+        ),
+      );
+    case 36:
+      return edited(
+        score,
+        SetMeasureRepeat(
+          id,
+          staff: random.nextBool() ? pick(random, score.staves).id : null,
+          bars: pick(random, [null, 1, 1, 2]),
         ),
       );
     default:
