@@ -80,6 +80,13 @@ final class _Loudness {
   /// By start.
   final List<_Ramp> _ramps;
 
+  /// Whether a dynamic or a hairpin is written from [from] to [to], both
+  /// included.
+  bool markedIn(Moment from, Moment to) =>
+      _strikes.keys.any((at) => from <= at && at <= to) ||
+      _levels.any((level) => from <= level.$1 && level.$1 <= to) ||
+      _ramps.any((ramp) => ramp.from <= to && from < ramp.to);
+
   /// The velocity a chord starting at [position] strikes at, before its
   /// own marks. A strike there comes first, then the latest hairpin
   /// running there, then the level.

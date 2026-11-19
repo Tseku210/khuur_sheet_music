@@ -112,8 +112,10 @@ final class PlaybackCompiler {
   ///
   /// A staff's bar under a measure-repeat sign plays the notes of the bar
   /// the sign repeats, at its own place in the play order, so on every pass
-  /// of a repeat and under a volta too. Its dynamics, slurs and trill lines
-  /// are the ones at the repeating bar, not those of the bar repeated.
+  /// of a repeat and under a volta too. Each note plays with the dynamics,
+  /// slur and trill line of the note it repeats. A dynamic or hairpin of the
+  /// part written in the run of bars under signs takes over from where it
+  /// stands to the end of the run.
   PlaybackScript compile(
     Score score, [
     PlaybackOptions options = const PlaybackOptions(),
@@ -175,13 +177,22 @@ final class PlaybackCompiler {
         final TimedEvent(:onset, :voice, ref: EventRef(:staff)) = chord.timed;
         final (:channel, :instrument, :loudness) = sounds[staff]!;
         final position = onset + time.startOf(index);
-        final level = loudness.at(position);
+        final written = time.of(chord.timed.ref.measure, onset);
+        final level = loudness.at(
+          written == position ||
+                  loudness.markedIn(
+                    _underSignsFrom(measures, index, staff, time),
+                    position,
+                  )
+              ? position
+              : written,
+        );
         final trilled =
-            trills[staff]?.any((t) => t.$1 <= position && position <= t.$2) ??
+            trills[staff]?.any((t) => t.$1 <= written && written <= t.$2) ??
             false;
         final slurred =
             slurs[(staff, voice)]?.any(
-              (s) => s.$1 <= position && position < s.$2,
+              (s) => s.$1 <= written && written < s.$2,
             ) ??
             false;
         for (final attack
@@ -243,6 +254,22 @@ final class PlaybackCompiler {
 }
 
 typedef _Sound = ({int channel, Instrument instrument, _Loudness loudness});
+
+/// Where the run of bars under measure-repeat signs on [staff] that ends
+/// with bar [index] starts.
+Moment _underSignsFrom(
+  Seq<MeasureColumn> measures,
+  int index,
+  StaffId staff,
+  _Timeline time,
+) {
+  final k = measures[index].staves.indexWhere((s) => s.staff == staff);
+  var first = index;
+  while (first > 0 && measures[first - 1].staves[k].measureRepeat != null) {
+    first--;
+  }
+  return Moment.zero + time.startOf(first);
+}
 
 typedef _Lane = (StaffId, VoiceSlot);
 

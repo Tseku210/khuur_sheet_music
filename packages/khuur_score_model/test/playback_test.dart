@@ -619,6 +619,92 @@ void main() {
       );
     });
 
+    test('plays the dynamics of the bars it repeats', () {
+      final p = Dynamic.p.velocity;
+      final f = Dynamic.f.velocity;
+      final twoBars = repeating(
+        withDynamics(
+          withDynamics(beats(4), 0, {Moment.zero: Dynamic.p}),
+          1,
+          {Moment.zero: Dynamic.f},
+        ),
+        {2: 2},
+      );
+      final oneBar = repeating(
+        withDynamics(beats(2), 0, {
+          Moment.zero: Dynamic.p,
+          at(1, 2): Dynamic.f,
+        }),
+        {1: 1},
+      );
+
+      expect(velocities(compiled(twoBars)), [
+        for (final level in [p, f, p, f]) ...List.filled(4, level),
+      ]);
+      expect(velocities(compiled(oneBar)), [p, p, f, f, p, p, f, f]);
+    });
+
+    test('plays a dynamic written under the sign from where it stands, '
+        'through the rest of the signs', () {
+      final p = Dynamic.p.velocity;
+      final ff = Dynamic.ff.velocity;
+      final mid = withDynamics(
+        repeating(withDynamics(beats(2), 0, {Moment.zero: Dynamic.p}), {
+          1: 1,
+        }),
+        1,
+        {at(1, 2): Dynamic.ff},
+      );
+      final across = withDynamics(
+        repeating(withDynamics(beats(4), 0, {Moment.zero: Dynamic.p}), {
+          2: 2,
+        }),
+        2,
+        {Moment.zero: Dynamic.ff},
+      );
+
+      expect(velocities(compiled(mid)), [p, p, p, p, p, p, ff, ff]);
+      expect(velocities(compiled(across)), [
+        for (final level in [p, p, ff, ff]) ...List.filled(4, level),
+      ]);
+    });
+
+    test('plays the slurs and trill lines of the bars it repeats', () {
+      final score = beats(3);
+      final slurred = repeating(
+        withLine(
+          score,
+          const Slur(),
+          pointAt(score, 0, Moment.zero),
+          pointAt(score, 0, at(3, 4)),
+        ),
+        {1: 1},
+      );
+      final trilled = repeating(
+        withLine(
+          score,
+          const TrillLine(),
+          pointAt(score, 0, Moment.zero),
+          pointAt(score, 0, at(3, 4)),
+        ),
+        {1: 1},
+      );
+      List<double> bar(List<double> all, int index) =>
+          all.sublist(4 * index, 4 * index + 4);
+
+      final lengthsOf = lengths(compiled(slurred));
+      expect(bar(lengthsOf, 1), bar(lengthsOf, 0));
+      expect(bar(lengthsOf, 1), isNot(bar(lengthsOf, 2)));
+
+      final heard = attacks(compiled(trilled));
+      final perBar = [
+        for (final played in compiled(trilled).bars)
+          heard.where((a) => a.$1 >= played.start && a.$1 < played.end).length,
+      ];
+      expect(perBar[1], perBar[0]);
+      expect(perBar[1], greaterThan(perBar[2]));
+    });
+
     test('plays what the bar it repeats holds after that bar is edited', () {
       final compiler = PlaybackCompiler();
       final score = repeating(beats(2), {1: 1});
