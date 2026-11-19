@@ -104,6 +104,12 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      # Fails when a CHANGELOG or the site's tutorial names a version other
+      # than the pubspec's.
+      - name: Docs name the pubspec versions
+        if: ${{ !cancelled() }}
+        run: .github/scripts/check_release_docs.sh
+
       # Fails on any validation error or warning, such as a missing file or a
       # file that .pubignore hides.
       - name: Publish dry run, khuur_score_model

@@ -74,6 +74,7 @@ The edits that build most scores are these:
 - `SetClef`, `SetKey` and `SetMeter` change the clef, the key and the meter.
 - `SetBreak(measure, LayoutBreak.system)` starts a new system at a bar.
 - `SetBarLength` makes a bar shorter than its meter, as for a pickup.
+- `SetMeasureRepeat(measure, bars: 1)` puts a repeat sign in a bar, so it plays the bar before it again. `bars: 2` repeats the two bars before it over this bar and the next, and `bars: null` clears the sign. Writing a note into the bar clears it too.
 - `AddSpanner` adds a slur, a hairpin, a pedal line or another line.
 - `Batch` runs a list of edits as one undo step. If one of them is refused, the batch is refused and the score does not change.
 
@@ -136,6 +137,8 @@ The new note first fills any rest at the cursor. Then the later music of the par
 - `Erase(selection, ripple: Ripple.part)` pulls the later music back over what it deleted.
 
 `Ripple.part` moves every voice and staff of the edited part, and no other part. `Ripple.staff` moves every voice of the edited staff and no other staff, so you can edit one hand of a piano part without the other.
+
+A slur, trill line or glissando moves with the notes it starts and ends on. `SetBarLength` keeps them on their notes in the same way.
 
 A ripple stays inside the section that holds the edit. A section ends at any barline other than a regular one, and at a repeat sign, a volta, a rehearsal mark, a segno or coda, a key change and a meter change. A bar of irregular length, such as a pickup, is a section of its own.
 
