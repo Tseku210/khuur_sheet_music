@@ -290,8 +290,35 @@ final class _Export {
             ),
       if (bar == 0 && transposition != Interval.unison)
         _transpose(transposition),
+      for (final (k, staff) in staves.indexed)
+        ..._measureRepeat(bar, staff, multi ? k + 1 : null),
     ];
     return children.isEmpty ? null : _el('attributes', children);
+  }
+
+  /// The `<measure-style>` elements that open and close runs of
+  /// measure-repeat signs on [staff] at [bar]. A run of one-bar or of
+  /// two-bar repeats starts at its first bar, with the bars it repeats, and
+  /// stops at the first bar after it, which the file shows as usual.
+  List<XmlElement> _measureRepeat(int bar, StaffView staff, int? number) {
+    final sign = staff.source.measureRepeat;
+    final before = bar == 0
+        ? null
+        : score.measures[bar - 1].staff(staff.source.staff).measureRepeat;
+    XmlElement style(String type, [String count = '']) => _el(
+      'measure-style',
+      [
+        _el('measure-repeat', [if (count.isNotEmpty) XmlText(count)], {
+          'type': type,
+        }),
+      ],
+      {'number': number?.toString()},
+    );
+    return [
+      if (before != null && sign?.bars != before.bars) style('stop'),
+      if (sign != null && sign.bars != before?.bars)
+        style('start', '${sign.bars}'),
+    ];
   }
 
   /// The staves of one bar of part [p], in time order per voice, with each

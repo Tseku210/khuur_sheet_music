@@ -167,6 +167,7 @@ final class BarRecord {
     required this.navigation,
     required this.barline,
     required this.breakBefore,
+    this.measureRepeats = const [],
   });
 
   /// The `<measure>`.
@@ -201,6 +202,11 @@ final class BarRecord {
   /// The page or system break a `<print>` in the bar asks for before it, or
   /// null.
   final LayoutBreak? breakBefore;
+
+  /// Each `<measure-repeat>`, in document order: its staff from 0, or null
+  /// for every staff of the part, and the bars a start repeats, or null for
+  /// a stop.
+  final List<({int? staff, int? bars})> measureRepeats;
 }
 
 /// The repeat, ending and right barline marks of one bar.

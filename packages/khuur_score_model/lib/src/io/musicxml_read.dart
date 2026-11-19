@@ -507,6 +507,7 @@ final class _BarReader {
   List<int>? endingStart;
   String? endingStop;
   LayoutBreak? breakBefore;
+  final measureRepeats = <({int? staff, int? bars})>[];
 
   BarRecord read(XmlElement measure) {
     for (final child in measure.childElements) {
@@ -571,6 +572,7 @@ final class _BarReader {
         endingStop: endingStop,
       ),
       breakBefore: breakBefore,
+      measureRepeats: measureRepeats,
     );
   }
 
@@ -695,6 +697,19 @@ final class _BarReader {
         case 'transpose':
           if (_interval(child) != part.transposition) {
             Source(child).refuse('a part keeps one transposition');
+          }
+        case 'measure-style':
+          if (child.getElement('measure-repeat') case final repeat?) {
+            final number = child.getAttributeNode('number');
+            measureRepeats.add((
+              staff: number == null
+                  ? null
+                  : _staffNumber(number, part.staves.length),
+              bars: switch (repeat.getAttribute('type')) {
+                'start' => integerOf(repeat.innerText) ?? 1,
+                _ => null,
+              },
+            ));
           }
       }
     }
