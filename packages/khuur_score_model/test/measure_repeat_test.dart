@@ -429,6 +429,21 @@ void main() {
         ('a trill line', 1, line(const TrillLine(), 1, at(1, 4), at(1, 2))),
         ('a trill line', 2, line(const TrillLine(), 1, at(1, 4), at(1, 2))),
         (
+          'a trill line on one note',
+          1,
+          line(const TrillLine(), 1, at(1, 4), at(1, 4)),
+        ),
+        (
+          'a trill line from the bar before to the first note',
+          1,
+          (score) => AddSpanner(
+            kind: const TrillLine(),
+            staff: score.staves.first.id,
+            first: pointAt(score, 0, at(1, 2)),
+            last: pointAt(score, 1, Moment.zero),
+          ),
+        ),
+        (
           'a trill line from the bar before',
           1,
           (score) => AddSpanner(
@@ -509,6 +524,8 @@ void main() {
               score,
             ).run(SetMeter(from: score.measures[from].id, meter: meter)),
           ).score;
+          expect(repeatedIds(changed), isEmpty);
+          expect(saved(reloaded(changed)), saved(changed));
           List<(int, int)> onsets(Score score) => [
             for (final (start, _, key, _) in heard(score)) (start, key),
           ]..sort((a, b) => a.$1 == b.$1 ? a.$2 - b.$2 : a.$1 - b.$1);

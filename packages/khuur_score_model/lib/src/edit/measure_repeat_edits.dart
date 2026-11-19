@@ -220,7 +220,7 @@ bool _lieOnNotes(SpannerKind kind) => switch (kind) {
 /// does not reach those bars. Only the part of [spanner] within them is
 /// copied: from the start of [bar] when it starts before them, and to the
 /// last onset of the copies when it ends after them. Null too when that
-/// part ends where it starts.
+/// part ends before it starts.
 (ScorePoint, ScorePoint)? _copiedInto(
   Score score,
   Seq<MeasureColumn> written,
@@ -242,7 +242,7 @@ bool _lieOnNotes(SpannerKind kind) => switch (kind) {
   final last = to > end
       ? _lastOnset(written[end + shift], spanner)
       : ScorePoint(written[to + shift].id, spanner.last.offset);
-  return first.measure == last.measure && last.offset <= first.offset
+  return first.measure == last.measure && last.offset < first.offset
       ? null
       : (first, last);
 }

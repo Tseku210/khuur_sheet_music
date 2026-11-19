@@ -1,7 +1,7 @@
 ## 0.4.0
 * A bar under a measure-repeat sign draws `Glyph.repeat1Bar` centred in it, or `Glyph.repeat2Bars` over the barline between the two bars of a two-bar sign with a 2 above it in `timeSig` digits at a rest run's count height, in place of its whole-bar rest. The bar reaches the sign's width, so a pressed bar still holds it.
 * `SheetLayout.playingIn` gives the width of the whole bar while a staff under a sign plays, on both bars of a two-bar sign, where the second bar had no column.
-* Line breaking never ends a system between the two bars of a two-bar sign, and `BarLayout.holdsNext` marks the first of them. A bar under a sign does not fold into a multi-measure rest.
+* Line breaking never ends a system between the two bars of a two-bar sign. A bar under a sign does not fold into a multi-measure rest.
 * Depends on `khuur_score_model` 0.4.0, which holds the signs.
 
 ## 0.3.4
