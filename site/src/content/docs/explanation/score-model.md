@@ -20,7 +20,8 @@ Score
 │      │                              volta, navigation, rehearsal,
 │      │                              tempo marks, breaks
 │      └─ staves: Seq<StaffMeasure>   staff, clef at the bar's start,
-│          │                          clef changes, directions
+│          │                          clef changes, directions,
+│          │                          measure repeat
 │          └─ voices: Seq<Voice>      slot one to four
 │              └─ items: Seq<VoiceItem>
 │                   Gap | ChordEvent | RestEvent | MeasureRest | Tuplet
