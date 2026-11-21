@@ -249,11 +249,6 @@ final List<Refusal> refusals = [
     at: '$bar0/note[1]/duration',
   ),
   refuses(
-    'backs up past the bar start',
-    [(c5, '$c5${backup(20)}')],
-    at: '$bar0/backup/duration',
-  ),
-  refuses(
     'overlaps the previous note in its voice',
     [(c5, '$c5${backup(6)}${note('A4', 12, 'quarter')}')],
     at: '$bar0/note[2]',
@@ -1823,6 +1818,59 @@ void main() {
         'G5/sixteenth',
       ]);
       expect(score.measures.single.length, Length(Fraction(25, 32)));
+    });
+
+    test('backs up by the durations of notes whose written values disagree '
+        'with them', () {
+      const one = '<voice>1</voice>';
+      const two = '<voice>2</voice>';
+      final shorter = imported(
+        flute([
+          [
+            opening(beats: 3),
+            note('C5', 4, 'quarter', one),
+            note('D5', 4, 'quarter', one),
+            note('E5', 2, 'eighth', one),
+            note('F5', 2, '16th', '<dot/>$one'),
+            backup(12),
+            note('C4', 12, 'half', '<dot/>$two'),
+          ],
+        ]),
+      );
+      final longer = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 2, 'quarter', one),
+            note('D5', 4, 'quarter', one),
+            note('E5', 4, 'quarter', one),
+            backup(10),
+            note('C4', 8, 'half', two),
+            note('D4', 8, 'half', two),
+          ],
+        ]),
+      );
+
+      expect(items(shorter, 0, slot: VoiceSlot.two), ['C4/half.']);
+      expect(shorter.measures.single.length, Length(Fraction(3, 4)));
+      expect(items(longer, 0, slot: VoiceSlot.two), ['C4/half', 'D4/half']);
+      expect(longer.measures.single.length, Length(Fraction.one));
+    });
+
+    test('stops a backup at the start of its bar', () {
+      final score = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 16, 'whole', '<voice>1</voice>'),
+            backup(20),
+            note('C4', 16, 'whole', '<voice>2</voice>'),
+          ],
+        ]),
+      );
+
+      expect(items(score, 0, slot: VoiceSlot.two), ['C4/whole']);
+      expect(score.measures.single.length, Length(Fraction.one));
     });
 
     test('closes a tuplet of mixed values where the time modification '
