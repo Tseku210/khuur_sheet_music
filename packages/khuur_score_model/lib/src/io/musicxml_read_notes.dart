@@ -561,9 +561,9 @@ extension on _BarReader {
         if (chord.tremolo == 0 && strokes > 0) {
           chord.tremolo = strokes;
         }
-      } else if (!(lined && name == 'trill-mark') &&
-          chord.ornament == null &&
-          ornamentByName[name] != null) {
+      } else if (lined && name == 'trill-mark') {
+        chord.lineSign = true;
+      } else if (chord.ornament == null && ornamentByName[name] != null) {
         chord.ornament = ornamentByName[name];
         marked = true;
       }

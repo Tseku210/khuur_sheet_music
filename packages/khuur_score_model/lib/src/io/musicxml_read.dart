@@ -15,6 +15,7 @@ import '../stable_sort.dart';
 import '../time.dart';
 import 'musicxml_names.dart';
 import 'musicxml_records.dart';
+import 'musicxml_spanners.dart';
 
 part 'musicxml_read_marks.dart';
 part 'musicxml_read_notes.dart';
@@ -78,9 +79,11 @@ DocumentRecord readDocument(XmlElement root) {
       reader.bars.add(_BarReader(reader, bar).read(measure));
     }
   }
+  final parts = [for (final reader in readers) reader.record()]
+    ..forEach(keepSignsOfUnclosedTrills);
   return DocumentRecord(
     meta: _meta(root),
-    parts: [for (final reader in readers) reader.record()],
+    parts: parts,
     measures: measures,
     printed: printed,
     supportsAccidentals: supports('accidental'),

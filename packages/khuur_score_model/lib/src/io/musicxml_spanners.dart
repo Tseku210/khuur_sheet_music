@@ -4,6 +4,7 @@ library;
 
 import 'dart:collection';
 
+import '../events.dart';
 import '../refs.dart';
 import '../rules.dart';
 import '../score.dart';
@@ -42,34 +43,59 @@ final class _Pair {
 /// on the event of voice one that sounds there, has its stop written
 /// first. A stop with nothing open is kept for a start in its bar that its
 /// event sounds past.
-List<_Pair> _pairs(PartRecord part) {
+///
+/// [unclosed] takes each start that no stop closes.
+List<_Pair> _pairs(PartRecord part, {void Function(LineMark)? unclosed}) {
   final pairs = <_Pair>[];
   for (final MapEntry(key: (_, name), value: marks) in part.marks.entries) {
     final number = int.tryParse(name) ?? 1;
     ({LineMark mark, SpannerKind kind})? open;
     LineMark? early;
+    void drop() {
+      if (open case (:final mark, kind: _)) {
+        unclosed?.call(mark);
+      }
+      open = null;
+    }
+
     for (final mark in marks) {
       if (!mark.starts) {
-        if (open == null) {
-          early = mark;
-        } else {
-          pairs.add(_Pair(open.kind, number, open.mark, mark));
+        if (open case (mark: final start, :final kind)) {
+          pairs.add(_Pair(kind, number, start, mark));
           open = null;
+        } else {
+          early = mark;
         }
       } else if (mark.kind case final kind?) {
         if (early != null && _soundsPast(early.anchor, mark.anchor)) {
           pairs.add(_Pair(kind, number, mark, early));
           early = null;
         } else {
+          drop();
           open = (mark: mark, kind: kind);
         }
       } else {
-        open = null;
+        drop();
       }
     }
+    drop();
   }
   return pairs..sort((a, b) => a.start.index - b.start.index);
 }
+
+/// Gives each chord of [part] its trill mark back where the wavy line that
+/// starts on it never stops.
+void keepSignsOfUnclosedTrills(PartRecord part) => _pairs(
+  part,
+  unclosed: (start) {
+    if (start case LineMark(
+      kind: TrillLine(),
+      anchor: EventAnchor(event: ChordRecord(lineSign: true) && final chord),
+    )) {
+      chord.ornament ??= Ornament.trill;
+    }
+  },
+);
 
 bool _soundsPast(Anchor stop, Anchor start) =>
     stop is EventAnchor &&

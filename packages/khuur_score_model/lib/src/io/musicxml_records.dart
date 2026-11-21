@@ -340,8 +340,10 @@ final class ChordRecord extends EventRecord {
   /// included.
   final Set<Articulation> articulations = {};
   /// The first ornament a note states, or null. A `trill-mark` beside the start
-  /// of a `wavy-line` does not count.
+  /// of a `wavy-line` counts only when that line never stops.
   Ornament? ornament;
+  /// Whether a note states a `trill-mark` beside the start of a `wavy-line`.
+  bool lineSign = false;
   /// The alteration of the first `<accidental-mark>` above [ornament] in
   /// its `<ornaments>`, which is where one without a placement goes.
   Alter? ornamentAbove;
