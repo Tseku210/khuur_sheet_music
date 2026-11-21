@@ -333,6 +333,17 @@ void main() {
       ]);
     }
 
+    void expectNotesInOrder(SheetLayout layout, int index) {
+      final stops = layout.systemAt(index).bars.single.time.stops;
+      for (var k = 1; k < stops.length; k++) {
+        expect(
+          stops[k].$2,
+          greaterThan(stops[k - 1].$2),
+          reason: 'stop $k of system $index',
+        );
+      }
+    }
+
     for (final width in [46.0, 40.0, 33.0]) {
       test('$width wide shows the whole bar', () {
         final layout = sheetOf(score, width: width);
@@ -340,24 +351,54 @@ void main() {
         expect(layout.systemCount, 2);
         expectInsideBands(layout);
         for (var i = 0; i < layout.systemCount; i++) {
-          final system = layout.systemAt(i);
-          expect(system.width, width);
+          expect(layout.systemAt(i).width, width);
           expect(inkRightOf(layout, i), lessThanOrEqualTo(width + 1e-6));
-          final stops = system.bars.single.time.stops;
-          for (var k = 1; k < stops.length; k++) {
-            expect(stops[k].$2, greaterThanOrEqualTo(stops[k - 1].$2));
-          }
+          expectNotesInOrder(layout, i);
         }
       });
     }
 
-    test('narrower than its first bar\'s tempo mark is as narrow as the '
-        'mark allows', () {
+    test('20 wide shows the whole bar where the system head leaves room, '
+        'and keeps every note in order', () {
       final layout = sheetOf(score, width: 20);
 
+      expect(layout.systemCount, 2);
       expectInsideBands(layout);
+      expect(layout.systemAt(1).width, 20);
+      expect(inkRightOf(layout, 1), lessThanOrEqualTo(20 + 1e-6));
       expect(layout.systemAt(0).width, inExclusiveRange(20, 33));
+      for (var i = 0; i < layout.systemCount; i++) {
+        expectNotesInOrder(layout, i);
+      }
     });
+
+    for (final width in [40.0, 33.0, 26.0]) {
+      test('$width wide keeps every note in order around a mark that is '
+          'wider than the room after its note', () {
+        const words = 'rallent. e  smorz.';
+        final marked = changeBar(
+          score,
+          1,
+          (column) => column.withStaff(
+            column.staves.first.copyWith(
+              directions: Seq([TextMark(at(1, 2), words)]),
+            ),
+          ),
+        );
+        final layout = sheetOf(marked, width: width);
+
+        expectInsideBands(layout);
+        expectNotesInOrder(layout, 1);
+        final system = layout.systemAt(1);
+        final mark = system.drawables.whereType<TextDraw>().singleWhere(
+          (draw) => draw.text == words,
+        );
+        expect(mark.bounds.right, lessThanOrEqualTo(system.width + 1e-6));
+        if (width > 30) {
+          expect(system.width, width);
+        }
+      });
+    }
   });
 
   group('a sheet that does not justify', () {

@@ -88,8 +88,8 @@ void main() {
             reason: where,
           );
           expect(
-            [for (final plan in again.plans) plan.stretch],
-            [for (final plan in fresh.plans) plan.stretch],
+            [for (final plan in again.plans) plan.fit],
+            [for (final plan in fresh.plans) plan.fit],
             reason: where,
           );
           expect(
