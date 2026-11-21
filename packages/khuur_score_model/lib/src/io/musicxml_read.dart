@@ -491,6 +491,11 @@ final class _BarReader {
 
   Moment cursor = Moment.zero;
   Moment furthest = Moment.zero;
+
+  /// How far the cursor is past where the durations read so far put it. A
+  /// note whose written value disagrees with its duration moves the cursor
+  /// by the value, and a `<backup>` counts in durations.
+  Fraction ahead = Fraction.zero;
   final lanes = <int, _Lane>{};
 
   /// What a `<chord/>` note joins.
@@ -519,11 +524,11 @@ final class _BarReader {
           _note(child);
         case 'backup':
           final (:element, raw: _, :length) = _duration(child);
-          final target = cursor - length;
-          if (target.isNegative) {
-            Source(element).refuse('backs up past the bar start');
-          }
-          cursor = _storable(target, Source(element));
+          final target = cursor.wholeNotes - ahead - length.wholeNotes;
+          ahead = Fraction.zero;
+          cursor = target.isNegative
+              ? Moment.zero
+              : _storable(Moment(target), Source(element));
         case 'forward':
           final (:element, raw: _, :length) = _duration(child);
           final voice = child.getElement('voice');

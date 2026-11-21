@@ -181,6 +181,9 @@ extension on _BarReader {
       final keepsWritten = agrees || (rest == null && !inTuplet);
       if (keepsWritten) {
         end = cursor + Length(exact);
+        if (!agrees) {
+          ahead += exact - duration.length.wholeNotes;
+        }
       } else if (inTuplet) {
         at.refuse('the duration does not match the written value');
       } else {
