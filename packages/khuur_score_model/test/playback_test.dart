@@ -1013,6 +1013,64 @@ void main() {
       }
     });
 
+    test('a slur inside a longer one, or listed before an earlier one, '
+        'leaves every note under a slur slurred', () {
+      Score slurred(Score score, (int, Moment) from, (int, Moment) to) =>
+          withLine(
+            score,
+            const Slur(),
+            pointAt(score, from.$1, from.$2),
+            pointAt(score, to.$1, to.$2),
+          );
+      var nested = beats(2);
+      nested = slurred(nested, (0, Moment.zero), (1, at(1, 2)));
+      nested = slurred(nested, (0, at(1, 4)), (0, at(1, 2)));
+      var unordered = beats(2);
+      unordered = slurred(unordered, (1, at(1, 4)), (1, at(3, 4)));
+      unordered = slurred(unordered, (0, Moment.zero), (0, at(1, 4)));
+
+      expect(lengths(compiled(nested)), [
+        ...[0.6, 0.6, 0.6, 0.6],
+        ...[0.6, 0.6, 0.54, 0.54],
+      ]);
+      expect(lengths(compiled(unordered)), [
+        ...[0.6, 0.54, 0.54, 0.54],
+        ...[0.54, 0.6, 0.6, 0.54],
+      ]);
+    });
+
+    test('trills under each of several trill lines, the note a line ends on '
+        'too, in whatever order the lines are listed', () {
+      var score = beats(2);
+      for (final (from, to) in [
+        ((1, at(1, 4)), (1, at(1, 2))),
+        ((0, Moment.zero), (0, at(1, 4))),
+        ((0, Moment.zero), (0, Moment.zero)),
+      ]) {
+        score = withLine(
+          score,
+          const TrillLine(),
+          pointAt(score, from.$1, from.$2),
+          pointAt(score, to.$1, to.$2),
+        );
+      }
+      final script = compiled(score);
+
+      expect(
+        [
+          for (final bar in script.bars)
+            for (var beat = 0; beat < 4; beat++)
+              script
+                  .notesBetween(
+                    bar.start + 0.6 * beat - 1e-6,
+                    bar.start + 0.6 * (beat + 1) - 1e-6,
+                  )
+                  .length,
+        ],
+        [8, 8, 1, 1, 1, 8, 8, 1],
+      );
+    });
+
     test('a tie stays in its staff and voice', () {
       var score = blankScore(parts: const [piano], bars: 1);
       score = fill(score, 0, [
