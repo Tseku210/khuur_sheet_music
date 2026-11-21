@@ -1446,6 +1446,35 @@ void main() {
       ]);
     });
 
+    test('a hairpin moves one level when the dynamic after it is not in its '
+        'direction, and the dynamic then takes over', () {
+      List<int> played(Dynamic first, Dynamic next, {required bool crescendo}) {
+        var score = beats(2);
+        score = withDynamics(score, 0, {Moment.zero: first});
+        score = withDynamics(score, 1, {Moment.zero: next});
+        score = withLine(
+          score,
+          Hairpin(crescendo: crescendo),
+          pointAt(score, 0, Moment.zero),
+          pointAt(score, 0, at(3, 4)),
+        );
+        return velocities(compiled(score));
+      }
+
+      expect(played(Dynamic.f, Dynamic.p, crescendo: true), [
+        ...[80, 84, 88, 92],
+        ...[42, 42, 42, 42],
+      ]);
+      expect(played(Dynamic.f, Dynamic.f, crescendo: true), [
+        ...[80, 84, 88, 92],
+        ...[80, 80, 80, 80],
+      ]);
+      expect(played(Dynamic.p, Dynamic.f, crescendo: false), [
+        ...[42, 39, 37, 34],
+        ...[80, 80, 80, 80],
+      ]);
+    });
+
     test('a hairpin stays within pppp and ffff', () {
       var score = withDynamics(beats(2), 0, {Moment.zero: Dynamic.ffff});
       score = withDynamics(score, 1, {Moment.zero: Dynamic.pppp});
