@@ -7,6 +7,9 @@
 * `SheetView` squeezes a bar that is wider than the view into the view, where it ran past the right edge and its last notes and barline were cut off. A phone in portrait cut bars of sixteenths in most scores. A slur keeps clear of a high note, a stem or a beam near its ends, from `khuur_score_layout` 0.5.0.
 * The sheet spaces notes by MuseScore 4's ratio of 1.5, so short notes take less room, from `khuur_score_layout` 0.5.0.
 * `ScorePlayer` and `scoreToMidi` play a glissando as chromatic steps, and MusicXML import reads a slide as a glissando, from `khuur_score_model` 0.5.0.
+* **Breaking:** `MidiOutput` gains `expression`, which sets a channel's MIDI controller 11. The player sends it for each channel before its first note and wherever the level of a part that swells changes, and again after a seek, a pause, a loop or a new score. A class that implements `MidiOutput` adds it.
+* `SynthOutput` weighs each note's velocity by its channel's expression as the note starts, because `khuur_synth` cannot send a controller yet. So a trill under a hairpin swells, and a held note keeps the level it started at.
+* `scoreToMidi` writes the expression of a part that swells as controller 11, from `khuur_score_model` 0.5.0.
 * Depends on `khuur_score_model` 0.5.0 and `khuur_score_layout` 0.5.0.
 
 ## 0.4.0
