@@ -1812,6 +1812,29 @@ void main() {
       },
     );
 
+    test('keeps the trill mark of a trill line that never stops', () {
+      String ornaments(String children) =>
+          '<notations><ornaments>$children</ornaments></notations>';
+      final lined = ornaments('<trill-mark/><wavy-line type="start"/>');
+      final score = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 4, 'quarter', lined),
+            note('D5', 4, 'quarter', lined),
+            note('E5', 4, 'quarter', ornaments('<wavy-line type="stop"/>')),
+            note('F5', 4, 'quarter', lined),
+          ],
+        ]),
+      );
+
+      expect(spannersOf(score), ['trill 0@1/4-0@1/2']);
+      expect(
+        [for (final chord in chordsIn(score, 0)) chord.ornament],
+        [Ornament.trill, null, null, Ornament.trill],
+      );
+    });
+
     test('reads the accidental marks that follow an ornament\'s sign', () {
       String ornaments(String children) =>
           '<notations><ornaments>$children</ornaments></notations>';
