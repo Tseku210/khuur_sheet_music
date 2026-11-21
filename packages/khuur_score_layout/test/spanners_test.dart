@@ -455,6 +455,34 @@ void main() {
       }
     });
 
+    for (final (name, high) in [('first', 2), ('last', 7)]) {
+      test('a slur passes over a far higher note that stands in the $name '
+          'quarter of its length', () {
+        final base = scoreOf([
+          [for (var i = 1; i <= 4; i++) chordOf(i, i == high ? 'E6' : 'C5')],
+          [for (var i = 5; i <= 8; i++) chordOf(i, i == high ? 'E6' : 'C5')],
+        ]);
+        final score = withSlur(
+          base,
+          pointAt(base, 0, Moment.zero),
+          pointAt(base, 1, at(3, 4)),
+        );
+        final sheet = sheetOf(score);
+        expectInsideBands(sheet);
+        final system = sheet.systemAt(0);
+        final slur = curvesOf(system).single;
+        final head = headOf(system, noteRef(score, high > 4 ? 1 : 0, high));
+
+        final over = [
+          for (var i = 0; i <= 400; i++) slur.pointAt(i / 400),
+        ].where((point) => point.x >= head.left && point.x <= head.right);
+        expect(over, isNotEmpty);
+        for (final point in over) {
+          expect(point.y, lessThan(head.top), reason: 'at x ${point.x}');
+        }
+      });
+    }
+
     test('a slur in one voice of two that ends beside the stem standing '
         'farthest out stays inside its band and arcs', () {
       Score twoVoices(VoiceSlot voice, String first, String second) {
