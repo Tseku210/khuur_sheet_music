@@ -103,25 +103,29 @@ extension on _BarReader {
     }
   }
 
-  /// Moves each nudged direction to where it sounds. A line end that its
-  /// offset moved nearer another event stays where it is drawn, since a
-  /// line may end inside an event.
+  /// Moves each nudged direction to where it sounds. A dynamic or words
+  /// written where their staff has no event have only the offset to time
+  /// them, so they keep its time when an event of the part starts there.
+  /// A line end that its offset moved nearer another event stays where it
+  /// is drawn, since a line may end inside an event.
   void _settle(List<LaneRecord> lanes) {
+    bool starts(Iterable<LaneRecord> lanes, Moment at) =>
+        lanes.any((lane) => lane.startingAt.containsKey(at));
+
     for (final (:cursor, :drawn, :from, :to) in nudges) {
       final staff = drawn.staff;
-      final onStaff = _nearest(
-        drawn.at,
-        cursor,
-        lanes.where((lane) => lane.staff == staff),
-      );
+      final own = lanes.where((lane) => lane.staff == staff);
+      final onStaff = _nearest(drawn.at, cursor, own);
       final onAny = _nearest(drawn.at, cursor, lanes);
+      final timedByOffset = !starts(own, cursor) && starts(lanes, drawn.at);
+      final sounds = timedByOffset ? drawn.at : onStaff;
       if (onStaff == cursor) {
         drawn.at = cursor;
       }
       for (var i = from.directions; i < to.directions; i++) {
         directions[i] = (
           staff: staff,
-          direction: directionAt(directions[i].direction, onStaff),
+          direction: directionAt(directions[i].direction, sounds),
         );
       }
       for (var i = from.tempos; i < to.tempos; i++) {
