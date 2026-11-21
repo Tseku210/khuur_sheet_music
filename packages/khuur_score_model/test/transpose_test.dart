@@ -222,6 +222,52 @@ void main() {
       expect(bar(next.score, 1), ['B4/half~', 'B4/half']);
     });
 
+    group('by a staff step', () {
+      const step = Transposition.diatonic(1);
+      EditSession inF() => EditSession.start(
+        withKey(
+          sessionWith([
+            [
+              chordOf(1, 'F#4'),
+              chordOf(2, 'B4'),
+              chordOf(3, 'A4'),
+              chordOf(4, 'E4'),
+            ],
+          ]).score,
+          0,
+          -1,
+        ),
+      );
+
+      test('lands on what the key and the bar give the new line', () {
+        final session = inF();
+        List<String> stepped(int id) =>
+            bar(transposed(session, events(session, [id]), step).score, 0);
+
+        expect(stepped(1).first, 'G4/quarter');
+        expect(stepped(2)[1], 'C5/quarter');
+        expect(stepped(3)[2], 'B4/quarter', reason: 'the bar has a B natural');
+        expect(stepped(4)[3], 'F#4/quarter', reason: 'the bar has an F sharp');
+      });
+
+      test('reads the notes before it as the edit leaves them', () {
+        final session = inF();
+
+        final next = transposed(
+          session,
+          range(session, (0, Moment.zero), (0, at(1, 1))),
+          step,
+        );
+
+        expect(bar(next.score, 0), [
+          'G4/quarter',
+          'C5/quarter',
+          'Bb4/quarter',
+          'F4/quarter',
+        ]);
+      });
+    });
+
     test('reads the key of each note', () {
       final session = EditSession.start(
         withKey(
