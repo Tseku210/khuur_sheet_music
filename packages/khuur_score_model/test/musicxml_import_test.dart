@@ -1723,8 +1723,8 @@ void main() {
       expect(score.measures.single.rehearsal, 'A');
     });
 
-    test('moves a dynamic written where its staff has no event to the '
-        'event of another staff that its offset names', () {
+    test('moves a dynamic or words written where their staff has no event '
+        'to the event of another staff that the offset names', () {
       final score = imported(
         keyboard([
           [
@@ -1737,11 +1737,14 @@ void main() {
             direction([
               '<dynamics><p/></dynamics>',
             ], more: '<offset>-12</offset><staff>1</staff>'),
+            direction([
+              '<words>dolce</words>',
+            ], more: '<offset>-8</offset><staff>1</staff>'),
           ],
         ]),
       );
 
-      expect(marksIn(score, 0), ['0 f', '1/4 p']);
+      expect(marksIn(score, 0), ['0 f', '1/4 p', '1/2 dolce']);
       expect(
         [for (final (_, _, key, loudness) in heard(score)) (key, loudness)],
         [
