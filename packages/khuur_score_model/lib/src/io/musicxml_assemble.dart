@@ -144,24 +144,21 @@ final class _Assembly {
     movedRehearsals = [];
     final navigation = <NavigationMark>[];
     final staves = <StaffMeasure>[];
+    final last = bar + 1 == document.measures.length;
+    final held = <TempoMark>[];
     for (final (p, part) in parts.indexed) {
       final record = part.bars[bar];
       for (final tempo in record.tempos) {
         if (tempo.offset < end) {
           tempos.putIfAbsent(tempo.offset, () => tempo);
         } else {
-          movedTempos.add(
-            TempoMark(
-              offset: Moment.zero,
-              tempo: tempo.tempo,
-              text: tempo.text,
-              showMetronome: tempo.showMetronome,
-            ),
-          );
+          (last ? held : movedTempos).add(tempo);
         }
       }
       for (final rehearsal in record.rehearsals) {
-        (rehearsal.at < end ? rehearsals : movedRehearsals).add(rehearsal.text);
+        (rehearsal.at < end || last ? rehearsals : movedRehearsals).add(
+          rehearsal.text,
+        );
       }
       for (final mark in record.navigation) {
         if (!navigation.contains(mark)) {
@@ -170,18 +167,27 @@ final class _Assembly {
       }
       final moved = movedDirections[p];
       movedDirections[p] = [
-        for (final (:staff, :direction) in record.directions)
-          if (direction.offset >= end)
-            (staff: staff, direction: _atBarStart(direction)),
+        if (!last)
+          for (final (:staff, :direction) in record.directions)
+            if (direction.offset >= end)
+              (staff: staff, direction: _at(direction, Moment.zero)),
       ];
       for (var k = 0; k < part.staves.length; k++) {
-        staves.add(_staff(bar, p, k, end, moved));
+        staves.add(_staff(bar, p, k, end, moved, last: last));
       }
     }
     // A tempo the bar opens with is written after one the bar before ends
     // with, so it is the one that holds.
     for (final tempo in carried) {
-      tempos.putIfAbsent(Moment.zero, () => tempo);
+      tempos.putIfAbsent(Moment.zero, () => _tempoAt(tempo, Moment.zero));
+    }
+    if (held.isNotEmpty) {
+      final onset = _lastOnset([
+        for (final part in parts) ...part.bars[bar].lanes,
+      ], end);
+      for (final tempo in held) {
+        tempos.putIfAbsent(onset, () => _tempoAt(tempo, onset));
+      }
     }
 
     final first = parts.first.bars[bar];
@@ -278,8 +284,9 @@ final class _Assembly {
     int p,
     int k,
     Moment end,
-    List<({int staff, StaffDirection direction})> moved,
-  ) {
+    List<({int staff, StaffDirection direction})> moved, {
+    required bool last,
+  }) {
     final part = parts[p];
     final record = part.bars[bar];
     var clef = clefs[p][k];
@@ -306,15 +313,18 @@ final class _Assembly {
       openingClefs.add(clef);
     }
 
-    final own = stableSorted([
-      for (final (:staff, :direction) in record.directions)
-        if (staff == k && direction.offset < end) direction,
-    ], (a, b) => a.offset.compareTo(b.offset));
-
     final lanes = [
       for (final lane in record.lanes)
         if (lane.staff == k) lane,
     ]..sort((a, b) => a.slot.index - b.slot.index);
+    final own = stableSorted([
+      for (final (:staff, :direction) in record.directions)
+        if (staff == k)
+          if (direction.offset < end)
+            direction
+          else if (last)
+            _at(direction, _lastOnset(lanes, end)),
+    ], (a, b) => a.offset.compareTo(b.offset));
     final voices = _Voices(this, part, bar, end);
     return StaffMeasure(
       staff: part.staves[k],
@@ -330,20 +340,42 @@ final class _Assembly {
   }
 }
 
-StaffDirection _atBarStart(StaffDirection direction) => switch (direction) {
-  DynamicMark(:final level) => DynamicMark(Moment.zero, level),
-  TextMark(:final text, :final above) => TextMark(
-    Moment.zero,
-    text,
-    above: above,
-  ),
-  ChordSymbol(:final root, :final quality, :final bass) => ChordSymbol(
-    Moment.zero,
-    root: root,
-    quality: quality,
-    bass: bass,
-  ),
-};
+/// Where the last event of [lanes] that starts before the bar's [end]
+/// starts, or the bar's start when they hold none.
+Moment _lastOnset(Iterable<LaneRecord> lanes, Moment end) {
+  var last = Moment.zero;
+  for (final lane in lanes) {
+    for (final event in eventsIn(lane.items)) {
+      if (event.onset > last && event.onset < end) {
+        last = event.onset;
+      }
+    }
+  }
+  return last;
+}
+
+TempoMark _tempoAt(TempoMark tempo, Moment offset) => TempoMark(
+  offset: offset,
+  tempo: tempo.tempo,
+  text: tempo.text,
+  showMetronome: tempo.showMetronome,
+);
+
+StaffDirection _at(StaffDirection direction, Moment offset) =>
+    switch (direction) {
+      DynamicMark(:final level) => DynamicMark(offset, level),
+      TextMark(:final text, :final above) => TextMark(
+        offset,
+        text,
+        above: above,
+      ),
+      ChordSymbol(:final root, :final quality, :final bass) => ChordSymbol(
+        offset,
+        root: root,
+        quality: quality,
+        bass: bass,
+      ),
+    };
 
 /// Builds the voices of one part's staves in one bar.
 final class _Voices {
