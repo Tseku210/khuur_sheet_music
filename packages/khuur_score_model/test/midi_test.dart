@@ -466,7 +466,7 @@ void main() {
           (60, 0, quarter),
           (60, quarter, 2 * quarter + 38),
           (62, 2 * quarter, 3 * quarter),
-          (62, 3 * quarter, 3 * quarter + 864),
+          (62, 3 * quarter, 3 * quarter + 950),
         ],
       );
       final sounding = <int>{};

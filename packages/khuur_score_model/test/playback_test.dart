@@ -779,7 +779,7 @@ void main() {
   });
 
   group('notes', () {
-    test('plays each head at its time, 0.9 of its length, at mf', () {
+    test('plays each head at its time, 0.99 of its length, at mf', () {
       final score = sessionWith([
         [
           quarters(1, 'C4 E4'),
@@ -790,9 +790,9 @@ void main() {
       final script = compiled(score);
 
       expect(notes(script), [
-        (0.0, 0.54, 60, 0, 1),
-        (0.0, 0.54, 64, 0, 1),
-        (1.2, 1.08, 67, 0, 3),
+        (0.0, 0.594, 60, 0, 1),
+        (0.0, 0.594, 64, 0, 1),
+        (1.2, 1.188, 67, 0, 3),
       ]);
       expect(
         {for (final note in script.notesBetween(0, 10)) note.velocity},
@@ -811,12 +811,12 @@ void main() {
       );
 
       expect(notes(compiled(score)), [
-        (0.0, 0.54, 60, 0, 1),
-        (0.6, 1.08, 64, 0, 2),
-        (1.8, 0.54, 67, 0, 3),
-        (2.4, 0.54, 60, 0, 1),
-        (3.0, 1.08, 64, 0, 2),
-        (4.2, 0.54, 67, 0, 3),
+        (0.0, 0.594, 60, 0, 1),
+        (0.6, 1.188, 64, 0, 2),
+        (1.8, 0.594, 67, 0, 3),
+        (2.4, 0.594, 60, 0, 1),
+        (3.0, 1.188, 64, 0, 2),
+        (4.2, 0.594, 67, 0, 3),
       ]);
     });
 
@@ -838,11 +838,11 @@ void main() {
       score = fill(score, 0, [wholes(8, 'C3')], staff: 1);
 
       expect(notes(compiled(score)), [
-        (0.0, 0.18, 60, 0, 2),
-        (0.0, 2.16, 48, 0, 8),
-        (0.2, 0.18, 62, 0, 3),
-        (0.4, 0.18, 64, 0, 4),
-        (1.2, 1.08, 57, 0, 7),
+        (0.0, 0.198, 60, 0, 2),
+        (0.0, 2.376, 48, 0, 8),
+        (0.2, 0.198, 62, 0, 3),
+        (0.4, 0.198, 64, 0, 4),
+        (1.2, 1.188, 57, 0, 7),
       ]);
     });
 
@@ -966,10 +966,25 @@ void main() {
       ]).score;
 
       expect(notes(compiled(score)), [
-        (0.0, 1.08, 60, 0, 1),
-        (0.0, 0.54, 64, 0, 1),
-        (1.2, 3.24, 67, 0, 3),
+        (0.0, 1.188, 60, 0, 1),
+        (0.0, 0.594, 64, 0, 1),
+        (1.2, 3.564, 67, 0, 3),
       ]);
+    });
+
+    test('a long note is let go a hundredth of its length early, alone or '
+        'as a tie chain', () {
+      final score = changeBar(
+        sessionWith([
+          [wholes(1, 'C4')],
+          [wholes(2, 'C4', tie: true)],
+          [wholes(3, 'C4')],
+        ]).score,
+        0,
+        tempos([const TempoMark(offset: Moment.zero, tempo: Tempo(60))]),
+      );
+
+      expect(lengths(compiled(score)), [3.96, 7.92]);
     });
 
     test('plays a tie chain as long as the one note it stands for, and a '
@@ -984,7 +999,7 @@ void main() {
       }
 
       for (final (mark, gate) in [
-        (null, 0.9),
+        (null, 0.99),
         (Articulation.staccato, 0.5),
         (Articulation.staccatissimo, 0.25),
         (Articulation.tenuto, 1.0),
@@ -1007,7 +1022,7 @@ void main() {
         );
         expect(
           heldE4(tied(onFirst: false)),
-          (0.6, mark == null ? 1.08 : ms(0.6 + 0.6 * gate)),
+          (0.6, mark == null ? 1.188 : ms(0.6 + 0.6 * gate)),
           reason: '$mark on the last note',
         );
       }
@@ -1031,11 +1046,11 @@ void main() {
 
       expect(lengths(compiled(nested)), [
         ...[0.6, 0.6, 0.6, 0.6],
-        ...[0.6, 0.6, 0.54, 0.54],
+        ...[0.6, 0.6, 0.594, 0.594],
       ]);
       expect(lengths(compiled(unordered)), [
-        ...[0.6, 0.54, 0.54, 0.54],
-        ...[0.54, 0.6, 0.6, 0.54],
+        ...[0.6, 0.594, 0.594, 0.594],
+        ...[0.594, 0.6, 0.6, 0.594],
       ]);
     });
 
@@ -1108,11 +1123,11 @@ void main() {
       ], slot: VoiceSlot.two);
 
       expect(notes(compiled(score)), [
-        (0.0, 0.54, 64, 0, 1),
-        (0.0, 0.54, 60, 0, 5),
-        (1.2, 0.54, 64, 0, 3),
-        (1.2, 1.08, 60, 0, 6),
-        (1.8, 0.54, 65, 0, 4),
+        (0.0, 0.594, 64, 0, 1),
+        (0.0, 0.594, 60, 0, 5),
+        (1.2, 0.594, 64, 0, 3),
+        (1.2, 1.188, 60, 0, 6),
+        (1.8, 0.594, 65, 0, 4),
       ]);
     });
 
@@ -1132,10 +1147,10 @@ void main() {
       );
 
       expect(notes(compiled(score)), [
-        (0.0, 2.16, 64, 0, 1),
-        (2.4, 2.16, 60, 0, 2),
-        (4.8, 2.16, 64, 0, 1),
-        (7.2, 2.16, 60, 0, 3),
+        (0.0, 2.376, 64, 0, 1),
+        (2.4, 2.376, 60, 0, 2),
+        (4.8, 2.376, 64, 0, 1),
+        (7.2, 2.376, 60, 0, 3),
       ]);
     });
 
@@ -1167,11 +1182,11 @@ void main() {
       final script = compiled(score);
 
       expect(notes(script), [
-        (0.0, 0.54, 38, 9, 1),
-        (0.6, 0.54, 37, 9, 2),
-        (1.2, 0.54, 36, 9, 3),
-        (1.2, 0.54, 38, 9, 3),
-        (1.8, 0.54, 36, 9, 4),
+        (0.0, 0.594, 38, 9, 1),
+        (0.6, 0.594, 37, 9, 2),
+        (1.2, 0.594, 36, 9, 3),
+        (1.2, 0.594, 38, 9, 3),
+        (1.8, 0.594, 36, 9, 4),
       ]);
       expect({for (final note in script.notesBetween(0, 10)) note.cents}, {0});
     });
@@ -1244,7 +1259,7 @@ void main() {
 
       expect(
         notes(compiled(score, PlaybackOptions(muted: {score.parts[2].id}))),
-        [(0.0, 2.16, 60, 0, 1), (0.0, 2.16, 62, 1, 2)],
+        [(0.0, 2.376, 60, 0, 1), (0.0, 2.376, 62, 1, 2)],
       );
     });
 
@@ -1275,11 +1290,11 @@ void main() {
           ),
         ),
         [
-          (0.0, 0.54, 60, 0, 2),
-          (0.6, 0.54, 64, 0, 3),
-          (1.2, 0.54, 65, 0, 4),
-          (1.8, 0.54, 67, 0, 5),
-          (2.4, 0.54, 69, 0, 6),
+          (0.0, 0.594, 60, 0, 2),
+          (0.6, 0.594, 64, 0, 3),
+          (1.2, 0.594, 65, 0, 4),
+          (1.8, 0.594, 67, 0, 5),
+          (2.4, 0.594, 69, 0, 6),
         ],
       );
     });
@@ -1585,7 +1600,7 @@ void main() {
         (1.2, 0.6, 64, 0, 3),
         (1.8, 0.45, 65, 0, 4),
         (2.4, 1.5, 67, 0, 5),
-        (4.2, 0.54, 69, 0, 7),
+        (4.2, 0.594, 69, 0, 7),
       ]);
       expect(loudness(script)[5], 64);
     });
@@ -1610,11 +1625,11 @@ void main() {
       expect(timings(score), [(0.0, 3.0), (3.0, 7.8)]);
       expect(timings(score, muted), [(0.0, 3.0), (3.0, 7.8)]);
       expect(notes(compiled(score)), [
-        (0.0, 1.08, 60, 0, 1),
-        (0.0, 1.62, 60, 1, 4),
-        (1.2, 0.54, 62, 0, 2),
-        (1.8, 1.08, 64, 0, 3),
-        (1.8, 1.08, 62, 1, 5),
+        (0.0, 1.188, 60, 0, 1),
+        (0.0, 1.782, 60, 1, 4),
+        (1.2, 0.594, 62, 0, 2),
+        (1.8, 1.188, 64, 0, 3),
+        (1.8, 1.188, 62, 1, 5),
       ]);
       expect(sources(compiled(score), 1), [1, 4]);
     });
@@ -1634,12 +1649,12 @@ void main() {
       final script = compiled(score);
 
       expect(notes(script), [
-        (0.0, 0.042, 62, 0, 5),
-        (0.047, 0.633, 60, 0, 1),
-        (0.75, 0.042, 65, 0, 6),
-        (0.797, 0.042, 67, 0, 7),
-        (0.844, 0.591, 64, 0, 2),
-        (1.5, 1.35, 72, 0, 3),
+        (0.0, 0.046, 62, 0, 5),
+        (0.047, 0.696, 60, 0, 1),
+        (0.75, 0.046, 65, 0, 6),
+        (0.797, 0.046, 67, 0, 7),
+        (0.844, 0.65, 64, 0, 2),
+        (1.5, 1.485, 72, 0, 3),
       ]);
       expect(loudness(script), {5: 64, 1: 80, 6: 64, 7: 64, 2: 64, 3: 64});
       expect(sources(script, 0.05), [1]);
@@ -1915,9 +1930,65 @@ void main() {
       final sounding = [
         for (final note in script.notesBetween(0, 10)) note.duration,
       ];
-      expect(sounding.first, closeTo(0.9 * 0.075, 1e-9));
+      expect(sounding.first, closeTo(0.075, 1e-9));
       expect(sounding.last, closeTo(0.5 * 0.075, 1e-9));
       expect(velocities(script), [80, 64, 64, 64, 64, 64, 64, 64, 64, 64]);
+    });
+
+    test('the notes of a trill, a mordent, a turn or a tremolo sound into '
+        'each other, and the last is let go as a plain note is', () {
+      for (final figure in [
+        ornamented(quarters(1, 'E5'), Ornament.trill),
+        ornamented(quarters(1, 'E5'), Ornament.mordent),
+        ornamented(quarters(1, 'E5'), Ornament.turn),
+        tremolo(quarters(1, 'E5'), 2),
+      ]) {
+        final script = compiled(
+          at80([
+            [figure, quarters(2, 'C5'), rest(3, NoteValue.half)],
+          ]),
+        );
+        final [...pieces, last, after] = script.notesBetween(0, 10).toList();
+
+        expect(pieces, isNotEmpty);
+        for (final (i, piece) in pieces.indexed) {
+          final next = i + 1 < pieces.length ? pieces[i + 1] : last;
+          expect(
+            piece.start + piece.duration,
+            closeTo(next.start, 1e-9),
+            reason: 'note $i of ${figure.ornament ?? 'the tremolo'}',
+          );
+        }
+        expect(
+          last.duration,
+          closeTo(0.99 * (after.start - last.start), 1e-9),
+        );
+      }
+    });
+
+    test('a slurred trill sounds 40 ms into each next note, as far as the '
+        'note after it', () {
+      var score = at80([
+        [
+          ornamented(quarters(1, 'E5'), Ornament.trill),
+          quarters(2, 'C5'),
+          rest(3, NoteValue.half),
+        ],
+      ]);
+      score = withLine(
+        score,
+        const Slur(),
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(1, 4)),
+      );
+      final [...pieces, last, after] = compiled(
+        score,
+      ).notesBetween(0, 10).toList();
+
+      expect(last.start + last.duration, closeTo(after.start, 1e-9));
+      expect([
+        for (final note in [...pieces, last]) note.overlap,
+      ], everyElement(0.04));
     });
 
     test('a trill slows to fit one pair in a short note, and plays its note '
@@ -2011,7 +2082,7 @@ void main() {
         (6.094, 10, 10),
         (6.188, 12, 10),
       ]);
-      expect(ms(script.notesBetween(0.1, 0.2).single.duration), 0.506);
+      expect(ms(script.notesBetween(0.1, 0.2).single.duration), 0.557);
     });
 
     test('an accidental above or below the sign alters that neighbour', () {
@@ -2069,13 +2140,13 @@ void main() {
       ]);
 
       expect(notes(compiled(score)), [
-        (0.0, 0.675, 127, 0, 1),
-        (0.75, 0.675, 0, 0, 2),
-        (1.5, 0.675, 127, 0, 3),
-        (2.25, 0.084, 72, 0, 4),
-        (2.25, 0.675, 127, 0, 4),
-        (2.344, 0.084, 74, 0, 4),
-        (2.438, 0.506, 72, 0, 4),
+        (0.0, 0.742, 127, 0, 1),
+        (0.75, 0.742, 0, 0, 2),
+        (1.5, 0.742, 127, 0, 3),
+        (2.25, 0.094, 72, 0, 4),
+        (2.25, 0.742, 127, 0, 4),
+        (2.344, 0.094, 74, 0, 4),
+        (2.438, 0.557, 72, 0, 4),
       ]);
     });
 
@@ -2366,8 +2437,8 @@ void main() {
         (4.031, 60, 6),
         (4.5, 67, 11),
       ]);
-      expect(ms(script.notesBetween(0.3, 0.4).single.duration), 1.013);
-      expect(ms(script.notesBetween(4.4, 4.6).single.duration), 0.675);
+      expect(ms(script.notesBetween(0.3, 0.4).single.duration), 1.114);
+      expect(ms(script.notesBetween(4.4, 4.6).single.duration), 0.742);
     });
   });
 
@@ -2376,7 +2447,7 @@ void main() {
         'reused compiler hears it', () {
       final compiler = PlaybackCompiler();
       var score = at60(2);
-      expect(lengths(compiler.compile(score)), List.filled(8, 0.9));
+      expect(lengths(compiler.compile(score)), List.filled(8, 0.99));
       score = pedalled(
         score,
         pointAt(score, 0, Moment.zero),
@@ -2385,8 +2456,8 @@ void main() {
 
       // The line covers the third quarter, so the pedal lifts at second 3.
       expect(lengths(compiler.compile(score)), [
-        ...[3, 2, 1, 0.9],
-        ...[0.9, 0.9, 0.9, 0.9],
+        ...[3, 2, 1, 0.99],
+        ...[0.99, 0.99, 0.99, 0.99],
       ]);
     });
 
@@ -2410,11 +2481,11 @@ void main() {
       // The pedal is down from second 1 to second 3. The tenuto D3 is let
       // go at second 1 and the whole note at 3.6.
       expect(notes(compiled(score)), [
-        (0.0, 3.6, 72, 0, 1),
+        (0.0, 3.96, 72, 0, 1),
         (0.0, 1.0, 50, 0, 2),
         (1.0, 2.0, 52, 0, 3),
         (2.0, 1.0, 53, 0, 4),
-        (3.0, 0.9, 55, 0, 5),
+        (3.0, 0.99, 55, 0, 5),
       ]);
     });
 
@@ -2438,10 +2509,10 @@ void main() {
             (note.channel, ms(note.duration)),
         ],
         [
-          ...[(0, 4.0), (1, 0.9)],
-          ...[(0, 3.0), (1, 0.9)],
-          ...[(0, 2.0), (1, 0.9)],
-          ...[(0, 1.0), (1, 0.9)],
+          ...[(0, 4.0), (1, 0.99)],
+          ...[(0, 3.0), (1, 0.99)],
+          ...[(0, 2.0), (1, 0.99)],
+          ...[(0, 1.0), (1, 0.99)],
         ],
       );
     });
@@ -2478,8 +2549,8 @@ void main() {
       // a quarter after it, and the line that starts there does not carry
       // it on.
       expect(lengths(compiled(score)), [
-        ...[0.54, 0.54, 1.2, 0.6],
-        ...[0.6, 1.2, 0.6, 0.54],
+        ...[0.594, 0.594, 1.2, 0.6],
+        ...[0.6, 1.2, 0.6, 0.594],
       ]);
     });
 
@@ -2518,10 +2589,10 @@ void main() {
       expect(played(score), ['1', '1#2', '2']);
       expect(lengths(compiled(score)), [
         // The repeat lifts the pedal at second 4.
-        ...[0.9, 0.9, 2, 1],
+        ...[0.99, 0.99, 2, 1],
         // The second time it stays down into bar 2, to second 9.
-        ...[0.9, 0.9, 3, 2],
-        ...[1, 0.9, 0.9, 0.9],
+        ...[0.99, 0.99, 3, 2],
+        ...[1, 0.99, 0.99, 0.99],
       ]);
     });
 
@@ -2547,7 +2618,7 @@ void main() {
       );
       expect(played(repeated), ['1', '2', '2#2']);
       expect(lengths(compiled(repeated)), [
-        ...[0.9, 0.9, 6, 5],
+        ...[0.99, 0.99, 6, 5],
         ...[4, 3, 2, 1],
         ...[4, 3, 2, 1],
       ]);
@@ -2568,8 +2639,8 @@ void main() {
       // 5.6.
       expect(notes(compiled(score)), [
         (0.0, 4.0, 60, 0, 1),
-        (2.0, 3.6, 62, 0, 2),
-        (6.0, 1.8, 64, 0, 4),
+        (2.0, 3.96, 62, 0, 2),
+        (6.0, 1.98, 64, 0, 4),
       ]);
     });
   });
