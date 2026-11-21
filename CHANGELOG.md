@@ -1,7 +1,7 @@
 ## 0.5.0
 * **Breaking:** `Transposition.apply` takes an `Alterations` in place of a `KeySignature`, and `Transposition.diatonic` steps a note onto the accidental in force at its new line, so seven steps no longer keep an accidental, from `khuur_score_model` 0.5.0.
 * `Transpose(selection, by, keys: true)` moves the key signatures of a transposed range with its notes.
-* `ScorePlayer` and `scoreToMidi` sound a note with no staccato or tenuto for 0.99 of its length, as MuseScore 4 does, where they let it go after 0.9. Trills, mordents, turns and tremolos play without a gap between their notes, and a trill plays about 13 notes a second at any tempo, from `khuur_score_model` 0.5.0.
+* `ScorePlayer` and `scoreToMidi` sound a note that has no staccato, staccatissimo or tenuto and is not slurred for 0.99 of its length, as MuseScore 4 does, where they let it go after 0.9. Trills, mordents, turns and tremolos play without a gap between their notes, and a trill plays about 13 notes a second at any tempo, from `khuur_score_model` 0.5.0.
 * A hairpin arrives at the next dynamic only when that dynamic lies the way it moves, as in MuseScore 4.
 * `ScorePlayer.play` starts sooner on a score with many slurs, because the compile no longer scans every slur for every chord.
 * `SheetView` squeezes a bar that is wider than the view into the view, where it ran past the right edge and its last notes and barline were cut off. A phone in portrait cut bars of sixteenths in most scores. A slur keeps clear of a high note, a stem or a beam near its ends, from `khuur_score_layout` 0.5.0.
