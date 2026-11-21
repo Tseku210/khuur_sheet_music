@@ -16,6 +16,8 @@
 * A trill plays about 13 notes a second at any tempo, where it alternated in 32nds and so played 5 notes a second at 40 quarters a minute and 27 at 200. A fermata or a rit. over it adds notes. A short trill plays an odd count of notes to end on its main note and an even count to end on the note above, at 8 to 27 notes a second, so a trilled eighth at 120 quarters a minute plays four notes. A note too short for that plays alone. Mordents and turns still play in 32nds.
 * A hairpin arrives at the next dynamic only when that dynamic lies the way it moves, louder for a crescendo and softer for a diminuendo, as in MuseScore 4. Otherwise it moves one level and the dynamic takes over, so a crescendo before a subito piano grows and then drops, where it used to play as a diminuendo.
 * A compile looks up each chord's slurs and trill lines by binary search, where it scanned them all. Beethoven's Op. 132 compiles in about a third of the time, and a score with thousands of slurs no longer pauses play. The compiled script is unchanged.
+* Playback and MIDI export play a `Glissando` as chromatic steps, as MuseScore 4 plays a chromatic glissando, where it played two plain notes. Each note of the first chord moves a semitone at a time to the note of the same index in the end chord, or to its top note, in equal steps over the first chord's time. Every note of the first chord glides, where MuseScore glides only the notes that carry a line. A note that ties on plays its tie and does not glide.
+* MusicXML import reads a `<slide>` as a glissando, as MuseScore 4 does. Export writes it back as a `<glissando>`.
 
 ## 0.4.0
 * **Breaking:** the sealed `Edit` gains `SetMeasureRepeat`, so a `switch` over every edit adds a case for it.
