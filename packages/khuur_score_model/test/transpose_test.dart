@@ -4,7 +4,7 @@ import 'package:test/test.dart';
 import 'support.dart';
 
 String? moved(Transposition by, String pitch, [int fifths = 0]) =>
-    by.apply(Pitch.parse(pitch), KeySignature(fifths))?.toString();
+    by.apply(Pitch.parse(pitch), Alterations(KeySignature(fifths)))?.toString();
 
 EditOutcome transpose(
   EditSession session,
@@ -76,14 +76,26 @@ void main() {
       );
     });
 
-    test('moves by scale steps and keeps alterations against the key', () {
+    test('steps onto the alteration in force at the new position', () {
       const step = Transposition.diatonic(1);
       expect(moved(step, 'A4', -1), 'Bb4');
-      expect(moved(step, 'F#4', -1), 'G#4');
+      expect(moved(step, 'F#4', -1), 'G4');
       expect(moved(step, 'B3'), 'C4');
       expect(moved(const Transposition.diatonic(-1), 'C4'), 'B3');
       expect(moved(const Transposition.diatonic(7), 'Eb4', -3), 'Eb5');
+      expect(moved(const Transposition.diatonic(7), 'F#4'), 'F5');
       expect(moved(const Transposition.diatonic(2), 'F#4', 1), 'A4');
+      expect(moved(const Transposition.diatonic(-1), 'Fbb4', 1), 'E4');
+      expect(moved(const Transposition.diatonic(0), 'F#4', -1), 'F#4');
+
+      const f = Alterations(KeySignature(-1));
+      final afterNatural = f.after(Pitch.parse('B4'));
+      expect(step.apply(Pitch.parse('A4'), afterNatural), Pitch.parse('B4'));
+      expect(step.apply(Pitch.parse('A3'), afterNatural), Pitch.parse('Bb3'));
+      expect(
+        step.apply(Pitch.parse('A4'), afterNatural.after(Pitch.parse('Bb4'))),
+        Pitch.parse('Bb4'),
+      );
     });
 
     test('spells semitones as the key does, then by its side', () {
@@ -107,7 +119,7 @@ void main() {
       expect(
         semitone.apply(
           const Pitch(Step.b, 4, Alter.threeQuarterSharp),
-          KeySignature.cMajor,
+          const Alterations(KeySignature.cMajor),
         ),
         isNull,
       );
@@ -115,7 +127,6 @@ void main() {
         moved(const Transposition.interval(Interval(0, 1)), 'Bx4'),
         isNull,
       );
-      expect(moved(const Transposition.diatonic(-1), 'Fbb4', 1), isNull);
       expect(
         moved(const Transposition.interval(Interval(0, -1)), 'Bbb4'),
         isNull,
@@ -265,6 +276,152 @@ void main() {
           'Bb4/quarter',
           'F4/quarter',
         ]);
+      });
+
+      test('reads the written staff of a transposing part under 8va', () {
+        var score = fill(blankScore(parts: const [clarinet]), 0, [
+          chordOf(1, 'Bb4', value: NoteValue.half),
+          chordOf(2, 'A4', value: NoteValue.half),
+        ]);
+        score = withOctaveLine(
+          score,
+          OctaveShift.up8,
+          pointAt(score, 0, Moment.zero),
+          pointAt(score, 0, at(1, 2)),
+        );
+        final session = EditSession.start(score);
+
+        final next = transposed(session, events(session, [2]), step);
+
+        // The clarinet reads D major, and the B flat is its C natural.
+        expect(bar(next.score, 0), ['Bb4/half', 'Bb4/half']);
+        final view = next.score.measureView(idOf(next, 0)).staves.single;
+        expect(view.accidentals.keys, [const NoteId(10)]);
+      });
+
+      test('steps a note of a hidden part', () {
+        var score = blankScore(parts: const [morinKhuur, clarinet]);
+        score = hidePart(
+          fill(score, 0, [chordOf(1, 'E4', value: NoteValue.whole)], staff: 1),
+          1,
+        );
+        final session = EditSession.start(score);
+
+        final next = transposed(session, events(session, [1]), step);
+
+        expect(chordIn(next, 1).notes.single.tone, Pitch.parse('F4'));
+      });
+
+      test('does not read the notes that start with it', () {
+        final session = sessionWith([
+          [
+            chordOf(
+              1,
+              'E4',
+              value: NoteValue.whole,
+              graces: [graceOf(9, 'F#4')],
+            ),
+          ],
+        ]);
+
+        final next = transposed(session, head(session, 1, 10), step);
+
+        expect(bar(next.score, 0), ['F4/whole']);
+      });
+
+      test('takes off the accidental a moved note asked for', () {
+        final session = sessionWith([
+          [
+            chordOf(
+              1,
+              'F#4',
+              value: NoteValue.whole,
+              accidental: AccidentalRequest.always,
+            ),
+          ],
+        ]);
+        AccidentalRequest asked(Transposition by) =>
+            (chordIn(
+                      transposed(session, events(session, [1]), by),
+                      1,
+                    ).notes.single
+                    as PitchedNote)
+                .accidental;
+
+        expect(asked(step), AccidentalRequest.auto);
+        expect(asked(up), AccidentalRequest.always);
+      });
+
+      test('takes off the accidentals of an ornament', () {
+        final session = sessionWith([
+          [
+            chordOf(1, 'C5', value: NoteValue.whole).copyWith(
+              ornament: () => Ornament.turn,
+              ornamentAbove: () => Alter.flat,
+              ornamentBelow: () => Alter.sharp,
+            ),
+          ],
+        ]);
+
+        final next = chordIn(
+          transposed(session, events(session, [1]), step),
+          1,
+        );
+
+        expect((next.ornamentAbove, next.ornamentBelow), (null, null));
+      });
+
+      test('moves a chord symbol onto the key', () {
+        var score = withKey(
+          sessionWith([
+            [chordOf(1, 'C4', value: NoteValue.whole)],
+          ]).score,
+          0,
+          -1,
+        );
+        score = changeBar(
+          score,
+          0,
+          (column) => column.withStaff(
+            column.staves.first.copyWith(
+              directions: Seq([
+                const ChordSymbol(
+                  Moment.zero,
+                  root: PitchName(Step.f, Alter.sharp),
+                  quality: 'm',
+                ),
+              ]),
+            ),
+          ),
+        );
+        final session = EditSession.start(score);
+
+        final next = transposed(
+          session,
+          range(session, (0, Moment.zero), (0, at(1, 1))),
+          step,
+        );
+
+        expect(
+          (next.score.measures[0].staves.first.directions.single as ChordSymbol)
+              .root,
+          const PitchName(Step.g),
+        );
+      });
+
+      test('by no steps changes nothing', () {
+        final session = inF();
+
+        expect(
+          changesNothing(
+            session,
+            Transpose(
+              range(session, (0, Moment.zero), (0, at(1, 1))),
+              const Transposition.diatonic(0),
+            ),
+          ),
+          isTrue,
+        );
       });
     });
 

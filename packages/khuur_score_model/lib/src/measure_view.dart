@@ -256,6 +256,14 @@ typedef AccidentalRequestOf = AccidentalRequest Function(
 AccidentalRequest _stated(PitchedNote note, {required bool autoPrints}) =>
     note.accidental;
 
+/// Whether a head that asks for [request] sets the alteration in force at
+/// its staff position for the heads after it. A head that never prints does
+/// not, and neither does one [tiedIn] from the bar before that prints only
+/// by the rules.
+bool holdsAlteration(AccidentalRequest request, {required bool tiedIn}) =>
+    request != AccidentalRequest.never &&
+    (request != AccidentalRequest.auto || !tiedIn);
+
 /// The accidental each of [heads] prints, given [written] pitches, the
 /// notes [tiedIn] from the bar before, and the staff's [key].
 ///
@@ -280,7 +288,7 @@ Map<NoteId, AccidentalMark> foldAccidentals(
     }
     return a.grace == b.grace ? 0 : (a.grace ? -1 : 1);
   });
-  final state = <int, Alter>{};
+  var inForce = Alterations(key);
   final marks = <NoteId, AccidentalMark>{};
   for (final AccidentalHead(:note) in ordered) {
     if (note is! PitchedNote) {
@@ -288,25 +296,18 @@ Map<NoteId, AccidentalMark> foldAccidentals(
     }
     final pitch = written[note.id]!;
     final tied = tiedIn.contains(note.id);
-    final autoPrints =
-        !tied &&
-        pitch.alter != (state[pitch.diatonic] ?? key.alterFor(pitch.step));
-    switch (request(note, autoPrints: autoPrints)) {
-      case AccidentalRequest.never:
-        continue;
-      case AccidentalRequest.always:
-        marks[note.id] = AccidentalMark(pitch.alter);
-      case AccidentalRequest.cautionary:
-        marks[note.id] = AccidentalMark(pitch.alter, cautionary: true);
-      case AccidentalRequest.auto:
-        if (tied) {
-          continue;
-        }
-        if (autoPrints) {
-          marks[note.id] = AccidentalMark(pitch.alter);
-        }
+    final autoPrints = !tied && pitch.alter != inForce.at(pitch.diatonic);
+    final asked = request(note, autoPrints: autoPrints);
+    if (!holdsAlteration(asked, tiedIn: tied)) {
+      continue;
     }
-    state[pitch.diatonic] = pitch.alter;
+    if (asked != AccidentalRequest.auto || autoPrints) {
+      marks[note.id] = AccidentalMark(
+        pitch.alter,
+        cautionary: asked == AccidentalRequest.cautionary,
+      );
+    }
+    inForce = inForce.after(pitch);
   }
   return marks;
 }

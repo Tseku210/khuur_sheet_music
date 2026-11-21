@@ -474,9 +474,10 @@ sealed class Transposition {
   /// By a fixed spelled interval, the same for every note.
   const factory Transposition.interval(Interval interval) = ByInterval;
 
-  /// By scale steps inside the key in effect at each note: in F major, A up
-  /// one step is B♭, and F♯ up one step is G♯ (chromatic alterations relative
-  /// to the key are kept).
+  /// By staff positions. The note lands on the alteration in force at its
+  /// new position, so it takes no accidental of its own: in F major, A up
+  /// one step is B♭, F♯ up one step is G, and after a B♮ earlier in the bar
+  /// A up one step is B♮. A move of 0 leaves the note as it is.
   const factory Transposition.diatonic(int steps) = ByScaleSteps;
 
   /// By semitones, spelled as a member of the key in effect at each note
@@ -484,24 +485,49 @@ sealed class Transposition {
   /// keys.
   const factory Transposition.chromatic(int semitones) = BySemitones;
 
-  /// [pitch] moved by this transposition in [key], the key in effect at the
-  /// note. Null when the result needs more than a double sharp or flat.
-  Pitch? apply(Pitch pitch, KeySignature key) => switch (this) {
+  /// [pitch] moved by this transposition, where [inForce] is what the staff
+  /// reads at the note. Null when the result needs more than a double sharp
+  /// or flat.
+  Pitch? apply(Pitch pitch, Alterations inForce) => switch (this) {
     ByInterval(:final interval) => _spelledAt(
       pitch.diatonic + interval.steps,
       pitch._quarterTones + interval.semitones * 2,
     ),
+    ByScaleSteps(steps: 0) => pitch,
     ByScaleSteps(:final steps) => _altered(
       pitch.diatonic + steps,
-      key.alterFor(Step.values[(pitch.diatonic + steps) % 7]).quarterTones +
-          pitch.alter.quarterTones -
-          key.alterFor(pitch.step).quarterTones,
+      inForce.at(pitch.diatonic + steps).quarterTones,
     ),
     BySemitones(:final semitones) => _spell(
       pitch._quarterTones + semitones * 2,
-      key,
+      inForce.key,
     ),
   };
+}
+
+/// The alteration each staff position reads at one point of a bar. A
+/// position takes the alteration of the last note before the point that
+/// sits on it, and the key's when there is none. Positions count as
+/// [Pitch.diatonic] does, so an accidental holds in its own octave only.
+final class Alterations {
+  /// What a staff in [key] reads at the start of a bar.
+  const Alterations(this.key) : _held = const {};
+
+  const Alterations._(this.key, this._held);
+
+  /// The key signature the staff reads.
+  final KeySignature key;
+
+  final Map<int, Alter> _held;
+
+  /// The alteration in force at [position].
+  Alter at(int position) =>
+      _held[position] ?? key.alterFor(Step.values[position % 7]);
+
+  /// What the staff reads after a note at [pitch].
+  Alterations after(Pitch pitch) => at(pitch.diatonic) == pitch.alter
+      ? this
+      : Alterations._(key, {..._held, pitch.diatonic: pitch.alter});
 }
 
 Pitch _natural(int diatonic) =>
@@ -546,12 +572,12 @@ final class ByInterval extends Transposition {
   final Interval interval;
 }
 
-/// A move by steps of the key in effect. See [Transposition.diatonic].
+/// A move by staff positions. See [Transposition.diatonic].
 final class ByScaleSteps extends Transposition {
-  /// Moves every note [steps] scale steps.
+  /// Moves every note [steps] staff positions.
   const ByScaleSteps(this.steps);
 
-  /// Scale steps to move. Negative is downward.
+  /// Staff positions to move. Negative is downward.
   final int steps;
 }
 

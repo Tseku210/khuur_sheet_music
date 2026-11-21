@@ -12,6 +12,7 @@ import '../empty_bar.dart';
 import '../events.dart';
 import '../measure.dart';
 import '../measure_repeats.dart';
+import '../measure_view.dart';
 import '../pitch.dart';
 import '../playback.dart';
 import '../refs.dart';

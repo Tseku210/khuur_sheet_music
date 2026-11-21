@@ -1026,8 +1026,12 @@ final class Paste extends Edit {
 /// Transposes the picked heads, or every head that starts in a range. A
 /// tie chain moves whole, even when only part of it is picked, as its first
 /// head moves in that head's key. A picked event also moves its graces, and
-/// a range moves its graces and chord symbols. Diatonic and chromatic
-/// transpositions read the key in effect at each note. Drum notes, which
+/// a range moves its graces and chord symbols. A chromatic transposition
+/// reads the key in effect at each note. A diatonic one moves each note on
+/// its written staff and gives it the alteration the staff reads there, from
+/// the key and from the notes at earlier times in the bar as the edit
+/// leaves them. Such a note needs no accidental, so the accidental it asked
+/// for and the accidentals of its ornament are taken off. Drum notes, which
 /// have no pitch, picked spanners and key signatures are left alone. A tie
 /// left leading onto a head it did not reach before is cleared. The cursor
 /// and selection stay. Refused with [InvalidValue] when a note would need
