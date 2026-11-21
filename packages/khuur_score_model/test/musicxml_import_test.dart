@@ -1507,6 +1507,31 @@ void main() {
       expect(spannersOf(score), ['slur 0@1/2-1@0']);
     });
 
+    test('reads a slide as a glissando, apart from a glissando of the same '
+        'number, and writes it back as a glissando', () {
+      String mark(String name, String type) =>
+          '<notations><$name type="$type" number="1"/></notations>';
+      final score = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 4, 'quarter', mark('slide', 'start')),
+            note('G5', 4, 'quarter', mark('glissando', 'start')),
+            note('A5', 4, 'quarter', mark('slide', 'stop')),
+            note('E5', 4, 'quarter', mark('glissando', 'stop')),
+          ],
+        ]),
+      );
+      final text = scoreToMusicXml(score);
+
+      expect(spannersOf(score), [
+        'glissando 0@0-0@1/2',
+        'glissando 0@1/4-0@3/4',
+      ]);
+      expect(text, isNot(contains('<slide')));
+      expect(spannersOf(scoreFromMusicXml(text)), spannersOf(score));
+    });
+
     test('reads any words with dashes as a tempo line', () {
       String line(String words) => direction([words, '<dashes type="start"/>']);
       final stop = direction(['<dashes type="stop"/>']);
