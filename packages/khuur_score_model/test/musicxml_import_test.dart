@@ -1837,6 +1837,29 @@ void main() {
       expect(items(score, 0), ['C5/half', 'D5/quarter', 'E5/quarter~']);
     });
 
+    test('ends a tie that no note stops on the same pitch in the next event '
+        'of its voice', () {
+      const start = '<tie type="start"/>';
+      final score = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 8, 'half', start),
+            note('C5', 4, 'quarter'),
+            note('D5', 4, 'quarter', start),
+          ],
+          [
+            note('D5', 8, 'half'),
+            note('E5', 4, 'quarter', start),
+            note('F5', 4, 'quarter'),
+          ],
+        ]),
+      );
+
+      expect(items(score, 0), ['C5/half~', 'C5/quarter', 'D5/quarter~']);
+      expect(items(score, 1), ['D5/half', 'E5/quarter', 'F5/quarter']);
+    });
+
     test(
       'reads a trill mark where a trill line starts as the line\'s sign',
       () {
