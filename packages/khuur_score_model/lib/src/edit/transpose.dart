@@ -5,7 +5,12 @@ part of 'session.dart';
 /// and a range moves the graces and chord symbols in it. Drum notes have no
 /// pitch, so they stay. A tie left leading onto a head it did not reach
 /// before is cleared. A staff step goes through [_stepped].
-_Result _transpose(Score score, Selection selection, Transposition by) {
+_Result _transpose(
+  Score score,
+  Selection selection,
+  Transposition by, {
+  required bool keys,
+}) {
   final heads = <_Head>[];
   final graced = <TimedEvent>[];
   void pick(TimedEvent timed) {
@@ -19,6 +24,9 @@ _Result _transpose(Score score, Selection selection, Transposition by) {
   }
 
   var symbols = score;
+  var rekeyed = const <int, _Rekey>{};
+  Transposition byIn(int bar) => rekeyed[bar]?.by ?? by;
+  KeySignature keyIn(int bar) => rekeyed[bar]?.key ?? score.measures[bar].key;
   switch (selection) {
     case NoSelection():
       return _Result(score);
@@ -32,7 +40,20 @@ _Result _transpose(Score score, Selection selection, Transposition by) {
         }
       }
     case final RangeSelection range:
-      final (:lanes, staves: _, :inRange) = _covers(score, range);
+      final (:lanes, :staves, :inRange) = _covers(score, range);
+      if (keys) {
+        rekeyed = _rekeyed(score, range, staves, by);
+        for (final MapEntry(key: bar, value: to) in rekeyed.entries) {
+          if (score.measures[bar].key != to.key) {
+            symbols = symbols.copyWith(
+              measures: symbols.measures.replaceAt(
+                bar,
+                symbols.measures[bar].copyWith(key: to.key),
+              ),
+            );
+          }
+        }
+      }
       for (final (bar, staff) in lanes) {
         final column = score.measures[bar];
         final measure = column.staff(staff);
@@ -44,7 +65,7 @@ _Result _transpose(Score score, Selection selection, Transposition by) {
         final directions = [
           for (final d in measure.directions)
             d is ChordSymbol && inRange(ScorePoint(column.id, d.offset))
-                ? _movedSymbol(d, by, column.key)
+                ? _movedSymbol(d, byIn(bar), keyIn(bar))
                 : d,
         ];
         if (!_same(directions, measure.directions)) {
@@ -65,20 +86,17 @@ _Result _transpose(Score score, Selection selection, Transposition by) {
     for (final head in heads) {
       if (head.note case PitchedNote(:final pitch)) {
         final chain = _tieChain(score, head);
-        final to = _moved(
-          pitch,
-          by,
-          score.column(chain.first.timed.ref.measure).key,
-        );
+        final bar = score.indexOf(chain.first.timed.ref.measure);
+        final to = _moved(pitch, byIn(bar), keyIn(bar));
         for (final link in chain) {
           moved[link.note.id] = to;
         }
       }
     }
     for (final timed in graced) {
-      final key = score.column(timed.ref.measure).key;
+      final bar = score.indexOf(timed.ref.measure);
       for (final note in _graceNotes(timed)) {
-        moved[note.id] = _moved(note.pitch, by, key);
+        moved[note.id] = _moved(note.pitch, byIn(bar), keyIn(bar));
       }
     }
   }
@@ -120,6 +138,7 @@ _Result _transpose(Score score, Selection selection, Transposition by) {
   var transposed = symbols;
   for (final timed in touched.values) {
     final chord = timed.event as ChordEvent;
+    final bar = score.indexOf(timed.ref.measure);
     transposed = _replace(
       transposed,
       timed,
@@ -129,8 +148,9 @@ _Result _transpose(Score score, Selection selection, Transposition by) {
           notes: pitched(chord.notes),
           graces: graces[chord.id],
         ),
-        by,
-        score.column(timed.ref.measure).key,
+        byIn(bar),
+        key: score.measures[bar].key,
+        movedKey: keyIn(bar),
       ),
     );
   }
@@ -144,15 +164,16 @@ _Result _transpose(Score score, Selection selection, Transposition by) {
 
 /// [to], the moved [from], with the accidentals of its ornament moved as
 /// the notes they alter move, so the ornament plays the same notes against
-/// its lowest head. An accidental whose note would no longer be the next
-/// scale step is taken off, and a staff step takes both off, as it leaves
-/// the head with none.
+/// its lowest head, read in [key] and spelled in [movedKey]. An accidental
+/// whose note would no longer be the next scale step is taken off, and a
+/// staff step takes both off, as it leaves the head with none.
 ChordEvent _ornamentMoved(
   ChordEvent from,
   ChordEvent to,
-  Transposition by,
-  KeySignature key,
-) {
+  Transposition by, {
+  required KeySignature key,
+  required KeySignature movedKey,
+}) {
   final (before, after) = (_lowestPitch(from), _lowestPitch(to));
   if ((from.ornamentAbove == null && from.ornamentBelow == null) ||
       before == null ||
@@ -166,7 +187,7 @@ ChordEvent _ornamentMoved(
     }
     final note = by.apply(
       from.ornamentNote(before, steps, key),
-      Alterations(key),
+      Alterations(movedKey),
     );
     return note != null && note.diatonic == after.diatonic + steps
         ? note.alter
@@ -285,6 +306,66 @@ Map<NoteId, Pitch> _stepped(
     }
   }
   return moved;
+}
+
+/// A bar's key after a transpose, and the move that spells its notes in
+/// that key.
+typedef _Rekey = ({KeySignature key, Transposition by});
+
+/// The bars of [range] whose key moves with their notes, by index. A key
+/// is one for every staff, so a bar's key moves only when the range holds
+/// the whole bar on every staff that reads a key. A staff step moves none.
+Map<int, _Rekey> _rekeyed(
+  Score score,
+  RangeSelection range,
+  Set<StaffId> staves,
+  Transposition by,
+) {
+  if (by is ByScaleSteps ||
+      score.staves.any(
+        (staff) =>
+            !staves.contains(staff.id) &&
+            !score.partOf(staff.id).instrument.isPercussion,
+      )) {
+    return const {};
+  }
+  final RangeSelection(:from, :to) = range;
+  final first = score.indexOf(from.measure) + (from.offset.isZero ? 0 : 1);
+  final last =
+      score.indexOf(to.measure) -
+      (to.offset < _barEnd(score.column(to.measure)) ? 1 : 0);
+  return {
+    for (var bar = first; bar <= last; bar++)
+      bar: _rekey(score.measures[bar].key, by),
+  };
+}
+
+_Rekey _rekey(KeySignature key, Transposition by) {
+  switch (by) {
+    case ByInterval(:final interval):
+      final exact = key.fifths + 7 * interval.semitones - 12 * interval.steps;
+      // A key past seven sharps or flats is written as the key that sounds
+      // the same, twelve fifths back and one letter over, and so are its
+      // notes.
+      final turns = exact.sign * ((exact.abs() + 4) ~/ 12);
+      return (
+        key: KeySignature(exact - 12 * turns, key.mode),
+        by: ByInterval(interval + Interval(turns, 0)),
+      );
+    case BySemitones(:final semitones) when semitones % 12 != 0:
+      // The key with the fewest sharps or flats, and of two with six, the
+      // one on the old key's side.
+      final near = (key.fifths + 7 * semitones + 6) % 12 - 6;
+      return (
+        key: KeySignature(
+          near == -6 && key.fifths >= 0 ? 6 : near,
+          key.mode,
+        ),
+        by: by,
+      );
+    case BySemitones() || ByScaleSteps():
+      return (key: key, by: by);
+  }
 }
 
 Pitch _moved(Pitch pitch, Transposition by, KeySignature key) {

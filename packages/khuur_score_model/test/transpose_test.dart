@@ -425,6 +425,351 @@ void main() {
       });
     });
 
+    group('with keys', () {
+      const fourth = Transposition.interval(Interval.perfectFourth);
+      EditSession rekeyed(
+        EditSession session,
+        Selection selection,
+        Transposition by,
+      ) => applied(session.run(Transpose(selection, by, keys: true)));
+      List<int> fifths(Score score) => [
+        for (final column in score.measures) column.key.fifths,
+      ];
+      RangeSelection whole(EditSession session, {int bottom = 0}) => range(
+        session,
+        (0, Moment.zero),
+        (session.score.measures.length - 1, at(1, 1)),
+        bottom: bottom,
+      );
+      List<NoteId> marked(Score score) => [
+        for (final column in score.measures)
+          for (final staff in score.measureView(column.id).staves)
+            ...staff.accidentals.keys,
+      ];
+      EditSession scale() => sessionWith([
+        [
+          chordOf(1, 'C4'),
+          chordOf(2, 'D4'),
+          chordOf(3, 'E4'),
+          chordOf(4, 'F4'),
+        ],
+        [
+          chordOf(5, 'G4'),
+          chordOf(6, 'A4'),
+          chordOf(7, 'B4'),
+          chordOf(8, 'C5'),
+        ],
+      ]);
+      EditSession halves(int bars, {List<PartTemplate>? parts}) {
+        var score = blankScore(parts: parts ?? const [morinKhuur], bars: bars);
+        for (var i = 0; i < bars; i++) {
+          score = fill(score, i, [
+            chordOf(i * 2 + 1, 'C4', value: NoteValue.half),
+            chordOf(i * 2 + 2, 'C4', value: NoteValue.half),
+          ]);
+        }
+        return EditSession.start(score);
+      }
+
+      test('moves the key of a range with its notes in one undo step', () {
+        final session = scale();
+
+        final next = rekeyed(session, whole(session), fourth);
+
+        expect(fifths(next.score), [-1, -1]);
+        expect(next.score.measures.first.key.mode, KeyMode.major);
+        expect(bar(next.score, 0), [
+          'F4/quarter',
+          'G4/quarter',
+          'A4/quarter',
+          'Bb4/quarter',
+        ]);
+        expect(bar(next.score, 1), [
+          'C5/quarter',
+          'D5/quarter',
+          'E5/quarter',
+          'F5/quarter',
+        ]);
+        expect(marked(next.score), isEmpty);
+        expect(saved(next.undo().score), saved(session.score));
+        expect(next.undo().canUndo, isFalse);
+      });
+
+      test('moves the key down with a downward interval', () {
+        final session = scale();
+
+        final next = rekeyed(
+          session,
+          whole(session),
+          Transposition.interval(-Interval.perfectFourth),
+        );
+
+        expect(fifths(next.score), [1, 1]);
+        expect(bar(next.score, 1), [
+          'D4/quarter',
+          'E4/quarter',
+          'F#4/quarter',
+          'G4/quarter',
+        ]);
+        expect(marked(next.score), isEmpty);
+      });
+
+      test('writes a key past seven sharps or flats as the one that sounds '
+          'the same, and its notes and chord symbols with it', () {
+        EditSession from(int key, String pitches, PitchName symbol) {
+          var score = sessionWith([
+            [
+              for (final (i, p) in pitches.split(' ').indexed)
+                chordOf(i + 1, p),
+            ],
+          ]).score;
+          score = changeBar(
+            withKey(score, 0, key),
+            0,
+            (column) => column.withStaff(
+              column.staves.first.copyWith(
+                directions: Seq([ChordSymbol(Moment.zero, root: symbol)]),
+              ),
+            ),
+          );
+          return EditSession.start(score);
+        }
+
+        PitchName symbol(Score score) =>
+            (score.measures[0].staves.first.directions.single as ChordSymbol)
+                .root;
+
+        final sharp = from(5, 'B3 C#4 D#4 E4', const PitchName(Step.b));
+        final up = rekeyed(
+          sharp,
+          whole(sharp),
+          const Transposition.interval(Interval.majorThird),
+        );
+        final flat = from(
+          -5,
+          'Db4 Eb4 F4 Gb4',
+          const PitchName(Step.d, Alter.flat),
+        );
+        final down = rekeyed(
+          flat,
+          whole(flat),
+          Transposition.interval(-Interval.majorThird),
+        );
+
+        expect(fifths(up.score), [-3]);
+        expect(bar(up.score, 0), [
+          'Eb4/quarter',
+          'F4/quarter',
+          'G4/quarter',
+          'Ab4/quarter',
+        ]);
+        expect(symbol(up.score), const PitchName(Step.e, Alter.flat));
+        expect(marked(up.score), isEmpty);
+        expect(fifths(down.score), [3]);
+        expect(bar(down.score, 0), [
+          'A3/quarter',
+          'B3/quarter',
+          'C#4/quarter',
+          'D4/quarter',
+        ]);
+        expect(symbol(down.score), const PitchName(Step.a));
+        expect(marked(down.score), isEmpty);
+      });
+
+      test('moves to the nearest key for a chromatic transposition', () {
+        final session = scale();
+
+        final next = rekeyed(
+          session,
+          whole(session),
+          const Transposition.chromatic(1),
+        );
+
+        expect(fifths(next.score), [-5, -5]);
+        expect(bar(next.score, 0), [
+          'Db4/quarter',
+          'Eb4/quarter',
+          'F4/quarter',
+          'Gb4/quarter',
+        ]);
+        expect(marked(next.score), isEmpty);
+      });
+
+      test('gives each key and move its new key', () {
+        KeySignature after(KeySignature key, Transposition by) {
+          final session = EditSession.start(
+            fill(blankScore(bars: 1, key: key), 0, [rest(1, NoteValue.whole)]),
+          );
+          return rekeyed(session, whole(session), by).score.measures[0].key;
+        }
+
+        int moved(int key, Transposition by) =>
+            after(KeySignature(key), by).fifths;
+
+        expect(moved(0, const Transposition.chromatic(-1)), 5);
+        expect(moved(0, const Transposition.chromatic(6)), 6);
+        expect(moved(-2, const Transposition.chromatic(8)), -6);
+        expect(moved(7, const Transposition.chromatic(12)), 7);
+        expect(moved(7, const Transposition.chromatic(-24)), 7);
+        expect(moved(-7, const Transposition.chromatic(1)), 0);
+        expect(moved(7, const Transposition.interval(Interval(0, 1))), 2);
+        expect(moved(4, const Transposition.interval(Interval.octave)), 4);
+        expect(moved(4, const Transposition.diatonic(2)), 4);
+        expect(
+          after(
+            const KeySignature(0, KeyMode.minor),
+            const Transposition.interval(Interval.minorThird),
+          ),
+          const KeySignature(-3, KeyMode.minor),
+        );
+      });
+
+      test('moves only the keys of the bars the range holds whole', () {
+        final session = halves(3);
+        List<int> keys((int, Moment) from, (int, Moment) to) =>
+            fifths(rekeyed(session, range(session, from, to), up).score);
+
+        expect(keys((0, at(1, 2)), (1, at(1, 1))), [0, 2, 0]);
+        expect(keys((0, Moment.zero), (2, Moment.zero)), [2, 2, 0]);
+        expect(keys((0, Moment.zero), (1, at(1, 2))), [2, 0, 0]);
+        expect(keys((1, Moment.zero), (2, at(1, 1))), [0, 2, 2]);
+        expect(
+          bar(
+            rekeyed(
+              session,
+              range(session, (0, Moment.zero), (1, at(1, 2))),
+              up,
+            ).score,
+            1,
+          ),
+          ['D4/half', 'C4/half'],
+        );
+      });
+
+      test('moves a key only when every staff that reads it is in the '
+          'range', () {
+        final grand = halves(1, parts: const [piano]);
+        final kit = halves(1, parts: const [morinKhuur, drums]);
+        final hidden = EditSession.start(
+          hidePart(
+            halves(1, parts: const [morinKhuur, clarinet]).score,
+            1,
+          ),
+        );
+
+        final top = rekeyed(grand, whole(grand), up);
+
+        expect(fifths(top.score), [0]);
+        expect(bar(top.score, 0), ['D4/half', 'D4/half']);
+        expect(fifths(rekeyed(grand, whole(grand, bottom: 1), up).score), [2]);
+        expect(fifths(rekeyed(kit, whole(kit), up).score), [2]);
+        expect(fifths(rekeyed(hidden, whole(hidden), up).score), [0]);
+        expect(
+          fifths(rekeyed(hidden, whole(hidden, bottom: 1), up).score),
+          [2],
+        );
+      });
+
+      test('moves no key for a staff step or for picked items', () {
+        final session = scale();
+        const step = Transposition.diatonic(1);
+
+        final stepped = rekeyed(session, whole(session), step);
+        final picked = rekeyed(session, events(session, [1, 2, 3, 4]), fourth);
+
+        expect(fifths(stepped.score), [0, 0]);
+        expect(
+          bar(stepped.score, 0),
+          bar(transposed(session, whole(session), step).score, 0),
+        );
+        expect(fifths(picked.score), [0, 0]);
+        expect(bar(picked.score, 0), [
+          'F4/quarter',
+          'G4/quarter',
+          'A4/quarter',
+          'Bb4/quarter',
+        ]);
+      });
+
+      test('changes nothing for a unison, and no key for an octave', () {
+        final session = scale();
+
+        final octave = rekeyed(
+          session,
+          whole(session),
+          const Transposition.interval(Interval.octave),
+        );
+
+        expect(
+          changesNothing(
+            session,
+            Transpose(
+              whole(session),
+              const Transposition.interval(Interval.unison),
+              keys: true,
+            ),
+          ),
+          isTrue,
+        );
+        expect(fifths(octave.score), [0, 0]);
+        expect(bar(octave.score, 0).first, 'C5/quarter');
+      });
+
+      test('moves the key of a range with no notes', () {
+        final session = sessionWith([
+          [rest(1, NoteValue.whole)],
+          [rest(2, NoteValue.whole)],
+        ]);
+
+        final next = rekeyed(session, whole(session), fourth);
+
+        expect(fifths(next.score), [-1, -1]);
+        expect(saved(next.undo().score), saved(session.score));
+        expect(next.undo().canUndo, isFalse);
+      });
+
+      test('moves a tie chain in the key its first head is in', () {
+        final session = sessionWith([
+          [
+            chordOf(1, 'C4', value: NoteValue.half),
+            chordOf(2, 'A4', value: NoteValue.half, tie: true),
+          ],
+          [
+            chordOf(3, 'A4', value: NoteValue.half),
+            chordOf(4, 'G4', value: NoteValue.half),
+          ],
+        ]);
+
+        final next = rekeyed(
+          session,
+          range(session, (1, Moment.zero), (1, at(1, 1))),
+          const Transposition.chromatic(1),
+        );
+
+        expect(fifths(next.score), [0, -5]);
+        expect(bar(next.score, 0), ['C4/half', 'A#4/half~']);
+        expect(bar(next.score, 1), ['A#4/half', 'Ab4/half']);
+      });
+
+      test('spells an ornament\'s accidental in the new key', () {
+        final session = sessionWith([
+          [
+            chordOf(1, 'B4', value: NoteValue.whole).copyWith(
+              ornament: () => Ornament.turn,
+              ornamentAbove: () => Alter.natural,
+            ),
+          ],
+        ]);
+        const semitone = Transposition.chromatic(1);
+
+        final kept = transposed(session, whole(session), semitone);
+        final moved = rekeyed(session, whole(session), semitone);
+
+        expect(chordIn(kept, 1).ornamentAbove, isNull);
+        expect(chordIn(moved, 1).ornamentAbove, Alter.flat);
+      });
+    });
+
     test('reads the key of each note', () {
       final session = EditSession.start(
         withKey(

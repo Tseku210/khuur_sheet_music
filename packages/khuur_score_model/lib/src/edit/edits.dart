@@ -1032,20 +1032,37 @@ final class Paste extends Edit {
 /// the key and from the notes at earlier times in the bar as the edit
 /// leaves them. Such a note needs no accidental, so the accidental it asked
 /// for and the accidentals of its ornament are taken off. Drum notes, which
-/// have no pitch, picked spanners and key signatures are left alone. A tie
-/// left leading onto a head it did not reach before is cleared. The cursor
-/// and selection stay. Refused with [InvalidValue] when a note would need
-/// more than a double sharp or flat or a chord would hold one pitch twice,
-/// with [StaleReference] for a gone event, head, bar or staff, and with
+/// have no pitch, and picked spanners are left alone. A tie left leading
+/// onto a head it did not reach before is cleared. The cursor and selection
+/// stay.
+///
+/// Key signatures are left alone unless [keys] is set. Then an interval or
+/// a chromatic transposition of a range also moves the key of each bar the
+/// range holds whole, when the range spans every staff that reads a key,
+/// since one key serves all staves. Bars outside the range keep their key.
+/// An interval moves the key by that interval. A key past seven sharps or
+/// flats is written as the key that sounds the same, as are its notes and
+/// chord symbols, so B major up a major third is E♭ major. A chromatic
+/// transposition moves to the key with the fewest sharps or flats, and of
+/// G♭ and F♯ to the one on the old key's side. The notes and chord symbols
+/// of those bars are spelled in the new key. A diatonic transposition, a
+/// whole number of octaves and picked items move no key.
+///
+/// Refused with [InvalidValue] when a note would need more than a double
+/// sharp or flat or a chord would hold one pitch twice, with
+/// [StaleReference] for a gone event, head, bar or staff, and with
 /// [OutsideMeasure] for a range end outside its bar.
 final class Transpose extends Edit {
-  /// Transposes [selection] by [by].
-  const Transpose(this.selection, this.by);
+  /// Transposes [selection] by [by], and its key signatures when [keys].
+  const Transpose(this.selection, this.by, {this.keys = false});
 
   /// The picked heads, or a range whose heads all move.
   final Selection selection;
   /// How far the pitches move, and by which kind of step.
   final Transposition by;
+  /// Whether the keys of the bars a range holds whole move with their
+  /// notes. See [Transpose].
+  final bool keys;
 
   @override
   String get label => 'Transpose';

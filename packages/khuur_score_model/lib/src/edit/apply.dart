@@ -278,7 +278,12 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
       ids,
       overfill,
     ),
-    Transpose(:final selection, :final by) => _transpose(score, selection, by),
+    Transpose(:final selection, :final by, :final keys) => _transpose(
+      score,
+      selection,
+      by,
+      keys: keys,
+    ),
     AddPart(:final template, :final index) => _Result(
       _addPart(score, template, index, ids),
     ),
