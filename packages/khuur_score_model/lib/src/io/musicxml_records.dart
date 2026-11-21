@@ -453,8 +453,6 @@ sealed class NoteRecord {
   final NoteId id;
   /// A `<tie>` or `<tied>` of type `start` is on the note.
   bool tieStart = false;
-  /// A `<tie>` or `<tied>` of type `stop` is on the note.
-  bool tieStop = false;
   /// A `<tie>` or `<tied>` of type `let-ring` is on the note.
   bool letRing = false;
 }

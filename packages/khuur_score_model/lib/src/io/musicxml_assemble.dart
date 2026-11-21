@@ -526,7 +526,7 @@ final class _Voices {
   }
 
   /// [records] as notes in the order the model keeps a chord's, each tone
-  /// once. A tie that starts is kept when one of [tiesTo] stops it.
+  /// once. A tie that starts is kept when one of [tiesTo] has its tone.
   List<Note> _notes(
     List<NoteRecord> records, {
     required List<NoteRecord> tiesTo,
@@ -537,8 +537,7 @@ final class _Voices {
           record,
           tie:
               record.letRing ||
-              (record.tieStart &&
-                  tiesTo.any((to) => to.tieStop && _sameTone(to, record))),
+              (record.tieStart && tiesTo.any((to) => _sameTone(to, record))),
         ),
     ], (a, b) => a.tone.compareTo(b.tone));
     final kept = <Note>[];

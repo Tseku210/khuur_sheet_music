@@ -647,8 +647,6 @@ extension on _BarReader {
       switch (tie.getAttribute('type')) {
         case 'start':
           record.tieStart = true;
-        case 'stop':
-          record.tieStop = true;
         case 'let-ring':
           record.letRing = true;
       }
