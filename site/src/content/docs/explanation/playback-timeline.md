@@ -58,7 +58,7 @@ A MIDI note has one velocity, fixed when it is struck. So the compiler works out
 
 sf and rfz strike the chords at their time at velocity 100, and sfz at 110. All three leave the level as it was. fp strikes at 80 and then sets the level to p. A dynamic on any staff of a part applies to the whole part, so one mark between the staves of a piano serves both hands.
 
-A hairpin ramps the velocity in a straight line over notated time. It runs to the first level dynamic written after its start, no later than the end of its last event. With no such dynamic, it moves one level up or down and leaves the part there. Each chord strikes at the ramp's value at its onset.
+A hairpin ramps the velocity in a straight line over notated time. It runs to the first level dynamic written after its start, no later than the end of its last event. It arrives at that dynamic when the dynamic lies the way the hairpin moves, louder for a crescendo and softer for a diminuendo. Otherwise it moves one level up or down, and the dynamic takes over where it stands, so a crescendo that ends on a softer dynamic grows and then drops. With no such dynamic, the hairpin moves one level and leaves the part there. Each chord strikes at the ramp's value at its onset.
 
 An accent strikes at 1.25 times the dynamic's velocity, and a marcato at 1.5 times, up to 127. Because the level is read in notated order, a D.C. brings back the opening dynamic.
 

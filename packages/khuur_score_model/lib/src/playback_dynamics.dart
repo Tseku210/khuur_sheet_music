@@ -56,8 +56,17 @@ final class _Loudness {
       final arrival = written
           .where((l) => from < l.$1 && l.$1 <= end)
           .firstOrNull;
-      final (to, target) = arrival ?? (end, _step(start, louder: crescendo));
-      ramps.add(_Ramp(from, to, start.velocity, target.velocity));
+      // As in MuseScore, a dynamic that lies against the hairpin is not
+      // its target.
+      final aimed =
+          arrival != null &&
+          (crescendo
+              ? arrival.$2.velocity > start.velocity
+              : arrival.$2.velocity < start.velocity);
+      final target = aimed ? arrival.$2 : _step(start, louder: crescendo);
+      ramps.add(
+        _Ramp(from, arrival?.$1 ?? end, start.velocity, target.velocity),
+      );
       if (arrival == null) {
         levels.insert(
           _partition(levels.length, (i) => levels[i].$1 > end),
