@@ -1,3 +1,6 @@
+## 0.5.0
+* Depends on `khuur_score_model` 0.5.0, whose `Transposition` changed.
+
 ## 0.4.0
 * A bar under a measure-repeat sign draws `Glyph.repeat1Bar` centred in it, or `Glyph.repeat2Bars` over the barline between the two bars of a two-bar sign with a 2 above it in `timeSig` digits at a rest run's count height, in place of its whole-bar rest. The bar reaches the sign's width, so a pressed bar still holds it.
 * `SheetLayout.playingIn` gives the width of the whole bar while a staff under a sign plays, on both bars of a two-bar sign, where the second bar had no column.
