@@ -1532,6 +1532,88 @@ void main() {
       expect(spannersOf(scoreFromMusicXml(text)), spannersOf(score));
     });
 
+    group('a glissando on a note of a chord', () {
+      String chord(List<(String, String)> notes) => [
+        for (final (i, (pitch, mark)) in notes.indexed)
+          note(
+            pitch,
+            4,
+            'quarter',
+            '${i > 0 ? '<chord/>' : ''}'
+                '${mark.isEmpty ? '' : '<notations>$mark</notations>'}',
+          ),
+      ].join();
+      String line(String type, [int number = 1]) =>
+          '<glissando type="$type" number="$number"/>';
+      Score read(String from, String to) => imported(
+        flute([
+          [opening(), from, to, note('rest', 8, 'half')],
+        ]),
+      );
+      List<int> keysOfFirstChord(Score score) {
+        final first = chordsIn(score, 0).first.id;
+        final notes = PlaybackCompiler()
+            .compile(score)
+            .notesBetween(
+              0,
+              double.infinity,
+            );
+        return [
+          for (final note in notes)
+            if (note.source.id == first) note.key,
+        ]..sort();
+      }
+
+      List<String> written(Score score) => [
+        for (final note in XmlDocument.parse(
+          scoreToMusicXml(score),
+        ).findAllElements('note'))
+          for (final mark in note.findAllElements('glissando'))
+            [
+              note.getElement('pitch')!.getElement('step')!.innerText,
+              note.getElement('pitch')!.getElement('octave')!.innerText,
+              ' ${mark.getAttribute('type')}',
+            ].join(),
+      ];
+
+      test('glides that note alone, toward the note the line ends on', () {
+        final score = read(
+          chord([('C4', ''), ('E4', ''), ('G4', line('start'))]),
+          chord([('D4', ''), ('F4', ''), ('C5', line('stop'))]),
+        );
+
+        expect(keysOfFirstChord(score), [60, 64, 67, 68, 69, 70, 71]);
+        expect(written(score), ['G4 start', 'C5 stop']);
+      });
+
+      test('falls to a lower note of the next chord when its line ends '
+          'there', () {
+        final score = read(
+          chord([('C4', ''), ('G4', line('start'))]),
+          chord([('D4', line('stop')), ('C5', '')]),
+        );
+
+        expect(keysOfFirstChord(score), [60, 63, 64, 65, 66, 67]);
+        expect(written(score), ['G4 start', 'D4 stop']);
+      });
+
+      test('glides each note of a chord with two lines along its own', () {
+        final score = read(
+          chord([('C4', line('start')), ('G4', line('start', 2))]),
+          chord([('D4', line('stop', 2)), ('C5', line('stop'))]),
+        );
+
+        expect(
+          keysOfFirstChord(score),
+          [
+            ...[for (var key = 60; key < 72; key++) key],
+            ...[63, 64, 65, 66, 67],
+          ]..sort(),
+        );
+        expect(written(score), ['C4 start', 'G4 start', 'D4 stop', 'C5 stop']);
+      });
+    });
+
     test('reads any words with dashes as a tempo line', () {
       String line(String words) => direction([words, '<dashes type="start"/>']);
       final stop = direction(['<dashes type="stop"/>']);
