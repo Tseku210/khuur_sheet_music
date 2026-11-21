@@ -1824,7 +1824,70 @@ void main() {
       expect(sources(script, 0.4), [1]);
     });
 
-    test('a trill alternates with the note above in the key in 32nds', () {
+    test('a trill plays about 13 notes a second at any tempo, in pairs of '
+        'its note and the note above', () {
+      Score trilling(int tempo, {Set<Articulation> marks = const {}}) =>
+          changeBar(
+            sessionWith([
+              [
+                withMarks(ornamented(quarters(1, 'E5'), Ornament.trill), marks),
+                rest(2, NoteValue.quarter),
+                rest(3, NoteValue.half),
+              ],
+            ]).score,
+            0,
+            tempos([
+              TempoMark(offset: Moment.zero, tempo: Tempo(tempo.toDouble())),
+            ]),
+          );
+
+      expect(
+        {
+          for (final tempo in [40, 60, 100, 120, 200])
+            tempo: compiled(trilling(tempo)).notesBetween(0, 10).length,
+        },
+        {40: 20, 60: 12, 100: 8, 120: 6, 200: 4},
+      );
+      for (final tempo in [40, 60, 100, 120, 200]) {
+        expect(
+          compiled(trilling(tempo)).notesBetween(0, 10).last.key,
+          77,
+          reason: 'ends on the note above at $tempo',
+        );
+      }
+      expect(
+        compiled(
+          trilling(100, marks: {Articulation.fermata}),
+        ).notesBetween(0, 10).length,
+        16,
+      );
+    });
+
+    test('a compiler it has played on times a trill again when the tempo '
+        'changes in another bar', () {
+      final compiler = PlaybackCompiler();
+      final score = sessionWith([
+        [rest(1, NoteValue.whole)],
+        [ornamented(wholes(2, 'E5'), Ornament.trill)],
+      ]).score;
+      int trilled(int tempo) => compiler
+          .compile(
+            changeBar(
+              score,
+              0,
+              tempos([
+                TempoMark(offset: Moment.zero, tempo: Tempo(tempo.toDouble())),
+              ]),
+            ),
+          )
+          .notesBetween(0, 100)
+          .length;
+
+      expect(trilled(100), 32);
+      expect(trilled(50), 64);
+    });
+
+    test('a trill alternates with the note above in the key', () {
       final score = at80([
         [
           withMarks(ornamented(quarters(1, 'E5'), Ornament.trill), {
@@ -1837,21 +1900,28 @@ void main() {
       ], key: const KeySignature(1));
       final script = compiled(score);
 
-      expect(notes(script), [
-        (0.0, 0.084, 76, 0, 1),
-        (0.094, 0.084, 78, 0, 1),
-        (0.188, 0.084, 76, 0, 1),
-        (0.281, 0.084, 78, 0, 1),
-        (0.375, 0.084, 76, 0, 1),
-        (0.469, 0.084, 78, 0, 1),
-        (0.563, 0.084, 76, 0, 1),
-        (0.656, 0.047, 78, 0, 1),
+      expect(attacks(script), [
+        (0.0, 76, 1),
+        (0.075, 78, 1),
+        (0.15, 76, 1),
+        (0.225, 78, 1),
+        (0.3, 76, 1),
+        (0.375, 78, 1),
+        (0.45, 76, 1),
+        (0.525, 78, 1),
+        (0.6, 76, 1),
+        (0.675, 78, 1),
       ]);
-      expect(velocities(script), [80, 64, 64, 64, 64, 64, 64, 64]);
+      final sounding = [
+        for (final note in script.notesBetween(0, 10)) note.duration,
+      ];
+      expect(sounding.first, closeTo(0.9 * 0.075, 1e-9));
+      expect(sounding.last, closeTo(0.5 * 0.075, 1e-9));
+      expect(velocities(script), [80, 64, 64, 64, 64, 64, 64, 64, 64, 64]);
     });
 
-    test('a trill stretches its 32nds to fit, and plays its note when '
-        'none fit', () {
+    test('a trill slows to fit one pair in a short note, and plays its note '
+        'when no pair fits', () {
       final score = at80([
         [
           tripletOfEighths(20, [
@@ -2057,9 +2127,9 @@ void main() {
 
       expect(keys(), [
         ...[60, 62, 64, 65],
-        ...[67, 69, 67, 69, 67, 69, 67, 69],
+        ...[67, 69, 67, 69, 67, 69, 67, 69, 67, 69],
         ...[69, 67, 69],
-        ...[71, 72, 71, 72, 71, 72, 71, 72],
+        ...[71, 72, 71, 72, 71, 72, 71, 72, 71, 72],
         72,
       ]);
     });
@@ -2146,11 +2216,13 @@ void main() {
 
       expect(attacks(compiled(score)), [
         (0.0, 76, 1),
-        (0.117, 77, 1),
-        (0.234, 76, 1),
-        (0.352, 77, 1),
-        (0.469, 76, 1),
-        (0.586, 77, 1),
+        (0.088, 77, 1),
+        (0.176, 76, 1),
+        (0.264, 77, 1),
+        (0.352, 76, 1),
+        (0.439, 77, 1),
+        (0.527, 76, 1),
+        (0.615, 77, 1),
         (0.703, 76, 3),
         (0.75, 74, 2),
       ]);
@@ -2173,13 +2245,15 @@ void main() {
 
       expect(attacks(compiled(score)), [
         (0.0, 76, 1),
-        (0.094, 77, 1),
-        (0.188, 76, 1),
-        (0.281, 77, 1),
-        (0.375, 76, 1),
-        (0.469, 77, 1),
-        (0.563, 76, 1),
-        (0.656, 77, 1),
+        (0.075, 77, 1),
+        (0.15, 76, 1),
+        (0.225, 77, 1),
+        (0.3, 76, 1),
+        (0.375, 77, 1),
+        (0.45, 76, 1),
+        (0.525, 77, 1),
+        (0.6, 76, 1),
+        (0.675, 77, 1),
         (0.75, 74, 3),
         (1.125, 77, 2),
       ]);
@@ -2277,13 +2351,15 @@ void main() {
         (2.25, 65, 9),
         (2.297, 64, 4),
         (3.0, 60, 5),
-        (3.094, 62, 5),
-        (3.188, 60, 5),
-        (3.281, 62, 5),
-        (3.375, 60, 5),
-        (3.469, 62, 5),
-        (3.563, 60, 5),
-        (3.656, 62, 5),
+        (3.075, 62, 5),
+        (3.15, 60, 5),
+        (3.225, 62, 5),
+        (3.3, 60, 5),
+        (3.375, 62, 5),
+        (3.45, 60, 5),
+        (3.525, 62, 5),
+        (3.6, 60, 5),
+        (3.675, 62, 5),
         (3.75, 62, 6),
         (3.844, 60, 6),
         (3.938, 59, 6),
