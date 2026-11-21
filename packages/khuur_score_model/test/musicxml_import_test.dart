@@ -1632,6 +1632,72 @@ void main() {
       );
     });
 
+    test('keeps a direction on its event when its offset reaches no '
+        'other', () {
+      String offset(int divisions) => '<offset>$divisions</offset>';
+      String dynamic(String level, String more) =>
+          direction(['<dynamics><$level/></dynamics>'], more: more);
+      final score = imported(
+        flute([
+          [
+            opening(),
+            dynamic('f', offset(1)),
+            note('C5', 8, 'half'),
+            dynamic('p', offset(-1)),
+            dynamic('mf', offset(-4)),
+            note('D5', 8, 'half'),
+            dynamic('ff', offset(-1)),
+          ],
+          [
+            note('C5', 4, 'quarter'),
+            note('D5', 4, 'quarter'),
+            dynamic('pp', offset(3)),
+            dynamic('mp', '<offset sound="yes">1</offset>'),
+            note('E5', 4, 'quarter'),
+            note('F5', 4, 'quarter'),
+          ],
+        ]),
+      );
+
+      expect(
+        [marksIn(score, 0), marksIn(score, 1)],
+        [
+          ['0 f', '1/2 p', '1/2 mf'],
+          ['0 ff', '9/16 mp', '3/4 pp'],
+        ],
+      );
+      expect(heard(score).first.$4, Dynamic.f.velocity);
+    });
+
+    test('keeps a tempo mark on the nearest event of any staff of its '
+        'part', () {
+      const offset = '<offset>3</offset>';
+      final score = imported(
+        keyboard([
+          [
+            grand,
+            direction(['<dynamics><f/></dynamics>'], more: offset),
+            direction([metronome(90)], more: offset),
+            direction(['<rehearsal>A</rehearsal>'], more: offset),
+            note('C5', 16, 'whole', '<staff>1</staff>'),
+            backup(16),
+            for (final pitch in ['C3', 'D3', 'E3', 'F3'])
+              note(pitch, 4, 'quarter', '<voice>2</voice><staff>2</staff>'),
+          ],
+        ]),
+      );
+
+      expect(marksIn(score, 0), ['0 f']);
+      expect(
+        [
+          for (final mark in score.measures.single.tempos)
+            (mark.offset.wholeNotes, mark.tempo.bpm),
+        ],
+        [(Fraction(1, 4), 90)],
+      );
+      expect(score.measures.single.rehearsal, 'A');
+    });
+
     test('holds what ends the last bar, or what an offset moves past its '
         'end, on the last event of the bar', () {
       String offset(int divisions) => '<offset>$divisions</offset>';
