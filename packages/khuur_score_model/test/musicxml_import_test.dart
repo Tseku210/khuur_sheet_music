@@ -259,11 +259,6 @@ final List<Refusal> refusals = [
     at: '$bar0/note[2]',
   ),
   refuses(
-    'the duration does not match the written value',
-    [(c5, note('C5', 11, 'quarter'))],
-    at: '$bar0/note[1]/duration',
-  ),
-  refuses(
     'a part has 1 to 99 staves',
     [
       (
@@ -1715,6 +1710,31 @@ void main() {
         'F5/quarter',
         'G5/half',
       ]);
+    });
+
+    test('keeps the written value of a note whose duration disagrees with '
+        'it, and starts the next note where that value ends', () {
+      final score = imported(
+        flute([
+          [
+            opening(beats: 3),
+            note('C5', 4, 'quarter'),
+            note('D5', 4, 'quarter'),
+            note('E5', 2, 'eighth'),
+            note('F5', 2, '16th', '<dot/>'),
+            note('G5', 1, '16th'),
+          ],
+        ]),
+      );
+
+      expect(items(score, 0), [
+        'C5/quarter',
+        'D5/quarter',
+        'E5/eighth',
+        'F5/sixteenth.',
+        'G5/sixteenth',
+      ]);
+      expect(score.measures.single.length, Length(Fraction(25, 32)));
     });
 
     test('closes a tuplet of mixed values where the time modification '
