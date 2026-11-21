@@ -531,7 +531,7 @@ enum Articulation {
 /// ([ChordEvent.ornamentAbove], [ChordEvent.ornamentBelow]) alters the note
 /// on that side.
 enum Ornament {
-  /// Alternates with the note above in 32nds.
+  /// Alternates with the note above, about 13 notes a second at any tempo.
   trill,
 
   /// The note, the one below, then the note again.

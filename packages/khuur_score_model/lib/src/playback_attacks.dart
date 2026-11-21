@@ -17,7 +17,15 @@ _Fragment _compileBar(MeasureColumn column) {
           holds.add((onset, onset + duration));
         }
         if (event is ChordEvent) {
-          chords.add(_Chord(timed, event, _attacks(timed, event, column)));
+          chords.add(
+            _Chord(
+              timed,
+              event,
+              event.ornament == Ornament.trill
+                  ? null
+                  : _attacks(timed, event, column),
+            ),
+          );
         }
       }
     }
@@ -32,7 +40,8 @@ _Fragment _compileBar(MeasureColumn column) {
 /// ornament, or of a trill when [trill] and it has none, or of its tremolo.
 /// The graces of [closing], the chord after it, play at its end instead,
 /// quick, as the end of its trill. A note whose ornament reaches past MIDI
-/// keys 0 to 127 plays without it.
+/// keys 0 to 127 plays without it. [played] is the bar as it plays, which
+/// times a trill.
 List<_Attack> _attacks(
   TimedEvent timed,
   ChordEvent chord,
@@ -40,6 +49,7 @@ List<_Attack> _attacks(
   bool trill = false,
   bool graces = true,
   _Chord? closing,
+  _Bar? played,
 }) {
   final TimedEvent(:onset, :duration, :ref) = timed;
   final key = column.key;
@@ -79,10 +89,17 @@ List<_Attack> _attacks(
       ? Length.zero
       : _shorter(_written(ending), _quick(ending.length, duration - steal));
   final span = duration - steal - close;
+  final ornament = chord.ornament ?? (trill ? Ornament.trill : null);
   final figure = _figure(
-    chord.ornament ?? (trill ? Ornament.trill : null),
+    ornament,
     chord,
     span,
+    trillNotes: ornament == Ornament.trill
+        ? _trillNotes(
+            played!.secondsAt(onset + steal + span) -
+                played.secondsAt(onset + steal),
+          )
+        : 1,
     trillEnd: closing == null ? null : _trillEnd(chord, ending),
   );
   for (final note in chord.notes) {
@@ -122,29 +139,22 @@ Length _written(Seq<GraceChord> graces) =>
 
 /// How a chord plays over [length], as each piece's scale steps from the
 /// written note and its length. A trill alternates with the note above in
-/// 32nds, and ends on step [trillEnd] when one is given, a note fewer when
-/// it must. Mordents and turns play their notes in 32nds, or in equal shares
-/// of a shorter chord, and hold the last. A tremolo repeats in the value
-/// its strokes add to the chord's own flags.
+/// [trillNotes] equal notes, and ends on step [trillEnd] when one is given,
+/// a note fewer when it must. Mordents and turns play their notes in 32nds,
+/// or in equal shares of a shorter chord, and hold the last. A tremolo
+/// repeats in the value its strokes add to the chord's own flags.
 List<(int, Length)> _figure(
   Ornament? ornament,
   ChordEvent chord,
   Length length, {
+  int trillNotes = 1,
   int? trillEnd,
 }) {
-  List<(int, Length)> repeat(
-    List<int> steps,
-    Length span,
-    Length each, {
-    int? last,
-  }) {
-    final ratio = span / each;
-    var count = max(1, ratio.floor());
-    if (last != null &&
-        count > 1 &&
-        steps[(count - 1) % steps.length] != last) {
-      count--;
-    }
+  List<(int, Length)> repeat(List<int> steps, int times, {int? last}) {
+    final count =
+        last != null && times > 1 && steps[(times - 1) % steps.length] != last
+        ? times - 1
+        : times;
     return [
       for (var i = 0; i < count; i++)
         (steps[i % steps.length], length * Fraction(1, count)),
@@ -163,22 +173,37 @@ List<(int, Length)> _figure(
   }
 
   return switch (ornament) {
-    Ornament.trill => repeat([0, 1], length, _thirtySecond, last: trillEnd),
+    Ornament.trill => repeat([0, 1], trillNotes, last: trillEnd),
     Ornament.mordent => quick([0, -1]),
     Ornament.invertedMordent => quick([0, 1]),
     Ornament.turn => quick([1, 0, -1]),
     Ornament.invertedTurn => quick([-1, 0, 1]),
-    null when chord.tremolo > 0 => repeat(
-      [0],
-      chord.value.length,
-      _shorter(chord.value.base.length, NoteValue.quarter.length) *
-          Fraction(1, 1 << chord.tremolo),
-    ),
+    null when chord.tremolo > 0 => repeat(const [0], _tremoloNotes(chord)),
     null => [(0, length)],
   };
 }
 
 final Length _thirtySecond = NoteValue.thirtySecond.length;
+
+/// How many times a tremolo strikes [chord]: once for each note of the
+/// value its strokes add to the chord's own flags.
+int _tremoloNotes(ChordEvent chord) {
+  final each =
+      _shorter(chord.value.base.length, NoteValue.quarter.length) *
+      Fraction(1, 1 << chord.tremolo);
+  return max(1, (chord.value.length / each).floor());
+}
+
+/// Seconds one note of a trill lasts at the least. A trill is not measured
+/// against the beat, so its speed is set in time and holds at any tempo.
+/// This is 13 notes a second, the speed of a 32nd at 100 quarters a minute.
+const _trillNote = 0.075;
+
+/// How many notes a trill plays in [seconds]: as many pairs of the note and
+/// the note above as fit at [_trillNote] each, so it ends on the note above,
+/// or the one note when no pair fits.
+int _trillNotes(double seconds) =>
+    max(1, 2 * ((seconds + _sameInstant) / (2 * _trillNote)).floor());
 
 /// The step a trill on [chord] ends on before [graces] end it: its main
 /// note, so a turn below it leads on, or the note above when the graces

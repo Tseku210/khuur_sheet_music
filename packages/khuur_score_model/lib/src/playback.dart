@@ -283,17 +283,20 @@ final class PlaybackCompiler {
           closed.add((at, next.timed.ref));
         }
         final graced = !closed.remove((k, chord.timed.ref));
+        final timeless = trilled || closing != null || !graced
+            ? null
+            : chord.attacks;
         for (final attack
-            in trilled || closing != null || !graced
-                ? _attacks(
-                    chord.timed,
-                    chord.event,
-                    column,
-                    trill: trilled,
-                    graces: graced,
-                    closing: closing?.$2,
-                  )
-                : chord.attacks) {
+            in timeless ??
+                _attacks(
+                  chord.timed,
+                  chord.event,
+                  column,
+                  trill: trilled,
+                  graces: graced,
+                  closing: closing?.$2,
+                  played: bar,
+                )) {
           final (key, cents) = _key(attack.note, instrument);
           final start = bar.secondsAt(attack.onset);
           final end = bar.secondsAt(attack.onset + attack.length);
@@ -874,8 +877,9 @@ final class _Chord {
   final TimedEvent timed;
   final ChordEvent event;
 
-  /// What it plays when no trill line covers it.
-  final List<_Attack> attacks;
+  /// What it plays when no trill line covers it and its graces are its own,
+  /// or null when it trills, since a trill is timed as its bar plays.
+  final List<_Attack>? attacks;
 }
 
 /// One note struck, in whole-note time from the bar's downbeat.
