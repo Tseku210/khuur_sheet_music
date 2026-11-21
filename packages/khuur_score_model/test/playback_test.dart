@@ -1991,8 +1991,82 @@ void main() {
       ], everyElement(0.04));
     });
 
-    test('a trill slows to fit one pair in a short note, and plays its note '
-        'when no pair fits', () {
+    /// The keys a trilled A4 of [value] plays at [tempo] quarters a minute,
+    /// then those of the B4 after it and of its graces, [closing].
+    List<int> shortTrill(
+      int tempo,
+      NoteValue value, {
+      List<GraceChord> closing = const [],
+    }) => [
+      for (final note in compiled(
+        changeBar(
+          sessionWith([
+            [
+              ornamented(chordOf(1, 'A4', value: value), Ornament.trill),
+              chordOf(2, 'B4', value: value, graces: closing),
+              if (value == NoteValue.eighth) rest(3, NoteValue.quarter),
+              rest(4, NoteValue.half),
+            ],
+          ]).score,
+          0,
+          tempos([
+            TempoMark(offset: Moment.zero, tempo: Tempo(tempo.toDouble())),
+          ]),
+        ),
+      ).notesBetween(0, 10))
+        note.key,
+    ];
+
+    test('a trill in a short note is no slower than 8 notes a second', () {
+      for (final tempo in [104, 120]) {
+        expect(
+          shortTrill(tempo, NoteValue.eighth),
+          [69, 71, 69, 71, 71],
+          reason: 'an eighth at $tempo',
+        );
+      }
+      expect(shortTrill(150, NoteValue.eighth), [69, 71, 71]);
+    });
+
+    test('a short trill still alternates before the graces that end it', () {
+      for (final (tempo, value) in [
+        (80, NoteValue.eighth),
+        (104, NoteValue.eighth),
+        (120, NoteValue.eighth),
+        (200, NoteValue.eighth),
+        (200, NoteValue.quarter),
+      ]) {
+        expect(
+          shortTrill(tempo, value, closing: [grace(5, 'G4'), grace(6, 'A4')]),
+          [69, 71, 69, 67, 69, 71],
+          reason: 'graces from below end $value at $tempo',
+        );
+      }
+      expect(
+        shortTrill(
+          208,
+          NoteValue.eighth,
+          closing: [grace(5, 'G4'), grace(6, 'A4')],
+        ),
+        [69, 67, 69, 71],
+        reason: 'three notes would be shorter than a 32nd at 200',
+      );
+    });
+
+    test('a trill that ends on its main note drops no note it has room '
+        'for', () {
+      expect(
+        shortTrill(
+          75,
+          NoteValue.quarter,
+          closing: [grace(5, 'G4'), grace(6, 'A4')],
+        ),
+        [69, 71, 69, 71, 69, 71, 69, 71, 69, 67, 69, 71],
+      );
+    });
+
+    test('a trill fits whole pairs in a short note, and plays its note alone '
+        'when a pair would be too fast', () {
       final score = at80([
         [
           tripletOfEighths(20, [
@@ -2021,7 +2095,9 @@ void main() {
 
       expect(attacks(compiled(score)), [
         (0.0, 76, 21),
-        (0.125, 77, 21),
+        (0.063, 77, 21),
+        (0.125, 76, 21),
+        (0.188, 77, 21),
         (0.25, 77, 22),
         (0.5, 79, 23),
         (0.75, 74, 9),
