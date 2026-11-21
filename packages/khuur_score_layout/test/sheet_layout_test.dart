@@ -320,6 +320,38 @@ void main() {
     });
   });
 
+  group('a sheet narrower than a bar', () {
+    var score = blankScore(bars: 2);
+    for (var bar = 0; bar < 2; bar++) {
+      score = fill(score, bar, [
+        for (var k = 0; k < 16; k++)
+          chordOf(
+            10000 + bar * 100 + k,
+            k.isEven ? 'C#5' : 'Bb4',
+            value: NoteValue.sixteenth,
+          ),
+      ]);
+    }
+
+    for (final width in [46.0, 40.0, 33.0, 20.0]) {
+      test('$width wide shows the whole bar', () {
+        final layout = sheetOf(score, width: width);
+
+        expect(layout.systemCount, 2);
+        expectInsideBands(layout);
+        for (var i = 0; i < layout.systemCount; i++) {
+          final system = layout.systemAt(i);
+          expect(system.width, width);
+          expect(inkRightOf(layout, i), lessThanOrEqualTo(width + 1e-6));
+          final stops = system.bars.single.time.stops;
+          for (var k = 1; k < stops.length; k++) {
+            expect(stops[k].$2, greaterThanOrEqualTo(stops[k - 1].$2));
+          }
+        }
+      });
+    }
+  });
+
   group('a sheet that does not justify', () {
     test('moves and respaces no earlier bar as bars are added one at a time '
         'at the end, the bar that wraps to a new system included', () {
