@@ -1569,8 +1569,7 @@ void main() {
       );
     });
 
-    test('moves what a bar ends with to the next bar, and drops it after the '
-        'last', () {
+    test('moves what a bar ends with to the next bar', () {
       final whole = note('C5', 16, 'whole');
       final score = imported(
         flute([
@@ -1583,10 +1582,7 @@ void main() {
               '<metronome><beat-unit>quarter</beat-unit><per-minute>80</per-minute></metronome>',
             ]),
           ],
-          [
-            whole,
-            direction(['<dynamics><p/></dynamics>']),
-          ],
+          [whole],
         ]),
       );
 
@@ -1639,6 +1635,48 @@ void main() {
         ],
         [(Fraction(1, 2), 90)],
       );
+    });
+
+    test('holds what ends the last bar, or what an offset moves past its '
+        'end, on the last event of the bar', () {
+      String offset(int divisions) => '<offset>$divisions</offset>';
+      final score = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 8, 'half'),
+            direction(['<dynamics><f/></dynamics>'], more: offset(8)),
+            note('D5', 8, 'half'),
+          ],
+          [
+            note('C5', 4, 'quarter'),
+            note('D5', 4, 'quarter'),
+            direction(['<dynamics><ppp/></dynamics>'], more: offset(4)),
+            note('E5', 4, 'quarter'),
+            direction(['<dynamics><fff/></dynamics>'], more: offset(8)),
+            note('F5', 4, 'quarter'),
+            direction(['<words>dolce</words>']),
+            direction(['<rehearsal>B</rehearsal>']),
+            direction([metronome(90)], more: offset(4)),
+          ],
+        ]),
+      );
+
+      expect(
+        [marksIn(score, 0), marksIn(score, 1)],
+        [
+          isEmpty,
+          ['0 f', '3/4 ppp', '3/4 fff', '3/4 dolce'],
+        ],
+      );
+      expect(
+        [
+          for (final mark in score.measures[1].tempos)
+            (mark.offset.wholeNotes, mark.tempo.bpm),
+        ],
+        [(Fraction(3, 4), 90)],
+      );
+      expect(score.measures[1].rehearsal, 'B');
     });
 
     test('leaves an octave line over the notes written inside it, whatever '
