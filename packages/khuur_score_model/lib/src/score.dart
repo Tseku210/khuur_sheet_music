@@ -431,6 +431,27 @@ final class Score {
         anchorAt(spanner.staff, voice, spanner.last)?.event.id;
   }
 
+  /// The notes a glissando [spanner] starts and ends on, each by
+  /// [Glissando.noteIn] from the chord at that end, or null where that end
+  /// is on a rest. Both are null for a spanner that is not a glissando.
+  ({Note? from, Note? to}) glissandoNotes(Spanner spanner) {
+    final kind = spanner.kind;
+    if (kind is! Glissando) {
+      return (from: null, to: null);
+    }
+    final voice = spanner.voice ?? VoiceSlot.one;
+    return (
+      from: Glissando.noteIn(
+        anchorAt(spanner.staff, voice, spanner.first)?.event,
+        kind.from,
+      ),
+      to: Glissando.noteIn(
+        anchorAt(spanner.staff, voice, spanner.last)?.event,
+        kind.to,
+      ),
+    );
+  }
+
   /// Everything in effect at a point on a staff.
   ScoreContext contextAt(StaffId staff, ScorePoint at) {
     final index = indexOf(at.measure);
@@ -999,21 +1020,51 @@ final class PedalLine extends SpannerKind {
   const PedalLine();
 }
 
-/// A glissando line between notes of one voice. Playback moves each note of
-/// the chord it starts on toward the chord it ends on in semitone steps,
-/// each an equal share of the note, as MuseScore 4 plays a chromatic
-/// glissando. Note `i`, lowest first, goes to note `i` of that chord, or
-/// to its top note when it has fewer, as MuseScore 4 guesses the end of a
-/// glissando that has no end note. The line belongs to the two chords, so
-/// every note of the first chord glides, where MuseScore glides only the
-/// notes that carry a line. A trill, mordent, turn or tremolo on the first
+/// A glissando line from one note to another of one voice. Playback moves
+/// the note it starts on toward the note it ends on in semitone steps, each
+/// an equal share of the note, as MuseScore 4 plays a chromatic glissando.
+/// The other notes of the chord hold, and a chord with two lines glides
+/// each note along its own. A trill, mordent, turn or tremolo on the first
 /// chord plays instead, and a note that ties on plays its tie.
+///
+/// [from] and [to] name the two notes. Each end is read from the chord the
+/// spanner attaches to at that end and from nothing else, by [noteIn].
 final class Glissando extends SpannerKind {
-  /// The glissando, which has no fields.
-  const Glissando();
+  /// A line from note [from] of the chord it starts on to note [to] of the
+  /// chord it ends on, or between their top notes where an id is null.
+  const Glissando({this.from, this.to});
+
+  /// The note the line starts on, or null for the top note of its chord.
+  final NoteId? from;
+
+  /// The note the line ends on, or null for the top note of its chord.
+  final NoteId? to;
+
+  /// The note of [event] that an end naming [id] lies on, where [event] is
+  /// what the spanner attaches to at that end. It is the note with that id,
+  /// or the chord's top note when [id] is null or names no note of the
+  /// chord, as after an edit that replaced the note. Null when [event] is
+  /// not a chord.
+  static Note? noteIn(Event? event, NoteId? id) => switch (event) {
+    ChordEvent(:final notes) =>
+      notes.where((note) => note.id == id).firstOrNull ?? notes.last,
+    _ => null,
+  };
+
+  /// This line on copies of its notes, where [copies] maps the id of each
+  /// copied note to its copy's. An end whose note was not copied names none.
+  Glissando onCopies(Map<NoteId, NoteId> copies) =>
+      Glissando(from: copies[from], to: copies[to]);
 
   @override
   bool get joinsNotes => true;
+
+  @override
+  bool operator ==(Object other) =>
+      other is Glissando && other.from == from && other.to == to;
+
+  @override
+  int get hashCode => Object.hash(Glissando, from, to);
 }
 
 /// How far an [OctaveLine] moves the sound from the print.

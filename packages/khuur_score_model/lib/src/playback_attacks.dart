@@ -50,7 +50,7 @@ List<_Attack> _attacks(
   bool graces = true,
   _Chord? closing,
   _Bar? played,
-  ChordEvent? glideTo,
+  Map<NoteId, Note> glideTo = const {},
 }) {
   final TimedEvent(:onset, :duration, :ref) = timed;
   final key = column.key;
@@ -104,17 +104,10 @@ List<_Attack> _attacks(
           )
         : 1,
   );
-  final targets = ornament == null && chord.tremolo == 0
-      ? glideTo?.notes
-      : null;
-  for (final (n, note) in chord.notes.indexed) {
+  final glides = ornament == null && chord.tremolo == 0;
+  for (final note in chord.notes) {
     final pieces =
-        _glide(
-          note,
-          targets?[min(n, targets.length - 1)],
-          span,
-          key,
-        ) ??
+        _glide(note, glides ? glideTo[note.id] : null, span, key) ??
         _ornamented(
           note,
           chord,

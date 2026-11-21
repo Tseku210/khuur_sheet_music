@@ -124,9 +124,21 @@ final class _Placed {
   /// writes the stop at that event's end.
   final EventId? stopsAfter;
 
+  /// A glissando names the notes its marks are written on.
+  SpannerKind get kind => switch ((record.kind, record.start.anchor)) {
+    (Glissando(), final EventAnchor start) => Glissando(
+      from: start.kept,
+      to: switch (record.stop.anchor) {
+        final EventAnchor stop => stop.kept,
+        TimeAnchor() => null,
+      },
+    ),
+    (final kind, _) => kind,
+  };
+
   Spanner spanner(SpannerId id) => Spanner(
     id: id,
-    kind: record.kind,
+    kind: kind,
     staff: staff,
     first: first,
     last: last,

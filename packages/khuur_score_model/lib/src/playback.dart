@@ -291,9 +291,10 @@ final class PlaybackCompiler {
           closed.add((at, next.timed.ref));
         }
         final graced = !closed.remove((k, chord.timed.ref));
-        final glideTo = glissandi[chord.timed.ref];
-        final timeless =
-            trilled || closing != null || !graced || glideTo != null
+        final glides = chord.event.notes.any(
+          (note) => glissandi.containsKey(note.id),
+        );
+        final timeless = trilled || closing != null || !graced || glides
             ? null
             : chord.attacks;
         for (final attack
@@ -306,7 +307,7 @@ final class PlaybackCompiler {
                   graces: graced,
                   closing: closing?.$2,
                   played: bar,
-                  glideTo: glideTo,
+                  glideTo: glissandi,
                 )) {
           final (key, cents) = _key(attack.note, instrument);
           final start = bar.secondsAt(attack.onset);
@@ -636,23 +637,13 @@ Map<_Lane, _Spans> _slurSpans(Score score, _Timeline time) {
   return slurs.map((lane, spans) => MapEntry(lane, _Spans(spans)));
 }
 
-/// MusicXML writes a glissando for each note of a chord, so a chord can
-/// start several.
-Map<EventRef, ChordEvent> _glideTargets(Score score) {
-  final targets = <EventRef, ChordEvent>{};
-  for (final Spanner(:kind, :staff, :voice, :first, :last) in score.spanners) {
-    if (kind is Glissando) {
-      final slot = voice ?? VoiceSlot.one;
-      if ((
-            score.anchorAt(staff, slot, first),
-            score.anchorAt(staff, slot, last)?.event,
-          )
-          case (
-            TimedEvent(event: ChordEvent(), :final ref),
-            final ChordEvent to,
-          )) {
-        targets.putIfAbsent(ref, () => to);
-      }
+/// The note each gliding note moves toward, by the gliding note's id. Where
+/// two lines start on one note, the first in the score's order plays.
+Map<NoteId, Note> _glideTargets(Score score) {
+  final targets = <NoteId, Note>{};
+  for (final spanner in score.spanners) {
+    if (score.glissandoNotes(spanner) case (:final from?, :final to?)) {
+      targets.putIfAbsent(from.id, () => to);
     }
   }
   return targets;

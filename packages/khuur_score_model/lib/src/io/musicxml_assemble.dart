@@ -546,7 +546,7 @@ final class _Voices {
           record,
           tie:
               record.letRing ||
-              (record.tieStart && tiesTo.any((to) => _sameTone(to, record))),
+              (record.tieStart && tiesTo.any((to) => sameTone(to, record))),
         ),
     ], (a, b) => a.tone.compareTo(b.tone));
     final kept = <Note>[];
@@ -584,9 +584,3 @@ final class _Voices {
     }
   }
 }
-
-bool _sameTone(NoteRecord a, NoteRecord b) => switch ((a, b)) {
-  (PitchedRecord(written: final a), PitchedRecord(written: final b)) => a == b,
-  (DrumRecord(drum: final a), DrumRecord(drum: final b)) => a == b,
-  _ => false,
-};

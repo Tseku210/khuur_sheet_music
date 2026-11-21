@@ -230,6 +230,39 @@ void main() {
       expect(second.score.spanners.single.voice, VoiceSlot.two);
     });
 
+    test('refuses a glissando that names a note its chord lacks', () {
+      final score = fill(blankScore(), 0, [
+        chordOf(1, 'C4 G4'),
+        chordOf(2, 'D4 C5'),
+        chordOf(3, 'C4', value: NoteValue.half),
+      ]);
+      final first = pointAt(score, 0, Moment.zero);
+      final last = pointAt(score, 0, at(1, 4));
+
+      final joined = applied(
+        addSpanner(
+          score,
+          const Glissando(from: NoteId(10), to: NoteId(21)),
+          first,
+          last,
+        ),
+      );
+
+      expect(
+        joined.score.spanners.single.kind,
+        const Glissando(from: NoteId(10), to: NoteId(21)),
+      );
+      for (final kind in const [
+        Glissando(from: NoteId(20)),
+        Glissando(to: NoteId(10)),
+      ]) {
+        expect(
+          refusal(addSpanner(score, kind, first, last)),
+          isA<StaleReference>(),
+        );
+      }
+    });
+
     test('puts a line or hairpin on the staff, in no voice', () {
       final score = blankScore();
 

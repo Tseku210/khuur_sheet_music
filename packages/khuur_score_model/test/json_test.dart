@@ -395,7 +395,7 @@ void main() {
         TrillLine(),
         TempoLine(text: 'poco rit.', factor: 0.9),
         PedalLine(),
-        Glissando(),
+        Glissando(from: NoteId(1), to: NoteId(2)),
       ];
       // New instances, so that equality and not const canonicalising is what
       // makes them equal to the constants.
@@ -413,7 +413,7 @@ void main() {
         // ignore: prefer_const_constructors
         PedalLine(),
         // ignore: prefer_const_constructors
-        Glissando(),
+        Glissando(from: NoteId(1), to: NoteId(2)),
       ];
 
       for (final (i, kind) in built.indexed) {
@@ -432,12 +432,50 @@ void main() {
         (TempoLine.ritardando, TempoLine(text: 'rit.', factor: 0.5)),
         (TrillLine(), PedalLine()),
         (Slur(), Glissando()),
+        (Glissando(from: NoteId(1)), Glissando()),
+        (Glissando(to: NoteId(1)), Glissando(to: NoteId(2))),
+        (Glissando(from: NoteId(1)), Glissando(to: NoteId(1))),
       ];
 
       for (final (a, b) in pairs) {
         expect(a, isNot(b));
         expect(b, isNot(a));
       }
+    });
+
+    test('reads a glissando that names no notes, as files saved before it '
+        'could, and one naming a note the score lacks', () {
+      Glissando read(Object? from, Object? to) {
+        final json = jsonDecode(saved(showcase()));
+        put(json, r'$.spanners[7].fromNote', from);
+        put(json, r'$.spanners[7].toNote', to);
+        return scoreFromJson(json).spanners[7].kind as Glissando;
+      }
+
+      expect(read(missing, missing), const Glissando());
+      expect(
+        read(46, 5000),
+        const Glissando(from: NoteId(46), to: NoteId(5000)),
+      );
+    });
+
+    test('an edit after loading mints no id a glissando names', () {
+      final json = jsonDecode(saved(showcase()));
+      put(json, r'$.spanners[7].toNote', 5000);
+      final session = EditSession.start(scoreFromJson(json));
+
+      final next = applied(
+        session.run(
+          AddSpanner(
+            kind: const PedalLine(),
+            staff: session.score.staves.first.id,
+            first: session.score.spanners[7].first,
+            last: session.score.spanners[7].first,
+          ),
+        ),
+      );
+
+      expect(next.score.spanners.last.id.value, greaterThan(5000));
     });
 
     test('fills meter, key and clef into bars that leave them out', () {

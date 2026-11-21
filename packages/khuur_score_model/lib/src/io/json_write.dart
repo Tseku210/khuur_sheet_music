@@ -249,10 +249,14 @@ Map<String, Object?> _spanner(Spanner spanner) => {
       'text': text,
       'factor': factor,
     },
+    Glissando(:final from, :final to) => {
+      'kind': _kindName(spanner.kind),
+      'fromNote': ?from?.value,
+      'toNote': ?to?.value,
+    },
     Hairpin() ||
     TrillLine() ||
-    PedalLine() ||
-    Glissando() => {'kind': _kindName(spanner.kind)},
+    PedalLine() => {'kind': _kindName(spanner.kind)},
   },
   'staff': spanner.staff.value,
   if (spanner.voice case final voice?) 'voice': voice.index + 1,

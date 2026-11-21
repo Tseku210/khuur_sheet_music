@@ -452,6 +452,41 @@ void main() {
       }
     });
 
+    test('writes out a glissando on the copies of the notes it joins', () {
+      final session = after(
+        sessionWith([
+          [chordOf(1, 'C4', value: NoteValue.whole)],
+          [
+            chordOf(2, 'C4 G4'),
+            chordOf(3, 'D4 C5'),
+            chordOf(4, 'C4', value: NoteValue.half),
+          ],
+          [chordOf(5, 'C4', value: NoteValue.whole)],
+          [chordOf(6, 'C4', value: NoteValue.whole)],
+        ]),
+        [
+          (score) => AddSpanner(
+            kind: const Glissando(from: NoteId(20), to: NoteId(30)),
+            staff: score.staves.first.id,
+            first: pointAt(score, 1, Moment.zero),
+            last: pointAt(score, 1, at(1, 4)),
+          ),
+          sign(2, 1),
+        ],
+      );
+
+      final changed = applied(
+        session.run(SetMeter(from: idOf(session, 0), meter: Meter.threeFour)),
+      );
+
+      expect(signs(changed.score), everyElement(isNull));
+      expect(
+        [for (final (_, _, key, _) in heard(session.score)) key],
+        [60, 60, 67, 61, 62, 72, 60, 60, 67, 61, 62, 72, 60, 60],
+      );
+      expectHeard(changed.score, session.score);
+    });
+
     test('plays the same onsets after any meter change re-bars it', () {
       var compared = 0;
       for (var seed = 0; seed < 20; seed++) {

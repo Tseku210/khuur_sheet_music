@@ -792,6 +792,32 @@ void main() {
       expect(added.last, pointAt(score, 1, at(1, 4)));
     });
 
+    test('pastes a glissando onto the copies of the notes it joins', () {
+      final score = withSpanner(
+        fill(blankScore(), 0, [
+          chordOf(1, 'C4 G4'),
+          chordOf(2, 'D4 C5'),
+          chordOf(3, 'C4', value: NoteValue.half),
+        ]),
+        const Glissando(from: NoteId(10), to: NoteId(20)),
+        pointAt(blankScore(), 0, Moment.zero),
+        pointAt(blankScore(), 0, at(1, 4)),
+        voice: VoiceSlot.one,
+      );
+      final session = EditSession.start(score);
+      final clip = copyOf(session, (0, Moment.zero), (0, at(1, 2)));
+
+      final next = pasted(session, clip, 1, Moment.zero);
+
+      final (:from, :to) = next.score.glissandoNotes(next.score.spanners.last);
+      expect(next.score.spanners, hasLength(2));
+      expect(('${from!.tone}', '${to!.tone}'), ('C4', 'D4'));
+      expect(
+        {from.id, to.id}.intersection({const NoteId(10), const NoteId(20)}),
+        isEmpty,
+      );
+    });
+
     test('puts the clip on the staves from the one it is pasted at', () {
       var score = fill(blankScore(parts: const [piano]), 0, [
         chordOf(1, 'C5', value: NoteValue.half),

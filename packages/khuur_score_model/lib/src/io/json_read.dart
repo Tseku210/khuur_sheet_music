@@ -794,7 +794,16 @@ final Map<String, SpannerKind Function(_In json)> _kindByName = {
       ),
     ),
     (const PedalLine(), (_) => const PedalLine()),
-    (const Glissando(), (_) => const Glissando()),
+    (
+      const Glissando(),
+      (json) {
+        NoteId? note(String key) => switch (json.maybe(key)) {
+          final id? => NoteId(id.integer),
+          null => null,
+        };
+        return Glissando(from: note('fromNote'), to: note('toNote'));
+      },
+    ),
   ])
     _kindName(sample): read,
 };

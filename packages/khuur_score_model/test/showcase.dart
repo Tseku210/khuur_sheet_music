@@ -373,7 +373,7 @@ Score showcase() => Score(
     ),
     Spanner(
       id: const SpannerId(87),
-      kind: const Glissando(),
+      kind: const Glissando(from: NoteId(46), to: NoteId(72)),
       staff: const StaffId(2),
       voice: VoiceSlot.two,
       first: where(30, 1, 2),

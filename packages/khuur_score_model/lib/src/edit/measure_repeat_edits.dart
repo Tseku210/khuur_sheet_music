@@ -177,13 +177,15 @@ Score _writtenOut(
     );
   }
   final spanners = [...score.spanners];
-  for (final MapEntry(key: (bar, staff), value: (:source, voices: _, ids: _))
-      in copies.entries) {
+  for (final MapEntry(key: (bar, staff), value: copy) in copies.entries) {
+    final source = copy.source;
     if (copies[(bar - 1, staff)]?.source == source - 1) {
       continue;
     }
     var length = 1;
+    final notes = {...copy.notes};
     while (copies[(bar + length, staff)]?.source == source + length) {
+      notes.addAll(copies[(bar + length, staff)]!.notes);
       length++;
     }
     for (final spanner in score.spanners) {
@@ -193,7 +195,10 @@ Score _writtenOut(
           spanners.add(
             Spanner(
               id: ids.spanner(),
-              kind: spanner.kind,
+              kind: switch (spanner.kind) {
+                final Glissando line => line.onCopies(notes),
+                final kind => kind,
+              },
               staff: staff,
               voice: spanner.voice,
               first: first,

@@ -34,6 +34,14 @@ _Result _addSpanner(
       ),
     );
   }
+  if (kind case Glissando(:final from, :final to)) {
+    for (final (id, at) in [(from, first), (to, last)]) {
+      final chord = score.anchorAt(staff, spanner.voice!, at)?.event;
+      if (id != null && Glissando.noteIn(chord, id)?.id != id) {
+        throw _Refuse(StaleReference(id));
+      }
+    }
+  }
   return _Result(score.copyWith(spanners: score.spanners.append(spanner)));
 }
 

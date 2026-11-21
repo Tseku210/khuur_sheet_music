@@ -728,6 +728,52 @@ void main() {
       expect(line.from.y, lessThan(line.to.y));
     });
 
+    test('two crossed glissandi from one chord each run between their own '
+        'heads, and one whose note is gone runs from the top head', () {
+      final plain = scoreOf([
+        [
+          chordOf(1, 'C4 G4'),
+          chordOf(2, 'D4 C5'),
+          chordOf(3, 'C5', value: NoteValue.half),
+        ],
+      ]);
+      var score = plain;
+      for (final kind in const [
+        Glissando(from: NoteId(10), to: NoteId(21)),
+        Glissando(from: NoteId(11), to: NoteId(20)),
+        Glissando(from: NoteId(999), to: NoteId(20)),
+      ]) {
+        score = withSpanner(
+          score,
+          kind,
+          pointAt(plain, 0, Moment.zero),
+          pointAt(plain, 0, at(1, 4)),
+        );
+      }
+      final system = sheetOf(score).systemAt(0);
+      double middle(int event, int note) {
+        final head = headOf(
+          system,
+          NoteRef(eventRef(score, 0, event), NoteId(note)),
+        );
+        return (head.top + head.bottom) / 2;
+      }
+
+      expect(
+        [
+          for (final spanner in score.spanners)
+            switch (linesOf(system, owner: SpannerOwner(spanner.id)).single) {
+              LineDraw(:final from, :final to) => (from.y, to.y),
+            },
+        ],
+        [
+          (middle(1, 10), middle(2, 21)),
+          (middle(1, 11), middle(2, 20)),
+          (middle(1, 11), middle(2, 20)),
+        ],
+      );
+    });
+
     test('a tempo line prints its text above the staff and dashes on from '
         'it', () {
       final score = withSpanner(

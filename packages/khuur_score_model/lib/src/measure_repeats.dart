@@ -74,12 +74,13 @@ int playedBar(Seq<MeasureColumn> measures, int bar, int staff) {
 }
 
 /// A copy of the voices a bar under a measure-repeat sign plays: the bar it
-/// copies, the voices, and the id of each copied event, chord and grace by
-/// the id it has in the bar it copies.
+/// copies, the voices, and the id of each copied event, chord and grace,
+/// and of each copied note, by the id it has in the bar it copies.
 typedef PlayedCopy = ({
   int source,
   Seq<Voice> voices,
   Map<EventId, EventId> ids,
+  Map<NoteId, NoteId> notes,
 });
 
 /// The voices staff [staff] of bar [bar] plays, written out: a copy of the
@@ -98,7 +99,9 @@ PlayedCopy? playedVoices(
     return null;
   }
   final ids = <EventId, EventId>{};
+  final notes = <NoteId, NoteId>{};
   EventId event(EventId id) => ids[id] = EventId(mint());
+  NoteId note(NoteId id) => notes[id] = NoteId(mint());
   return (
     source: source,
     voices: Seq([
@@ -106,23 +109,26 @@ PlayedCopy? playedVoices(
         Voice(
           slot: voice.slot,
           items: Seq([
-            for (final item in voice.items) _copied(item, event, mint),
+            for (final item in voice.items) _copied(item, event, note, mint),
           ]),
         ),
     ]),
     ids: ids,
+    notes: notes,
   );
 }
 
 /// [item] with a new id on every event, note, grace and tuplet in it, taken
-/// from [event] for events and [mint] for the rest, and no lyrics.
+/// from [event] for events, [head] for notes and [mint] for tuplets, and
+/// no lyrics.
 VoiceItem _copied(
   VoiceItem item,
   EventId Function(EventId source) event,
+  NoteId Function(NoteId source) head,
   int Function() mint,
 ) {
   Seq<Note> heads(Seq<Note> notes) => Seq([
-    for (final note in notes) note.copyWith(id: NoteId(mint())),
+    for (final note in notes) note.copyWith(id: head(note.id)),
   ]);
   return switch (item) {
     Gap() => item,
@@ -157,7 +163,8 @@ VoiceItem _copied(
       ratio: ratio,
       unit: unit,
       members: Seq([
-        for (final member in members) _copied(member, event, mint) as Content,
+        for (final member in members)
+          _copied(member, event, head, mint) as Content,
       ]),
       bracket: bracket,
     ),
