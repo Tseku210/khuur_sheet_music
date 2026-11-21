@@ -516,12 +516,12 @@ final class EventAnchor extends Anchor {
 /// An end written as a direction on a staff at a time.
 final class TimeAnchor extends Anchor {
   /// An end on [staff] at [at] in the bar.
-  const TimeAnchor(super.bar, this.staff, this.at);
+  TimeAnchor(super.bar, this.staff, this.at);
 
   /// The staff, from 0.
   final int staff;
   /// The time in the bar, in whole notes from its start.
-  final Moment at;
+  Moment at;
 }
 
 /// A start or stop of a spanner, as the file writes it.
@@ -588,3 +588,28 @@ Fraction? decimalOf(String? text) {
   final value = Fraction(match[1] == '-' ? -units : units, scale);
   return storable(value) ? value : null;
 }
+
+/// [tempo] at [offset] in its bar.
+TempoMark tempoAt(TempoMark tempo, Moment offset) => TempoMark(
+  offset: offset,
+  tempo: tempo.tempo,
+  text: tempo.text,
+  showMetronome: tempo.showMetronome,
+);
+
+/// [direction] at [offset] in its bar.
+StaffDirection directionAt(StaffDirection direction, Moment offset) =>
+    switch (direction) {
+      DynamicMark(:final level) => DynamicMark(offset, level),
+      TextMark(:final text, :final above) => TextMark(
+        offset,
+        text,
+        above: above,
+      ),
+      ChordSymbol(:final root, :final quality, :final bass) => ChordSymbol(
+        offset,
+        root: root,
+        quality: quality,
+        bass: bass,
+      ),
+    };

@@ -1,9 +1,27 @@
 part of 'musicxml_read.dart';
 
+/// A direction written at `cursor` and drawn at the time of `drawn`.
+typedef _Nudge = ({
+  Moment cursor,
+  TimeAnchor drawn,
+  _Counts from,
+  _Counts to,
+});
+
+typedef _Counts = ({int directions, int tempos, int rehearsals});
+
 extension on _BarReader {
+  _Counts get _counts => (
+    directions: directions.length,
+    tempos: tempos.length,
+    rehearsals: rehearsals.length,
+  );
+
   void _direction(XmlElement direction) {
     final staff = _staff(direction);
-    final at = _moved(direction.getElement('offset'));
+    final offset = direction.getElement('offset');
+    final at = _moved(offset);
+    final from = _counts;
     final types = [
       for (final type in direction.findElements('direction-type'))
         ...type.childElements,
@@ -80,6 +98,62 @@ extension on _BarReader {
         ),
       ));
     }
+    if (at != cursor && offset?.getAttribute('sound') != 'yes') {
+      nudges.add((cursor: cursor, drawn: anchor, from: from, to: _counts));
+    }
+  }
+
+  /// Moves each nudged direction to where it sounds. A line end that its
+  /// offset moved nearer another event stays where it is drawn, since a
+  /// line may end inside an event.
+  void _settle(List<LaneRecord> lanes) {
+    for (final (:cursor, :drawn, :from, :to) in nudges) {
+      final staff = drawn.staff;
+      final onStaff = _nearest(
+        drawn.at,
+        cursor,
+        lanes.where((lane) => lane.staff == staff),
+      );
+      final onAny = _nearest(drawn.at, cursor, lanes);
+      if (onStaff == cursor) {
+        drawn.at = cursor;
+      }
+      for (var i = from.directions; i < to.directions; i++) {
+        directions[i] = (
+          staff: staff,
+          direction: directionAt(directions[i].direction, onStaff),
+        );
+      }
+      for (var i = from.tempos; i < to.tempos; i++) {
+        tempos[i] = tempoAt(tempos[i], onAny);
+      }
+      for (var i = from.rehearsals; i < to.rehearsals; i++) {
+        rehearsals[i] = (at: onAny, text: rehearsals[i].text);
+      }
+    }
+  }
+
+  /// The time nearest to [drawn] among [cursor], the bar's end and the
+  /// onsets in [lanes]. Of two equally near, the one nearer [cursor].
+  Moment _nearest(Moment drawn, Moment cursor, Iterable<LaneRecord> lanes) {
+    Fraction apart(Moment a, Moment b) {
+      final apart = a.wholeNotes - b.wholeNotes;
+      return apart.isNegative ? -apart : apart;
+    }
+
+    var best = cursor;
+    for (final time in [
+      furthest,
+      for (final lane in lanes)
+        for (final event in eventsIn(lane.items)) event.onset,
+    ]) {
+      final nearer = apart(time, drawn).compareTo(apart(best, drawn));
+      if (nearer < 0 ||
+          (nearer == 0 && apart(time, cursor) < apart(best, cursor))) {
+        best = time;
+      }
+    }
+    return best;
   }
 
   /// The cursor moved by [offset] divisions, and no further back than the

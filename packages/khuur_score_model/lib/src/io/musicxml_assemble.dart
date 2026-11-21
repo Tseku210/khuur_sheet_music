@@ -170,7 +170,7 @@ final class _Assembly {
         if (!last)
           for (final (:staff, :direction) in record.directions)
             if (direction.offset >= end)
-              (staff: staff, direction: _at(direction, Moment.zero)),
+              (staff: staff, direction: directionAt(direction, Moment.zero)),
       ];
       for (var k = 0; k < part.staves.length; k++) {
         staves.add(_staff(bar, p, k, end, moved, last: last));
@@ -179,14 +179,14 @@ final class _Assembly {
     // A tempo the bar opens with is written after one the bar before ends
     // with, so it is the one that holds.
     for (final tempo in carried) {
-      tempos.putIfAbsent(Moment.zero, () => _tempoAt(tempo, Moment.zero));
+      tempos.putIfAbsent(Moment.zero, () => tempoAt(tempo, Moment.zero));
     }
     if (held.isNotEmpty) {
       final onset = _lastOnset([
         for (final part in parts) ...part.bars[bar].lanes,
       ], end);
       for (final tempo in held) {
-        tempos.putIfAbsent(onset, () => _tempoAt(tempo, onset));
+        tempos.putIfAbsent(onset, () => tempoAt(tempo, onset));
       }
     }
 
@@ -323,7 +323,7 @@ final class _Assembly {
           if (direction.offset < end)
             direction
           else if (last)
-            _at(direction, _lastOnset(lanes, end)),
+            directionAt(direction, _lastOnset(lanes, end)),
     ], (a, b) => a.offset.compareTo(b.offset));
     final voices = _Voices(this, part, bar, end);
     return StaffMeasure(
@@ -353,29 +353,6 @@ Moment _lastOnset(Iterable<LaneRecord> lanes, Moment end) {
   }
   return last;
 }
-
-TempoMark _tempoAt(TempoMark tempo, Moment offset) => TempoMark(
-  offset: offset,
-  tempo: tempo.tempo,
-  text: tempo.text,
-  showMetronome: tempo.showMetronome,
-);
-
-StaffDirection _at(StaffDirection direction, Moment offset) =>
-    switch (direction) {
-      DynamicMark(:final level) => DynamicMark(offset, level),
-      TextMark(:final text, :final above) => TextMark(
-        offset,
-        text,
-        above: above,
-      ),
-      ChordSymbol(:final root, :final quality, :final bass) => ChordSymbol(
-        offset,
-        root: root,
-        quality: quality,
-        bass: bass,
-      ),
-    };
 
 /// Builds the voices of one part's staves in one bar.
 final class _Voices {

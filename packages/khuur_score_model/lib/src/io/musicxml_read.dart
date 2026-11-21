@@ -492,9 +492,8 @@ final class _BarReader {
   Moment cursor = Moment.zero;
   Moment furthest = Moment.zero;
 
-  /// How far the cursor is past where the durations read so far put it. A
-  /// note whose written value disagrees with its duration moves the cursor
-  /// by the value, and a `<backup>` counts in durations.
+  /// How far notes that keep a written value their duration disagrees with
+  /// have moved the cursor past where the durations put it.
   Fraction ahead = Fraction.zero;
   final lanes = <int, _Lane>{};
 
@@ -509,6 +508,10 @@ final class _BarReader {
   final tempos = <TempoMark>[];
   final rehearsals = <({Moment at, String text})>[];
   final navigation = <NavigationMark>[];
+
+  /// The directions whose `<offset>` moves where they are drawn and not
+  /// when they sound.
+  final nudges = <_Nudge>[];
   String? style;
   bool repeatStart = false;
   RepeatEnd? repeatEnd;
@@ -561,10 +564,12 @@ final class _BarReader {
               : breakBefore;
       }
     }
+    final lanes = _finishedLanes();
+    _settle(lanes);
     return BarRecord(
       source: Source(measure),
       end: furthest,
-      lanes: _finishedLanes(),
+      lanes: lanes,
       key: key,
       meter: meter,
       clefs: clefs,
