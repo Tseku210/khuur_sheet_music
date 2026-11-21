@@ -1723,6 +1723,58 @@ void main() {
       expect(score.measures.single.rehearsal, 'A');
     });
 
+    test('moves a dynamic written where its staff has no event to the '
+        'event of another staff that its offset names', () {
+      final score = imported(
+        keyboard([
+          [
+            grand,
+            direction(['<dynamics><f/></dynamics>'], more: '<staff>1</staff>'),
+            note('C5', 16, 'whole', '<staff>1</staff>'),
+            backup(16),
+            for (final pitch in ['C3', 'D3', 'E3', 'F3'])
+              note(pitch, 4, 'quarter', '<voice>2</voice><staff>2</staff>'),
+            direction([
+              '<dynamics><p/></dynamics>',
+            ], more: '<offset>-12</offset><staff>1</staff>'),
+          ],
+        ]),
+      );
+
+      expect(marksIn(score, 0), ['0 f', '1/4 p']);
+      expect(
+        [for (final (_, _, key, loudness) in heard(score)) (key, loudness)],
+        [
+          (Pitch.parse('C5').midiKey, Dynamic.f.velocity),
+          (Pitch.parse('C3').midiKey, Dynamic.f.velocity),
+          (Pitch.parse('D3').midiKey, Dynamic.p.velocity),
+          (Pitch.parse('E3').midiKey, Dynamic.p.velocity),
+          (Pitch.parse('F3').midiKey, Dynamic.p.velocity),
+        ],
+      );
+    });
+
+    test('keeps a dynamic on the event it is written on when its offset '
+        'lands on an event of another staff', () {
+      final score = imported(
+        keyboard([
+          [
+            grand,
+            direction([
+              '<dynamics><f/></dynamics>',
+            ], more: '<offset>4</offset><staff>1</staff>'),
+            note('C5', 16, 'whole', '<staff>1</staff>'),
+            backup(16),
+            for (final pitch in ['C3', 'D3', 'E3', 'F3'])
+              note(pitch, 4, 'quarter', '<voice>2</voice><staff>2</staff>'),
+          ],
+        ]),
+      );
+
+      expect(marksIn(score, 0), ['0 f']);
+      expect(heard(score).first.$4, Dynamic.f.velocity);
+    });
+
     test('keeps a line end on its event when its offset reaches no other, '
         'and else where the offset puts it', () {
       String offset(int divisions) => '<offset>$divisions</offset>';
