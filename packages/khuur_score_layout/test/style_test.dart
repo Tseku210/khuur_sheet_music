@@ -20,7 +20,7 @@ void main() {
     // drops shows as a default.
     final base = EngravingStyle(
       font: renamed,
-      spacing: policyOf(1.5),
+      spacing: policyOf(1.6),
       text: {TextRole.lyric: specOf(3)},
       graceScale: 0.5,
       staffGap: 5,
@@ -122,7 +122,7 @@ void main() {
     );
     final changed = <String, EngravingStyle>{
       'font': EngravingStyle(font: renamed),
-      'spacing': const EngravingStyle(spacing: SpacingPolicy(ratio: 1.5)),
+      'spacing': const EngravingStyle(spacing: SpacingPolicy(ratio: 1.6)),
       'text': const EngravingStyle(
         text: {TextRole.lyric: TextSpec(size: 3)},
       ),
@@ -155,7 +155,7 @@ void main() {
 
     EngravingStyle styleOf(double staffGap) => EngravingStyle(
       font: renamed,
-      spacing: policyOf(1.5),
+      spacing: policyOf(1.6),
       text: {TextRole.lyric: specOf(3)},
       staffGap: staffGap,
       barNumbers: false,
@@ -171,7 +171,7 @@ void main() {
   test('a spacing policy with one field changed is another policy', () {
     const changed = <String, SpacingPolicy>{
       'quarterSpace': SpacingPolicy(quarterSpace: 4),
-      'ratio': SpacingPolicy(ratio: 1.5),
+      'ratio': SpacingPolicy(ratio: 1.6),
       'minGap': SpacingPolicy(minGap: 0.5),
       'barPad': SpacingPolicy(barPad: 2),
       'restRunWidth': SpacingPolicy(restRunWidth: 10),
@@ -180,8 +180,8 @@ void main() {
     for (final MapEntry(key: field, value: policy) in changed.entries) {
       expect(policy, isNot(const SpacingPolicy()), reason: field);
     }
-    final first = policyOf(1.5);
-    final second = policyOf(1.5);
+    final first = policyOf(1.6);
+    final second = policyOf(1.6);
     expect(identical(first, second), isFalse);
     expect(second, first);
     expect(second.hashCode, first.hashCode);

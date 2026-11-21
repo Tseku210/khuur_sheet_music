@@ -190,7 +190,7 @@ final class SpacingPolicy {
   /// A policy with the library's default spacing.
   const SpacingPolicy({
     this.quarterSpace = 3.5,
-    this.ratio = 1.41,
+    this.ratio = 1.5,
     this.minGap = 0.4,
     this.barPad = 1,
     this.restRunWidth = 12,
