@@ -253,8 +253,10 @@ final class PlaybackCompiler {
               trilled,
         ];
         final trilled =
-            (trills[staff]?.any((t) => t.$1 <= written && written <= t.$2) ??
-                false) ||
+            switch (trills[staff]?.reachFrom(written)) {
+              final end? => written <= end,
+              null => false,
+            } ||
             continued.length == chord.event.notes.length &&
                 continued.contains(true);
         for (final note in chord.event.notes) {
@@ -265,11 +267,10 @@ final class PlaybackCompiler {
             );
           }
         }
-        final slurred =
-            slurs[(staff, voice)]?.any(
-              (s) => s.$1 <= written && written < s.$2,
-            ) ??
-            false;
+        final slurred = switch (slurs[(staff, voice)]?.reachFrom(written)) {
+          final end? => written < end,
+          null => false,
+        };
         // Graces right after a trill end it, so they play at the end of the
         // trilled chord, in its bar, and the chord they lead to plays on its
         // beat. When play starts at that chord, its graces stay on it.
@@ -477,10 +478,7 @@ final class _Timeline {
 /// The spans of every trill line, by staff, from the onset of the note it
 /// starts on to the onset of the note it ends on, the notes the sheet draws
 /// it over.
-Map<StaffId, List<(Moment, Moment)>> _trillSpans(
-  Score score,
-  _Timeline time,
-) {
+Map<StaffId, _Spans> _trillSpans(Score score, _Timeline time) {
   final trills = <StaffId, List<(Moment, Moment)>>{};
   for (final Spanner(:kind, :staff, :first, :last) in score.spanners) {
     if (kind is TrillLine) {
@@ -491,12 +489,12 @@ Map<StaffId, List<(Moment, Moment)>> _trillSpans(
       (trills[staff] ??= []).add((onsetAt(first), onsetAt(last)));
     }
   }
-  return trills;
+  return trills.map((staff, spans) => MapEntry(staff, _Spans(spans)));
 }
 
 /// Where each voice's slurs run, from the onset of the first slurred note
 /// to the onset of the last.
-Map<_Lane, List<(Moment, Moment)>> _slurSpans(Score score, _Timeline time) {
+Map<_Lane, _Spans> _slurSpans(Score score, _Timeline time) {
   final slurs = <_Lane, List<(Moment, Moment)>>{};
   for (final Spanner(:kind, :staff, :voice, :first, :last) in score.spanners) {
     if (kind is Slur) {
@@ -508,7 +506,35 @@ Map<_Lane, List<(Moment, Moment)>> _slurSpans(Score score, _Timeline time) {
       (slurs[(staff, slot)] ??= []).add((onsetAt(first), onsetAt(last)));
     }
   }
-  return slurs;
+  return slurs.map((lane, spans) => MapEntry(lane, _Spans(spans)));
+}
+
+/// Spans of time, kept so that a lookup costs a binary search however many
+/// there are.
+final class _Spans {
+  factory _Spans(List<(Moment, Moment)> spans) {
+    final sorted = stableSorted(spans, (a, b) => a.$1.compareTo(b.$1));
+    final reach = <Moment>[];
+    for (final (_, end) in sorted) {
+      reach.add(reach.isEmpty || reach.last < end ? end : reach.last);
+    }
+    return _Spans._([for (final (start, _) in sorted) start], reach);
+  }
+
+  const _Spans._(this._starts, this._reach);
+
+  /// In order.
+  final List<Moment> _starts;
+
+  /// The latest end of the spans up to each one.
+  final List<Moment> _reach;
+
+  /// The latest end of the spans that start at or before [at], or null
+  /// when none does.
+  Moment? reachFrom(Moment at) {
+    final after = _partition(_starts.length, (i) => _starts[i] > at);
+    return after == 0 ? null : _reach[after - 1];
+  }
 }
 
 /// The MIDI key and cents [note] plays on [instrument]. A drum note plays
