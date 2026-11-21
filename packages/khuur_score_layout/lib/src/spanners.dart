@@ -676,6 +676,7 @@ final class SpannerPiece {
   );
 }
 
+/// Whether [a] and [b] hold the same ground, slice by slice.
 bool _sameGround(List<SlurGround> a, List<SlurGround> b) {
   if (a.length != b.length) {
     return false;
@@ -1392,8 +1393,6 @@ List<Drawable> _placeRun(
   }
 }
 
-/// Half the thickness of a run's ink, which a cut end stays inside the
-/// band by.
 /// What [piece]'s bar has under a slur, at the x [frame] gives its slices,
 /// on the staff whose top line is at [top].
 Iterable<SlurObstacle> _obstacles(
@@ -1415,6 +1414,8 @@ Iterable<SlurObstacle> _obstacles(
   }
 }
 
+/// Half the thickness of a run's ink, which a cut end stays inside the
+/// band by.
 double _inset(SpannerKind kind, EngravingDefaults defaults) => switch (kind) {
   Slur() =>
     (defaults.slurMidpointThickness + defaults.slurEndpointThickness) / 2,

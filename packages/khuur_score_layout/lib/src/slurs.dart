@@ -3,8 +3,8 @@
 /// A bar stores what it has under a slur, slice by slice, as [SlurGround].
 /// The system turns that into [SlurObstacle]s at the slices' final x and
 /// fits the curve over them with [slurOver], as MuseScore's
-/// `SlurTieLayout::avoidCollisions` does. The curve is tested along its
-/// whole length, and both its shape and its ends move.
+/// `SlurTieLayout::avoidCollisions` does. The curve is tested at points
+/// along its length, and both its shape and its ends move.
 library;
 
 import 'dart:math' as math;
@@ -18,8 +18,8 @@ import 'geometry.dart';
 /// `left` and `right` bound the slice's content, as x offsets from the
 /// slice's line, and `at` is the free edge over it. `after` is the free
 /// edge over the gap between this slice's content and the next slice's,
-/// where only a beam, a tie or another line can stand. Both are a y from
-/// the staff's top line. The content moves with its slice and the gap
+/// where what spans several slices can stand, as a beam or a tie does.
+/// Both are a y from the staff's top line. The content moves with its slice and the gap
 /// stretches, so the outline holds at any stretch.
 typedef SlurGround = ({double left, double right, double at, double after});
 
@@ -34,13 +34,16 @@ const int _points = 20;
 /// The most rounds of adjustment before a slur is left to collide.
 const int _rounds = 30;
 
-/// Clear space between a slur's ink and what it passes over, at its ends.
+/// Clear space between a slur's ink and what it passes over. The arc adds more
+/// toward the middle.
 const double _clearance = 0.1;
 
 /// How much of each adjustment goes to an end and not to the shape. An end
 /// on a note mostly keeps its place. An end cut by the system's edge is
 /// free to move.
 const double _noteEndShare = 0.4;
+
+/// The share of an end cut by the system's edge. See [_noteEndShare].
 const double _cutEndShare = 0.9;
 
 /// The crescent of a slur from [from] to [to], bulging to [side], fitted
@@ -48,8 +51,8 @@ const double _cutEndShare = 0.9;
 ///
 /// The arc's rise grows with its length up to [rise]. Its middle half is
 /// then raised until it clears what stands under it. What still touches
-/// the curve after that, which is whatever stands near an end, is cleared
-/// in rounds that lift the shape and the nearer end by turns. Nothing of
+/// the curve after that is cleared in rounds that lift the shape and the
+/// ends by turns. Nothing of
 /// the curve passes [limit], the outer edge of the room the bars under it
 /// reserved, so a slur with no room left still touches what it could not
 /// clear. [fromCut] and [toCut] say that an end is not on a note but where
@@ -160,7 +163,7 @@ CurveDraw slurOver(
         }
       } else {
         // A collision in the middle alone of a long slanted slur lifts the
-        // lower end more, which also levels the slur.
+        // end nearer the staff more, which also levels the slur.
         final slant = (a1 - a0).abs() / span;
         final level = mid && slant > _levelFrom && length > 8
             ? slant / _levelFrom

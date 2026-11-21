@@ -321,7 +321,7 @@ void main() {
   });
 
   group('a sheet narrower than a bar', () {
-    var score = blankScore(bars: 2);
+    var score = blankScore();
     for (var bar = 0; bar < 2; bar++) {
       score = fill(score, bar, [
         for (var k = 0; k < 16; k++)
@@ -333,7 +333,7 @@ void main() {
       ]);
     }
 
-    for (final width in [46.0, 40.0, 33.0, 20.0]) {
+    for (final width in [46.0, 40.0, 33.0]) {
       test('$width wide shows the whole bar', () {
         final layout = sheetOf(score, width: width);
 
@@ -350,6 +350,14 @@ void main() {
         }
       });
     }
+
+    test('narrower than its first bar\'s tempo mark is as narrow as the '
+        'mark allows', () {
+      final layout = sheetOf(score, width: 20);
+
+      expectInsideBands(layout);
+      expect(layout.systemAt(0).width, inExclusiveRange(20, 33));
+    });
   });
 
   group('a sheet that does not justify', () {

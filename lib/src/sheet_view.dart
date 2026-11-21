@@ -26,8 +26,10 @@ part 'own_scroller.dart';
 ///
 /// Its width and its height come from its constraints, which must bound
 /// both, as for any scroll view. It breaks lines at its width and scrolls
-/// up and down. It does not scroll sideways, so a bar wider than the view
-/// is cut at the view's edge. Its size on screen is [staffSpace] times the
+/// up and down. It does not scroll sideways. A bar wider than the view is
+/// squeezed to fit it, and its notes may collide. A bar runs past the
+/// view's edge only when one of its marks, with the room before it, is
+/// wider than the view. Its size on screen is [staffSpace] times the
 /// controller's zoom. It never scales a score to fit a box.
 ///
 /// An update keeps the bar the user is reading where it is. With

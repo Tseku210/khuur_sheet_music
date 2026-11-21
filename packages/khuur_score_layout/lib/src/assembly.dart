@@ -227,7 +227,7 @@ List<BarFrame> frameUnits(SystemPlan plan) {
         : plan.key.next?.heads.courtesy;
     final frame = BarFrame(
       left: x,
-      xs: sliceXs(unit.slices, plan.stretch, x + head + unit.lead),
+      xs: fitXs(unit.slices, plan.fit, x + head, lead: unit.lead),
       tops: tops,
       beforeBarline: next?.before.width ?? 0,
     );

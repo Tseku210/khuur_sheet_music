@@ -496,7 +496,29 @@ BarLayout layoutBar(
       minBody: lead + rodWidth(slices),
     ),
     lead: lead,
-    slices: slices,
+    slices: holding(
+      slices,
+      _held(items, [
+        for (final beam in beams) ...[beam.first, beam.last],
+        for (final tuplet in tuplets) ...[tuplet.first, tuplet.last],
+        for (final tie in ties)
+          ...switch (tie) {
+            TieWithin(:final from, :final to) => [from, to],
+            TieLeaving(:final from) => [from],
+            TieOpen(:final from) => [
+              from,
+              (
+                slice: from.slice,
+                dx: from.dx + letRingLength,
+                staff: from.staff,
+                dy: from.dy,
+              ),
+            ],
+            TieArriving(:final to) => [to],
+          },
+        for (final piece in spanners) ...[piece.from, piece.until],
+      ], slices.length),
+    ),
     staves: [
       for (final (staff, staffView) in view.staves.indexed)
         _staffOf(staffView, staff, skylines[staff], heads),
@@ -539,3 +561,31 @@ List<BarHead> _drawnHeads(BarHeads heads) => [
 
 int _linesOf(StaffView view) =>
     view.part.staves.firstWhere((s) => s.id == view.source.staff).lines;
+
+/// How far what the bar placed against each of [count] slices reaches from
+/// its line. That is its [items], and the [anchors] that beams, tuplets,
+/// ties and spanners end on. A centred item stands halfway to the bar's
+/// end, so its slice holds twice its wider half.
+List<SliceReach> _held(
+  List<BarItem> items,
+  List<BarAnchor> anchors,
+  int count,
+) {
+  final held = List.filled(count, noReach);
+  for (final item in items) {
+    final box = item.drawable.bounds;
+    held[item.slice] = widest(
+      held[item.slice],
+      item.centred
+          ? (left: 0, right: 2 * math.max(-box.left, box.right))
+          : (left: -box.left, right: box.right),
+    );
+  }
+  for (final anchor in anchors) {
+    held[anchor.slice] = widest(held[anchor.slice], (
+      left: -anchor.dx,
+      right: anchor.dx,
+    ));
+  }
+  return held;
+}

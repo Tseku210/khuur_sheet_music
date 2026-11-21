@@ -44,6 +44,85 @@ void main() {
     });
   });
 
+  group('fitXs', () {
+    final slices = [
+      Slice(at: at(0, 1), ideal: 4, rod: 3, pad: 1, left: 0.5, right: 1),
+      Slice(at: at(1, 4), ideal: 4, rod: 3, pad: 1, left: 1, right: 1.5),
+      Slice(at: at(1, 2), ideal: 4, rod: 2.5, pad: 1, right: 1.5),
+      Slice(at: at(1, 1), ideal: 0, rod: 0.5),
+    ];
+    const lead = 1.5;
+    List<double> xsAt(Fit fit) => fitXs(slices, fit, 10, lead: lead);
+    double widthAt(Fit fit) =>
+        squeezedWidth(bodyOf(slices, lead), fit, lead: lead);
+
+    test('a stretched unit is its slices from the end of its lead', () {
+      for (final stretch in [0.0, 1.0, 1.7]) {
+        expect(
+          xsAt(Fit.stretched(stretch)),
+          sliceXs(slices, stretch, 10 + lead),
+        );
+      }
+    });
+
+    test('a unit that gives up half its padding keeps its lead and loses '
+        'half a pad from each rod', () {
+      const fit = Fit.squeezed(pad: 0.5, crush: 1);
+
+      expect(xsAt(fit), [11.5, 14, 16.5, 18.5]);
+      expect(widthAt(fit), 8.5);
+    });
+
+    test('a crushed unit scales what its rods hold without padding, keeps '
+        'its last reach whole and ends at its width from its head', () {
+      const fit = Fit.squeezed(pad: 0, crush: 0.8);
+
+      expect(widthAt(fit), closeTo(lead + 0.8 * 5.5, 1e-9));
+      expect(xsAt(fit), [
+        11.5,
+        closeTo(11.5 + 0.8 * 2, 1e-9),
+        closeTo(10 + widthAt(fit) - 1.5, 1e-9),
+        closeTo(10 + widthAt(fit), 1e-9),
+      ]);
+    });
+
+    test('a unit crushed to nothing is as wide as its lead and its widest '
+        'reach, and no slice reaches out of it', () {
+      const fit = Fit.squeezed(pad: 0, crush: 0);
+      final xs = xsAt(fit);
+      final width = widthAt(fit);
+
+      expect(width, lead + 1.5);
+      expect(xs.first, 10 + lead);
+      expect(xs.last, 10 + width);
+      for (final (index, slice) in slices.indexed) {
+        expect(xs[index] - slice.left, greaterThanOrEqualTo(10));
+        expect(xs[index] + slice.right, lessThanOrEqualTo(10 + width));
+        if (index > 0) {
+          expect(xs[index], greaterThanOrEqualTo(xs[index - 1]));
+        }
+      }
+    });
+
+    test('a slice that reaches far left is held clear of the head', () {
+      final wide = [
+        slices[0],
+        Slice(at: at(1, 4), ideal: 4, rod: 3, pad: 1, left: 4, right: 1),
+        ...slices.skip(2),
+      ];
+      final xs = fitXs(
+        wide,
+        const Fit.squeezed(pad: 0, crush: 0.1),
+        10,
+        lead: lead,
+      );
+
+      expect(xs[1], 14);
+      expect(xs[2], greaterThanOrEqualTo(14));
+      expect(xs[2] + 1.5, lessThanOrEqualTo(xs.last));
+    });
+  });
+
   group('sliceTimes', () {
     test('every onset of every staff and voice, then the bar end', () {
       final view = viewOf(
@@ -148,7 +227,21 @@ void main() {
         );
 
         expect(slices[0].rod, 2 + policy.minGap + 0.5);
-        expect(slices.last, Slice(at: at(1, 1), ideal: 0, rod: 0.16));
+        expect(
+          slices.first,
+          Slice(
+            at: at(0, 1),
+            ideal: slices.first.ideal,
+            rod: 2 + policy.minGap + 0.5,
+            pad: policy.minGap,
+            left: 1,
+            right: 2,
+          ),
+        );
+        expect(
+          slices.last,
+          Slice(at: at(1, 1), ideal: 0, rod: 0.16, left: 0.5),
+        );
       },
     );
   });

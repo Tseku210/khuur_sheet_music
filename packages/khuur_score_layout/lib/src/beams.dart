@@ -64,7 +64,9 @@ final class BeamPlan {
   /// note of the group is that note's stem and not the group's tallest
   /// note. A stretch moves the stems apart and keeps both end heights, so
   /// the beam is steepest with the bar pressed to its rods. The vertical
-  /// range is the beam's at that stretch, and holds it at any other.
+  /// range is the beam's at that stretch, and holds it at any other. A
+  /// squeezed system is below its rods, and [placeBeam] holds the beam in
+  /// this range there.
   final List<Box> boxes;
 
   @override
@@ -285,16 +287,29 @@ double _snap(double y, {required bool up, required double thickness}) {
 /// touches the beam at any stretch. Each level is a polygon
 /// `beamThickness` thick, `beamSpacing` from the next, and a hook is one
 /// notehead wide.
-List<Drawable> placeBeam(BeamPlan plan, BarFrame frame, EngravingStyle style) =>
-    _draw(
-      owners: [for (final event in plan.events) ElementOwner(event)],
-      stem: plan.stem,
-      stems: [for (final anchor in plan.stems) frame.at(anchor)],
-      first: frame.at(plan.first),
-      last: frame.at(plan.last),
-      joins: plan.joins,
-      style: style,
-    );
+///
+/// A squeezed system brings the stems closer than the rods the plan sized
+/// its box at, and the beam is steeper than the plan allowed. Its corners
+/// past the end stems are then held inside that box, which is the room
+/// the bar reserved.
+List<Drawable> placeBeam(BeamPlan plan, BarFrame frame, EngravingStyle style) {
+  final top = frame.tops[plan.first.staff];
+  return _draw(
+    owners: [for (final event in plan.events) ElementOwner(event)],
+    stem: plan.stem,
+    stems: [for (final anchor in plan.stems) frame.at(anchor)],
+    first: frame.at(plan.first),
+    last: frame.at(plan.last),
+    joins: plan.joins,
+    highest: top + plan.boxes.first.top,
+    lowest: top + plan.boxes.first.bottom,
+    style: style,
+  );
+}
+
+/// How far past its reserved room a beam's corner may lie before it is
+/// held, so that a corner on the room's edge keeps its exact place.
+const double _roomTolerance = 1e-9;
 
 List<Drawable> _draw({
   required List<Owner> owners,
@@ -303,6 +318,8 @@ List<Drawable> _draw({
   required SpPoint first,
   required SpPoint last,
   required List<List<BeamJoin>> joins,
+  required double highest,
+  required double lowest,
   required EngravingStyle style,
 }) {
   final defaults = style.font.defaults;
@@ -311,6 +328,11 @@ List<Drawable> _draw({
       ? 0.0
       : (last.y - first.y) / (last.x - first.x);
   double edge(double x) => first.y + slope * (x - first.x);
+  double inRoom(double y) => y < highest - _roomTolerance
+      ? highest
+      : y > lowest + _roomTolerance
+      ? lowest
+      : y;
   final half = defaults.stemThickness / 2;
   final hook = style.font[Glyph.noteheadBlack].box.width;
   final drawables = <Drawable>[
@@ -332,10 +354,10 @@ List<Drawable> _draw({
       drawables.add(
         PolygonDraw(
           [
-            SpPoint(from, edge(from) + near),
-            SpPoint(to, edge(to) + near),
-            SpPoint(to, edge(to) + far),
-            SpPoint(from, edge(from) + far),
+            SpPoint(from, inRoom(edge(from) + near)),
+            SpPoint(to, inRoom(edge(to) + near)),
+            SpPoint(to, inRoom(edge(to) + far)),
+            SpPoint(from, inRoom(edge(from) + far)),
           ],
           ink: InkRole.beam,
           owner: owner,

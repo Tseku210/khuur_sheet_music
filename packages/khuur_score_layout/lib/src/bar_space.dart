@@ -147,7 +147,7 @@ final class Skyline {
   };
 
   /// The free edge on [side] over each span from one of [edges] to the
-  /// next, in one pass over the outline. [edges] ascend. A box that only
+  /// next. [edges] ascend. A box that only
   /// touches a span's end is not over it.
   List<double> frees(Side side, List<double> edges) {
     final above = side == Side.above;

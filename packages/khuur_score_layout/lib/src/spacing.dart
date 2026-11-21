@@ -1,5 +1,5 @@
-/// Horizontal spacing. Time slices, springs and rods, and the one stretch
-/// factor of a system. Not exported.
+/// Horizontal spacing. Time slices, springs and rods, and the one [Fit] of
+/// a system. Not exported.
 ///
 /// Every staff and voice of a bar shares one list of slices, so events at
 /// the same moment align down the system by construction.
@@ -17,7 +17,14 @@ import 'style.dart';
 /// rod is the barline's width and it has no spring.
 final class Slice {
   /// Makes a slice at [at].
-  const Slice({required this.at, required this.ideal, required this.rod});
+  const Slice({
+    required this.at,
+    required this.ideal,
+    required this.rod,
+    this.pad = 0,
+    this.left = 0,
+    this.right = 0,
+  });
 
   /// The slice's onset, from the bar's start.
   final Moment at;
@@ -25,18 +32,32 @@ final class Slice {
   /// Ideal distance to the next slice at stretch 1.
   final double ideal;
 
-  /// Least distance to the next slice.
+  /// Least distance to the next slice in a system that fits its sheet.
   final double rod;
+
+  /// The part of [rod] that is clear space and not content. A system
+  /// wider than its sheet gives it up first.
+  final double pad;
+
+  /// How far the slice's content reaches left of its line.
+  final double left;
+
+  /// How far the slice's content reaches right of its line. 0 at the
+  /// bar's end.
+  final double right;
 
   @override
   bool operator ==(Object other) =>
       other is Slice &&
       other.at == at &&
       other.ideal == ideal &&
-      other.rod == rod;
+      other.rod == rod &&
+      other.pad == pad &&
+      other.left == left &&
+      other.right == right;
 
   @override
-  int get hashCode => Object.hash(at, ideal, rod);
+  int get hashCode => Object.hash(at, ideal, rod, pad, left, right);
 }
 
 /// How far a slice's content reaches left and right of the slice line:
@@ -140,8 +161,11 @@ List<Slice> spaceSlices(
         at: times[i],
         ideal: idealAt(i),
         rod: reach[i].right + policy.minGap + reach[i + 1].left,
+        pad: policy.minGap,
+        left: reach[i].left,
+        right: reach[i].right,
       ),
-    Slice(at: times.last, ideal: 0, rod: end),
+    Slice(at: times.last, ideal: 0, rod: end, left: reach.last.left),
   ];
 }
 
@@ -166,16 +190,27 @@ double _ideal(Length d, Length span, SpacingPolicy policy) {
 
 /// [slices] with every rod before the bar's end grown by an equal share, so
 /// that the bar is at least [least] wide from its first slice to its end at
-/// any stretch. Unchanged when it already is.
+/// any stretch. Unchanged when its first slice already reaches [least].
+///
+/// The first slice's reach grows to [least] too. What the bar is widened
+/// for starts at the bar's start, and a squeezed system keeps every reach
+/// inside its bar.
 List<Slice> widenedTo(List<Slice> slices, double least) {
   final springs = slices.length - 1;
   final short = least - (rodWidth(slices) - slices.last.rod);
-  if (short <= 0) {
+  if (least <= slices.first.right) {
     return slices;
   }
   return [
-    for (final slice in slices.take(springs))
-      Slice(at: slice.at, ideal: slice.ideal, rod: slice.rod + short / springs),
+    for (final (index, slice) in slices.take(springs).indexed)
+      Slice(
+        at: slice.at,
+        ideal: slice.ideal,
+        rod: slice.rod + math.max(0, short) / springs,
+        pad: slice.pad,
+        left: slice.left,
+        right: index == 0 ? least : slice.right,
+      ),
     slices.last,
   ];
 }
@@ -226,3 +261,136 @@ List<double> sliceXs(List<Slice> slices, double stretch, double from) {
   }
   return xs;
 }
+
+/// How a system's slices take their room.
+///
+/// A system whose rods fit its sheet is stretched, and only its springs
+/// change. One whose rods are wider is squeezed in two stages, as MuseScore's
+/// `squeezeSystemToFit` does. It first gives up its padding, and nothing
+/// overlaps. If that is not enough its bars are scaled down and their notes
+/// collide, since a bar that runs off the sheet cannot be read at all.
+final class Fit {
+  /// The fit of a system whose rods fit, with every spring scaled by
+  /// [stretch].
+  const Fit.stretched(this.stretch) : pad = 1, crush = 1;
+
+  /// The fit of a system whose rods are wider than its sheet.
+  const Fit.squeezed({required this.pad, required this.crush}) : stretch = 0;
+
+  /// The one factor every spring of the system is scaled by. 0 and unread
+  /// when the system is [squeezed].
+  final double stretch;
+
+  /// The share of its padding the system keeps, from 1 down to 0.
+  final double pad;
+
+  /// The scale of each bar's content once its padding is gone, from 1 down
+  /// to 0. Below 1 only when [pad] is 0.
+  final double crush;
+
+  /// Whether the system sits below its rods.
+  bool get squeezed => pad < 1 || crush < 1;
+
+  @override
+  bool operator ==(Object other) =>
+      other is Fit &&
+      other.stretch == stretch &&
+      other.pad == pad &&
+      other.crush == crush;
+
+  @override
+  int get hashCode => Object.hash(stretch, pad, crush);
+}
+
+/// What a squeeze reads of one unit's slices. `rods` and `pads` are summed
+/// over every slice before the unit's end. `floor` is the least width from
+/// the unit's head to its end that holds its lead and every slice's reach.
+typedef Body = ({double rods, double pads, double floor});
+
+/// The [Body] of [slices] behind [lead], the room before the first
+/// slice's line.
+Body bodyOf(List<Slice> slices, double lead) {
+  var rods = 0.0;
+  var pads = 0.0;
+  var floor = 0.0;
+  var left = lead;
+  for (final (index, slice) in slices.indexed) {
+    if (index > 0) {
+      left = math.max(left, slice.left);
+    }
+    floor = math.max(floor, left + slice.right);
+  }
+  for (final slice in slices.take(slices.length - 1)) {
+    rods += slice.rod;
+    pads += slice.pad;
+  }
+  return (rods: rods, pads: pads, floor: floor);
+}
+
+/// The width of a squeezed unit from its head to its end. Its [lead] is
+/// never given up, because what arrives from the system before is drawn in
+/// it.
+double squeezedWidth(Body body, Fit fit, {required double lead}) => math.max(
+  lead + fit.crush * (body.rods - (1 - fit.pad) * body.pads),
+  body.floor,
+);
+
+/// The x of each slice of a unit whose head ends at [from], under [fit].
+///
+/// A stretched unit is [sliceXs] from the end of its [lead]. A squeezed
+/// one places each slice at its rods without the padding given up, scaled
+/// to the unit's [squeezedWidth]. Each slice is then held where its reach
+/// stays between the unit's head and its end, so whatever collides stays
+/// inside its own bar, and the system inside its sheet as far as its
+/// reaches allow.
+List<double> fitXs(
+  List<Slice> slices,
+  Fit fit,
+  double from, {
+  required double lead,
+}) {
+  if (!fit.squeezed) {
+    return sliceXs(slices, fit.stretch, from + lead);
+  }
+  final width = squeezedWidth(bodyOf(slices, lead), fit, lead: lead);
+  final at = <double>[];
+  var rods = 0.0;
+  for (final slice in slices) {
+    at.add(rods);
+    rods += slice.rod - (1 - fit.pad) * slice.pad;
+  }
+  final scale = at.last > 0 ? (width - lead) / at.last : 0.0;
+  final xs = List<double>.filled(slices.length, from + width);
+  var left = lead;
+  for (var i = 0; i < slices.length - 1; i++) {
+    if (i > 0) {
+      left = math.max(left, slices[i].left);
+    }
+    xs[i] = math.max(lead + at[i] * scale, left);
+  }
+  var right = 0.0;
+  for (var i = slices.length - 2; i >= 0; i--) {
+    right = math.max(right, slices[i].right);
+    xs[i] = from + math.min(xs[i], width - right);
+  }
+  return xs;
+}
+
+/// [slices] with each one's reach grown to hold [held], which is what the
+/// bar placed against it. The rods stand. A mark wider than its note is
+/// held by the rods of several slices, so only a squeezed system reads
+/// this reach.
+List<Slice> holding(List<Slice> slices, List<SliceReach> held) => [
+  for (final (index, slice) in slices.indexed)
+    if (held[index].left <= slice.left && held[index].right <= slice.right)
+      slice
+    else
+      Slice(
+        at: slice.at,
+        ideal: slice.ideal,
+        rod: slice.rod,
+        pad: slice.pad,
+        left: math.max(slice.left, held[index].left),
+        right: math.max(slice.right, held[index].right),
+      ),
+];

@@ -8,7 +8,7 @@
 /// order the bar calls these functions. The skyline works at stretch 1.
 /// Justification only spreads slices, so what cleared at stretch 1 clears on
 /// a stretched system. A bar compressed to its rods can still collide, and
-/// that bar is already wider than its system.
+/// a bar squeezed below them does.
 ///
 /// A mark never leaves its bar sideways. [markReach] widens the slices
 /// until the rods alone hold every mark between the bar's content start and
