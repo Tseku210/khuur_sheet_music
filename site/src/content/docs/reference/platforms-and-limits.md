@@ -37,7 +37,7 @@ On the web the library builds with both compilers, dart2js and dart2wasm. CI bui
 - Tablature is not drawn.
 - The sheet is one scrolling column of systems. It has no pages and no PDF export. `SheetController.toImage` draws a range of systems.
 - One image from `toImage` holds at most `SheetController.maxImageSide` device pixels on a side, which is 8192.
-- The sheet scrolls up and down only. A bar wider than the view is squeezed to fit it. Its notes may then overlap, but they keep their order, and a mark moves left to stay inside the bar. A bar is cut at the view's edge only when its widest mark or its widest note, with the clef and signatures before the bar, is wider than the view.
+- The sheet scrolls up and down only. A bar wider than the view is squeezed to fit it. Its notes may then overlap, but they keep their order, and a mark moves left to stay inside the bar. A bar is cut at the view's edge only when its widest mark or its widest note, with the part names, clef and signatures before the bar, is wider than the view.
 - The sheet never scales a score to fit a box. It breaks lines at its width and draws at `staffSpace` times the zoom.
 - The zoom is the controller's `zoom`. The view has no pinch gesture.
 - `ScoreMeta.copyright` is not printed on the sheet.

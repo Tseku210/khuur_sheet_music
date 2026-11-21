@@ -29,8 +29,8 @@ part 'own_scroller.dart';
 /// up and down. It does not scroll sideways. A bar wider than the view is
 /// squeezed to fit it. Its notes may then overlap, but they keep their
 /// order. A bar runs past the view's edge only when its widest mark or
-/// its widest note, with the clef and signatures before the bar, is
-/// wider than the view. Its size on screen is [staffSpace] times the
+/// its widest note, with the part names, clef and signatures before the
+/// bar, is wider than the view. Its size on screen is [staffSpace] times the
 /// controller's zoom. It never scales a score to fit a box.
 ///
 /// An update keeps the bar the user is reading where it is. With
