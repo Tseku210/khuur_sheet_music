@@ -150,6 +150,7 @@ final class _Decoder {
       drums: drums,
       lowest: json.maybe('lowest')?.pitch,
       highest: json.maybe('highest')?.pitch,
+      singleNoteDynamics: json.maybe('singleNoteDynamics')?.flag,
     );
   }
 

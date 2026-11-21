@@ -700,6 +700,7 @@ final class Instrument {
     this.drums = const [],
     this.lowest,
     this.highest,
+    this._singleNoteDynamics,
   });
 
   /// Stable catalogue key, for example `violin`. Saved in JSON.
@@ -736,6 +737,17 @@ final class Instrument {
   /// Whether this is a drum kit, an instrument with [drums].
   bool get isPercussion => drums.isNotEmpty;
 
+  final bool? _singleNoteDynamics;
+
+  /// Whether a held note follows the dynamics while it sounds, as a bowed,
+  /// blown or sung note does and a struck or plucked one does not. Unless
+  /// the constructor is told, it is false for the General MIDI programs that
+  /// strike or pluck (pianos, chromatic percussion, guitars, basses,
+  /// pizzicato strings, harp, timpani, the plucked ethnic instruments and
+  /// the percussive programs) and true for the rest. A kit never does.
+  bool get singleNoteDynamics =>
+      !isPercussion && (_singleNoteDynamics ?? !_struck(program));
+
   /// The kit sound that [drum] names, or null when the kit has none.
   DrumSound? soundOf(Drum drum) =>
       drums.where((sound) => sound.name == drum.name).firstOrNull;
@@ -745,6 +757,13 @@ final class Instrument {
   KeySignature writtenKey(KeySignature key) =>
       isPercussion ? const KeySignature(0) : key.transpose(transposition);
 }
+
+bool _struck(int program) =>
+    program <= 15 ||
+    (24 <= program && program <= 39) ||
+    (45 <= program && program <= 47) ||
+    (104 <= program && program <= 108) ||
+    (112 <= program && program <= 119);
 
 /// One sound of a drum kit: where it sits on the staff, the head it is
 /// drawn with and which MIDI key plays it.

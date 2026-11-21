@@ -69,16 +69,39 @@ Score restrikeTune() {
 }
 
 /// The duet: quarters C4 D4 E4 F4 on a piano over a whole G4 on a
-/// clarinet, which plays from [reedFile], at 120 quarters a minute.
+/// clarinet, which plays from [reedFile], at 120 quarters a minute. The
+/// clarinet swells from p under a crescendo over the bar, so its channel's
+/// expression changes while the G4 is held.
 Score duet() {
   var score = atTempo(blankScore(parts: const [piano, clarinet], bars: 1));
   score = fill(score, 0, [
     for (final (beat, pitch) in const ['C4', 'D4', 'E4', 'F4'].indexed)
       chordOf(11 + beat, pitch),
   ]);
-  return fill(score, 0, [
+  score = fill(score, 0, [
     chordOf(1, 'G4', value: NoteValue.whole),
   ], staff: 2);
+  final reed = score.staves[2].id;
+  score = changeBar(
+    score,
+    0,
+    (column) => column.withStaff(
+      column.staves[2].copyWith(
+        directions: Seq([const DynamicMark(Moment.zero, Dynamic.p)]),
+      ),
+    ),
+  );
+  return score.copyWith(
+    spanners: Seq([
+      Spanner(
+        id: const SpannerId(900),
+        kind: const Hairpin(crescendo: true),
+        staff: reed,
+        first: pointAt(score, 0, Moment.zero),
+        last: pointAt(score, 0, at(3, 4)),
+      ),
+    ]),
+  );
 }
 
 Score atTempo(Score score) => changeBar(
@@ -96,7 +119,7 @@ Score atTempo(Score score) => changeBar(
 final class Tune {
   Tune(this.name, this.score, {this.loop = false, this.startAt}) {
     script = PlaybackCompiler().compile(score);
-    final ofPart = {
+    ofPart = {
       for (final Part(:id, :instrument) in score.parts)
         id: instrumentSoundFonts[instrument.key] ?? pianoFile,
     };
@@ -114,6 +137,7 @@ final class Tune {
   final bool loop;
   final ScorePoint? startAt;
   late final PlaybackScript script;
+  late final Map<PartId, SoundFont> ofPart;
   late final Map<StaffId, SoundFont> soundFonts;
   late final List<PlaybackNote> notes;
 
@@ -203,6 +227,11 @@ final class World {
   Tune? latest;
 
   Step? armed;
+
+  /// Whether the latest pause came while a note timer was overdue. The
+  /// position may then lag the second the player paused at, since it is
+  /// not published past the script's end.
+  bool pausedLate = false;
   bool disposed = false;
 
   /// What this world reached that the search must reach somewhere, so that
@@ -311,6 +340,9 @@ final class World {
       case Step.playD:
         _play(looping);
       case Step.pause || Step.onStatusPause:
+        if (status == PlayerStatus.playing) {
+          pausedLate = _overdue;
+        }
         player.pause();
       case Step.resume || Step.onStatusResume:
         player.resume();
@@ -427,6 +459,22 @@ final class World {
       );
     }
     final seconds = player.position.value?.seconds;
+    final paused = status == PlayerStatus.paused && !pausedLate;
+    if ((playing && !_overdue || paused) && seconds != null) {
+      for (final ChannelSetup(:part, :channel, :expression)
+          in latest!.script.channels) {
+        final soundFont = latest!.ofPart[part]!;
+        final sent = output.expressed[(soundFont, channel)];
+        if (sent != expression.at(seconds)) {
+          output.violate(
+            'expression-follows-script',
+            'at script second ${seconds.toStringAsFixed(3)} of '
+                '${latest!.name}, ${nameOf(soundFont)} $channel has '
+                'expression $sent, not ${expression.at(seconds)}',
+          );
+        }
+      }
+    }
     if (playing && seconds != null && !_overdue) {
       final strays = [
         for (final voice in output.held)
@@ -463,6 +511,7 @@ final class World {
       'tempo ${player.tempoScale}',
       'at ${position?.seconds.toStringAsFixed(6)}',
       'held ${_keys(output.held)}',
+      'expressed ${[for (final MapEntry(:key, :value) in output.expressed.entries) '${nameOf(key.$1)} ${key.$2}=$value']..sort()}',
       'since quiet ${output.sinceQuiet}',
       'wakes ${[
         for (final wake in activeWakes) '${(wake.dueFake - fakeNow).inMicroseconds}/${(wake.stalledAtSet - time.stalled).inMicroseconds}',
@@ -507,6 +556,9 @@ final class World {
     if (log.any((call) => call.startsWith('on reed'))) {
       reached.add('a loop wrapped');
     }
+    if (output.movedUnderHeldKey) {
+      reached.add('an expression moved under a held key');
+    }
     for (var i = 1; i < log.length; i++) {
       if (log[i - 1].startsWith('off ') &&
           log[i] == 'on ${log[i - 1].substring(4)}') {
@@ -526,6 +578,7 @@ const mustReach = {
   'settled paused',
   'playback ended by itself',
   'a loop wrapped',
+  'an expression moved under a held key',
   'a held key struck again',
   'a note timer late',
   'latest load failed',

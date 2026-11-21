@@ -102,6 +102,32 @@ void main() {
     output.dispose();
   });
 
+  test('a note starts at its velocity weighed by its channel\'s last '
+      'expression', () async {
+    final rig = Rig();
+    final output = rig.output;
+    await output.load(piano);
+    await output.load(reed);
+    await output.program(soundFont: piano, channel: 0, program: 0, bank: 0);
+    await output.program(soundFont: reed, channel: 0, program: 71, bank: 0);
+    rig.take();
+    output
+      ..noteOn(soundFont: piano, channel: 0, key: 60, velocity: 84, cents: 0)
+      ..expression(soundFont: piano, channel: 0, value: 64)
+      ..noteOn(soundFont: piano, channel: 0, key: 62, velocity: 84, cents: 0)
+      ..noteOn(soundFont: reed, channel: 0, key: 67, velocity: 84, cents: 0)
+      ..expression(soundFont: piano, channel: 0, value: 0)
+      ..noteOn(soundFont: piano, channel: 0, key: 64, velocity: 84, cents: 0);
+    await pumpEventQueue();
+    expect(rig.take(), [
+      const NoteOn(channel: 0, key: 60, velocity: 84, cents: 0),
+      const NoteOn(channel: 0, key: 62, velocity: 42, cents: 0),
+      const NoteOn(channel: 16, key: 67, velocity: 84, cents: 0),
+      const NoteOn(channel: 0, key: 64, velocity: 1, cents: 0),
+    ]);
+    output.dispose();
+  });
+
   test('a velocity outside 1 to 127 is held to it', () async {
     final rig = Rig();
     final output = rig.output;

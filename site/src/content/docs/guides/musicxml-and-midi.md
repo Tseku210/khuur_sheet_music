@@ -109,6 +109,7 @@ The file holds what `ScorePlayer` plays, so repeats, endings, jumps, ties, slurs
 - Each part has a track after it, in score order, on the channel that playback gives it, with its bank and program.
 - A quarter tone is a pitch bend before the note, with the bend range set to two semitones.
 - The pedal is in the lengths of the notes it holds, and not a controller.
+- Each track sets its channel's expression, controller 11, at its start and wherever it changes, so a held note of a part that swells follows a hairpin. A part that swells keeps its soft levels in controller 11 and strikes them at velocity 84, so a tool that reads dynamics from velocity alone sees them flat. MuseScore's own export keeps the level on velocity instead.
 - A bank under 128 is written as a bank select. A larger bank, such as the drum bank 128 of a SoundFont, is left to the channel.
 
 The package does not read MIDI files.

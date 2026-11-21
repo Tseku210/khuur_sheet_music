@@ -514,6 +514,61 @@ void main() {
       );
     });
 
+    test('writes the expression of a part that swells where the script '
+        'changes it', () {
+      var score = changeBar(
+        quarters(2),
+        0,
+        (column) => column.withStaff(
+          column.staves.first.copyWith(
+            directions: Seq([const DynamicMark(Moment.zero, Dynamic.p)]),
+          ),
+        ),
+      );
+      score = changeBar(
+        score,
+        1,
+        (column) => column.withStaff(
+          column.staves.first.copyWith(
+            directions: Seq([const DynamicMark(Moment.zero, Dynamic.f)]),
+          ),
+        ),
+      );
+      score = score.copyWith(
+        spanners: Seq([
+          Spanner(
+            id: const SpannerId(900),
+            kind: const Hairpin(crescendo: true),
+            staff: score.staves.first.id,
+            first: pointAt(score, 0, Moment.zero),
+            last: pointAt(score, 1, Moment.zero),
+          ),
+        ]),
+      );
+      final points = PlaybackCompiler()
+          .compile(score)
+          .channels
+          .single
+          .expression
+          .points;
+      final file = exported(score);
+
+      expect(points, hasLength(25));
+      expect(
+        [
+          for (final [tick, channel, controller, value] in file.messages(
+            1,
+            0xB,
+          ))
+            if (controller == 11) (tick, channel, value),
+        ],
+        [
+          for (final (i, point) in points.indexed)
+            (i * whole ~/ 24, 0, point.value),
+        ],
+      );
+    });
+
     test('gives each of two parts its track, channel and program', () {
       var score = quarters(1, parts: const [morinKhuur, clarinet]);
       score = fill(score, 0, [

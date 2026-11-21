@@ -12,7 +12,7 @@ sidebar:
 `PlaybackCompiler.compile` takes a `Score` and an optional `PlaybackOptions`, and returns a `PlaybackScript`. The script holds the following:
 
 - `totalSeconds`, how long the script plays.
-- `channels`, one `ChannelSetup` for each part that is heard, with its MIDI channel, program and bank.
+- `channels`, one `ChannelSetup` for each part that is heard, with its MIDI channel, program, bank and `expression`.
 - `bars`, the bars in the order they play. Each `PlayedBar` has its `measure`, its `pass`, and its `start` and `end` in seconds.
 - The notes, which `notesBetween` returns for a window of seconds, sorted by start. Each `PlaybackNote` has a `start`, a `duration`, a MIDI `key`, `cents` for a quarter tone, a `velocity`, a `channel`, and the `source` event that produced it.
 
@@ -20,7 +20,7 @@ Three queries connect script seconds and the score. `secondsAt` gives the first 
 
 ### Why the score is compiled first
 
-A player that walked the score live would have to answer hard questions at the moment each note is due. Where does this end repeat go back to? Was the D.S. taken already? How loud is this chord, halfway through a hairpin that started two bars ago? When does a note end that is tied into the next bar played, which has another tempo? Each answer depends on music before or after the note, sometimes far from it. The compiler answers all of them once, in order, over the whole score. What is left for the player is a list sorted by time. It sleeps until the next note starts or ends, sends that, and sleeps again.
+A player that walked the score live would have to answer hard questions at the moment each note is due. Where does this end repeat go back to? Was the D.S. taken already? How loud is this chord, halfway through a hairpin that started two bars ago? When does a note end that is tied into the next bar played, which has another tempo? Each answer depends on music before or after the note, sometimes far from it. The compiler answers all of them once, in order, over the whole score. What is left for the player is a list sorted by time. It sleeps until the next note starts or ends or a channel's expression changes, sends that, and sleeps again.
 
 The same script serves three readers. The player sends its notes. The sheet asks `pointAt` and `playingAt` where to draw the playhead and what to highlight. `scoreToMidi` writes a MIDI file from it, so the file plays what the player plays. Because all three read one script, they cannot disagree about a repeat or a dynamic.
 
@@ -50,7 +50,7 @@ The script itself has no loop. With `loop: true`, `ScorePlayer.play` plays the s
 
 ## Dynamics become velocities, and marks become lengths
 
-A MIDI note has one velocity, fixed when it is struck. So the compiler works out every note's velocity in advance. It reads loudness in notated order, as it reads tempo. Each part starts at mf, and a level dynamic sets the part's level until the next one:
+A MIDI note has one velocity, fixed when it is struck. So the compiler works out every note's velocity in advance, and for a part that swells, how its channel's expression moves while the note sounds. It reads loudness in notated order, as it reads tempo. Each part starts at mf, and a level dynamic sets the part's level until the next one:
 
 | Dynamic | pppp | ppp | pp | p | mp | mf | f | ff | fff | ffff |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -62,11 +62,13 @@ A hairpin ramps the velocity in a straight line over notated time. It runs to th
 
 An accent strikes at 1.25 times the dynamic's velocity, and a marcato at 1.5 times, up to 127. Because the level is read in notated order, a D.C. brings back the opening dynamic.
 
+A part whose instrument has `singleNoteDynamics`, as a bowed string, a wind or a voice has, also carries its level on its channel's expression, MIDI controller 11, so a held note follows the dynamics while it sounds, as in MuseScore 4. Each `ChannelSetup` has an `Expression`, a list of points that each hold a value until the next. Under a hairpin it moves in steps, one a sixteenth and at least 24. fp eases from f to p in six steps over 0.4 seconds, and sf, sfz and rfz hold their level until the next note on their staff starts or the bar ends. Below velocity 84 the expression is the level times 127 / 84 and the note strikes at 84 times its accents, so it starts about as loud as on a part that does not swell, unless it has both an accent and a marcato. From 84 up the expression is full and the velocity carries the level, so a held note does not swell past about f. A piano, a guitar, a harp or a kit keeps full expression and plays its level on velocity alone, as does a part that shares its channel. The player sends each channel's value before its first note and wherever it changes, and sets it again after a seek, a pause, a loop or a new score. `scoreToMidi` writes the same points. `SynthOutput` cannot send a controller yet, so it weighs each note's velocity by the expression as the note starts. There a trill swells, and a held note keeps the level it started at.
+
 Articulations set how long a note sounds. A note sounds 0.99 of its written time by default, as an unmarked note of a string, a wind or a voice does in MuseScore 4, so a long note stops just short of the next. A staccato sounds half of it, a staccatissimo a quarter, a staccato under a tenuto three quarters, and a tenuto all of it. A slurred note with none of those marks sounds all of its time. When the next note of its voice starts as it ends, it runs 40 milliseconds into that note, so a synthesizer does not dip between the two. Each note of a trill, a mordent, a turn or a tremolo sounds until the next one starts, and the marks on the chord set the length of the last. A `Glissando` moves each note of the chord it starts on a semitone at a time toward its note of the chord it ends on, in equal steps over the first chord's time, as MuseScore 4 plays a chromatic glissando. Note `i`, lowest first, goes to note `i` of that chord, or to its top note when it has fewer. Each step sounds until the next one starts, and the marks on the chord set the length of the last. The line belongs to the two chords, so every note of the first chord glides, where MuseScore glides only the notes that carry a line. MuseScore also bends the pitch smoothly for an instrument whose glissando style is portamento, such as bowed and plucked strings, voices, trombones, timpani and many synths, and it plays a harp glissando on the harp's scale. `MidiOutput` has no pitch bend, so every part plays the chromatic steps.
 
 Tied notes sound as one note as long as all of them, so a chain without marks sounds 0.99 of its whole length. A mark on a note of the chain sets the length from that note to the end of the chain, and the last marked note counts.
 
-A `PedalLine` holds the notes of its part until the pedal lifts. The compiler lengthens those notes itself, and the output never receives a pedal message. That keeps `MidiOutput` to notes and programs, and means a pause, a new start point or a loop never has to put a pedal back down.
+A `PedalLine` holds the notes of its part until the pedal lifts. The compiler lengthens those notes itself, and the output never receives a pedal message. That keeps the pedal out of `MidiOutput`, and means a pause, a new start point or a loop never has to put a pedal back down.
 
 ## Tempo is part of the script
 
@@ -110,7 +112,7 @@ These rules give the player a small set of promises that hold in any order of `p
 
 ## The player sends notes through `MidiOutput`
 
-`MidiOutput` is the interface between the player and sound. It has seven calls: `load`, `program`, `noteOn`, `noteOff`, `allNotesOff`, `rest` and `dispose`. The player waits for `load` and for every `program`. It sends notes without waiting, because a note that waited for an answer would be late. `rest` says that no note comes before the next `program`. The player sends it when the score ends, on `stop` and after a `play` that failed, and not on `pause`. An output can hold several SoundFonts, and each SoundFont has its own 16 channels, so channel 0 of one SoundFont is not channel 0 of another.
+`MidiOutput` is the interface between the player and sound. It has eight calls: `load`, `program`, `noteOn`, `expression`, `noteOff`, `allNotesOff`, `rest` and `dispose`. The player waits for `load` and for every `program`. It sends notes and expressions without waiting, because a note that waited for an answer would be late. `rest` says that no note comes before the next `program`. The player sends it when the score ends, on `stop` and after a `play` that failed, and not on `pause`. An output can hold several SoundFonts, and each SoundFont has its own 16 channels, so channel 0 of one SoundFont is not channel 0 of another.
 
 The interface exists for two reasons. The first is that sound is platform-specific. `SynthOutput`, the default output, plays through FluidSynth from `khuur_synth`, on Android and iOS only. It opens the audio device on each `program` and closes it once the notes ring out after `rest`, so a pause keeps the device open. An app that plays through another synthesizer passes its own `MidiOutput` as `output`. [SoundFonts and reverb](/khuur_sheet_music/guides/soundfonts-and-reverb/) covers the options of `SynthOutput`.
 

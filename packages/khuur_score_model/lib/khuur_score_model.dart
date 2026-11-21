@@ -33,6 +33,8 @@ export 'src/pitch.dart';
 export 'src/playback.dart'
     show
         ChannelSetup,
+        Expression,
+        ExpressionPoint,
         PlaybackCompiler,
         PlaybackNote,
         PlaybackOptions,

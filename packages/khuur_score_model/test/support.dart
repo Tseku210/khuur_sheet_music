@@ -382,23 +382,30 @@ String mark(StaffDirection direction) =>
       ChordSymbol(:final root, :final quality, :final bass) => '${root.step.name}$quality${bass == null ? '' : '/${bass.step.name}'}',
     }}';
 
-/// Each note the score plays, as (start, duration, key, velocity), times
-/// in milliseconds.
-List<(int, int, int, int)> heard(Score score) => [
-  for (final note
-      in PlaybackCompiler()
-          .compile(score)
-          .notesBetween(
-            0,
-            double.infinity,
-          ))
-    (
-      (note.start * 1000).round(),
-      (note.duration * 1000).round(),
-      note.key,
-      note.velocity,
-    ),
-];
+/// How loud [note] starts: its velocity scaled by its channel's
+/// expression at its start, as a synthesizer's default modulators weigh
+/// them.
+int sounded(PlaybackScript script, PlaybackNote note) {
+  final expression = script.channels
+      .firstWhere((setup) => setup.channel == note.channel)
+      .expression;
+  return (note.velocity * expression.at(note.start) / 127).round();
+}
+
+/// Each note the score plays, as (start, duration, key, loudness), times
+/// in milliseconds and loudness as [sounded].
+List<(int, int, int, int)> heard(Score score) {
+  final script = PlaybackCompiler().compile(score);
+  return [
+    for (final note in script.notesBetween(0, double.infinity))
+      (
+        (note.start * 1000).round(),
+        (note.duration * 1000).round(),
+        note.key,
+        sounded(script, note),
+      ),
+  ];
+}
 
 /// Checks that [actual] plays [expected]: the same notes at the same
 /// velocities, with times within a millisecond, as rounding leaves them.

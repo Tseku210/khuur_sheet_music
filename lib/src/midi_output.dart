@@ -42,6 +42,18 @@ abstract interface class MidiOutput {
     required int cents,
   });
 
+  /// Sets the expression of [channel] of [soundFont], MIDI controller 11,
+  /// to [value], 0 to 127. It scales the notes the channel sounds until the
+  /// next call, on a synthesizer that takes the controller the ones already
+  /// sounding too. The player sends it for each channel before its first
+  /// note and again wherever the script's value changes, so an output
+  /// assumes no starting value.
+  void expression({
+    required SoundFont soundFont,
+    required int channel,
+    required int value,
+  });
+
   /// Lets go of [key] on [channel] of [soundFont]. The sound rings out as
   /// the instrument releases it.
   void noteOff({
@@ -73,6 +85,12 @@ abstract interface class MidiOutput {
 ///
 /// Each SoundFont takes the next 16 of the synth's 256 channels in the
 /// order the output loaded it, so an output plays from at most 16.
+///
+/// `khuur_synth` 0.1.1 sends no controller, so the output weighs each note
+/// by its channel's last [expression] as it starts, as FluidSynth's default
+/// modulators weigh velocity and expression together. A note starts as
+/// loud as it would under the controller, and a trill or repeated notes
+/// under a hairpin swell. A held note keeps the level it started at.
 final class SynthOutput implements MidiOutput {
   /// An output that plays [reverb], null for none, at [gain], from 0 to 10.
   ///
@@ -112,6 +130,8 @@ final class SynthOutput implements MidiOutput {
   Synth? _synth;
 
   final Map<SoundFont, ({LoadedSoundFont font, int block})> _loaded = {};
+
+  final Map<int, int> _expression = {};
 
   /// Every start and every stop of the device, one after the other. A stop
   /// asked while a start runs comes after it, and a start after a stop
@@ -196,12 +216,24 @@ final class SynthOutput implements MidiOutput {
     required int key,
     required int velocity,
     required int cents,
-  }) => _synth!.noteOn(
-    channel: _channel(soundFont, channel),
-    key: key,
-    velocity: velocity.clamp(1, 127),
-    cents: cents.toDouble(),
-  );
+  }) {
+    final at = _channel(soundFont, channel);
+    _synth!.noteOn(
+      channel: at,
+      key: key,
+      velocity: (velocity.clamp(1, 127) * (_expression[at] ?? 127) / 127)
+          .round()
+          .clamp(1, 127),
+      cents: cents.toDouble(),
+    );
+  }
+
+  @override
+  void expression({
+    required SoundFont soundFont,
+    required int channel,
+    required int value,
+  }) => _expression[_channel(soundFont, channel)] = value;
 
   @override
   void noteOff({
@@ -228,6 +260,7 @@ final class SynthOutput implements MidiOutput {
   void dispose() {
     _disposed = true;
     _loaded.clear();
+    _expression.clear();
     if (_synth case final synth?) {
       unawaited(synth.close());
     }

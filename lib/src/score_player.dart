@@ -181,6 +181,11 @@ final class ScorePlayer {
       script,
       notes,
       ofStaff,
+      [
+        for (final ChannelSetup(:part, :channel, :expression)
+            in script.channels)
+          (soundFont: ofPart[part]!, channel: channel, expression: expression),
+      ],
       loop: loop && script.totalSeconds > 0,
       clock: _ScriptClock(wall: _now(), seconds: from, scale: _tempoScale),
       unsent: notes.length - script.notesBetween(from, double.infinity).length,
@@ -203,6 +208,7 @@ final class ScorePlayer {
       _timer?.cancel();
       _ticker.stop();
       _silence(run);
+      _express(run, run.clock.secondsAt(_now()));
       _enter(_Paused(run));
       _publish(run);
     }
@@ -308,6 +314,7 @@ final class ScorePlayer {
       );
       return true;
     });
+    _express(run, at);
     for (; run.unsent < run.notes.length; run.unsent++) {
       final note = run.notes[run.unsent];
       if (note.start > at) {
@@ -346,6 +353,21 @@ final class ScorePlayer {
     _sleep(run);
   }
 
+  void _express(_Run run, double at) {
+    run.expressedAt = at;
+    for (final (:soundFont, :channel, :expression) in run.expressions) {
+      final value = expression.at(at);
+      if (run.expressed[(soundFont: soundFont, channel: channel)] != value) {
+        run.expressed[(soundFont: soundFont, channel: channel)] = value;
+        _output.expression(
+          soundFont: soundFont,
+          channel: channel,
+          value: value,
+        );
+      }
+    }
+  }
+
   void _sleep(_Run run) {
     var next = run.script.totalSeconds;
     if (run.unsent < run.notes.length) {
@@ -353,6 +375,11 @@ final class ScorePlayer {
     }
     for (final end in run.soundingUntil.values) {
       next = min(next, end);
+    }
+    for (final (soundFont: _, channel: _, :expression) in run.expressions) {
+      if (expression.nextAfter(run.expressedAt) case final change?) {
+        next = min(next, change);
+      }
     }
     _timer?.cancel();
     _timer = Timer(run.clock.wallAt(next) - _now(), () => _wake(run, next));
@@ -469,7 +496,8 @@ final class _Run {
   _Run(
     this.script,
     this.notes,
-    this.soundFonts, {
+    this.soundFonts,
+    this.expressions, {
     required this.loop,
     required this.clock,
     required this.unsent,
@@ -482,6 +510,14 @@ final class _Run {
 
   /// The SoundFont the notes of each staff play from.
   final Map<StaffId, SoundFont> soundFonts;
+
+  final List<({SoundFont soundFont, int channel, Expression expression})>
+  expressions;
+
+  /// Empty when the run starts, so its first wake sets every channel.
+  final Map<({SoundFont soundFont, int channel}), int> expressed = {};
+
+  double expressedAt = 0;
 
   final bool loop;
 

@@ -515,6 +515,49 @@ void main() {
       expect(saved(reloaded(plain())), saved(plain()));
     });
 
+    test('writes single-note dynamics only where the program does not '
+        'imply it', () {
+      Instrument reloadedAs(Instrument instrument) => reloaded(
+        blankScore(
+          parts: [PartTemplate(name: 'Part', instrument: instrument)],
+        ),
+      ).parts.single.instrument;
+      Object? written(Instrument instrument) =>
+          (scoreToJson(
+                    blankScore(
+                      parts: [
+                        PartTemplate(name: 'Part', instrument: instrument),
+                      ],
+                    ),
+                  )['parts']!
+                  as List)
+              .cast<Map<String, Object?>>()
+              .single['instrument'];
+
+      const drone = Instrument(
+        key: 'drone',
+        program: 0,
+        singleNoteDynamics: true,
+      );
+      const plucked = Instrument(
+        key: 'plucked',
+        program: 40,
+        singleNoteDynamics: false,
+      );
+      const violin = Instrument(
+        key: 'violin',
+        program: 40,
+        singleNoteDynamics: true,
+      );
+
+      expect(written(drone), containsPair('singleNoteDynamics', true));
+      expect(written(plucked), containsPair('singleNoteDynamics', false));
+      expect(written(violin), isNot(contains('singleNoteDynamics')));
+      expect(reloadedAs(drone).singleNoteDynamics, isTrue);
+      expect(reloadedAs(plucked).singleNoteDynamics, isFalse);
+      expect(reloadedAs(violin).singleNoteDynamics, isTrue);
+    });
+
     test('reads values at the ends of their ranges', () {
       Object? json = jsonDecode(golden.readAsStringSync());
       for (final (path, value) in [
