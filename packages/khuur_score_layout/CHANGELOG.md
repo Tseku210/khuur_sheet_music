@@ -1,4 +1,7 @@
 ## 0.5.0
+* A slur is fitted over everything under it along its whole length, as MuseScore 4 does, where it was lifted only until the middle half of its curve cleared the notes. A high note, a stem or a beam near either end no longer cuts through it.
+* A system whose bars are wider than the sheet is squeezed to the sheet's width, as MuseScore 4 squeezes a system to fit. It first gives up the clear space between notes, and then scales its bars down until notes may touch. A bar no longer runs past the sheet's right edge. Every gap shrinks by one factor, so the notes stay in time order. Systems that fit are laid out as before.
+* A mark that would pass the end of a squeezed bar moves left to end there, and so do a tuplet number and the start of a line. A beam hook between stems closer than the hook is long stops at the stem it points to.
 * Depends on `khuur_score_model` 0.5.0, whose `Transposition` changed.
 
 ## 0.4.0
