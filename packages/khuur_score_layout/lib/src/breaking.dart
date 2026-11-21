@@ -314,8 +314,8 @@ final class SystemPlan {
   final SystemKey key;
 
   /// The sheet's width. It is wider only when the widest mark or the
-  /// widest slice of a unit, with the part names, the heads and the
-  /// barlines, is wider than the sheet.
+  /// widest slice of a unit, with the part names and brace, the heads and
+  /// the barlines, is wider than the sheet.
   final double width;
 
   /// How the system's slices take their room.
