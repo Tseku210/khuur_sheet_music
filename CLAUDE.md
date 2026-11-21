@@ -9,6 +9,7 @@ flutter pub get          # also resolves example/
 flutter analyze          # library, tests, and example; must report no issues
 flutter test             # the view's, the painter's and the player's tests in test/
 cd packages/khuur_score_model && dart test   # score model tests (not run by flutter test)
+cd packages/khuur_score_model && mkdir -p build && dart compile exe benchmark/playback_benchmark.dart -o build/playback_benchmark && build/playback_benchmark   # playback compile scaling check, compiled; exits 1 when a longer score costs out of step
 cd packages/khuur_score_layout && dart test  # layout engine tests (not run by flutter test)
 cd packages/khuur_score_layout && mkdir -p build && dart compile exe benchmark/layout_benchmark.dart -o build/layout_benchmark && build/layout_benchmark   # layout cost benchmark, compiled; exits 1 when over budget
 cd packages/khuur_score_layout && dart run tool/generate_bravura.dart   # rewrites lib/src/bravura.g.dart from tool/bravura_metadata.json
