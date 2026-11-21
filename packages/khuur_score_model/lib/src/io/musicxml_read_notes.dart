@@ -175,14 +175,16 @@ extension on _BarReader {
       if (!storable(exact)) {
         at.refuse(unstorable);
       }
-      if (inTuplet
+      final agrees = inTuplet
           ? _near(duration.raw, exact)
-          : exact == duration.length.wholeNotes) {
+          : exact == duration.length.wholeNotes;
+      final keepsWritten = agrees || (rest == null && !inTuplet);
+      if (keepsWritten) {
         end = cursor + Length(exact);
-      } else if (rest != null && !inTuplet) {
-        value = null;
-      } else {
+      } else if (inTuplet) {
         at.refuse('the duration does not match the written value');
+      } else {
+        value = null;
       }
     }
     if (value == null) {

@@ -72,7 +72,8 @@ Import refuses these files, among others:
 - A document that is not well-formed XML.
 - A `score-timewise` document.
 - A score whose parts have different numbers of bars, or disagree on a meter.
-- A note whose duration matches no note value.
+- A note with no `<type>` whose duration matches no note value.
+- A note in a tuplet whose duration is a division or more from its written value.
 - A note that overlaps the note before it in its voice.
 - A tuplet that never stops in its bar.
 
