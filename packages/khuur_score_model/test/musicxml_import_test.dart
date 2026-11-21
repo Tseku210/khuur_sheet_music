@@ -1641,6 +1641,27 @@ void main() {
       );
     });
 
+    test('leaves an octave line over the notes written inside it, whatever '
+        'its offset', () {
+      Score lined(String offset) => imported(
+        flute([
+          [
+            opening(),
+            note('C5', 4, 'quarter'),
+            direction(['<octave-shift type="down" size="8"/>'], more: offset),
+            note('D6', 4, 'quarter'),
+            note('E6', 4, 'quarter'),
+            direction(['<octave-shift type="stop" size="8"/>'], more: offset),
+            note('F5', 4, 'quarter'),
+          ],
+        ]),
+      );
+
+      final moved = lined('<offset>4</offset>');
+      expect(spannersOf(moved), ['up8 0@1/4-0@1/2']);
+      expect(items(moved, 0), items(lined(''), 0));
+    });
+
     test('keeps a voice on its staff when a note crosses to the other', () {
       final score = imported(
         keyboard([

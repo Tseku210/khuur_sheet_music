@@ -3,7 +3,7 @@ part of 'musicxml_read.dart';
 extension on _BarReader {
   void _direction(XmlElement direction) {
     final staff = _staff(direction);
-    final at = cursor;
+    final at = _moved(direction.getElement('offset'));
     final types = [
       for (final type in direction.findElements('direction-type'))
         ...type.childElements,
@@ -22,6 +22,7 @@ extension on _BarReader {
       words = null;
     }
     final anchor = TimeAnchor(bar, staff, at);
+    final unmoved = TimeAnchor(bar, staff, cursor);
     for (final type in types) {
       final name = type.name.local;
       final number = type.getAttribute('number') ?? '1';
@@ -44,16 +45,17 @@ extension on _BarReader {
             name,
             number,
             _octaveLine(type, down: kind == 'down'),
-            anchor,
+            unmoved,
           );
+        case 'octave-shift' when kind == 'stop':
+          part.stop(name, number, unmoved);
         case 'pedal' when kind == 'start':
           part.start(name, number, const PedalLine(), anchor);
         case 'pedal' when kind == 'change':
           part
             ..stop(name, number, anchor)
             ..start(name, number, const PedalLine(), anchor);
-        case 'dashes' || 'wedge' || 'octave-shift' || 'pedal'
-            when kind == 'stop':
+        case 'dashes' || 'wedge' || 'pedal' when kind == 'stop':
           part.stop(name, number, anchor);
         case 'rehearsal':
           rehearsals.add((at: at, text: type.innerText));
@@ -78,6 +80,21 @@ extension on _BarReader {
         ),
       ));
     }
+  }
+
+  /// The cursor moved by [offset] divisions, and no further back than the
+  /// bar's start.
+  Moment _moved(XmlElement? offset) {
+    final divisions = decimalOf(offset?.innerText);
+    final perWhole = part.perWhole;
+    if (divisions == null || perWhole == null) {
+      return cursor;
+    }
+    final moved = cursor.wholeNotes + divisions / perWhole;
+    if (!storable(moved)) {
+      return cursor;
+    }
+    return moved.isNegative ? Moment.zero : Moment(moved);
   }
 
   OctaveLine _octaveLine(XmlElement shift, {required bool down}) {
