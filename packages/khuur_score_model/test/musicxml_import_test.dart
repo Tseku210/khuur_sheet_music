@@ -1612,6 +1612,62 @@ void main() {
         );
         expect(written(score), ['C4 start', 'G4 start', 'D4 stop', 'C5 stop']);
       });
+
+      test('keeps a line into one note of a chord apart from a line out of '
+          'another', () {
+        final score = imported(
+          flute([
+            [
+              opening(),
+              chord([('C4', line('start'))]),
+              chord([('D4', line('start', 2)), ('C5', line('stop'))]),
+              chord([('E4', line('stop', 2))]),
+              note('rest', 4, 'quarter'),
+            ],
+          ]),
+        );
+        List<(String, String)> joined(Score score) => [
+          for (final spanner in score.spanners)
+            switch (score.glissandoNotes(spanner)) {
+              (:final from, :final to) => ('${from?.tone}', '${to?.tone}'),
+            },
+        ];
+
+        expect(joined(score), [('C4', 'C5'), ('D4', 'E4')]);
+        expect(
+          joined(scoreFromMusicXml(scoreToMusicXml(score))),
+          joined(score),
+        );
+      });
+
+      test('writes a line that names no notes on the top notes', () {
+        final read = imported(
+          flute([
+            [
+              opening(),
+              chord([('C4', line('start')), ('G4', '')]),
+              chord([('D4', line('stop')), ('C5', '')]),
+              note('rest', 8, 'half'),
+            ],
+          ]),
+        );
+        final score = read.copyWith(
+          spanners: Seq([
+            for (final spanner in read.spanners)
+              Spanner(
+                id: spanner.id,
+                kind: const Glissando(),
+                staff: spanner.staff,
+                voice: spanner.voice,
+                first: spanner.first,
+                last: spanner.last,
+              ),
+          ]),
+        );
+
+        expect(written(read), ['C4 start', 'D4 stop']);
+        expect(written(score), ['G4 start', 'C5 stop']);
+      });
     });
 
     test('reads any words with dashes as a tempo line', () {
