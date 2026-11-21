@@ -532,6 +532,8 @@ enum Articulation {
 /// on that side.
 enum Ornament {
   /// Alternates with the note above, about 13 notes a second at any tempo.
+  /// A short note fits its notes at 8 to 27 a second, and a note too short
+  /// for that plays alone.
   trill,
 
   /// The note, the one below, then the note again.

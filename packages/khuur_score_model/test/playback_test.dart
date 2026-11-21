@@ -1992,7 +1992,7 @@ void main() {
     });
 
     /// The keys a trilled A4 of [value] plays at [tempo] quarters a minute,
-    /// then those of the B4 after it and of its graces, [closing].
+    /// then those of the graces [closing] and of the B4 they lead to.
     List<int> shortTrill(
       int tempo,
       NoteValue value, {

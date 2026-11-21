@@ -99,9 +99,9 @@ List<_Attack> _attacks(
         ? _trillNotes(
             played!.secondsAt(onset + steal + span) -
                 played.secondsAt(onset + steal),
+            onMain: closing != null && _endsOnMain(chord, ending),
           )
         : 1,
-    trillEnd: closing == null ? null : _trillEnd(chord, ending),
   );
   for (final note in chord.notes) {
     final pieces = _canPlay(note, chord, figure, key)
@@ -141,8 +141,7 @@ Length _written(Seq<GraceChord> graces) =>
 
 /// How a chord plays over [length], as each piece's scale steps from the
 /// written note and its length. A trill alternates with the note above in
-/// [trillNotes] equal notes, and ends on step [trillEnd] when one is given,
-/// a note fewer when it must. Mordents and turns play their notes in 32nds,
+/// [trillNotes] equal notes. Mordents and turns play their notes in 32nds,
 /// or in equal shares of a shorter chord, and hold the last. A tremolo
 /// repeats in the value its strokes add to the chord's own flags.
 List<(int, Length)> _figure(
@@ -150,18 +149,11 @@ List<(int, Length)> _figure(
   ChordEvent chord,
   Length length, {
   int trillNotes = 1,
-  int? trillEnd,
 }) {
-  List<(int, Length)> repeat(List<int> steps, int times, {int? last}) {
-    final count =
-        last != null && times > 1 && steps[(times - 1) % steps.length] != last
-        ? times - 1
-        : times;
-    return [
-      for (var i = 0; i < count; i++)
-        (steps[i % steps.length], length * Fraction(1, count)),
-    ];
-  }
+  List<(int, Length)> repeat(List<int> steps, int times) => [
+    for (var i = 0; i < times; i++)
+      (steps[i % steps.length], length * Fraction(1, times)),
+  ];
 
   List<(int, Length)> quick(List<int> steps) {
     final each = _shorter(
@@ -175,7 +167,7 @@ List<(int, Length)> _figure(
   }
 
   return switch (ornament) {
-    Ornament.trill => repeat([0, 1], trillNotes, last: trillEnd),
+    Ornament.trill => repeat([0, 1], trillNotes),
     Ornament.mordent => quick([0, -1]),
     Ornament.invertedMordent => quick([0, 1]),
     Ornament.turn => quick([1, 0, -1]),
@@ -196,26 +188,46 @@ int _tremoloNotes(ChordEvent chord) {
   return max(1, (chord.value.length / each).floor());
 }
 
-/// Seconds one note of a trill lasts at the least. A trill is not measured
-/// against the beat, so its speed is set in time and holds at any tempo.
-/// This is 13 notes a second, the speed of a 32nd at 100 quarters a minute.
+/// Seconds one note of a trill lasts at the least where its chord has the
+/// room. A trill is not measured against the beat, so its speed is set in
+/// time and holds at any tempo. This is 13 notes a second, the speed of a
+/// 32nd at 100 quarters a minute.
 const _trillNote = 0.075;
 
-/// How many notes a trill plays in [seconds]: as many pairs of the note and
-/// the note above as fit at [_trillNote] each, so it ends on the note above,
-/// or the one note when no pair fits.
-int _trillNotes(double seconds) =>
-    max(1, 2 * ((seconds + _sameInstant) / (2 * _trillNote)).floor());
+/// Seconds a trill note stays under, so no trill is slower than 8 notes a
+/// second.
+const _slowTrillNote = 0.125;
 
-/// The step a trill on [chord] ends on before [graces] end it: its main
-/// note, so a turn below it leads on, or the note above when the graces
+/// Seconds a trill note lasts at the least, a 32nd at 200 quarters a minute.
+const _quickTrillNote = 0.0375;
+
+/// How many notes a trill plays in [seconds]: an odd count when it ends
+/// [onMain], on its main note, and an even one to end on the note above. It
+/// is the most that last [_trillNote] each, or two more when those would
+/// last [_slowTrillNote]. A chord too short for that plays the fewest that
+/// alternate, or its one note when they would be shorter than
+/// [_quickTrillNote].
+int _trillNotes(double seconds, {required bool onMain}) {
+  final least = onMain ? 3 : 2;
+  final time = seconds + _sameInstant;
+  if (time / least < _quickTrillNote) {
+    return 1;
+  }
+  final fit = least + 2 * ((time / _trillNote - least) / 2).floor();
+  if (fit < least) {
+    return least;
+  }
+  return time / fit >= _slowTrillNote ? fit + 2 : fit;
+}
+
+/// Whether a trill on [chord] ends on its main note before [graces] end it,
+/// so a turn below it leads on. It ends on the note above when the graces
 /// start on the main note, which would otherwise strike twice.
-int _trillEnd(ChordEvent chord, Seq<GraceChord> graces) =>
+bool _endsOnMain(ChordEvent chord, Seq<GraceChord> graces) =>
     switch ((chord.notes.first, graces.first.notes.first)) {
-      (PitchedNote(:final pitch), PitchedNote(pitch: final grace))
-          when pitch.midiKey == grace.midiKey =>
-        1,
-      _ => 0,
+      (PitchedNote(:final pitch), PitchedNote(pitch: final grace)) =>
+        pitch.midiKey != grace.midiKey,
+      _ => true,
     };
 
 /// The most time [graces] may take from a principal of [duration] in
