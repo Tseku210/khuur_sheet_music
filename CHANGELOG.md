@@ -1,5 +1,5 @@
 ## 0.4.1
-* `ScorePlayer` and `scoreToMidi` sound a note with no staccato or tenuto for 0.99 of its length, as MuseScore 4 does, where they let it go after 0.9. Trills, mordents, turns and tremolos play without a gap between their notes, and a trill plays about 13 notes a second at any tempo, from `khuur_score_model` 0.4.1.
+* `ScorePlayer` and `scoreToMidi` sound a note that has no staccato, staccatissimo or tenuto and is not slurred for 0.99 of its length, as MuseScore 4 does, where they let it go after 0.9. Trills, mordents, turns and tremolos play without a gap between their notes, and a trill plays about 13 notes a second at any tempo, from `khuur_score_model` 0.4.1.
 * A hairpin arrives at the next dynamic only when that dynamic lies the way it moves, as in MuseScore 4.
 * `ScorePlayer.play` starts sooner on a score with many slurs, because the compile no longer scans every slur for every chord.
 
