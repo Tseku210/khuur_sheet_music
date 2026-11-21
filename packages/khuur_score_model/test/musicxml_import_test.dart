@@ -1612,6 +1612,35 @@ void main() {
       );
     });
 
+    test('moves a direction by its offset, and no further back than the '
+        'start of its bar', () {
+      String offset(int divisions) => '<offset>$divisions</offset>';
+      final score = imported(
+        flute([
+          [
+            opening(),
+            direction(['<dynamics><mf/></dynamics>'], more: offset(-4)),
+            note('C5', 4, 'quarter'),
+            note('D5', 4, 'quarter'),
+            direction(['<dynamics><f/></dynamics>'], more: offset(4)),
+            note('E5', 4, 'quarter'),
+            note('F5', 4, 'quarter'),
+            direction(['<dynamics><p/></dynamics>'], more: offset(-12)),
+            direction([metronome(90)], more: offset(-8)),
+          ],
+        ]),
+      );
+
+      expect(marksIn(score, 0), ['0 mf', '1/4 p', '3/4 f']);
+      expect(
+        [
+          for (final mark in score.measures.single.tempos)
+            (mark.offset.wholeNotes, mark.tempo.bpm),
+        ],
+        [(Fraction(1, 2), 90)],
+      );
+    });
+
     test('keeps a voice on its staff when a note crosses to the other', () {
       final score = imported(
         keyboard([
