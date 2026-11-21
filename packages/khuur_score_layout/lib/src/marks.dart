@@ -12,7 +12,9 @@
 ///
 /// A mark never leaves its bar sideways. [markReach] widens the slices
 /// until the rods alone hold every mark between the bar's content start and
-/// its end, so a system of one bar pressed to its rods still holds them.
+/// its end, so a system of one bar pressed to its rods still holds them. A
+/// bar squeezed below its rods moves a mark that would leave it, see
+/// `BarFrame.hold`.
 library;
 
 import 'dart:math' as math;
@@ -123,6 +125,25 @@ final class _Row {
   }
 
   void space(double width) => _x += width;
+
+  /// The parts at ([x], [dy]) from [slice]'s line on [staff], as items of
+  /// one mark.
+  List<BarItem> items(
+    int slice,
+    int staff,
+    double x,
+    double dy, {
+    bool centred = false,
+  }) => [
+    for (final part in parts)
+      BarItem(
+        slice,
+        staff,
+        part.shift(x, dy),
+        centred: centred,
+        mark: (start: box.left + x, end: box.right + x),
+      ),
+  ];
 }
 
 /// A mark of one event before it has a height.
@@ -489,10 +510,9 @@ List<BarItem> _hangEvent(
   final right = math.max(box.right, xs.last);
   final dy = skyline.clearance(fermata.side, box, fermata.gap, left, right);
   skyline.add(Box(left, box.top + dy, right, box.bottom + dy));
-  return items..addAll([
-    for (final part in row.parts)
-      BarItem(event.slice, event.staff, part.shift(x, dy), centred: true),
-  ]);
+  return items..addAll(
+    row.items(event.slice, event.staff, x, dy, centred: true),
+  );
 }
 
 /// Whether [event] has a mark of its own to draw, which is an articulation,
@@ -576,9 +596,7 @@ List<BarItem> _hang(
     math.max(box.right, xs[slice] + ink.right),
   );
   skyline.add(box.shift(0, dy));
-  return [
-    for (final part in row.parts) BarItem(slice, staff, part.shift(x, dy)),
-  ];
+  return row.items(slice, staff, x, dy);
 }
 
 List<BarItem> _hangOnChord(
@@ -689,9 +707,7 @@ List<BarItem> _hangArticulations(
     final x = _centreOf(plan.timed, chord, font) - (box.left + box.right) / 2;
     final y = yOfStep(step) - (box.top + box.bottom) / 2;
     skyline.add(box.shift(xs[chord.slice] + x, y));
-    for (final part in mark.row.parts) {
-      items.add(BarItem(chord.slice, chord.staff, part.shift(x, y)));
-    }
+    items.addAll(mark.row.items(chord.slice, chord.staff, x, y));
     step += 2 * away;
   }
   return items;
@@ -1035,9 +1051,7 @@ List<BarItem> _place(
   final box = row.box.shift(xs[mark.slice] + x, 0);
   final dy = skyline.clearance(mark.side, box, _markGap, box.left, box.right);
   skyline.add(box.shift(0, dy));
-  return [
-    for (final part in row.parts) BarItem(mark.slice, staff, part.shift(x, dy)),
-  ];
+  return row.items(mark.slice, staff, x, dy);
 }
 
 /// The directions of one staff at their slices, the dynamics first, then
@@ -1376,10 +1390,11 @@ List<TupletStub> tupletStubs(
 bool _sameEvents(List<EventId> a, List<EventId> b) =>
     a.length == b.length && a.indexed.every((id) => b[id.$1] == id.$2);
 
-/// The number centred between the ends, and the bracket as two lines with
-/// hooks, `tupletBracketThickness` thick, broken around the number. The
-/// hooks point to the notes and are half as long as the number is high. A
-/// bracket with no room for a line on each side of its number is left out.
+/// The number centred between the ends, held inside a squeezed bar, and
+/// the bracket as two lines with hooks, `tupletBracketThickness` thick,
+/// broken around the number. The hooks point to the notes and are half as
+/// long as the number is high. A bracket with no room for a line on each
+/// side of its number is left out.
 List<Drawable> placeTuplet(
   TupletStub stub,
   BarFrame frame,
@@ -1389,7 +1404,10 @@ List<Drawable> placeTuplet(
   final to = frame.at(stub.last);
   final row = _numberRow(stub.digits, style.font);
   final box = row.box;
-  final x = (from.x + to.x - box.left - box.right) / 2;
+  final x = frame.hold((from.x + to.x - box.left - box.right) / 2, (
+    start: box.left,
+    end: box.right,
+  ));
   final y = from.y - (box.top + box.bottom) / 2;
   final drawables = <Drawable>[for (final part in row.parts) part.shift(x, y)];
   final thickness = style.font.defaults.tupletBracketThickness;

@@ -48,6 +48,10 @@ sealed class BreakUnit {
   /// The unit's time slices, ending with its last bar's end.
   List<Slice> get slices;
 
+  /// The width of the unit's widest mark, which a squeezed system keeps
+  /// room for after the unit's [lead].
+  double get markRoom;
+
   /// Per visible staff, how far the unit reaches outside it.
   List<BarStaff> get staves;
 
@@ -79,6 +83,9 @@ final class SingleBar extends BreakUnit {
 
   @override
   List<Slice> get slices => bar.slices;
+
+  @override
+  double get markRoom => bar.markRoom;
 
   @override
   List<BarStaff> get staves => bar.staves;
@@ -123,6 +130,10 @@ final class RestRun extends BreakUnit {
   /// The H-bar, which stretches with its system, and the last bar's end.
   @override
   final List<Slice> slices;
+
+  /// 0, since the H-bar's slice reaches as far as its rod.
+  @override
+  double get markRoom => 0;
 
   @override
   final List<BarStaff> staves;
@@ -302,8 +313,9 @@ final class SystemPlan {
   /// The inputs the plan is a function of.
   final SystemKey key;
 
-  /// The sheet's width. It is wider only when the reach of one slice's
-  /// content, or the heads and barlines alone, are wider than the sheet.
+  /// The sheet's width. It is wider only when the widest mark or the
+  /// widest slice of a unit, with the heads and barlines, is wider than
+  /// the sheet.
   final double width;
 
   /// How the system's slices take their room.
@@ -355,7 +367,7 @@ typedef Breaks = ({
 /// [BarWidths]) fits, and a unit with `breakBefore` starts a new system (a
 /// page break is a system break, since the view has no pages). A unit
 /// wider than the sheet on its own gets a system to itself and is
-/// squeezed to the sheet as far as its reaches allow.
+/// squeezed to the sheet as far as its notes and its widest mark allow.
 ///
 /// Greedy is chosen over optimal breaking for stability. Where a system
 /// starts depends only on where the one before it started and on the
@@ -604,28 +616,32 @@ Iterable<BarLayout> _firstBracket(List<BreakUnit> units) sync* {
 /// the width it comes to. [fixed] is everything of the system but its
 /// slices.
 ///
-/// When nothing fits, the system is as narrow as its reaches allow and
-/// stays wider than [sheet].
+/// The system is wider than [sheet] only when it is wider at a crush of 0.
+/// It is then that wide, and the crush is the most that width holds.
 (Fit, double) _squeeze(List<BreakUnit> units, double sheet, double fixed) {
-  final bodies = [for (final unit in units) bodyOf(unit.slices, unit.lead)];
   var rigid = fixed;
   for (final unit in units) {
     rigid += unit.slices.last.rod - unit.lead;
   }
   double widthAt(Fit fit) {
     var width = rigid;
-    for (final (index, unit) in units.indexed) {
-      width += squeezedWidth(bodies[index], fit, lead: unit.lead);
+    for (final unit in units) {
+      width += squeezedWidth(
+        unit.slices,
+        fit,
+        lead: unit.lead,
+        markRoom: unit.markRoom,
+      );
     }
     return width;
   }
 
-  Fit most(Fit Function(double) of) {
+  Fit most(Fit Function(double) of, double room) {
     var low = 0.0;
     var high = 1.0;
     for (var round = 0; round < 50; round++) {
       final middle = (low + high) / 2;
-      if (widthAt(of(middle)) <= sheet) {
+      if (widthAt(of(middle)) <= room) {
         low = middle;
       } else {
         high = middle;
@@ -636,8 +652,8 @@ Iterable<BarLayout> _firstBracket(List<BreakUnit> units) sync* {
 
   Fit padded(double pad) => Fit.squeezed(pad: pad, crush: 1);
   Fit crushed(double crush) => Fit.squeezed(pad: 0, crush: crush);
-  final fit = widthAt(padded(0)) <= sheet ? most(padded) : most(crushed);
-  return (fit, math.max(sheet, widthAt(fit)));
+  final room = math.max(sheet, widthAt(crushed(0)));
+  return (most(widthAt(padded(0)) <= room ? padded : crushed, room), room);
 }
 
 /// Plans the system of [key]. Its fit comes from the slices, and its staff

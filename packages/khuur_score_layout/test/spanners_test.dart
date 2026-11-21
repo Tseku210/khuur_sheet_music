@@ -709,8 +709,10 @@ void main() {
       );
     });
 
-    test("what a line starts with on a system's last beat starts at the beat "
-        'and stays inside the system, which grows to hold it', () {
+    test("what a line starts with on a system's last beat stays inside the "
+        'system, which grows to hold it. A sign that fits after the beat '
+        'starts at the beat, and one that does not ends at the end of the '
+        'bar', () {
       const long = 'Allegro ma non troppo, con brio e sempre cantabile';
       var score = base;
       for (final kind in const <SpannerKind>[
@@ -729,13 +731,19 @@ void main() {
       final sheet = sheetOf(score, width: narrow);
       final first = sheet.systemAt(0);
       final beat = headOf(first, noteRef(score, 0, 4));
+      final text = textsOf(first, long).single;
       final signs = <Drawable>[
-        textsOf(first, long).single,
         for (var id = 901; id <= 903; id++)
           glyphsOf(first, owner: SpannerOwner(SpannerId(id))).single,
       ];
 
       expect(first.width, greaterThan(narrow));
+      expect(text.bounds.right, lessThanOrEqualTo(first.width + 1e-9));
+      expect(text.bounds.left, lessThan(beat.left));
+      expect(
+        text.bounds.left,
+        greaterThanOrEqualTo(headOf(first, noteRef(score, 0, 1)).left - 1e-9),
+      );
       for (final sign in signs) {
         expect(
           sign.bounds.left,

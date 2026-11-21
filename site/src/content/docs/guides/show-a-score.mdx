@@ -31,7 +31,7 @@ Column(
 The view behaves as follows:
 
 - It takes its width from its constraints and breaks lines at that width. It never scales a score to fit a box.
-- It scrolls up and down, and never sideways. A bar wider than the view is cut at the view's edge.
+- It scrolls up and down, and never sideways. A bar wider than the view is squeezed to fit it, and its notes may overlap.
 - It draws at `staffSpace` logical pixels per staff space, 8 unless you give another, times the zoom of its `SheetController`.
 - It takes its colours from the ambient `Theme` of `material_ui`. Under a `MaterialApp` of `flutter/material.dart` it finds no theme and draws in the light default colours.
 

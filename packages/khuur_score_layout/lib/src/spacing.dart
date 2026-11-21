@@ -39,11 +39,13 @@ final class Slice {
   /// wider than its sheet gives it up first.
   final double pad;
 
-  /// How far the slice's content reaches left of its line.
+  /// How far what cannot leave the slice's line reaches left of it. That
+  /// is its notes and rests with what they carry, a clef change and a
+  /// syllable. A mark is not in it.
   final double left;
 
-  /// How far the slice's content reaches right of its line. 0 at the
-  /// bar's end.
+  /// How far what cannot leave the slice's line reaches right of it. 0 at
+  /// the bar's end.
   final double right;
 
   @override
@@ -126,13 +128,19 @@ bool _startsSlice(SpannerKind kind) => switch (kind.reach) {
 /// scale is absolute, so a bar's spacing never depends on another bar. The
 /// last slice is the bar's end, with no spring and a rod of [end], the
 /// width of the bar's end barline.
+///
+/// [firm] is the part of [reach] that cannot leave its slice's line, which
+/// is all of it unless given. Each slice keeps it as its own reach, for a
+/// squeezed system to read.
 List<Slice> spaceSlices(
   MeasureView view,
   List<Moment> times,
   List<SliceReach> reach,
   SpacingPolicy policy, {
   required double end,
+  List<SliceReach>? firm,
 }) {
+  final own = firm ?? reach;
   final shortest = List<Length?>.filled(times.length, null);
   for (final staff in view.staves) {
     for (final voice in staff.voices) {
@@ -162,10 +170,10 @@ List<Slice> spaceSlices(
         ideal: idealAt(i),
         rod: reach[i].right + policy.minGap + reach[i + 1].left,
         pad: policy.minGap,
-        left: reach[i].left,
-        right: reach[i].right,
+        left: own[i].left,
+        right: own[i].right,
       ),
-    Slice(at: times.last, ideal: 0, rod: end, left: reach.last.left),
+    Slice(at: times.last, ideal: 0, rod: end, left: own.last.left),
   ];
 }
 
@@ -267,8 +275,9 @@ List<double> sliceXs(List<Slice> slices, double stretch, double from) {
 /// A system whose rods fit its sheet is stretched, and only its springs
 /// change. One whose rods are wider is squeezed in two stages, as MuseScore's
 /// `squeezeSystemToFit` does. It first gives up its padding, and nothing
-/// overlaps. If that is not enough its bars are scaled down and their notes
-/// collide, since a bar that runs off the sheet cannot be read at all.
+/// overlaps. If that is not enough, every gap between two slices is scaled
+/// down by one factor and the notes collide, since a bar that runs off the
+/// sheet cannot be read at all.
 final class Fit {
   /// The fit of a system whose rods fit, with every spring scaled by
   /// [stretch].
@@ -284,8 +293,8 @@ final class Fit {
   /// The share of its padding the system keeps, from 1 down to 0.
   final double pad;
 
-  /// The scale of each bar's content once its padding is gone, from 1 down
-  /// to 0. Below 1 only when [pad] is 0.
+  /// The scale of every gap between two slices once its padding is gone,
+  /// from 1 down to 0. Below 1 only when [pad] is 0.
   final double crush;
 
   /// Whether the system sits below its rods.
@@ -302,84 +311,72 @@ final class Fit {
   int get hashCode => Object.hash(stretch, pad, crush);
 }
 
-/// What a squeeze reads of one unit's slices. `rods` and `pads` are summed
-/// over every slice before the unit's end. `floor` is the least width from
-/// the unit's head to its end that holds its lead and every slice's reach.
-typedef Body = ({double rods, double pads, double floor});
+/// The width of a squeezed unit from its head to its end, under [fit].
+///
+/// Each slice stands its rod, less the padding given up, scaled by the
+/// crush, after the slice before it. So the gaps of a system all shrink by
+/// one factor, and two slices share an x only at a crush of 0. The unit's
+/// [lead] is never given up, because what arrives from the system before
+/// is drawn in it. A slice also keeps its left reach clear of the unit's
+/// head. The unit ends where every slice's right reach has ended, and no
+/// sooner than [markRoom] after its lead.
+///
+/// [markRoom] is the width of the unit's widest mark. A mark is not part of
+/// any slice's reach here. In a squeezed unit it gives way and its notes do
+/// not, see `BarFrame.xOf`.
+double squeezedWidth(
+  List<Slice> slices,
+  Fit fit, {
+  required double lead,
+  required double markRoom,
+}) => _squeeze(slices, fit, lead, markRoom, null);
 
-/// The [Body] of [slices] behind [lead], the room before the first
-/// slice's line.
-Body bodyOf(List<Slice> slices, double lead) {
-  var rods = 0.0;
-  var pads = 0.0;
-  var floor = 0.0;
-  var left = lead;
+double _squeeze(
+  List<Slice> slices,
+  Fit fit,
+  double lead,
+  double markRoom,
+  List<double>? xs,
+) {
+  var x = lead;
+  var end = lead + markRoom;
   for (final (index, slice) in slices.indexed) {
     if (index > 0) {
-      left = math.max(left, slice.left);
+      x = math.max(x, slice.left);
     }
-    floor = math.max(floor, left + slice.right);
+    xs?.add(x);
+    end = math.max(end, x + slice.right);
+    x += fit.crush * (slice.rod - (1 - fit.pad) * slice.pad);
   }
-  for (final slice in slices.take(slices.length - 1)) {
-    rods += slice.rod;
-    pads += slice.pad;
-  }
-  return (rods: rods, pads: pads, floor: floor);
+  return end;
 }
-
-/// The width of a squeezed unit from its head to its end. Its [lead] is
-/// never given up, because what arrives from the system before is drawn in
-/// it.
-double squeezedWidth(Body body, Fit fit, {required double lead}) => math.max(
-  lead + fit.crush * (body.rods - (1 - fit.pad) * body.pads),
-  body.floor,
-);
 
 /// The x of each slice of a unit whose head ends at [from], under [fit].
 ///
 /// A stretched unit is [sliceXs] from the end of its [lead]. A squeezed
-/// one places each slice at its rods without the padding given up, scaled
-/// to the unit's [squeezedWidth]. Each slice is then held where its reach
-/// stays between the unit's head and its end, so whatever collides stays
-/// inside its own bar, and the system inside its sheet as far as its
-/// reaches allow.
+/// one is placed as [squeezedWidth] says, and its last slice, the bar's
+/// end, is that width from [from].
 List<double> fitXs(
   List<Slice> slices,
   Fit fit,
   double from, {
   required double lead,
+  required double markRoom,
 }) {
   if (!fit.squeezed) {
     return sliceXs(slices, fit.stretch, from + lead);
   }
-  final width = squeezedWidth(bodyOf(slices, lead), fit, lead: lead);
-  final at = <double>[];
-  var rods = 0.0;
-  for (final slice in slices) {
-    at.add(rods);
-    rods += slice.rod - (1 - fit.pad) * slice.pad;
-  }
-  final scale = at.last > 0 ? (width - lead) / at.last : 0.0;
-  final xs = List<double>.filled(slices.length, from + width);
-  var left = lead;
-  for (var i = 0; i < slices.length - 1; i++) {
-    if (i > 0) {
-      left = math.max(left, slices[i].left);
-    }
-    xs[i] = math.max(lead + at[i] * scale, left);
-  }
-  var right = 0.0;
-  for (var i = slices.length - 2; i >= 0; i--) {
-    right = math.max(right, slices[i].right);
-    xs[i] = from + math.min(xs[i], width - right);
-  }
-  return xs;
+  final xs = <double>[];
+  final width = _squeeze(slices, fit, lead, markRoom, xs);
+  return [
+    for (final x in xs.take(xs.length - 1)) from + x,
+    from + width,
+  ];
 }
 
-/// [slices] with each one's reach grown to hold [held], which is what the
-/// bar placed against it. The rods stand. A mark wider than its note is
-/// held by the rods of several slices, so only a squeezed system reads
-/// this reach.
+/// [slices] with each one's reach grown to hold [held], which cannot leave
+/// its line either. The rods stand, so only a squeezed system reads the
+/// reach that grew.
 List<Slice> holding(List<Slice> slices, List<SliceReach> held) => [
   for (final (index, slice) in slices.indexed)
     if (held[index].left <= slice.left && held[index].right <= slice.right)

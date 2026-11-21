@@ -1184,7 +1184,12 @@ List<Drawable> _placeRun(
   final hi = math.max(lo, right - inset);
   double within(double x) => math.max(lo, math.min(hi, x));
   final startX = within(
-    piece.startsHere ? first.frame.at(piece.from).x : lo,
+    piece.startsHere
+        ? first.frame.hold(first.frame.at(piece.from).x, (
+            start: 0,
+            end: _startWidth(piece, font),
+          ))
+        : lo,
   );
   final endX = math.max(
     startX,
@@ -1424,6 +1429,16 @@ double _inset(SpannerKind kind, EngravingDefaults defaults) => switch (kind) {
   OctaveLine() || TempoLine() => defaults.octaveLineThickness / 2,
   PedalLine() => defaults.pedalLineThickness / 2,
   TrillLine() => 0,
+};
+
+/// The width of what the line of [piece] starts with, which a squeezed bar
+/// holds inside it. 0 for a kind that starts with nothing.
+double _startWidth(SpannerPiece piece, SmuflFont font) => switch (piece.kind) {
+  TempoLine() => piece.textExtent!.width,
+  OctaveLine() ||
+  PedalLine() ||
+  TrillLine() => _rowWidth(_startGlyphs(piece.kind), font),
+  Slur() || Glissando() || Hairpin() => 0,
 };
 
 /// The baseline that puts [room]'s outer edge at [limit].

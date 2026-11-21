@@ -41,6 +41,7 @@ final class BarLayout {
     required this.slices,
     required this.staves,
     required this.items,
+    this.markRoom = 0,
     required this.heads,
     required this.edges,
     required this.beams,
@@ -91,6 +92,11 @@ final class BarLayout {
   /// Everything placed against one slice, in bar space.
   final List<BarItem> items;
 
+  /// The width of the bar's widest mark, among [items] and what its lines
+  /// start with. A squeezed system keeps the bar at least this wide after
+  /// its [lead], so the mark still fits in it.
+  final double markRoom;
+
   /// The three heads the bar can print. The system picks by where the bar
   /// lands.
   final BarHeads heads;
@@ -131,6 +137,7 @@ final class BarLayout {
       _same(other.slices, slices) &&
       _same(other.staves, staves) &&
       _same(other.items, items) &&
+      other.markRoom == markRoom &&
       other.heads == heads &&
       other.edges == edges &&
       _same(other.beams, beams) &&
@@ -269,15 +276,6 @@ BarLayout layoutBar(
       reach[slice] = widest(reach[slice], (left: 0, right: right));
     }
   }
-  for (final (:slice, :right) in lineStartReach(
-    view,
-    chords,
-    times: times,
-    style: style,
-    text: text,
-  )) {
-    reach[slice] = widest(reach[slice], (left: 0, right: right));
-  }
   final lyrics = lyricsOf(view, chords, style, text);
   for (final syllable in lyrics.syllables) {
     reach[syllable.slice] = widest(reach[syllable.slice], syllable.reach);
@@ -298,6 +296,18 @@ BarLayout layoutBar(
       left: -clef.drawable.bounds.left,
       right: 0,
     ));
+  }
+  final firm = [...reach];
+  var markRoom = 0.0;
+  for (final (:slice, :right) in lineStartReach(
+    view,
+    chords,
+    times: times,
+    style: style,
+    text: text,
+  )) {
+    reach[slice] = widest(reach[slice], (left: 0, right: right));
+    markRoom = math.max(markRoom, right);
   }
   final marks = eventMarks(
     view,
@@ -343,6 +353,7 @@ BarLayout layoutBar(
       reach,
       style.spacing,
       end: endBarlineWidth(edges, style),
+      firm: firm,
     ),
     voltaLabelRoom(view, label) - lead,
   );
@@ -496,29 +507,8 @@ BarLayout layoutBar(
       minBody: lead + rodWidth(slices),
     ),
     lead: lead,
-    slices: holding(
-      slices,
-      _held(items, [
-        for (final beam in beams) ...[beam.first, beam.last],
-        for (final tuplet in tuplets) ...[tuplet.first, tuplet.last],
-        for (final tie in ties)
-          ...switch (tie) {
-            TieWithin(:final from, :final to) => [from, to],
-            TieLeaving(:final from) => [from],
-            TieOpen(:final from) => [
-              from,
-              (
-                slice: from.slice,
-                dx: from.dx + letRingLength,
-                staff: from.staff,
-                dy: from.dy,
-              ),
-            ],
-            TieArriving(:final to) => [to],
-          },
-        for (final piece in spanners) ...[piece.from, piece.until],
-      ], slices.length),
-    ),
+    slices: holding(slices, _tieReach(ties, slices.length)),
+    markRoom: math.max(markRoom, _markRoom(items)),
     staves: [
       for (final (staff, staffView) in view.staves.indexed)
         _staffOf(staffView, staff, skylines[staff], heads),
@@ -562,30 +552,35 @@ List<BarHead> _drawnHeads(BarHeads heads) => [
 int _linesOf(StaffView view) =>
     view.part.staves.firstWhere((s) => s.id == view.source.staff).lines;
 
-/// How far what the bar placed against each of [count] slices reaches from
-/// its line. That is its [items], and the [anchors] that beams, tuplets,
-/// ties and spanners end on. A centred item stands halfway to the bar's
-/// end, so its slice holds twice its wider half.
-List<SliceReach> _held(
-  List<BarItem> items,
-  List<BarAnchor> anchors,
-  int count,
-) {
-  final held = List.filled(count, noReach);
-  for (final item in items) {
-    final box = item.drawable.bounds;
-    held[item.slice] = widest(
-      held[item.slice],
-      item.centred
-          ? (left: 0, right: 2 * math.max(-box.left, box.right))
-          : (left: -box.left, right: box.right),
-    );
+/// The width of the widest of [items]' marks. A centred mark stands
+/// halfway to the bar's end, so it needs twice its wider half.
+double _markRoom(List<BarItem> items) => items.fold(0, (room, item) {
+  final mark = item.mark;
+  return math.max(
+    room,
+    item.centred ? 2 * math.max(-mark.start, mark.end) : mark.end - mark.start,
+  );
+});
+
+/// How far the ends of [ties] reach from the line of each of [count]
+/// slices. A tie starts and ends clear of its heads, past what the heads
+/// themselves reach.
+List<SliceReach> _tieReach(List<TieEnd> ties, int count) {
+  final reach = List.filled(count, noReach);
+  void hold(BarAnchor anchor) => reach[anchor.slice] = widest(
+    reach[anchor.slice],
+    (left: -anchor.dx, right: anchor.dx),
+  );
+  for (final tie in ties) {
+    switch (tie) {
+      case TieWithin(:final from, :final to):
+        hold(from);
+        hold(to);
+      case TieLeaving(:final from) || TieOpen(:final from):
+        hold(from);
+      case TieArriving(:final to):
+        hold(to);
+    }
   }
-  for (final anchor in anchors) {
-    held[anchor.slice] = widest(held[anchor.slice], (
-      left: -anchor.dx,
-      right: anchor.dx,
-    ));
-  }
-  return held;
+  return reach;
 }

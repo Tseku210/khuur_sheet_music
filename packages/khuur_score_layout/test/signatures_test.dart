@@ -983,6 +983,7 @@ void main() {
         spanners: bar.spanners,
         volta: bar.volta,
         lyrics: bar.lyrics,
+        markRoom: bar.markRoom,
       );
       final kept = heads.courtesy.after;
       SplitHead courtesyOf(BarHead after, {BarHead before = BarHead.none}) =>

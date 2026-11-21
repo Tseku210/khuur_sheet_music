@@ -291,7 +291,8 @@ double _snap(double y, {required bool up, required double thickness}) {
 /// A squeezed system brings the stems closer than the rods the plan sized
 /// its box at, and the beam is steeper than the plan allowed. Its corners
 /// past the end stems are then held inside that box, which is the room
-/// the bar reserved.
+/// the bar reserved. Stems closer than a hook is long cut the hook at the
+/// stem it points to.
 List<Drawable> placeBeam(BeamPlan plan, BarFrame frame, EngravingStyle style) {
   final top = frame.tops[plan.first.staff];
   return _draw(
@@ -379,9 +380,11 @@ List<Drawable> _draw({
           beam(from!, s.x + half);
           from = null;
         case BeamJoin.forwardHook:
-          beam(s.x - half, s.x + hook, owners[i]);
+          final next = stems.elementAtOrNull(i + 1)?.x ?? double.infinity;
+          beam(s.x - half, math.min(s.x + hook, next + half), owners[i]);
         case BeamJoin.backwardHook:
-          beam(s.x - hook, s.x + half, owners[i]);
+          final before = i > 0 ? stems[i - 1].x : double.negativeInfinity;
+          beam(math.max(s.x - hook, before - half), s.x + half, owners[i]);
       }
     }
   }
