@@ -310,7 +310,9 @@ final class PlaybackCompiler {
                 ..gate = gate
                 ..gatedFrom = start;
             }
-            note.legato = slurred && note.gate == null;
+            note
+              ..legato = slurred && note.gate == null
+              ..joined = attack.joined;
           } else {
             note = _Sounding(
               start: start,
@@ -318,6 +320,7 @@ final class PlaybackCompiler {
               gate: attack.gate,
               gatedFrom: start,
               legato: slurred && attack.gate == null,
+              joined: attack.joined,
               key: key,
               cents: cents,
               velocity: min((level * attack.stress).round(), 127),
@@ -890,6 +893,7 @@ final class _Attack {
     required this.note,
     required this.stress,
     required this.gate,
+    required this.joined,
     required this.source,
   });
 
@@ -905,6 +909,10 @@ final class _Attack {
   /// The share of [length] its marks make it sound, or null where none do.
   final double? gate;
 
+  /// Whether the next note of its trill, mordent, turn or tremolo follows
+  /// it, so that it sounds until that note starts.
+  final bool joined;
+
   /// Its chord, or its grace chord.
   final EventRef source;
 }
@@ -917,6 +925,7 @@ final class _Sounding {
     required this.gate,
     required this.gatedFrom,
     required this.legato,
+    required this.joined,
     required this.key,
     required this.cents,
     required this.velocity,
@@ -941,9 +950,13 @@ final class _Sounding {
   /// mark sets its length.
   bool legato;
 
+  /// Whether it ends where the next note of its figure starts.
+  bool joined;
+
   /// Seconds cut from the end. A mark shortens the chain from the note it is
   /// on, and a chain with none is cut as the one note it stands for.
-  double get release => legato ? 0 : (end - gatedFrom) * (1 - (gate ?? 0.9));
+  double get release =>
+      legato || joined ? 0 : (end - gatedFrom) * (1 - (gate ?? _unmarkedGate));
   double overlap = 0;
   final int key;
   final int cents;

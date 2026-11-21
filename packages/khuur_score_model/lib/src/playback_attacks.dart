@@ -67,6 +67,7 @@ List<_Attack> _attacks(
             note: note,
             stress: 1,
             gate: _gate(const {}),
+            joined: false,
             source: EventRef(
               measure: of.measure,
               staff: of.staff,
@@ -122,6 +123,7 @@ List<_Attack> _attacks(
           },
           stress: i == 0 ? _stress(chord.articulations) : 1,
           gate: _gate(last ? chord.articulations : const {}),
+          joined: !last,
           source: ref,
         ),
       );
@@ -255,8 +257,8 @@ bool _canPlay(
     );
 
 /// The share of its time a note sounds, by the marks on the last note of
-/// its chain, or null where no mark sets it. A staccato under a tenuto is a
-/// portato.
+/// its chain, or null where no mark sets it and it sounds [_unmarkedGate].
+/// A staccato under a tenuto is a portato.
 double? _gate(Set<Articulation> marks) => switch ((
   marks.contains(Articulation.staccatissimo),
   marks.contains(Articulation.staccato),
@@ -274,3 +276,8 @@ double? _gate(Set<Articulation> marks) => switch ((
 double _stress(Set<Articulation> marks) =>
     (marks.contains(Articulation.accent) ? 1.25 : 1) *
     (marks.contains(Articulation.marcato) ? 1.5 : 1);
+
+/// The share of its time a note with no staccato or tenuto sounds. It stops
+/// just short of the note after it, as in MuseScore 4, whose strings, winds
+/// and voices sound an unmarked note for 99% of its time.
+const _unmarkedGate = 0.99;

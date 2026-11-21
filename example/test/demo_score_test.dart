@@ -185,7 +185,6 @@ void main() {
             if (note.source.staff == staff) note,
         ];
         for (final (i, (onset, length)) in _spans(hand[index]).indexed) {
-          // A key is let go after 0.99 of its note.
           final let = onset + length * 0.99;
           final end = lift != null && let < lift ? lift : let;
           expect(

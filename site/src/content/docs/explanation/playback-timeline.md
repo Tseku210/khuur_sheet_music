@@ -62,9 +62,9 @@ A hairpin ramps the velocity in a straight line over notated time. It runs to th
 
 An accent strikes at 1.25 times the dynamic's velocity, and a marcato at 1.5 times, up to 127. Because the level is read in notated order, a D.C. brings back the opening dynamic.
 
-Articulations set how long a note sounds. A note sounds 0.9 of its written time by default. A staccato sounds half of it, a staccatissimo a quarter, a staccato under a tenuto three quarters, and a tenuto all of it. A slurred note with none of those marks sounds all of its time. When the next note of its voice starts as it ends, it runs 40 milliseconds into that note, so a synthesizer does not dip between the two.
+Articulations set how long a note sounds. A note sounds 0.99 of its written time by default, as an unmarked note of a string, a wind or a voice does in MuseScore 4, so a long note stops just short of the next. A staccato sounds half of it, a staccatissimo a quarter, a staccato under a tenuto three quarters, and a tenuto all of it. A slurred note with none of those marks sounds all of its time. When the next note of its voice starts as it ends, it runs 40 milliseconds into that note, so a synthesizer does not dip between the two. Each note of a trill, a mordent, a turn or a tremolo sounds until the next one starts, and the marks on the chord set the length of the last.
 
-Tied notes sound as one note as long as all of them, so a chain without marks sounds 0.9 of its whole length. A mark on a note of the chain sets the length from that note to the end of the chain, and the last marked note counts.
+Tied notes sound as one note as long as all of them, so a chain without marks sounds 0.99 of its whole length. A mark on a note of the chain sets the length from that note to the end of the chain, and the last marked note counts.
 
 A `PedalLine` holds the notes of its part until the pedal lifts. The compiler lengthens those notes itself, and the output never receives a pedal message. That keeps `MidiOutput` to notes and programs, and means a pause, a new start point or a loop never has to put a pedal back down.
 
