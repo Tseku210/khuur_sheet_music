@@ -315,8 +315,10 @@ final class Fit {
 ///
 /// Each slice stands its rod, less the padding given up, scaled by the
 /// crush, after the slice before it. So the gaps of a system all shrink by
-/// one factor, and two slices that hold ink share an x only at a crush of
-/// 0. A slice that holds only padding can end on the next one. The unit's
+/// one factor. Above a crush of 0, a slice shares the next one's x only
+/// when its rod is all padding, so that it reaches nothing right of its
+/// line and the next reaches nothing left of its own, as when a clef
+/// change stands before a note with nothing to its left. The unit's
 /// [lead] is never given up, because what arrives from the system before
 /// is drawn in it. A slice also keeps its left reach clear of the unit's
 /// head. The unit ends where every slice's right reach has ended, and no
