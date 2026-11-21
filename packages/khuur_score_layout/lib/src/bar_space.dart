@@ -146,6 +146,27 @@ final class Skyline {
     Side.below => freeBelow(left, right),
   };
 
+  /// The free edge on [side] over each span from one of [edges] to the
+  /// next, in one pass over the outline. [edges] ascend. A box that only
+  /// touches a span's end is not over it.
+  List<double> frees(Side side, List<double> edges) {
+    final above = side == Side.above;
+    final free = List.filled(edges.length - 1, above ? 0.0 : staffHeight);
+    for (final box in _boxes) {
+      for (var span = 0; span < free.length; span++) {
+        if (edges[span] >= box.right) {
+          break;
+        }
+        if (edges[span + 1] > box.left) {
+          free[span] = above
+              ? math.min(free[span], box.top)
+              : math.max(free[span], box.bottom);
+        }
+      }
+    }
+    return free;
+  }
+
   /// Reserves the room between [clear], the edge nearest the staff, and
   /// [limit], the edge farthest from it, on [side] over [left] to [right].
   /// The ends may come in either order.

@@ -19,7 +19,9 @@ import 'drawable.dart';
 import 'geometry.dart';
 import 'glyphs.dart';
 import 'ink.dart';
+import 'slurs.dart';
 import 'smufl_font.dart';
+import 'spacing.dart';
 import 'style.dart';
 import 'text.dart';
 
@@ -600,6 +602,7 @@ final class SpannerPiece {
     required this.clear,
     required this.limit,
     required this.textExtent,
+    this.ground = const [],
   });
 
   /// The spanner the piece is part of.
@@ -638,6 +641,10 @@ final class SpannerPiece {
   /// A tempo line's text as the bar measured it.
   final TextExtent? textExtent;
 
+  /// What the bar has under a slur, for each slice from [from]'s to
+  /// [until]'s. Empty for any other kind.
+  final List<SlurGround> ground;
+
   @override
   bool operator ==(Object other) =>
       other is SpannerPiece &&
@@ -650,7 +657,8 @@ final class SpannerPiece {
       other.side == side &&
       other.clear == clear &&
       other.limit == limit &&
-      other.textExtent == textExtent;
+      other.textExtent == textExtent &&
+      _sameGround(other.ground, ground);
 
   @override
   int get hashCode => Object.hash(
@@ -664,7 +672,20 @@ final class SpannerPiece {
     clear,
     limit,
     textExtent,
+    Object.hashAll(ground),
   );
+}
+
+bool _sameGround(List<SlurGround> a, List<SlurGround> b) {
+  if (a.length != b.length) {
+    return false;
+  }
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /// The spanner pieces of a bar, one per `SpannerSegment` on a visible
@@ -676,6 +697,7 @@ List<SpannerPiece> spannerPieces(
   Map<EventId, PlacedChord> chords, {
   required List<Moment> times,
   required List<double> xs,
+  required List<SliceReach> reach,
   required EngravingStyle style,
   required TextMeasurer text,
 }) {
@@ -703,6 +725,7 @@ List<SpannerPiece> spannerPieces(
         barLength: view.column.length,
         times: times,
         xs: xs,
+        reach: reach,
         style: style,
         text: text,
       ),
@@ -729,6 +752,7 @@ SpannerPiece _piece(
   required Length barLength,
   required List<Moment> times,
   required List<double> xs,
+  required List<SliceReach> reach,
   required EngravingStyle style,
   required TextMeasurer text,
 }) {
@@ -751,6 +775,7 @@ SpannerPiece _piece(
     required double clear,
     required double limit,
     TextExtent? textExtent,
+    List<SlurGround> ground = const [],
   }) => SpannerPiece(
     owner: SpannerOwner(spanner.id),
     kind: kind,
@@ -762,6 +787,7 @@ SpannerPiece _piece(
     clear: clear,
     limit: limit,
     textExtent: textExtent,
+    ground: ground,
   );
 
   switch (kind) {
@@ -805,8 +831,24 @@ SpannerPiece _piece(
         staff: staff,
         dy: dy(endChord),
       );
+      final ground = _groundOf(
+        sky,
+        side,
+        fromSlice: fromSlice,
+        untilSlice: untilSlice,
+        from: segment.startsHere ? x0 : null,
+        until: segment.endsHere ? x1 : null,
+        xs: xs,
+        reach: reach,
+      );
       reserve(x0, x1, clear, limit);
-      return piece(from: from, until: until, clear: clear, limit: limit);
+      return piece(
+        from: from,
+        until: until,
+        clear: clear,
+        limit: limit,
+        ground: ground,
+      );
     case Glissando():
       final from = startChord == null
           ? (
@@ -866,6 +908,48 @@ SpannerPiece _piece(
         textExtent: extent,
       );
   }
+}
+
+/// What [sky] has on [side] at each slice from [fromSlice] to [untilSlice]
+/// and between them. The outline starts at [from] and ends at [until]
+/// where the slur does, and takes the whole of its first or last slice
+/// otherwise.
+List<SlurGround> _groundOf(
+  Skyline sky,
+  Side side, {
+  required int fromSlice,
+  required int untilSlice,
+  required double? from,
+  required double? until,
+  required List<double> xs,
+  required List<SliceReach> reach,
+}) {
+  final edges = <double>[];
+  for (var slice = fromSlice; slice <= untilSlice; slice++) {
+    final left = slice == fromSlice && from != null
+        ? from
+        : xs[slice] - reach[slice].left;
+    final right = slice == untilSlice && until != null
+        ? until
+        : xs[slice] + reach[slice].right;
+    final start = edges.isEmpty ? left : math.max(left, edges.last);
+    edges
+      ..add(start)
+      ..add(math.max(right, start));
+  }
+  if (edges.isEmpty) {
+    return const [];
+  }
+  final frees = sky.frees(side, edges);
+  return [
+    for (var slice = fromSlice; slice <= untilSlice; slice++)
+      (
+        left: edges[2 * (slice - fromSlice)] - xs[slice],
+        right: edges[2 * (slice - fromSlice) + 1] - xs[slice],
+        at: frees[2 * (slice - fromSlice)],
+        after: frees[math.min(2 * (slice - fromSlice) + 1, frees.length - 1)],
+      ),
+  ];
 }
 
 /// Where a piece starts in its bar, as its slice and the offset from that
@@ -1106,32 +1190,31 @@ List<Drawable> _placeRun(
     within(last.piece.endsHere ? last.frame.at(last.piece.until).x : hi),
   );
 
-  var clear = piece.clear;
   var limit = piece.limit;
   for (final (:piece, frame: _) in run) {
-    clear = side == Side.above
-        ? math.min(clear, piece.clear)
-        : math.max(clear, piece.clear);
     limit = side == Side.above
         ? math.min(limit, piece.limit)
         : math.max(limit, piece.limit);
   }
-  clear += top;
   limit += top;
 
   switch (kind) {
     case Slur(:final dashed):
       return [
-        curveBetween(
+        slurOver(
           SpPoint(startX, first.frame.at(piece.from).y),
           SpPoint(endX, last.frame.at(last.piece.until).y),
           side: side,
           rise: slurRise,
-          clear: clear,
           limit: limit,
+          under: [
+            for (final (:piece, :frame) in run)
+              ..._obstacles(piece, frame, top),
+          ],
+          fromCut: !piece.startsHere,
+          toCut: !last.piece.endsHere,
           endThickness: defaults.slurEndpointThickness,
           midThickness: defaults.slurMidpointThickness,
-          ink: InkRole.slur,
           owner: owner,
           dashed: dashed,
         ),
@@ -1311,6 +1394,27 @@ List<Drawable> _placeRun(
 
 /// Half the thickness of a run's ink, which a cut end stays inside the
 /// band by.
+/// What [piece]'s bar has under a slur, at the x [frame] gives its slices,
+/// on the staff whose top line is at [top].
+Iterable<SlurObstacle> _obstacles(
+  SpannerPiece piece,
+  BarFrame frame,
+  double top,
+) sync* {
+  final ground = piece.ground;
+  for (final (index, here) in ground.indexed) {
+    final x = frame.xs[piece.from.slice + index];
+    yield (left: x + here.left, right: x + here.right, edge: top + here.at);
+    if (index + 1 < ground.length) {
+      yield (
+        left: x + here.right,
+        right: frame.xs[piece.from.slice + index + 1] + ground[index + 1].left,
+        edge: top + here.after,
+      );
+    }
+  }
+}
+
 double _inset(SpannerKind kind, EngravingDefaults defaults) => switch (kind) {
   Slur() =>
     (defaults.slurMidpointThickness + defaults.slurEndpointThickness) / 2,

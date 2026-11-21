@@ -458,6 +458,7 @@ BarLayout layoutBar(
     chords,
     times: times,
     xs: xs,
+    reach: reach,
     style: style,
     text: text,
   );
