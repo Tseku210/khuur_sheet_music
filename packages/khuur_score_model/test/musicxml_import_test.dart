@@ -1698,6 +1698,38 @@ void main() {
       expect(score.measures.single.rehearsal, 'A');
     });
 
+    test('keeps a line end on its event when its offset reaches no other, '
+        'and else where the offset puts it', () {
+      String offset(int divisions) => '<offset>$divisions</offset>';
+      const start = '<wedge type="crescendo"/>';
+      const stop = '<wedge type="stop"/>';
+      final score = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 4, 'quarter'),
+            direction(['<dynamics><pp/></dynamics>', start], more: offset(-1)),
+            note('D5', 4, 'quarter'),
+            note('E5', 4, 'quarter'),
+            direction([stop, '<dynamics><ff/></dynamics>'], more: offset(1)),
+            note('F5', 4, 'quarter'),
+          ],
+          [
+            direction([start]),
+            note('C5', 8, 'half'),
+            note('D5', 8, 'half'),
+            direction([stop], more: offset(-6)),
+          ],
+        ]),
+      );
+
+      expect(spannersOf(score), [
+        'crescendo 0@1/4-0@1/2',
+        'crescendo 1@0-1@1/2',
+      ]);
+      expect(marksIn(score, 0), ['1/4 pp', '3/4 ff']);
+    });
+
     test('holds what ends the last bar, or what an offset moves past its '
         'end, on the last event of the bar', () {
       String offset(int divisions) => '<offset>$divisions</offset>';
@@ -1920,7 +1952,7 @@ void main() {
       expect(items(shorter, 0, slot: VoiceSlot.two), ['C4/half.']);
       expect(shorter.measures.single.length, Length(Fraction(3, 4)));
       expect(items(longer, 0, slot: VoiceSlot.two), ['C4/half', 'D4/half']);
-      expect(longer.measures.single.length, Length(Fraction.one));
+      expect(longer.measures.single.length, Length.whole);
     });
 
     test('stops a backup at the start of its bar', () {
@@ -1936,7 +1968,7 @@ void main() {
       );
 
       expect(items(score, 0, slot: VoiceSlot.two), ['C4/whole']);
-      expect(score.measures.single.length, Length(Fraction.one));
+      expect(score.measures.single.length, Length.whole);
     });
 
     test('closes a tuplet of mixed values where the time modification '
