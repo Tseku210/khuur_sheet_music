@@ -181,7 +181,10 @@ final class Score {
 
   /// The global, ordered list of bars. Bar *numbers* are derived from
   /// position; bar *identity* is [MeasureColumn.id].
-  Seq<MeasureColumn> get measures => _flat ?? _runs!.flat;
+  Seq<MeasureColumn> get measures {
+    assert(_runs == null, 'a score in runs is read bar by bar');
+    return _flat ?? _runs!.flat;
+  }
 
   /// The bars as one list, or null when the score holds them in [_runs].
   final Seq<MeasureColumn>? _flat;
