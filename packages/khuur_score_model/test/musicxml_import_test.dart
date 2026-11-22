@@ -249,19 +249,9 @@ final List<Refusal> refusals = [
     at: '$bar0/note[1]/duration',
   ),
   refuses(
-    'backs up past the bar start',
-    [(c5, '$c5${backup(20)}')],
-    at: '$bar0/backup/duration',
-  ),
-  refuses(
     'overlaps the previous note in its voice',
     [(c5, '$c5${backup(6)}${note('A4', 12, 'quarter')}')],
     at: '$bar0/note[2]',
-  ),
-  refuses(
-    'the duration does not match the written value',
-    [(c5, note('C5', 11, 'quarter'))],
-    at: '$bar0/note[1]/duration',
   ),
   refuses(
     'a part has 1 to 99 staves',
@@ -1574,8 +1564,7 @@ void main() {
       );
     });
 
-    test('moves what a bar ends with to the next bar, and drops it after the '
-        'last', () {
+    test('moves what a bar ends with to the next bar', () {
       final whole = note('C5', 16, 'whole');
       final score = imported(
         flute([
@@ -1588,10 +1577,7 @@ void main() {
               '<metronome><beat-unit>quarter</beat-unit><per-minute>80</per-minute></metronome>',
             ]),
           ],
-          [
-            whole,
-            direction(['<dynamics><p/></dynamics>']),
-          ],
+          [whole],
         ]),
       );
 
@@ -1615,6 +1601,196 @@ void main() {
           [(Fraction.zero, 80)],
         ],
       );
+    });
+
+    test('moves a direction by its offset, and no further back than the '
+        'start of its bar', () {
+      String offset(int divisions) => '<offset>$divisions</offset>';
+      final score = imported(
+        flute([
+          [
+            opening(),
+            direction(['<dynamics><mf/></dynamics>'], more: offset(-4)),
+            note('C5', 4, 'quarter'),
+            note('D5', 4, 'quarter'),
+            direction(['<dynamics><f/></dynamics>'], more: offset(4)),
+            note('E5', 4, 'quarter'),
+            note('F5', 4, 'quarter'),
+            direction(['<dynamics><p/></dynamics>'], more: offset(-12)),
+            direction([metronome(90)], more: offset(-8)),
+          ],
+        ]),
+      );
+
+      expect(marksIn(score, 0), ['0 mf', '1/4 p', '3/4 f']);
+      expect(
+        [
+          for (final mark in score.measures.single.tempos)
+            (mark.offset.wholeNotes, mark.tempo.bpm),
+        ],
+        [(Fraction(1, 2), 90)],
+      );
+    });
+
+    test('keeps a direction on its event when its offset reaches no '
+        'other', () {
+      String offset(int divisions) => '<offset>$divisions</offset>';
+      String dynamic(String level, String more) =>
+          direction(['<dynamics><$level/></dynamics>'], more: more);
+      final score = imported(
+        flute([
+          [
+            opening(),
+            dynamic('f', offset(1)),
+            note('C5', 8, 'half'),
+            dynamic('p', offset(-1)),
+            dynamic('mf', offset(-4)),
+            note('D5', 8, 'half'),
+            dynamic('ff', offset(-1)),
+          ],
+          [
+            note('C5', 4, 'quarter'),
+            note('D5', 4, 'quarter'),
+            dynamic('pp', offset(3)),
+            dynamic('mp', '<offset sound="yes">1</offset>'),
+            note('E5', 4, 'quarter'),
+            note('F5', 4, 'quarter'),
+          ],
+        ]),
+      );
+
+      expect(
+        [marksIn(score, 0), marksIn(score, 1)],
+        [
+          ['0 f', '1/2 p', '1/2 mf'],
+          ['0 ff', '9/16 mp', '3/4 pp'],
+        ],
+      );
+      expect(heard(score).first.$4, Dynamic.f.velocity);
+    });
+
+    test('keeps a tempo mark on the nearest event of any staff of its '
+        'part', () {
+      const offset = '<offset>3</offset>';
+      final score = imported(
+        keyboard([
+          [
+            grand,
+            direction(['<dynamics><f/></dynamics>'], more: offset),
+            direction([metronome(90)], more: offset),
+            direction(['<rehearsal>A</rehearsal>'], more: offset),
+            note('C5', 16, 'whole', '<staff>1</staff>'),
+            backup(16),
+            for (final pitch in ['C3', 'D3', 'E3', 'F3'])
+              note(pitch, 4, 'quarter', '<voice>2</voice><staff>2</staff>'),
+          ],
+        ]),
+      );
+
+      expect(marksIn(score, 0), ['0 f']);
+      expect(
+        [
+          for (final mark in score.measures.single.tempos)
+            (mark.offset.wholeNotes, mark.tempo.bpm),
+        ],
+        [(Fraction(1, 4), 90)],
+      );
+      expect(score.measures.single.rehearsal, 'A');
+    });
+
+    test('keeps a line end on its event when its offset reaches no other, '
+        'and else where the offset puts it', () {
+      String offset(int divisions) => '<offset>$divisions</offset>';
+      const start = '<wedge type="crescendo"/>';
+      const stop = '<wedge type="stop"/>';
+      final score = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 4, 'quarter'),
+            direction(['<dynamics><pp/></dynamics>', start], more: offset(-1)),
+            note('D5', 4, 'quarter'),
+            note('E5', 4, 'quarter'),
+            direction([stop, '<dynamics><ff/></dynamics>'], more: offset(1)),
+            note('F5', 4, 'quarter'),
+          ],
+          [
+            direction([start]),
+            note('C5', 8, 'half'),
+            note('D5', 8, 'half'),
+            direction([stop], more: offset(-6)),
+          ],
+        ]),
+      );
+
+      expect(spannersOf(score), [
+        'crescendo 0@1/4-0@1/2',
+        'crescendo 1@0-1@1/2',
+      ]);
+      expect(marksIn(score, 0), ['1/4 pp', '3/4 ff']);
+    });
+
+    test('holds what ends the last bar, or what an offset moves past its '
+        'end, on the last event of the bar', () {
+      String offset(int divisions) => '<offset>$divisions</offset>';
+      final score = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 8, 'half'),
+            direction(['<dynamics><f/></dynamics>'], more: offset(8)),
+            note('D5', 8, 'half'),
+          ],
+          [
+            note('C5', 4, 'quarter'),
+            note('D5', 4, 'quarter'),
+            direction(['<dynamics><ppp/></dynamics>'], more: offset(4)),
+            note('E5', 4, 'quarter'),
+            direction(['<dynamics><fff/></dynamics>'], more: offset(8)),
+            note('F5', 4, 'quarter'),
+            direction(['<words>dolce</words>']),
+            direction(['<rehearsal>B</rehearsal>']),
+            direction([metronome(90)], more: offset(4)),
+          ],
+        ]),
+      );
+
+      expect(
+        [marksIn(score, 0), marksIn(score, 1)],
+        [
+          isEmpty,
+          ['0 f', '3/4 ppp', '3/4 fff', '3/4 dolce'],
+        ],
+      );
+      expect(
+        [
+          for (final mark in score.measures[1].tempos)
+            (mark.offset.wholeNotes, mark.tempo.bpm),
+        ],
+        [(Fraction(3, 4), 90)],
+      );
+      expect(score.measures[1].rehearsal, 'B');
+    });
+
+    test('leaves an octave line over the notes written inside it, whatever '
+        'its offset', () {
+      Score lined(String offset) => imported(
+        flute([
+          [
+            opening(),
+            note('C5', 4, 'quarter'),
+            direction(['<octave-shift type="down" size="8"/>'], more: offset),
+            note('D6', 4, 'quarter'),
+            note('E6', 4, 'quarter'),
+            direction(['<octave-shift type="stop" size="8"/>'], more: offset),
+            note('F5', 4, 'quarter'),
+          ],
+        ]),
+      );
+
+      final moved = lined('<offset>4</offset>');
+      expect(spannersOf(moved), ['up8 0@1/4-0@1/2']);
+      expect(items(moved, 0), items(lined(''), 0));
     });
 
     test('keeps a voice on its staff when a note crosses to the other', () {
@@ -1717,6 +1893,84 @@ void main() {
       ]);
     });
 
+    test('keeps the written value of a note whose duration disagrees with '
+        'it, and starts the next note where that value ends', () {
+      final score = imported(
+        flute([
+          [
+            opening(beats: 3),
+            note('C5', 4, 'quarter'),
+            note('D5', 4, 'quarter'),
+            note('E5', 2, 'eighth'),
+            note('F5', 2, '16th', '<dot/>'),
+            note('G5', 1, '16th'),
+          ],
+        ]),
+      );
+
+      expect(items(score, 0), [
+        'C5/quarter',
+        'D5/quarter',
+        'E5/eighth',
+        'F5/sixteenth.',
+        'G5/sixteenth',
+      ]);
+      expect(score.measures.single.length, Length(Fraction(25, 32)));
+    });
+
+    test('backs up by the durations of notes whose written values disagree '
+        'with them', () {
+      const one = '<voice>1</voice>';
+      const two = '<voice>2</voice>';
+      final shorter = imported(
+        flute([
+          [
+            opening(beats: 3),
+            note('C5', 4, 'quarter', one),
+            note('D5', 4, 'quarter', one),
+            note('E5', 2, 'eighth', one),
+            note('F5', 2, '16th', '<dot/>$one'),
+            backup(12),
+            note('C4', 12, 'half', '<dot/>$two'),
+          ],
+        ]),
+      );
+      final longer = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 2, 'quarter', one),
+            note('D5', 4, 'quarter', one),
+            note('E5', 4, 'quarter', one),
+            backup(10),
+            note('C4', 8, 'half', two),
+            note('D4', 8, 'half', two),
+          ],
+        ]),
+      );
+
+      expect(items(shorter, 0, slot: VoiceSlot.two), ['C4/half.']);
+      expect(shorter.measures.single.length, Length(Fraction(3, 4)));
+      expect(items(longer, 0, slot: VoiceSlot.two), ['C4/half', 'D4/half']);
+      expect(longer.measures.single.length, Length.whole);
+    });
+
+    test('stops a backup at the start of its bar', () {
+      final score = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 16, 'whole', '<voice>1</voice>'),
+            backup(20),
+            note('C4', 16, 'whole', '<voice>2</voice>'),
+          ],
+        ]),
+      );
+
+      expect(items(score, 0, slot: VoiceSlot.two), ['C4/whole']);
+      expect(score.measures.single.length, Length.whole);
+    });
+
     test('closes a tuplet of mixed values where the time modification '
         'ends', () {
       final score = imported(
@@ -1767,6 +2021,29 @@ void main() {
       expect(items(score, 0), ['C5/half', 'D5/quarter', 'E5/quarter~']);
     });
 
+    test('ends a tie that no note stops on the same pitch in the next event '
+        'of its voice', () {
+      const start = '<tie type="start"/>';
+      final score = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 8, 'half', start),
+            note('C5', 4, 'quarter'),
+            note('D5', 4, 'quarter', start),
+          ],
+          [
+            note('D5', 8, 'half'),
+            note('E5', 4, 'quarter', start),
+            note('F5', 4, 'quarter'),
+          ],
+        ]),
+      );
+
+      expect(items(score, 0), ['C5/half~', 'C5/quarter', 'D5/quarter~']);
+      expect(items(score, 1), ['D5/half', 'E5/quarter', 'F5/quarter']);
+    });
+
     test(
       'reads a trill mark where a trill line starts as the line\'s sign',
       () {
@@ -1791,6 +2068,29 @@ void main() {
         expect(chordsIn(score, 0).first.ornament, isNull);
       },
     );
+
+    test('keeps the trill mark of a trill line that never stops', () {
+      String ornaments(String children) =>
+          '<notations><ornaments>$children</ornaments></notations>';
+      final lined = ornaments('<trill-mark/><wavy-line type="start"/>');
+      final score = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 4, 'quarter', lined),
+            note('D5', 4, 'quarter', lined),
+            note('E5', 4, 'quarter', ornaments('<wavy-line type="stop"/>')),
+            note('F5', 4, 'quarter', lined),
+          ],
+        ]),
+      );
+
+      expect(spannersOf(score), ['trill 0@1/4-0@1/2']);
+      expect(
+        [for (final chord in chordsIn(score, 0)) chord.ornament],
+        [Ornament.trill, null, null, Ornament.trill],
+      );
+    });
 
     test('reads the accidental marks that follow an ornament\'s sign', () {
       String ornaments(String children) =>

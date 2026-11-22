@@ -15,6 +15,7 @@ import '../stable_sort.dart';
 import '../time.dart';
 import 'musicxml_names.dart';
 import 'musicxml_records.dart';
+import 'musicxml_spanners.dart';
 
 part 'musicxml_read_marks.dart';
 part 'musicxml_read_notes.dart';
@@ -78,9 +79,11 @@ DocumentRecord readDocument(XmlElement root) {
       reader.bars.add(_BarReader(reader, bar).read(measure));
     }
   }
+  final parts = [for (final reader in readers) reader.record()]
+    ..forEach(keepSignsOfUnclosedTrills);
   return DocumentRecord(
     meta: _meta(root),
-    parts: [for (final reader in readers) reader.record()],
+    parts: parts,
     measures: measures,
     printed: printed,
     supportsAccidentals: supports('accidental'),
@@ -488,6 +491,10 @@ final class _BarReader {
 
   Moment cursor = Moment.zero;
   Moment furthest = Moment.zero;
+
+  /// How far notes that keep a written value their duration disagrees with
+  /// have moved the cursor past where the durations put it.
+  Fraction ahead = Fraction.zero;
   final lanes = <int, _Lane>{};
 
   /// What a `<chord/>` note joins.
@@ -501,6 +508,10 @@ final class _BarReader {
   final tempos = <TempoMark>[];
   final rehearsals = <({Moment at, String text})>[];
   final navigation = <NavigationMark>[];
+
+  /// The directions whose `<offset>` moves where they are drawn and not
+  /// when they sound.
+  final nudges = <_Nudge>[];
   String? style;
   bool repeatStart = false;
   RepeatEnd? repeatEnd;
@@ -516,11 +527,11 @@ final class _BarReader {
           _note(child);
         case 'backup':
           final (:element, raw: _, :length) = _duration(child);
-          final target = cursor - length;
-          if (target.isNegative) {
-            Source(element).refuse('backs up past the bar start');
-          }
-          cursor = _storable(target, Source(element));
+          final target = cursor.wholeNotes - ahead - length.wholeNotes;
+          ahead = Fraction.zero;
+          cursor = target.isNegative
+              ? Moment.zero
+              : _storable(Moment(target), Source(element));
         case 'forward':
           final (:element, raw: _, :length) = _duration(child);
           final voice = child.getElement('voice');
@@ -553,10 +564,12 @@ final class _BarReader {
               : breakBefore;
       }
     }
+    final lanes = _finishedLanes();
+    _settle(lanes);
     return BarRecord(
       source: Source(measure),
       end: furthest,
-      lanes: _finishedLanes(),
+      lanes: lanes,
       key: key,
       meter: meter,
       clefs: clefs,

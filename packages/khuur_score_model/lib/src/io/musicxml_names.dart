@@ -96,7 +96,7 @@ String ornamentName(Ornament ornament) => switch (ornament) {
 };
 
 /// Reading: a `trill-mark` beside a `wavy-line type="start"` is the trill
-/// line's sign, not an ornament.
+/// line's sign. It is an ornament only when that line never stops.
 final Map<String, Ornament> ornamentByName = {
   for (final ornament in Ornament.values) ornamentName(ornament): ornament,
 };

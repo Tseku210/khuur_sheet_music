@@ -351,7 +351,9 @@ String _text(Uint8List bytes, {String path = '/'}) {
     throw ScoreFormatException(path, 'not UTF-16: an odd number of bytes');
   }
   final data = ByteData.sublistView(bytes, 2);
-  return String.fromCharCodes([
-    for (var i = 0; i < data.lengthInBytes; i += 2) data.getUint16(i, endian),
-  ]);
+  final units = Uint16List(data.lengthInBytes ~/ 2);
+  for (var i = 0; i < units.length; i++) {
+    units[i] = data.getUint16(i * 2, endian);
+  }
+  return String.fromCharCodes(units);
 }

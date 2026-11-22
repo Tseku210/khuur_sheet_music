@@ -175,14 +175,19 @@ extension on _BarReader {
       if (!storable(exact)) {
         at.refuse(unstorable);
       }
-      if (inTuplet
+      final agrees = inTuplet
           ? _near(duration.raw, exact)
-          : exact == duration.length.wholeNotes) {
+          : exact == duration.length.wholeNotes;
+      final keepsWritten = agrees || (rest == null && !inTuplet);
+      if (keepsWritten) {
         end = cursor + Length(exact);
-      } else if (rest != null && !inTuplet) {
-        value = null;
-      } else {
+        if (!agrees) {
+          ahead += exact - duration.length.wholeNotes;
+        }
+      } else if (inTuplet) {
         at.refuse('the duration does not match the written value');
+      } else {
+        value = null;
       }
     }
     if (value == null) {
@@ -559,9 +564,9 @@ extension on _BarReader {
         if (chord.tremolo == 0 && strokes > 0) {
           chord.tremolo = strokes;
         }
-      } else if (!(lined && name == 'trill-mark') &&
-          chord.ornament == null &&
-          ornamentByName[name] != null) {
+      } else if (lined && name == 'trill-mark') {
+        chord.lineSign = true;
+      } else if (chord.ornament == null && ornamentByName[name] != null) {
         chord.ornament = ornamentByName[name];
         marked = true;
       }
@@ -645,8 +650,6 @@ extension on _BarReader {
       switch (tie.getAttribute('type')) {
         case 'start':
           record.tieStart = true;
-        case 'stop':
-          record.tieStop = true;
         case 'let-ring':
           record.letRing = true;
       }

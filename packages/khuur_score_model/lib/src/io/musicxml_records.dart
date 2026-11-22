@@ -340,8 +340,10 @@ final class ChordRecord extends EventRecord {
   /// included.
   final Set<Articulation> articulations = {};
   /// The first ornament a note states, or null. A `trill-mark` beside the start
-  /// of a `wavy-line` does not count.
+  /// of a `wavy-line` counts only when that line never stops.
   Ornament? ornament;
+  /// Whether a note states a `trill-mark` beside the start of a `wavy-line`.
+  bool lineSign = false;
   /// The alteration of the first `<accidental-mark>` above [ornament] in
   /// its `<ornaments>`, which is where one without a placement goes.
   Alter? ornamentAbove;
@@ -451,8 +453,6 @@ sealed class NoteRecord {
   final NoteId id;
   /// A `<tie>` or `<tied>` of type `start` is on the note.
   bool tieStart = false;
-  /// A `<tie>` or `<tied>` of type `stop` is on the note.
-  bool tieStop = false;
   /// A `<tie>` or `<tied>` of type `let-ring` is on the note.
   bool letRing = false;
 }
@@ -516,12 +516,12 @@ final class EventAnchor extends Anchor {
 /// An end written as a direction on a staff at a time.
 final class TimeAnchor extends Anchor {
   /// An end on [staff] at [at] in the bar.
-  const TimeAnchor(super.bar, this.staff, this.at);
+  TimeAnchor(super.bar, this.staff, this.at);
 
   /// The staff, from 0.
   final int staff;
   /// The time in the bar, in whole notes from its start.
-  final Moment at;
+  Moment at;
 }
 
 /// A start or stop of a spanner, as the file writes it.
@@ -588,3 +588,28 @@ Fraction? decimalOf(String? text) {
   final value = Fraction(match[1] == '-' ? -units : units, scale);
   return storable(value) ? value : null;
 }
+
+/// [tempo] at [offset] in its bar.
+TempoMark tempoAt(TempoMark tempo, Moment offset) => TempoMark(
+  offset: offset,
+  tempo: tempo.tempo,
+  text: tempo.text,
+  showMetronome: tempo.showMetronome,
+);
+
+/// [direction] at [offset] in its bar.
+StaffDirection directionAt(StaffDirection direction, Moment offset) =>
+    switch (direction) {
+      DynamicMark(:final level) => DynamicMark(offset, level),
+      TextMark(:final text, :final above) => TextMark(
+        offset,
+        text,
+        above: above,
+      ),
+      ChordSymbol(:final root, :final quality, :final bass) => ChordSymbol(
+        offset,
+        root: root,
+        quality: quality,
+        bass: bass,
+      ),
+    };
