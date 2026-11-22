@@ -513,6 +513,66 @@ void main() {
       }
     });
 
+    test('loads without a slur or glissando that names no note and ends on a '
+        'note of voice one that has sounded since before it starts, as a file '
+        'saved before 0.5.0 can hold', () {
+      final score = fill(
+        fill(blankScore(), 0, [chordOf(1, 'D5', value: NoteValue.whole)]),
+        0,
+        [
+          Gap(len(1, 8)),
+          chordOf(2, 'E4', value: NoteValue.eighth),
+          chordOf(3, 'F4'),
+          Gap(len(1, 2)),
+        ],
+        slot: VoiceSlot.two,
+      );
+      Score lined(SpannerKind kind, Moment last) => withSpanner(
+        withSpanner(
+          score,
+          const Slur(),
+          pointAt(score, 0, at(1, 8)),
+          pointAt(score, 0, at(1, 4)),
+          voice: VoiceSlot.two,
+        ),
+        kind,
+        pointAt(score, 0, at(1, 8)),
+        pointAt(score, 0, last),
+        voice: VoiceSlot.two,
+      );
+
+      for (final kind in const [Glissando(), Slur()]) {
+        expect(
+          reloaded(lined(kind, at(3, 4))).spanners.map((line) => line.id),
+          [const SpannerId(900)],
+          reason: '$kind',
+        );
+      }
+    });
+
+    test('loads a slur saved before 0.5.0 on the note of voice one it ended '
+        'on, which starts with its first note, where a third voice starts a '
+        'note at its end', () {
+      const file =
+          '{"schema":1,"parts":[{"id":1,"name":"Flute","instrument":{"key":"",'
+          '"program":0},"staves":[{"id":2}]}],"measures":[{"id":3,"meter":'
+          '"4/4","key":0,"staves":[{"clef":"treble","voices":[{"voice":1,'
+          '"items":[{"chord":4,"value":"quarter","notes":[{"id":5,"pitch":'
+          '"C5"}]},{"chord":6,"value":"half.","notes":[{"id":7,"pitch":"D5"}]}'
+          ']},{"voice":2,"items":[{"gap":"1/4"},{"chord":8,"value":"quarter",'
+          '"notes":[{"id":9,"pitch":"F4"}]},{"gap":"1/2"}]},{"voice":3,"items"'
+          ':[{"gap":"1/2"},{"chord":10,"value":"quarter","notes":[{"id":11,'
+          '"pitch":"G4"}]},{"gap":"1/4"}]}]}]}],"spanners":[{"id":15,"kind":'
+          '"slur","staff":2,"voice":2,"from":{"measure":3,"at":"1/4"},"to":'
+          '{"measure":3,"at":"1/2"}}]}';
+
+      final score = scoreFromJson(jsonDecode(file) as Map<String, Object?>);
+
+      final slur = score.spanners.single;
+      expect(score.anchorOf(slur, last: false)!.event.id, const EventId(8));
+      expect(score.anchorOf(slur, last: true)!.event.id, const EventId(6));
+    });
+
     test('an edit mints no id a glissando names', () {
       final score = showcase();
       final line = score.spanners[7];

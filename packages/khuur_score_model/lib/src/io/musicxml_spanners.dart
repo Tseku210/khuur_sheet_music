@@ -218,10 +218,12 @@ final class _Placing {
     );
   }
 
-  /// The first time from [from] at which a spanner of [voice] on [staff]
-  /// attaches to [anchor]'s event. Where [voice] has a gap the spanner
-  /// attaches to the event of voice one, so a mark on such an event stands
-  /// for a time in that gap, which need not be the event's onset.
+  /// The first time at which a spanner of [voice] on [staff] attaches to
+  /// [anchor]'s event, or the event's onset when there is none. Where
+  /// [voice] has a gap the spanner attaches to the event of voice one, so a
+  /// mark on such an event stands for a time in that gap, which need not be
+  /// the event's onset. An event that starts before [from], where the line
+  /// starts in its bar, has no such time.
   Moment _timeOn(
     EventAnchor anchor,
     int staff,
@@ -237,7 +239,10 @@ final class _Placing {
     }
     final column = score.measures[anchor.bar];
     final id = part.staves[staff];
-    var at = from > event.onset ? from : event.onset;
+    if (event.onset < from) {
+      return event.onset;
+    }
+    var at = event.onset;
     if (column.staff(id).voice(voice) case final own?) {
       for (final timed in timedEvents(own, measure: column.id, staff: id)) {
         if (timed.onset <= at && at < timed.onset + timed.duration) {

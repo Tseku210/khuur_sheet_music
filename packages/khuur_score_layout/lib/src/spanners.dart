@@ -1073,16 +1073,15 @@ TimedEvent? _sounding(StaffView staff, VoiceSlot slot, Moment at) => staff
     .where((e) => e.onset <= at && at < e.onset + e.duration)
     .firstOrNull;
 
-/// The event a spanner of [SpannerReach.events] attaches to at [at], its
-/// last end when [last], by [Spanner.anchorAmong].
+/// The event a spanner of [SpannerReach.events] attaches to in the bar of
+/// [staff], at its last end when [last], by [Spanner.anchorAmong].
 TimedEvent? _anchor(
   StaffView staff,
-  Spanner spanner,
-  Moment at, {
+  Spanner spanner, {
   required bool last,
 }) => spanner.anchorAmong(
   [for (final voice in staff.voices) voice.slot],
-  (slot) => _sounding(staff, slot, at),
+  (slot, at) => _sounding(staff, slot, at),
   last: last,
 );
 
@@ -1098,12 +1097,7 @@ TimedEvent? _anchor(
   }
   switch (segment.spanner.kind.reach) {
     case SpannerReach.events:
-      final anchor = _anchor(
-        staff,
-        segment.spanner,
-        segment.from,
-        last: false,
-      );
+      final anchor = _anchor(staff, segment.spanner, last: false);
       return (at: anchor?.onset ?? segment.from, event: anchor?.event.id);
     case SpannerReach.time:
       return (at: segment.from, event: null);
@@ -1121,12 +1115,7 @@ TimedEvent? _anchor(
   }
   switch (segment.spanner.kind.reach) {
     case SpannerReach.events:
-      final anchor = _anchor(
-        staff,
-        segment.spanner,
-        segment.to,
-        last: true,
-      );
+      final anchor = _anchor(staff, segment.spanner, last: true);
       return (at: anchor?.onset ?? segment.to, event: anchor?.event.id);
     case SpannerReach.time:
       return (at: segment.to, event: null);
