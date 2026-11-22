@@ -2177,6 +2177,34 @@ void main() {
     });
   });
 
+  group('A rippled erase of rests in two sections', () {
+    test('changes nothing and is no undo step', () {
+      final score = changeBar(
+        blankScore(bars: 4),
+        1,
+        (column) => column.copyWith(barline: Barline.doubleBar),
+      );
+      final session = EditSession.start(score);
+
+      final next = applied(
+        session.run(
+          Erase(
+            RangeSelection(
+              from: pointAt(score, 0, Moment.zero),
+              to: pointAt(score, 3, Moment.zero),
+              top: score.staves.first.id,
+              bottom: score.staves.first.id,
+            ),
+            ripple: Ripple.part,
+          ),
+        ),
+      );
+
+      expect(next.score, same(session.score));
+      expect(next.canUndo, isFalse);
+    });
+  });
+
   group('A rippled erase of chords in many sections', () {
     const bars = 40;
 
