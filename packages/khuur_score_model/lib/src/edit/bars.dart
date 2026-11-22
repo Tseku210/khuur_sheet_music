@@ -600,6 +600,7 @@ Seq<Spanner> _moveSpanners(
 }) {
   var moved = false;
   final kept = <Spanner>[];
+  final starts = _NoteStarts(score);
   for (final spanner in spanners) {
     final from = first(spanner);
     final to = last(spanner);
@@ -611,7 +612,7 @@ Seq<Spanner> _moveSpanners(
     if (from == null || to == null) {
       continue;
     }
-    final settled = _settled(score, _at(spanner, from, to));
+    final settled = _settled(_at(spanner, from, to), starts);
     if (settled != null) {
       kept.add(settled);
     }
@@ -632,34 +633,30 @@ Spanner _at(Spanner spanner, ScorePoint first, ScorePoint last) => Spanner(
 /// [score] with each spanner as it can stand after an edit (see
 /// [_settled]), and without the ones that cannot.
 Score _withFittingSpanners(Score score) {
+  final starts = _NoteStarts(score);
   final settled = [
-    for (final spanner in score.spanners) _settled(score, spanner),
+    for (final spanner in score.spanners) _settled(spanner, starts),
   ];
   return score.spanners.indexed.every((at) => identical(at.$2, settled[at.$1]))
       ? score
       : score.copyWith(spanners: Seq(settled.nonNulls));
 }
 
-/// [spanner] as it can stand in [score] after an edit, or null when it
-/// cannot, as a slur whose notes a longer note has replaced. A glissando
-/// follows the notes it names. An end whose note no longer sounds at it
-/// moves to where that note starts on the staff, and a line whose note has
-/// left the staff cannot stand. The same object when nothing moves.
-Spanner? _settled(Score score, Spanner spanner) {
+/// [spanner] as it can stand in the score of [starts] after an edit, or null
+/// when it cannot, as a slur whose notes a longer note has replaced. A
+/// glissando follows the notes it names. An end whose note no longer sounds
+/// at it moves to where that note starts on the staff, and a line whose
+/// note has left the staff cannot stand. The same object when nothing moves.
+Spanner? _settled(Spanner spanner, _NoteStarts starts) {
+  final score = starts.score;
+
   ScorePoint? end(NoteId? note, {required bool last}) {
     final at = last ? spanner.last : spanner.first;
     final sounding = score.anchorOf(spanner, last: last)?.event;
     if (note == null || Glissando.noteIn(sounding, note)?.id == note) {
       return at;
     }
-    for (final slot in VoiceSlot.values) {
-      for (final timed in score.laneOf(spanner.staff, slot)) {
-        if (Glissando.noteIn(timed.event, note)?.id == note) {
-          return ScorePoint(timed.ref.measure, timed.onset);
-        }
-      }
-    }
-    return null;
+    return starts.of(spanner.staff, note);
   }
 
   var placed = spanner;
@@ -674,6 +671,35 @@ Spanner? _settled(Score score, Spanner spanner) {
     }
   }
   return spannerProblem(score, placed) == null ? placed : null;
+}
+
+/// Where each note of [score] starts, read one staff at a time and only for
+/// a staff that is asked about.
+final class _NoteStarts {
+  _NoteStarts(this.score);
+
+  final Score score;
+  final _byStaff = <StaffId, Map<NoteId, ScorePoint>>{};
+
+  /// Where the chord that holds [note] starts on [staff], or null when no
+  /// voice of the staff has the note.
+  ScorePoint? of(StaffId staff, NoteId note) =>
+      (_byStaff[staff] ??= _read(staff))[note];
+
+  Map<NoteId, ScorePoint> _read(StaffId staff) {
+    final starts = <NoteId, ScorePoint>{};
+    for (final slot in VoiceSlot.values) {
+      for (final timed in score.laneOf(staff, slot)) {
+        if (timed.event case ChordEvent(:final notes)) {
+          final start = ScorePoint(timed.ref.measure, timed.onset);
+          for (final note in notes) {
+            starts.putIfAbsent(note.id, () => start);
+          }
+        }
+      }
+    }
+    return starts;
+  }
 }
 
 /// The end of [spanner] in [score], its last when [last], at the onset of
