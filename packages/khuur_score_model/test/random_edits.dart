@@ -59,7 +59,8 @@ T pick<T>(Random random, List<T> options) =>
 /// chord has lost, or a glissando that ends on an event that starts no later
 /// than the event it starts on, or a slur that ends on one that starts
 /// before. Throws when the edit removes a glissando that names both its
-/// notes while both are still on its staff, unless the edit picked the line.
+/// notes while both are still on its staff and the chord it ends on still
+/// starts after the chord it starts on, unless the edit picked the line.
 /// Throws too when a rippled edit changes the dynamic in force after the bars
 /// it changed, or the clef a note starts in while the note keeps its length.
 Score edited(Score score, Edit edit) {
@@ -108,10 +109,11 @@ Score edited(Score score, Edit edit) {
   for (final spanner in score.spanners) {
     if (spanner.kind case Glissando(:final from?, :final to?)
         when !standing.contains(spanner.id) && !_picks(score, edit, spanner)) {
-      final notes = _notesOn(next, spanner.staff);
-      if (notes.contains(from) && notes.contains(to)) {
+      final starts = _noteStartsOn(next, spanner.staff);
+      if ((starts[from], starts[to]) case (final first?, final last?)
+          when next.compare(first, last) < 0) {
         throw StateError(
-          '${edit.runtimeType} removed a glissando whose notes stay',
+          '${edit.runtimeType} removed a glissando whose notes stay in order',
         );
       }
     }
@@ -158,13 +160,15 @@ bool _picks(Score score, Edit edit, Spanner spanner) => switch (edit) {
   _ => false,
 };
 
-/// The ids of the notes on [staff] of [score], which may have lost it.
-Set<NoteId> _notesOn(Score score, StaffId staff) => {
+/// Where the chord of each note on [staff] of [score] starts, by the note's
+/// id. Empty when the score has lost the staff.
+Map<NoteId, ScorePoint> _noteStartsOn(Score score, StaffId staff) => {
   if (score.staves.any((other) => other.id == staff))
     for (final slot in VoiceSlot.values)
       for (final timed in score.laneOf(staff, slot))
         if (timed.event case ChordEvent(:final notes))
-          for (final note in notes) note.id,
+          for (final note in notes)
+            note.id: ScorePoint(timed.ref.measure, timed.onset),
 };
 
 /// The clef each note of [score] starts in, with the note's length. An

@@ -1448,6 +1448,55 @@ void main() {
     });
   });
 
+  group('A glissando between two voices', () {
+    test('goes when a rippled erase leaves its two notes starting together, '
+        'and undo brings it back', () {
+      var score = blankScore(bars: 1);
+      score = fill(score, 0, [
+        chordOf(1, 'C5'),
+        chordOf(2, 'D5'),
+        rest(3, NoteValue.half),
+      ]);
+      score = fill(score, 0, [
+        chordOf(4, 'E4', value: NoteValue.half),
+        Gap(len(1, 2)),
+      ], slot: VoiceSlot.two);
+      final staff = score.staves.first.id;
+      final lined = applied(
+        EditSession.start(score).run(
+          AddSpanner(
+            kind: const Glissando(from: NoteId(40), to: NoteId(20)),
+            staff: staff,
+            voice: VoiceSlot.two,
+            first: pointAt(score, 0, Moment.zero),
+            last: pointAt(score, 0, at(1, 4)),
+          ),
+        ),
+      );
+      final c5 = EventRef(
+        measure: score.measures.first.id,
+        staff: staff,
+        id: const EventId(1),
+      );
+
+      for (final ripple in [Ripple.staff, Ripple.part]) {
+        final erased = applied(
+          lined.run(Erase(ItemSelection(Seq([c5])), ripple: ripple)),
+        );
+        final after = erased.score;
+
+        expect(bar(after, 0).take(1), ['D5/quarter'], reason: '$ripple');
+        expect(
+          bar(after, 0, slot: VoiceSlot.two).take(1),
+          ['E4/quarter'],
+          reason: '$ripple',
+        );
+        expect(after.spanners, isEmpty, reason: '$ripple');
+        expect(erased.undo().score.spanners, hasLength(1), reason: '$ripple');
+      }
+    });
+  });
+
   group('A ripple and the session', () {
     test('a range selection follows the music', () {
       final session = barsOf([
