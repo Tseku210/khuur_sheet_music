@@ -768,6 +768,50 @@ void main() {
         );
       });
 
+      test('named for voice one, leaves a note that voice one then starts '
+          'with its first note for the note its own voice starts at its end, '
+          'and goes through MusicXML and back', () {
+        var score = fill(blankScore(bars: 1), 0, [
+          chordOf(1, 'C5'),
+          chordOf(4, 'D5'),
+          chordOf(5, 'E5', value: NoteValue.half),
+        ]);
+        score = fill(score, 0, [
+          chordOf(2, 'E4'),
+          chordOf(3, 'F4'),
+          Gap(len(1, 2)),
+        ], slot: VoiceSlot.two);
+        final session = slurred(
+          score,
+          pointAt(score, 0, at(1, 4)),
+          pointAt(score, 0, at(1, 2)),
+        );
+        EnterNote enter(VoiceSlot voice, Moment offset, NoteValue value) =>
+            EnterNote(
+              at: VoicePoint(
+                staff: score.staves.first.id,
+                voice: voice,
+                at: pointAt(score, 0, offset),
+              ),
+              tone: Pitch.parse(voice == VoiceSlot.one ? 'B4' : 'A4'),
+              value: value,
+              appendBar: false,
+            );
+        final edited = applied(
+          applied(
+            session.run(enter(VoiceSlot.one, at(1, 4), NoteValue.half)),
+          ).run(enter(VoiceSlot.two, at(1, 2), NoteValue.quarter)),
+        ).score;
+
+        expect(
+          session.score.spanners.single.kind,
+          const Slur(endVoice: VoiceSlot.one),
+        );
+        expect(ends(session.score), ['one E5']);
+        expect(ends(edited), ['two A4']);
+        expect(ends(scoreFromMusicXml(scoreToMusicXml(edited))), ['two A4']);
+      });
+
       test('a glissando made the same way names the note it ends on, and '
           'stays on it when voice one starts a note or ties one under it', () {
         EditSession made(Score score) => applied(
