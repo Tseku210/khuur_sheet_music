@@ -754,7 +754,7 @@ void main() {
       final score = crossing([
         chordOf(4, 'E4'),
         chordOf(5, 'F4'),
-        rest(6, NoteValue.half),
+        rest(60, NoteValue.half),
       ]);
 
       expect(joined(score), ('E4', 'D5'));
@@ -783,7 +783,7 @@ void main() {
         crossing([
           chordOf(4, 'E4'),
           Gap(len(1, 4)),
-          rest(6, NoteValue.half),
+          rest(60, NoteValue.half),
         ]),
       );
 
@@ -811,7 +811,7 @@ void main() {
     test('joins a note to a voice-one note that it sounds over', () {
       final score = crossing([
         chordOf(4, 'E4', value: NoteValue.half),
-        rest(6, NoteValue.half),
+        rest(60, NoteValue.half),
       ]);
       final Spanner(:kind, :first, :last, :voice) = score.spanners.single;
 

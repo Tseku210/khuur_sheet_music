@@ -124,13 +124,16 @@ final class _Placed {
   /// writes the stop at that event's end.
   final EventId? stopsAfter;
 
-  /// A glissando names the notes its marks are written on.
+  /// A glissando names the notes its marks are written on. Its staff is
+  /// the one it starts on, and a stop written on another staff names none.
   SpannerKind get kind => switch ((record.kind, record.start.anchor)) {
     (Glissando(), final EventAnchor start) => Glissando(
       from: start.kept,
       to: switch (record.stop.anchor) {
-        final EventAnchor stop => stop.kept,
-        TimeAnchor() => null,
+        final EventAnchor stop
+            when stop.event.lane.staff == start.event.lane.staff =>
+          stop.kept,
+        _ => null,
       },
     ),
     (final kind, _) => kind,
@@ -170,13 +173,10 @@ final class _Placing {
         (EventAnchor(), TimeAnchor()) || (TimeAnchor(), EventAnchor()) => null,
       };
 
-  _Placed? _standing(_Placed placed) {
-    final spanner = placed.spanner(const SpannerId(0));
-    return spannerProblem(score, spanner) == null &&
-            lostGlissandoNote(score, spanner) == null
-        ? placed
-        : null;
-  }
+  _Placed? _standing(_Placed placed) =>
+      spannerProblem(score, placed.spanner(const SpannerId(0))) == null
+      ? placed
+      : null;
 
   ScorePoint _point(int bar, Moment offset) =>
       ScorePoint(document.measures[bar], offset);

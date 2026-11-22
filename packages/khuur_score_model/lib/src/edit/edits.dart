@@ -568,7 +568,7 @@ final class SetDirections extends Edit {
 /// one when it names none, and must end after it starts. A line or hairpin
 /// belongs to the staff, so [voice] is ignored, and may start and end on
 /// one event. Refused with [StaleReference] for a bar or staff that is
-/// gone or a [Glissando] note that is not in the chord at its end,
+/// gone or a [Glissando] note that no voice of the staff sounds at its end,
 /// [OutsideMeasure] for an end outside its bar, and [InvalidValue] for ends
 /// out of order.
 final class AddSpanner extends Edit {

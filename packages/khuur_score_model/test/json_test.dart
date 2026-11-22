@@ -452,7 +452,7 @@ void main() {
       expect(scoreFromJson(json).spanners[7].kind, const Glissando());
     });
 
-    test('drops a glissando that names a note the chord at its end lacks, '
+    test('drops a glissando that names a note no voice sounds at its end, '
         'and keeps every other line', () {
       List<SpannerId> read(int from, int to) {
         final json = jsonDecode(saved(showcase()));
@@ -463,7 +463,8 @@ void main() {
 
       final all = [for (final spanner in showcase().spanners) spanner.id];
       expect(read(46, 73), all);
-      for (final (from, to) in [(46, 5000), (5000, 72), (42, 72), (46, 46)]) {
+      expect(read(42, 72), all, reason: 'voice one sounds note 42 there');
+      for (final (from, to) in [(46, 5000), (5000, 72), (33, 72), (46, 46)]) {
         expect(
           read(from, to),
           all.where((id) => id != const SpannerId(87)),

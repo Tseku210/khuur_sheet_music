@@ -15,7 +15,7 @@
 /// staves marked unprinted.
 ///
 /// A slur or trill line is written on the first note of the event at each
-/// end, and a glissando on the note of the chord each end names. A
+/// end, and a glissando on the note each end names, in that note's voice. A
 /// hairpin, octave line, pedal line or tempo line is a direction at its
 /// first point and a stop after the event its last point falls in. Numbers
 /// are reused once a spanner of the same element in the part has stopped.
@@ -797,8 +797,8 @@ final class _Export {
     final staffIndex = staves.indexWhere((staff) => staff.id == spanner.staff);
     int stream(VoiceSlot voice) => voiceNumber(staffIndex, voice);
     // An end in a covered bar lands on the copy written there.
-    (TimedEvent, int) eventAt(VoiceSlot voice, ScorePoint point) {
-      final timed = written.anchorAt(spanner.staff, voice, point)!;
+    (TimedEvent, int) anchor({required bool last}) {
+      final timed = written.anchorOf(spanner, last: last)!;
       return (timed, stream(timed.voice));
     }
 
@@ -806,9 +806,8 @@ final class _Export {
     final lastBar = score.indexOf(spanner.last.measure);
     switch (spanner.kind) {
       case Slur() || Glissando() || TrillLine():
-        final voice = spanner.voice ?? VoiceSlot.one;
-        final (from, fromStream) = eventAt(voice, spanner.first);
-        final (to, toStream) = eventAt(voice, spanner.last);
+        final (from, fromStream) = anchor(last: false);
+        final (to, toStream) = anchor(last: true);
         final kind = spanner.kind;
         return (
           spanner: spanner,

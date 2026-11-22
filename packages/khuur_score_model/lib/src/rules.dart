@@ -2,7 +2,7 @@
 /// breaks the rule, or null. The edits refuse with that message and the
 /// file readers fail with it at the value's path, so every way into a score
 /// accepts the same values. [lostGlissandoNote] returns a note in place of
-/// a message, and an edit or a reader leaves the line out with it.
+/// a message.
 library;
 
 import 'events.dart';
@@ -144,8 +144,8 @@ String? spannerProblem(Score score, Spanner spanner) =>
 
 const _endsAfterStart = 'a slur or glissando ends after it starts';
 
-/// The note a glissando [spanner] names that is not in the chord at that
-/// end of it in [score], or null when each note it names is there.
+/// The note a glissando [spanner] names that no voice of its staff sounds
+/// at that end of it in [score], or null when each note it names is there.
 NoteId? lostGlissandoNote(Score score, Spanner spanner) {
   if (spanner.kind case Glissando(from: final first, to: final last)) {
     final (:from, :to) = score.glissandoNotes(spanner);

@@ -461,8 +461,13 @@ Score _setBarLength(Score score, int index, Length? length, _Ids ids) {
   );
   bool removed(ScorePoint point) =>
       point.measure == bar.id && point.offset >= newEnd;
-  ScorePoint onItsNote(Spanner spanner, ScorePoint point) =>
-      point.measure == bar.id ? _onItsNote(untied, spanner, point) : point;
+  ScorePoint onItsNote(Spanner spanner, {required bool last}) {
+    final point = last ? spanner.last : spanner.first;
+    return point.measure == bar.id
+        ? _onItsNote(untied, spanner, last: last)
+        : point;
+  }
+
   final resume = next == null ? null : ScorePoint(next.id, Moment.zero);
   final cut = untied.copyWith(
     measures: untied.measures.replaceAt(index, resized),
@@ -473,11 +478,11 @@ Score _setBarLength(Score score, int index, Length? length, _Ids ids) {
       cut,
       untied.spanners,
       first: (spanner) {
-        final first = onItsNote(spanner, spanner.first);
+        final first = onItsNote(spanner, last: false);
         return removed(first) ? resume : first;
       },
       last: (spanner) {
-        final last = onItsNote(spanner, spanner.last);
+        final last = onItsNote(spanner, last: true);
         return removed(last) ? _lastOnset(resized, spanner) : last;
       },
     ),
@@ -585,8 +590,8 @@ Score _untieAt(Score score, int index, Moment from, MeasureColumn? next) {
 
 /// [spanners] with their ends where [first] and [last] put them among the
 /// bars of [score], which are the bars after the edit. An end with nowhere
-/// to go is null. A spanner that loses an end, or whose ends no longer fit
-/// its kind (see [spannerProblem]), is dropped. The same object when nothing moves.
+/// to go is null. A spanner that loses an end, or that no longer fits (see
+/// [_settled]), is dropped. The same object when nothing moves.
 Seq<Spanner> _moveSpanners(
   Score score,
   Seq<Spanner> spanners, {
@@ -606,50 +611,84 @@ Seq<Spanner> _moveSpanners(
     if (from == null || to == null) {
       continue;
     }
-    final candidate = Spanner(
-      id: spanner.id,
-      kind: spanner.kind,
-      staff: spanner.staff,
-      voice: spanner.voice,
-      first: from,
-      last: to,
-    );
-    if (spannerProblem(score, candidate) == null) {
-      kept.add(candidate);
+    final settled = _settled(score, _at(spanner, from, to));
+    if (settled != null) {
+      kept.add(settled);
     }
   }
   return moved ? Seq(kept) : spanners;
 }
 
-/// [score] without the spanners an edit has left unable to stand, such as a
-/// slur whose notes a longer note has replaced, or a glissando that names a
-/// note the edit removed.
+/// [spanner] from [first] to [last].
+Spanner _at(Spanner spanner, ScorePoint first, ScorePoint last) => Spanner(
+  id: spanner.id,
+  kind: spanner.kind,
+  staff: spanner.staff,
+  voice: spanner.voice,
+  first: first,
+  last: last,
+);
+
+/// [score] with each spanner as it can stand after an edit (see
+/// [_settled]), and without the ones that cannot.
 Score _withFittingSpanners(Score score) {
-  final kept = [
-    for (final spanner in score.spanners)
-      if (spannerProblem(score, spanner) == null &&
-          lostGlissandoNote(score, spanner) == null)
-        spanner,
+  final settled = [
+    for (final spanner in score.spanners) _settled(score, spanner),
   ];
-  return kept.length == score.spanners.length
+  return score.spanners.indexed.every((at) => identical(at.$2, settled[at.$1]))
       ? score
-      : score.copyWith(spanners: Seq(kept));
+      : score.copyWith(spanners: Seq(settled.nonNulls));
 }
 
-/// [point] of [spanner] in [score] at the onset of the note it belongs to,
-/// for a slur, glissando or trill line, so an edit that moves it by time
-/// keeps it on that note and not on a part of the note that a new barline
-/// splits off. Other kinds keep their point.
-ScorePoint _onItsNote(Score score, Spanner spanner, ScorePoint point) =>
-    switch (spanner.kind.reach) {
-      SpannerReach.events => ScorePoint(
-        point.measure,
-        score
-            .anchorAt(spanner.staff, spanner.voice ?? VoiceSlot.one, point)!
-            .onset,
-      ),
-      SpannerReach.time => point,
-    };
+/// [spanner] as it can stand in [score] after an edit, or null when it
+/// cannot, as a slur whose notes a longer note has replaced. A glissando
+/// follows the notes it names. An end whose note no longer sounds at it
+/// moves to where that note starts on the staff, and a line whose note has
+/// left the staff cannot stand. The same object when nothing moves.
+Spanner? _settled(Score score, Spanner spanner) {
+  ScorePoint? end(NoteId? note, {required bool last}) {
+    final at = last ? spanner.last : spanner.first;
+    final sounding = score.anchorOf(spanner, last: last)?.event;
+    if (note == null || Glissando.noteIn(sounding, note)?.id == note) {
+      return at;
+    }
+    for (final slot in VoiceSlot.values) {
+      for (final timed in score.laneOf(spanner.staff, slot)) {
+        if (Glissando.noteIn(timed.event, note)?.id == note) {
+          return ScorePoint(timed.ref.measure, timed.onset);
+        }
+      }
+    }
+    return null;
+  }
+
+  var placed = spanner;
+  if (spanner.kind case Glissando(:final from, :final to)) {
+    final first = end(from, last: false);
+    final last = end(to, last: true);
+    if (first == null || last == null) {
+      return null;
+    }
+    if (first != spanner.first || last != spanner.last) {
+      placed = _at(spanner, first, last);
+    }
+  }
+  return spannerProblem(score, placed) == null ? placed : null;
+}
+
+/// The end of [spanner] in [score], its last when [last], at the onset of
+/// the note it belongs to, for a slur, glissando or trill line. Other kinds
+/// keep their point.
+ScorePoint _onItsNote(Score score, Spanner spanner, {required bool last}) {
+  final point = last ? spanner.last : spanner.first;
+  return switch (spanner.kind.reach) {
+    SpannerReach.events => ScorePoint(
+      point.measure,
+      score.anchorOf(spanner, last: last)!.onset,
+    ),
+    SpannerReach.time => point,
+  };
+}
 
 /// Where the last event of [spanner]'s voice in [column] starts, taking
 /// voice one when the spanner has no voice or its voice is absent there.

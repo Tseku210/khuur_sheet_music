@@ -59,8 +59,8 @@ T pick<T>(Random random, List<T> options) =>
 /// chord has lost. Throws when the edit removes a glissando that names both
 /// its notes while both are still on its staff, unless the edit picked the
 /// line. Throws too when a rippled edit changes the dynamic in force after
-/// the bars it changed, since the rest of the piece would play at another
-/// level, or the clef a note starts in while the note keeps its length.
+/// the bars it changed, or the clef a note starts in while the note keeps
+/// its length.
 Score edited(Score score, Edit edit) {
   final outcome = EditSession.start(score).run(edit);
   if (outcome is! Applied) {
