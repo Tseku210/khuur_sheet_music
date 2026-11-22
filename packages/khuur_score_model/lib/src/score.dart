@@ -1028,7 +1028,10 @@ final class PedalLine extends SpannerKind {
 /// chord plays instead, and a note that ties on plays its tie.
 ///
 /// [from] and [to] name the two notes. Each end is read from the chord the
-/// spanner attaches to at that end and from nothing else, by [noteIn].
+/// spanner attaches to at that end and from nothing else, by [noteIn]. The
+/// line goes with a note it names, as in MuseScore 4. An edit that leaves
+/// that note out of the chord at its end removes the line, and a file
+/// whose line names such a note loads without the line.
 final class Glissando extends SpannerKind {
   /// A line from note [from] of the chord it starts on to note [to] of the
   /// chord it ends on, or between their top notes where an id is null.
@@ -1043,8 +1046,7 @@ final class Glissando extends SpannerKind {
   /// The note of [event] that an end naming [id] lies on, where [event] is
   /// what the spanner attaches to at that end. It is the note with that id,
   /// or the chord's top note when [id] is null or names no note of the
-  /// chord, as after an edit that replaced the note. Null when [event] is
-  /// not a chord.
+  /// chord. Null when [event] is not a chord.
   static Note? noteIn(Event? event, NoteId? id) => switch (event) {
     ChordEvent(:final notes) =>
       notes.where((note) => note.id == id).firstOrNull ?? notes.last,

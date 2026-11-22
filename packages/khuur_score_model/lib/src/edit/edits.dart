@@ -241,7 +241,7 @@ final class AddToChord extends Edit {
 }
 
 /// Removes one head from a chord. Removing the last head leaves a rest of
-/// the same value.
+/// the same value. A [Glissando] that names the head goes with it.
 final class RemoveNote extends Edit {
   /// Removes [note] from its chord.
   const RemoveNote(this.note);

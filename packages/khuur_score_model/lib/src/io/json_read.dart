@@ -80,7 +80,12 @@ final class _Decoder {
         spanners[i]['to'].fail(problem);
       }
     }
-    return score;
+    return score.copyWith(
+      spanners: Seq([
+        for (final spanner in score.spanners)
+          if (lostGlissandoNote(score, spanner) == null) spanner,
+      ]),
+    );
   }
 
   Part _part(_In json) {

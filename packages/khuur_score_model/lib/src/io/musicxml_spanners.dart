@@ -170,10 +170,13 @@ final class _Placing {
         (EventAnchor(), TimeAnchor()) || (TimeAnchor(), EventAnchor()) => null,
       };
 
-  _Placed? _standing(_Placed placed) =>
-      spannerProblem(score, placed.spanner(const SpannerId(0))) == null
-      ? placed
-      : null;
+  _Placed? _standing(_Placed placed) {
+    final spanner = placed.spanner(const SpannerId(0));
+    return spannerProblem(score, spanner) == null &&
+            lostGlissandoNote(score, spanner) == null
+        ? placed
+        : null;
+  }
 
   ScorePoint _point(int bar, Moment offset) =>
       ScorePoint(document.measures[bar], offset);

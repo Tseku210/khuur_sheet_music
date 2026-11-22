@@ -622,11 +622,14 @@ Seq<Spanner> _moveSpanners(
 }
 
 /// [score] without the spanners an edit has left unable to stand, such as a
-/// slur whose notes a longer note has replaced.
+/// slur whose notes a longer note has replaced, or a glissando that names a
+/// note the edit removed.
 Score _withFittingSpanners(Score score) {
   final kept = [
     for (final spanner in score.spanners)
-      if (spannerProblem(score, spanner) == null) spanner,
+      if (spannerProblem(score, spanner) == null &&
+          lostGlissandoNote(score, spanner) == null)
+        spanner,
   ];
   return kept.length == score.spanners.length
       ? score

@@ -56,10 +56,10 @@ T pick<T>(Random random, List<T> options) =>
 /// the edit leaves two things of a kind with one id, which no file may
 /// hold, or a score that does not load from its own JSON, since an app
 /// that saved it would lose the piece, or a glissando that names a note its
-/// chord has lost, which would glide another note. Throws too when a rippled edit
-/// changes the dynamic in force after the bars it changed, since the rest
-/// of the piece would play at another level, or the clef a note starts in
-/// while the note keeps its length.
+/// chord has lost. Throws too when a rippled edit changes the dynamic in
+/// force after the bars it changed, since the rest of the piece would play
+/// at another level, or the clef a note starts in while the note keeps its
+/// length.
 Score edited(Score score, Edit edit) {
   final outcome = EditSession.start(score).run(edit);
   if (outcome is! Applied) {
