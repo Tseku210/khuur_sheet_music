@@ -607,6 +607,7 @@ _Rippled _ripple(
     max(a - 1, 0),
     a + count,
     origins,
+    section: old,
     lostItsStart: (was) => switch (timeOf(
       ScorePoint(was.ref.measure, was.onset),
     )) {
@@ -1126,13 +1127,13 @@ bool _sameBy<T>(Iterable<T> a, Iterable<T> b, bool Function(T, T) same) {
 }
 
 /// [after] without the ties on [staves], in bars [from] up to [to], that a
-/// ripple sent somewhere else. A tie stays while it ends on the event it
-/// ended on before, on the next piece of its own note, or on a new note of
-/// its tone, and while it ends on no head where it ended on none. A tie
-/// into another note goes when either note [lostItsStart], as it was in
-/// [before]. MuseScore 4 takes such a note out and writes it again, and
-/// only a tie that ends on no head comes back with it. [origins] names the
-/// event each new piece came from.
+/// ripple of the bars [section] of [before] sent somewhere else. A tie
+/// stays while it ends on the event it ended on before, on the next piece
+/// of its own note, or on a new note of its tone, and while it ends on no
+/// head where it ended on none. A tie into another note goes when either
+/// note [lostItsStart], as it was in [before]. MuseScore 4 takes such a
+/// note out and writes it again, and only a tie that ends on no head comes
+/// back with it. [origins] names the event each new piece came from.
 /// [_retie] cannot do this, because it looks every event up in [before] by
 /// its id, and the pieces a ripple cuts have new ids.
 Score _retied(
@@ -1142,6 +1143,7 @@ Score _retied(
   int from,
   int to,
   Map<EventId, EventId> origins, {
+  required List<MeasureColumn> section,
   required bool Function(TimedEvent was) lostItsStart,
 }) {
   EventId source(EventId id) {
@@ -1152,13 +1154,33 @@ Score _retied(
     return at;
   }
 
-  TimedEvent? was(TimedEvent timed) => before.lookup(
-    EventRef(
-      measure: timed.ref.measure,
-      staff: timed.ref.staff,
-      id: source(timed.event.id),
-    ),
-  );
+  // A ripple moves an event to another bar of its section. Asked for an
+  // event in a bar that does not hold it, [Score.lookup] builds its index
+  // of every event of the score, once for each section of an erase.
+  late final barBefore = {
+    for (final column in section)
+      for (final staff in column.staves)
+        if (staves.contains(staff.staff))
+          for (final voice in staff.voices)
+            for (final timed in timedEvents(
+              voice,
+              measure: column.id,
+              staff: staff.staff,
+            ))
+              timed.event.id: column.id,
+  };
+
+  TimedEvent? was(TimedEvent timed) {
+    final id = source(timed.event.id);
+    EventRef inBar(MeasureId bar) =>
+        EventRef(measure: bar, staff: timed.ref.staff, id: id);
+    final stayed = inBar(timed.ref.measure);
+    return before.inItsBar(stayed) ??
+        before.lookup(switch (barBefore[id]) {
+          final bar? => inBar(bar),
+          null => stayed,
+        });
+  }
 
   bool moves(TimedEvent timed, ChordEvent chord, Note note) {
     final old = was(timed);
