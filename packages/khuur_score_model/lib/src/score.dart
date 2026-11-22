@@ -399,7 +399,8 @@ final class Score {
   }
 
   /// The event a spanner of [SpannerReach.events] on [staff] attaches to at
-  /// [at]: the one sounding there in [voice], else in voice one.
+  /// [at]: the one sounding there in [voice], else in voice one. [anchorOf]
+  /// also follows the note a glissando end names.
   TimedEvent? anchorAt(StaffId staff, VoiceSlot voice, ScorePoint at) =>
       eventAt(VoicePoint(staff: staff, voice: voice, at: at)) ??
       eventAt(VoicePoint(staff: staff, voice: VoiceSlot.one, at: at));
@@ -421,14 +422,38 @@ final class Score {
     SpannerReach.time => lineEnd(spanner),
   };
 
+  /// The event [spanner], of [SpannerReach.events], attaches to at its
+  /// first end, or at its last when [last], by [Spanner.anchorAmong].
+  TimedEvent? anchorOf(Spanner spanner, {required bool last}) {
+    final at = last ? spanner.last : spanner.first;
+    final voices = _staffMeasure(at.measure, spanner.staff)?.voices;
+    return spanner.anchorAmong(
+      [for (final voice in voices ?? const <Voice>[]) voice.slot],
+      (voice) =>
+          eventAt(VoicePoint(staff: spanner.staff, voice: voice, at: at)),
+      last: last,
+    );
+  }
+
   /// Whether [spanner] joins notes but starts and ends on one event.
-  bool isCollapsed(Spanner spanner) {
-    if (!spanner.kind.joinsNotes) {
-      return false;
+  bool isCollapsed(Spanner spanner) =>
+      spanner.kind.joinsNotes &&
+      anchorOf(spanner, last: false)?.event.id ==
+          anchorOf(spanner, last: true)?.event.id;
+
+  /// The notes a glissando [spanner] starts and ends on, each by
+  /// [Glissando.noteIn] from the event [anchorOf] finds at that end, or
+  /// null where that end is on a rest. Both are null for a spanner that is
+  /// not a glissando.
+  ({Note? from, Note? to}) glissandoNotes(Spanner spanner) {
+    final kind = spanner.kind;
+    if (kind is! Glissando) {
+      return (from: null, to: null);
     }
-    final voice = spanner.voice ?? VoiceSlot.one;
-    return anchorAt(spanner.staff, voice, spanner.first)?.event.id ==
-        anchorAt(spanner.staff, voice, spanner.last)?.event.id;
+    return (
+      from: Glissando.noteIn(anchorOf(spanner, last: false)?.event, kind.from),
+      to: Glissando.noteIn(anchorOf(spanner, last: true)?.event, kind.to),
+    );
   }
 
   /// Everything in effect at a point on a staff.
@@ -861,12 +886,41 @@ final class Spanner {
   /// The end anchor, the onset of the last event covered. A spanner of
   /// [SpannerReach.time] runs on to the end of that event.
   final ScorePoint last;
+
+  /// The event this spanner, of [SpannerReach.events], attaches to at its
+  /// first end, or at its last when [last], where [sounding] gives the
+  /// event each of the staff's [voices] sounds at that end. An end of a
+  /// [Glissando] that names a note is on the chord that holds the note, in
+  /// whichever voice sounds it. Every other end, and one whose note no
+  /// voice sounds there, is on the event of the spanner's voice, or of
+  /// voice one when that voice has none there.
+  TimedEvent? anchorAmong(
+    Iterable<VoiceSlot> voices,
+    TimedEvent? Function(VoiceSlot voice) sounding, {
+    required bool last,
+  }) {
+    final named = switch (kind) {
+      Glissando(:final from, :final to) => last ? to : from,
+      _ => null,
+    };
+    if (named != null) {
+      for (final slot in voices) {
+        final timed = sounding(slot);
+        if (timed?.event case ChordEvent(:final notes)
+            when notes.any((note) => note.id == named)) {
+          return timed;
+        }
+      }
+    }
+    return sounding(voice ?? VoiceSlot.one) ?? sounding(VoiceSlot.one);
+  }
 }
 
 /// What a spanner's ends attach to.
 enum SpannerReach {
   /// The events sounding at its points, in its voice or else voice one: a
-  /// slur, glissando or trill line.
+  /// slur, glissando or trill line. A glissando end that names a note is on
+  /// that note's event in any voice ([Spanner.anchorAmong]).
   events,
 
   /// Its points in time, the last one running to the end of the voice-one
@@ -999,21 +1053,58 @@ final class PedalLine extends SpannerKind {
   const PedalLine();
 }
 
-/// A glissando line between notes of one voice. Playback moves each note of
-/// the chord it starts on toward the chord it ends on in semitone steps,
-/// each an equal share of the note, as MuseScore 4 plays a chromatic
-/// glissando. Note `i`, lowest first, goes to note `i` of that chord, or
-/// to its top note when it has fewer, as MuseScore 4 guesses the end of a
-/// glissando that has no end note. The line belongs to the two chords, so
-/// every note of the first chord glides, where MuseScore glides only the
-/// notes that carry a line. A trill, mordent, turn or tremolo on the first
+/// A glissando line from one note to another on one staff. Playback moves
+/// the note it starts on toward the note it ends on in semitone steps, each
+/// an equal share of the note, as MuseScore 4 plays a chromatic glissando.
+/// The other notes of the chord hold, and a chord with two lines glides
+/// each note along its own. A trill, mordent, turn or tremolo on the first
 /// chord plays instead, and a note that ties on plays its tie.
+///
+/// [from] and [to] name the two notes. A named end is on its note in
+/// whichever voice of the staff sounds it at that end, so a line of voice
+/// two can end on a note of voice one while voice two plays under it
+/// ([Score.anchorOf]). The line goes with a note it names, as in MuseScore
+/// 4. An edit that moves or shortens the note moves that end to the note's
+/// start, and an edit that takes the note off the staff removes the line.
+/// A file whose line names a note that does not sound at that end loads
+/// without the line. An end that names no note is on the top note of the
+/// event the spanner's voice has there, or voice one's when that voice has
+/// none.
 final class Glissando extends SpannerKind {
-  /// The glissando, which has no fields.
-  const Glissando();
+  /// A line from note [from] of the chord it starts on to note [to] of the
+  /// chord it ends on, or between their top notes where an id is null.
+  const Glissando({this.from, this.to});
+
+  /// The note the line starts on, or null for the top note of its chord.
+  final NoteId? from;
+
+  /// The note the line ends on, or null for the top note of its chord.
+  final NoteId? to;
+
+  /// The note of [event] that an end naming [id] lies on, where [event] is
+  /// what [Score.anchorOf] finds at that end. It is the note with that id,
+  /// or the chord's top note when [id] is null or names no note of the
+  /// chord. Null when [event] is not a chord.
+  static Note? noteIn(Event? event, NoteId? id) => switch (event) {
+    ChordEvent(:final notes) =>
+      notes.where((note) => note.id == id).firstOrNull ?? notes.last,
+    _ => null,
+  };
+
+  /// This line on copies of its notes, where [copies] maps the id of each
+  /// copied note to its copy's. An end whose note was not copied names none.
+  Glissando onCopies(Map<NoteId, NoteId> copies) =>
+      Glissando(from: copies[from], to: copies[to]);
 
   @override
   bool get joinsNotes => true;
+
+  @override
+  bool operator ==(Object other) =>
+      other is Glissando && other.from == from && other.to == to;
+
+  @override
+  int get hashCode => Object.hash(Glissando, from, to);
 }
 
 /// How far an [OctaveLine] moves the sound from the print.

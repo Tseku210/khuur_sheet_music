@@ -69,13 +69,13 @@ _Result _setMeter(Score score, SetMeter edit, _Ids ids, EditSession session) {
     rebarred,
     written.spanners,
     first: (spanner) => holding.containsKey(spanner.first.measure)
-        ? onset(_onItsNote(written, spanner, spanner.first))
+        ? onset(_onItsNote(written, spanner, last: false))
         : spanner.first,
     last: (spanner) {
       final section = holding[spanner.last.measure];
       return section == null
           ? spanner.last
-          : section.moved(_onItsNote(written, spanner, spanner.last)) ??
+          : section.moved(_onItsNote(written, spanner, last: true)) ??
                 _lastOnset(section.bars.last, spanner);
     },
   );

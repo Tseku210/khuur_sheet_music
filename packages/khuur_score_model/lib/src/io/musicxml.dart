@@ -14,7 +14,8 @@
 /// standard words beside them, unprinted. A hidden part is kept, with its
 /// staves marked unprinted.
 ///
-/// A slur, glissando or trill line is written on the notes at its ends. A
+/// A slur or trill line is written on the first note of the event at each
+/// end, and a glissando on the note each end names, in that note's voice. A
 /// hairpin, octave line, pedal line or tempo line is a direction at its
 /// first point and a stop after the event its last point falls in. Numbers
 /// are reused once a spanner of the same element in the part has stopped.
@@ -88,13 +89,16 @@ _At _lastWritten(_Ends line) =>
 
 /// Where a spanner's ends are written. A spanner written on notes has the
 /// events that carry its ends in `from` and `to`; a direction spanner has
-/// neither.
+/// neither. A glissando end on a chord also has the note that carries it,
+/// and every other end is written on its event's first note.
 typedef _Ends = ({
   Spanner spanner,
   _At start,
   _At stop,
   EventId? from,
   EventId? to,
+  NoteId? fromNote,
+  NoteId? toNote,
 });
 
 final class _Export {
@@ -124,6 +128,11 @@ final class _Export {
   late final List<_Ends> ends = [
     for (final spanner in score.spanners) _endsOf(spanner),
   ];
+
+  /// The notes a glissando end is written on.
+  late final Set<NoteId> glided = {
+    for (final line in ends) ...[?line.fromNote, ?line.toNote],
+  };
   late final Map<SpannerId, int> numbers = _numbers();
 
   /// Divisions of a quarter note that make every time and length a whole
@@ -583,7 +592,9 @@ final class _Export {
     XmlElement? notations(Event event, {Note? note, required bool first}) {
       final chord = event is ChordEvent ? event : null;
       final tie = note == null ? null : ties[note.id];
-      final onEvent = first ? _onEvent(event.id) : const <_Mark>[];
+      final onEvent = first || glided.contains(note?.id)
+          ? _onNote(event.id, note?.id, first: first)
+          : const <_Mark>[];
       final trillStarts = onEvent.any(
         (mark) => mark.$1.kind is TrillLine && mark.$2,
       );
@@ -712,12 +723,17 @@ final class _Export {
     };
   }
 
-  /// The slur, glissando and trill line ends on [event], each spanner's
-  /// start before its stop.
-  List<_Mark> _onEvent(EventId event) => [
+  /// The slur, glissando and trill line ends written on [note] of [event],
+  /// each spanner's start before its stop. [first] is whether that is the
+  /// event's first note or a rest.
+  List<_Mark> _onNote(EventId event, NoteId? note, {required bool first}) => [
     for (final line in ends) ...[
-      if (line.from == event) (line.spanner, true),
-      if (line.to == event) (line.spanner, false),
+      if (line.from == event &&
+          (line.fromNote == null ? first : line.fromNote == note))
+        (line.spanner, true),
+      if (line.to == event &&
+          (line.toNote == null ? first : line.toNote == note))
+        (line.spanner, false),
     ],
   ];
 
@@ -781,8 +797,8 @@ final class _Export {
     final staffIndex = staves.indexWhere((staff) => staff.id == spanner.staff);
     int stream(VoiceSlot voice) => voiceNumber(staffIndex, voice);
     // An end in a covered bar lands on the copy written there.
-    (TimedEvent, int) eventAt(VoiceSlot voice, ScorePoint point) {
-      final timed = written.anchorAt(spanner.staff, voice, point)!;
+    (TimedEvent, int) anchor({required bool last}) {
+      final timed = written.anchorOf(spanner, last: last)!;
       return (timed, stream(timed.voice));
     }
 
@@ -790,15 +806,21 @@ final class _Export {
     final lastBar = score.indexOf(spanner.last.measure);
     switch (spanner.kind) {
       case Slur() || Glissando() || TrillLine():
-        final voice = spanner.voice ?? VoiceSlot.one;
-        final (from, fromStream) = eventAt(voice, spanner.first);
-        final (to, toStream) = eventAt(voice, spanner.last);
+        final (from, fromStream) = anchor(last: false);
+        final (to, toStream) = anchor(last: true);
+        final kind = spanner.kind;
         return (
           spanner: spanner,
           start: (bar: firstBar, stream: fromStream, at: from.onset),
           stop: (bar: lastBar, stream: toStream, at: to.onset),
           from: from.event.id,
           to: to.event.id,
+          fromNote: kind is Glissando
+              ? Glissando.noteIn(from.event, kind.from)?.id
+              : null,
+          toNote: kind is Glissando
+              ? Glissando.noteIn(to.event, kind.to)?.id
+              : null,
         );
       case Hairpin() || OctaveLine() || PedalLine() || TempoLine():
         return (
@@ -815,6 +837,8 @@ final class _Export {
           ),
           from: null,
           to: null,
+          fromNote: null,
+          toNote: null,
         );
     }
   }

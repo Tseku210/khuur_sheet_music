@@ -557,6 +557,10 @@ CurveDraw graceTie(
 
 double _middle(Box box) => (box.top + box.bottom) / 2;
 
+/// The head a glissando end naming [note] lies on in [plan].
+Box _glissandoHead(ChordPlan plan, NoteId? note) =>
+    plan.headBoxes[Glissando.noteIn(plan.chord, note)!.id]!;
+
 /// A tie from [from] to [to], outside its own anchors by at most [tieRise]
 /// at [scale].
 CurveDraw _tie(
@@ -862,7 +866,7 @@ SpannerPiece _piece(
               slice: startChord.slice,
               dx: startChord.plan.headsBox.right + _tieGap,
               staff: staff,
-              dy: _middle(startChord.plan.headsBox),
+              dy: _middle(_glissandoHead(startChord.plan, kind.from)),
             );
       final until = endChord == null
           ? (
@@ -875,7 +879,7 @@ SpannerPiece _piece(
               slice: endChord.slice,
               dx: endChord.plan.headsBox.left - _tieGap,
               staff: staff,
-              dy: _middle(endChord.plan.headsBox),
+              dy: _middle(_glissandoHead(endChord.plan, kind.to)),
             );
       return piece(from: from, until: until, clear: from.dy, limit: from.dy);
     case Hairpin() || OctaveLine() || PedalLine() || TrillLine() || TempoLine():
@@ -1069,17 +1073,22 @@ TimedEvent? _sounding(StaffView staff, VoiceSlot slot, Moment at) => staff
     .where((e) => e.onset <= at && at < e.onset + e.duration)
     .firstOrNull;
 
-/// The event a spanner of [SpannerReach.events] attaches to at [at], which
-/// is the one sounding there in the spanner's voice, or in voice one when that
-/// voice has none there (`Score.anchorAt`).
-TimedEvent? _anchor(StaffView staff, Spanner spanner, Moment at) =>
-    _sounding(staff, spanner.voice ?? VoiceSlot.one, at) ??
-    _sounding(staff, VoiceSlot.one, at);
+/// The event a spanner of [SpannerReach.events] attaches to at [at], its
+/// last end when [last], by [Spanner.anchorAmong].
+TimedEvent? _anchor(
+  StaffView staff,
+  Spanner spanner,
+  Moment at, {
+  required bool last,
+}) => spanner.anchorAmong(
+  [for (final voice in staff.voices) voice.slot],
+  (slot) => _sounding(staff, slot, at),
+  last: last,
+);
 
 /// Where the piece of [segment] starts in its bar, and on which event.
 ///
-/// This and [pieceEnd] apply `Score.anchorAt` to the bar's view, so the bar
-/// needs no `Score`. A segment's `to` is already `Score.endOf` its spanner.
+/// A segment's `to` is already `Score.endOf` its spanner.
 ({Moment at, EventId? event}) pieceStart(
   SpannerSegment segment,
   StaffView staff,
@@ -1089,7 +1098,12 @@ TimedEvent? _anchor(StaffView staff, Spanner spanner, Moment at) =>
   }
   switch (segment.spanner.kind.reach) {
     case SpannerReach.events:
-      final anchor = _anchor(staff, segment.spanner, segment.from);
+      final anchor = _anchor(
+        staff,
+        segment.spanner,
+        segment.from,
+        last: false,
+      );
       return (at: anchor?.onset ?? segment.from, event: anchor?.event.id);
     case SpannerReach.time:
       return (at: segment.from, event: null);
@@ -1107,7 +1121,12 @@ TimedEvent? _anchor(StaffView staff, Spanner spanner, Moment at) =>
   }
   switch (segment.spanner.kind.reach) {
     case SpannerReach.events:
-      final anchor = _anchor(staff, segment.spanner, segment.to);
+      final anchor = _anchor(
+        staff,
+        segment.spanner,
+        segment.to,
+        last: true,
+      );
       return (at: anchor?.onset ?? segment.to, event: anchor?.event.id);
     case SpannerReach.time:
       return (at: segment.to, event: null);

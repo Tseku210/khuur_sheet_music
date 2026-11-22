@@ -1,11 +1,13 @@
 /// The rules a stored value keeps. Each function returns why its value
 /// breaks the rule, or null. The edits refuse with that message and the
 /// file readers fail with it at the value's path, so every way into a score
-/// accepts the same values.
+/// accepts the same values. [lostGlissandoNote] returns a note in place of
+/// a message.
 library;
 
 import 'events.dart';
 import 'pitch.dart';
+import 'refs.dart';
 import 'score.dart';
 import 'time.dart';
 
@@ -141,6 +143,21 @@ String? spannerProblem(Score score, Spanner spanner) =>
     (score.isCollapsed(spanner) ? _endsAfterStart : null);
 
 const _endsAfterStart = 'a slur or glissando ends after it starts';
+
+/// The note a glissando [spanner] names that no voice of its staff sounds
+/// at that end of it in [score], or null when each note it names is there.
+NoteId? lostGlissandoNote(Score score, Spanner spanner) {
+  if (spanner.kind case Glissando(from: final first, to: final last)) {
+    final (:from, :to) = score.glissandoNotes(spanner);
+    if (first != null && from?.id != first) {
+      return first;
+    }
+    if (last != null && to?.id != last) {
+      return last;
+    }
+  }
+  return null;
+}
 
 /// A spanner that joins notes ends after it starts; any other ends no
 /// sooner than it starts. The ends are bar indices and offsets so the rule

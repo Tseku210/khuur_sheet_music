@@ -503,15 +503,35 @@ sealed class Anchor {
 /// An end written on an event's note.
 final class EventAnchor extends Anchor {
   /// An end on a note of [event]. [note] is that note's place among the part's
-  /// notes.
-  const EventAnchor(super.bar, this.event, this.note);
+  /// notes, and [head] its record when it is one of the event's own notes.
+  const EventAnchor(super.bar, this.event, this.note, [this.head]);
 
   /// The event the note belongs to.
   final EventRecord event;
 
   /// Which `<note>` of the part carries it, counted in document order.
   final int note;
+
+  /// The note that carries it. Null on a rest, and on a grace note, whose
+  /// marks go to its principal chord.
+  final NoteRecord? head;
+
+  /// The id of the note of [event] that the model keeps for [head]'s tone,
+  /// which is the first the chord writes with it, or null without a [head].
+  NoteId? get kept => switch ((event, head)) {
+    (ChordRecord(:final notes), final head?) =>
+      notes.where((note) => sameTone(note, head)).firstOrNull?.id,
+    _ => null,
+  };
 }
+
+/// Whether [a] and [b] are written as one tone, so that a chord keeps one
+/// note for the two.
+bool sameTone(NoteRecord a, NoteRecord b) => switch ((a, b)) {
+  (PitchedRecord(written: final a), PitchedRecord(written: final b)) => a == b,
+  (DrumRecord(drum: final a), DrumRecord(drum: final b)) => a == b,
+  _ => false,
+};
 
 /// An end written as a direction on a staff at a time.
 final class TimeAnchor extends Anchor {

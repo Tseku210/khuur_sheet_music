@@ -34,6 +34,9 @@ _Result _addSpanner(
       ),
     );
   }
+  if (lostGlissandoNote(score, spanner) case final note?) {
+    throw _Refuse(StaleReference(note));
+  }
   return _Result(score.copyWith(spanners: score.spanners.append(spanner)));
 }
 

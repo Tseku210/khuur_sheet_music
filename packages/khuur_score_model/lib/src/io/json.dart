@@ -80,6 +80,8 @@ Map<String, Object?> scoreToJson(Score score) {
 /// unique per kind across the whole score, notes that suit their staff,
 /// marks inside their bars in time order, and spanner anchors that exist.
 /// Throws [ScoreFormatException] naming the JSON path of the first problem.
+/// A [Glissando] that names a note no voice of its staff sounds at that end
+/// is left out.
 Score scoreFromJson(Object? json) => _Decoder().score(_In(json, r'$'));
 
 /// A score file that cannot be read, with where and why.

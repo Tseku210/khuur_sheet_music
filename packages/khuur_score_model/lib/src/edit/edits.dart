@@ -241,7 +241,7 @@ final class AddToChord extends Edit {
 }
 
 /// Removes one head from a chord. Removing the last head leaves a rest of
-/// the same value.
+/// the same value. A [Glissando] that names the head goes with it.
 final class RemoveNote extends Edit {
   /// Removes [note] from its chord.
   const RemoveNote(this.note);
@@ -568,8 +568,9 @@ final class SetDirections extends Edit {
 /// one when it names none, and must end after it starts. A line or hairpin
 /// belongs to the staff, so [voice] is ignored, and may start and end on
 /// one event. Refused with [StaleReference] for a bar or staff that is
-/// gone, [OutsideMeasure] for an end outside its bar, and [InvalidValue]
-/// for ends out of order.
+/// gone or a [Glissando] note that no voice of the staff sounds at its end,
+/// [OutsideMeasure] for an end outside its bar, and [InvalidValue] for ends
+/// out of order.
 final class AddSpanner extends Edit {
   /// Adds a spanner of [kind] from [first] to [last] on [staff].
   const AddSpanner({

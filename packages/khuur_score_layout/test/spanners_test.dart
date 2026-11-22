@@ -686,6 +686,131 @@ void main() {
       expect(line.from.y, greaterThan(line.to.y));
     });
 
+    test('a glissando on one note of a chord runs from that head to the '
+        'head it ends on', () {
+      String chord(List<(String, int, String)> notes) => [
+        for (final (i, (step, octave, mark)) in notes.indexed) ...[
+          '<note>${i > 0 ? '<chord/>' : ''}<pitch><step>$step</step>',
+          '<octave>$octave</octave></pitch><duration>1</duration>',
+          '<type>quarter</type>',
+          '${mark.isEmpty ? '' : '<notations>$mark</notations>'}</note>',
+        ],
+      ].join();
+      final score = scoreFromMusicXml(
+        '<score-partwise version="4.0"><part-list><score-part id="P1">'
+        '<part-name>Flute</part-name></score-part></part-list><part id="P1">'
+        '<measure number="1"><attributes><divisions>1</divisions>'
+        '<time><beats>4</beats><beat-type>4</beat-type></time>'
+        '<clef><sign>G</sign><line>2</line></clef></attributes>'
+        '${chord([('C', 4, ''), ('G', 4, '<glissando type="start"/>')])}'
+        '${chord([('D', 4, '<glissando type="stop"/>'), ('C', 5, '')])}'
+        '<note><rest/><duration>2</duration><type>half</type></note>'
+        '</measure></part></score-partwise>',
+      );
+      final system = sheetOf(score).systemAt(0);
+      final line = linesOf(
+        system,
+        owner: SpannerOwner(score.spanners.single.id),
+      ).single;
+      final [first, second] = [
+        for (final item in score.measures.first.staves.first.voices.first.items)
+          if (item case final ChordEvent chord) chord,
+      ];
+      Box head(ChordEvent chord, int note) => headOf(
+        system,
+        NoteRef(eventRef(score, 0, chord.id.value), chord.notes[note].id),
+      );
+      final from = head(first, 1);
+      final to = head(second, 0);
+
+      expect(line.from.y, closeTo((from.top + from.bottom) / 2, 1e-9));
+      expect(line.to.y, closeTo((to.top + to.bottom) / 2, 1e-9));
+      expect(line.from.y, lessThan(line.to.y));
+    });
+
+    test('two crossed glissandi from one chord each run between their own '
+        'heads, and one whose note is gone runs from the top head', () {
+      final plain = scoreOf([
+        [
+          chordOf(1, 'C4 G4'),
+          chordOf(2, 'D4 C5'),
+          chordOf(3, 'C5', value: NoteValue.half),
+        ],
+      ]);
+      var score = plain;
+      for (final kind in const [
+        Glissando(from: NoteId(10), to: NoteId(21)),
+        Glissando(from: NoteId(11), to: NoteId(20)),
+        Glissando(from: NoteId(999), to: NoteId(20)),
+      ]) {
+        score = withSpanner(
+          score,
+          kind,
+          pointAt(plain, 0, Moment.zero),
+          pointAt(plain, 0, at(1, 4)),
+        );
+      }
+      final system = sheetOf(score).systemAt(0);
+      double middle(int event, int note) {
+        final head = headOf(
+          system,
+          NoteRef(eventRef(score, 0, event), NoteId(note)),
+        );
+        return (head.top + head.bottom) / 2;
+      }
+
+      expect(
+        [
+          for (final spanner in score.spanners)
+            switch (linesOf(system, owner: SpannerOwner(spanner.id)).single) {
+              LineDraw(:final from, :final to) => (from.y, to.y),
+            },
+        ],
+        [
+          (middle(1, 10), middle(2, 21)),
+          (middle(1, 11), middle(2, 20)),
+          (middle(1, 11), middle(2, 20)),
+        ],
+      );
+    });
+
+    test('a glissando of voice two runs to the voice-one head it names, '
+        'past the note its own voice plays under that head', () {
+      final plain = fill(
+        scoreOf([
+          [
+            chordOf(1, 'C5'),
+            chordOf(2, 'D5'),
+            const RestEvent(id: EventId(3), value: NoteValue.half),
+          ],
+        ]),
+        0,
+        [
+          chordOf(4, 'E4'),
+          chordOf(5, 'F4'),
+          const RestEvent(id: EventId(6), value: NoteValue.half),
+        ],
+        slot: VoiceSlot.two,
+      );
+      final score = withSpanner(
+        plain,
+        const Glissando(from: NoteId(40), to: NoteId(20)),
+        pointAt(plain, 0, Moment.zero),
+        pointAt(plain, 0, at(1, 4)),
+        voice: VoiceSlot.two,
+      );
+      final system = sheetOf(score).systemAt(0);
+      final line = linesOf(system, owner: spanner).single;
+      double middle(int event) {
+        final head = headOf(system, noteRef(score, 0, event));
+        return (head.top + head.bottom) / 2;
+      }
+
+      expect(line.from.y, closeTo(middle(4), 1e-9));
+      expect(line.to.y, closeTo(middle(2), 1e-9));
+      expect(line.to.x, lessThan(headOf(system, noteRef(score, 0, 2)).left));
+    });
+
     test('a tempo line prints its text above the staff and dashes on from '
         'it', () {
       final score = withSpanner(

@@ -395,7 +395,7 @@ void main() {
         TrillLine(),
         TempoLine(text: 'poco rit.', factor: 0.9),
         PedalLine(),
-        Glissando(),
+        Glissando(from: NoteId(1), to: NoteId(2)),
       ];
       // New instances, so that equality and not const canonicalising is what
       // makes them equal to the constants.
@@ -413,7 +413,7 @@ void main() {
         // ignore: prefer_const_constructors
         PedalLine(),
         // ignore: prefer_const_constructors
-        Glissando(),
+        Glissando(from: NoteId(1), to: NoteId(2)),
       ];
 
       for (final (i, kind) in built.indexed) {
@@ -432,12 +432,78 @@ void main() {
         (TempoLine.ritardando, TempoLine(text: 'rit.', factor: 0.5)),
         (TrillLine(), PedalLine()),
         (Slur(), Glissando()),
+        (Glissando(from: NoteId(1)), Glissando()),
+        (Glissando(to: NoteId(1)), Glissando(to: NoteId(2))),
+        (Glissando(from: NoteId(1)), Glissando(to: NoteId(1))),
       ];
 
       for (final (a, b) in pairs) {
         expect(a, isNot(b));
         expect(b, isNot(a));
       }
+    });
+
+    test('reads a glissando that names no notes, as files saved before it '
+        'could', () {
+      final json = jsonDecode(saved(showcase()));
+      put(json, r'$.spanners[7].fromNote', missing);
+      put(json, r'$.spanners[7].toNote', missing);
+
+      expect(scoreFromJson(json).spanners[7].kind, const Glissando());
+    });
+
+    test('drops a glissando that names a note no voice sounds at its end, '
+        'and keeps every other line', () {
+      List<SpannerId> read(int from, int to) {
+        final json = jsonDecode(saved(showcase()));
+        put(json, r'$.spanners[7].fromNote', from);
+        put(json, r'$.spanners[7].toNote', to);
+        return [for (final spanner in scoreFromJson(json).spanners) spanner.id];
+      }
+
+      final all = [for (final spanner in showcase().spanners) spanner.id];
+      expect(read(46, 73), all);
+      expect(read(42, 72), all, reason: 'voice one sounds note 42 there');
+      for (final (from, to) in [(46, 5000), (5000, 72), (33, 72), (46, 46)]) {
+        expect(
+          read(from, to),
+          all.where((id) => id != const SpannerId(87)),
+          reason: 'from $from to $to',
+        );
+      }
+    });
+
+    test('an edit mints no id a glissando names', () {
+      final score = showcase();
+      final line = score.spanners[7];
+      final session = EditSession.start(
+        score.copyWith(
+          spanners: score.spanners.replaceAt(
+            7,
+            Spanner(
+              id: line.id,
+              kind: const Glissando(from: NoteId(46), to: NoteId(5000)),
+              staff: line.staff,
+              voice: line.voice,
+              first: line.first,
+              last: line.last,
+            ),
+          ),
+        ),
+      );
+
+      final next = applied(
+        session.run(
+          AddSpanner(
+            kind: const PedalLine(),
+            staff: session.score.staves.first.id,
+            first: session.score.spanners[7].first,
+            last: session.score.spanners[7].first,
+          ),
+        ),
+      );
+
+      expect(next.score.spanners.last.id.value, greaterThan(5000));
     });
 
     test('fills meter, key and clef into bars that leave them out', () {

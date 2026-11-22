@@ -275,6 +275,7 @@ _Result _paste(
     },
   );
   final written = <EventId>{};
+  final heads = <NoteId, NoteId>{};
   for (final lane in clip._lanes) {
     if (lane.staff >= staves.length) {
       continue;
@@ -307,6 +308,7 @@ _Result _paste(
                 },
               ),
               ids,
+              heads,
             ),
         ],
         ids,
@@ -341,7 +343,10 @@ _Result _paste(
         if (s.staff < staves.length)
           Spanner(
             id: ids.spanner(),
-            kind: s.kind,
+            kind: switch (s.kind) {
+              final Glissando line => line.onCopies(heads),
+              final kind => kind,
+            },
             staff: staves[s.staff],
             voice: s.voice,
             first: place(s.first),
@@ -465,9 +470,10 @@ Content _withHeads(Content item, Note Function(Note note) head) {
 }
 
 /// [item] with a new id on every event, note, grace and tuplet in it.
-Content _reminted(Content item, _Ids ids) {
+/// [heads] takes each note's new id by its old one.
+Content _reminted(Content item, _Ids ids, Map<NoteId, NoteId> heads) {
   Seq<Note> notes(Seq<Note> notes) => Seq([
-    for (final note in notes) note.copyWith(id: ids.note()),
+    for (final note in notes) note.copyWith(id: heads[note.id] = ids.note()),
   ]);
   return switch (item) {
     ChordEvent(:final graces) => item.copyWith(
@@ -494,7 +500,9 @@ Content _reminted(Content item, _Ids ids) {
       id: ids.tuplet(),
       ratio: ratio,
       unit: unit,
-      members: Seq([for (final member in members) _reminted(member, ids)]),
+      members: Seq([
+        for (final member in members) _reminted(member, ids, heads),
+      ]),
       bracket: bracket,
     ),
   };

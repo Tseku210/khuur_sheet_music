@@ -524,7 +524,8 @@ extension on _BarReader {
   /// once, where the first note to state one decides.
   void _addNote(ChordRecord chord, XmlElement note, int index) {
     final marks = _notations(note);
-    chord.notes.add(_tone(note, marks));
+    final head = _tone(note, marks);
+    chord.notes.add(head);
     final ornaments = [
       for (final mark in marks)
         if (mark.name.local == 'ornaments') ...mark.childElements,
@@ -623,7 +624,7 @@ extension on _BarReader {
         ),
       );
     }
-    for (final emit in _lineMarks(marks, index)) {
+    for (final emit in _lineMarks(marks, index, head)) {
       emit(chord);
     }
   }
@@ -730,20 +731,26 @@ extension on _BarReader {
 
   /// The slur, glissando and trill line ends among a note's notation
   /// [marks], each waiting for the event its note belongs to. [index] is
-  /// the note's place among the part's notes.
+  /// the note's place among the part's notes, and [head] the note when it
+  /// is one of that event's own.
   List<void Function(EventRecord)> _lineMarks(
     List<XmlElement> marks,
-    int index,
-  ) => [
+    int index, [
+    NoteRecord? head,
+  ]) => [
     for (final mark in marks)
       for (final line
           in mark.name.local == 'ornaments'
               ? mark.findElements('wavy-line')
               : [mark])
-        ?_lineMark(line, index),
+        ?_lineMark(line, index, head),
   ];
 
-  void Function(EventRecord)? _lineMark(XmlElement line, int index) {
+  void Function(EventRecord)? _lineMark(
+    XmlElement line,
+    int index,
+    NoteRecord? head,
+  ) {
     final name = line.name.local;
     final number = line.getAttribute('number') ?? '1';
     final kind = switch (name) {
@@ -760,12 +767,12 @@ extension on _BarReader {
         name,
         number,
         kind,
-        EventAnchor(bar, event, index),
+        EventAnchor(bar, event, index, head),
       ),
       'stop' => (event) => part.stop(
         name,
         number,
-        EventAnchor(bar, event, index),
+        EventAnchor(bar, event, index, head),
       ),
       _ => null,
     };

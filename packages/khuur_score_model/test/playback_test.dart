@@ -301,8 +301,9 @@ ChordEvent tremolo(ChordEvent chord, int strokes) =>
 Score glided(
   List<List<VoiceItem>> bars,
   (int bar, int quarter) from,
-  (int bar, int quarter) to,
-) {
+  (int bar, int quarter) to, {
+  List<Glissando> lines = const [Glissando()],
+}) {
   var score = blankScore(bars: bars.length);
   for (final (i, items) in bars.indexed) {
     score = fill(score, i, items);
@@ -312,11 +313,14 @@ Score glided(
     0,
     tempos([const TempoMark(offset: Moment.zero, tempo: Tempo(60))]),
   );
-  return withLine(
+  return lines.fold(
     score,
-    const Glissando(),
-    pointAt(score, from.$1, at(from.$2, 4)),
-    pointAt(score, to.$1, at(to.$2, 4)),
+    (score, line) => withLine(
+      score,
+      line,
+      pointAt(score, from.$1, at(from.$2, 4)),
+      pointAt(score, to.$1, at(to.$2, 4)),
+    ),
   );
 }
 
@@ -3403,42 +3407,134 @@ void main() {
       ]);
     });
 
-    test('each note of a chord glides to the note at its place in the next '
-        'chord, or to its top note', () {
-      final paired = compiled(
+    test('only the note a line starts on glides, to the note it ends on', () {
+      final script = compiled(
         glided(
           [
             [chordOf(1, 'C4 E4'), chordOf(2, 'D4 G4'), halves(3, 'C4')],
           ],
           (0, 0),
           (0, 1),
-        ),
-      );
-      final onto = compiled(
-        glided(
-          [
-            [chordOf(1, 'E4 F4'), quarters(2, 'G4'), halves(3, 'C4')],
-          ],
-          (0, 0),
-          (0, 1),
+          lines: const [Glissando(from: NoteId(10), to: NoteId(20))],
         ),
       );
 
-      expect(attacks(paired).take(6), [
+      expect(attacks(script).take(4), [
         (0.0, 60, 1),
         (0.0, 64, 1),
-        (0.333, 65, 1),
         (0.5, 61, 1),
-        (0.667, 66, 1),
         (1.0, 62, 2),
       ]);
-      expect(attacks(onto).take(6), [
-        (0.0, 64, 1),
-        (0.0, 65, 1),
-        (0.333, 65, 1),
-        (0.5, 66, 1),
-        (0.667, 66, 1),
-        (1.0, 67, 2),
+      expect(notes(script, 0, 1).where((note) => note.$3 == 64), [
+        (0.0, 0.99, 64, 0, 1),
+      ]);
+    });
+
+    test('a line of voice two glides to the voice-one note it names, past '
+        'the note its own voice plays there', () {
+      var score = fill(
+        fill(blankScore(), 0, [
+          chordOf(1, 'C5'),
+          chordOf(2, 'D5'),
+          halves(3, 'C5'),
+        ]),
+        0,
+        [chordOf(4, 'E4'), chordOf(5, 'F4'), rest(6, NoteValue.half)],
+        slot: VoiceSlot.two,
+      );
+      score = changeBar(
+        score,
+        0,
+        tempos([const TempoMark(offset: Moment.zero, tempo: Tempo(60))]),
+      );
+      score = withSpanner(
+        score,
+        const Glissando(from: NoteId(40), to: NoteId(20)),
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(1, 4)),
+        voice: VoiceSlot.two,
+      );
+
+      expect(
+        [
+          for (final (start, key, source) in attacks(compiled(score)))
+            if (source == 4) (start, key),
+        ],
+        [for (var step = 0; step < 10; step++) (step / 10, 64 + step)],
+      );
+    });
+
+    test('a line that names no note, or a note its chord lacks, joins the '
+        'top notes', () {
+      for (final line in const [
+        Glissando(),
+        Glissando(from: NoteId(999), to: NoteId(998)),
+      ]) {
+        final paired = compiled(
+          glided(
+            [
+              [chordOf(1, 'C4 E4'), chordOf(2, 'D4 G4'), halves(3, 'C4')],
+            ],
+            (0, 0),
+            (0, 1),
+            lines: [line],
+          ),
+        );
+
+        expect(attacks(paired).take(5), [
+          (0.0, 60, 1),
+          (0.0, 64, 1),
+          (0.333, 65, 1),
+          (0.667, 66, 1),
+          (1.0, 62, 2),
+        ], reason: '$line');
+      }
+    });
+
+    test('two crossed lines from one chord glide each note along its own', () {
+      final script = compiled(
+        glided(
+          [
+            [chordOf(1, 'C4 F4'), chordOf(2, 'D4 A4'), halves(3, 'C4')],
+          ],
+          (0, 0),
+          (0, 1),
+          lines: const [
+            Glissando(from: NoteId(10), to: NoteId(21)),
+            Glissando(from: NoteId(11), to: NoteId(20)),
+          ],
+        ),
+      );
+
+      expect(
+        [
+          for (final (_, key, source) in attacks(script))
+            if (source == 1) key,
+        ]..sort(),
+        [60, 61, 62, 63, 63, 64, 64, 65, 65, 66, 67, 68],
+      );
+    });
+
+    test('a chord without a line does not glide', () {
+      final script = compiled(
+        glided(
+          [
+            [
+              chordOf(1, 'C4 G4'),
+              quarters(2, 'C4'),
+              quarters(3, 'E4'),
+              quarters(4, 'C4'),
+            ],
+          ],
+          (0, 1),
+          (0, 2),
+        ),
+      );
+
+      expect(attacks(script).take(3), [
+        (0.0, 60, 1),
+        (0.0, 67, 1),
+        (1.0, 60, 2),
       ]);
     });
 
@@ -3456,6 +3552,10 @@ void main() {
           ],
           (0, 1),
           (0, 2),
+          lines: const [
+            Glissando(from: NoteId(20), to: NoteId(30)),
+            Glissando(from: NoteId(21), to: NoteId(31)),
+          ],
         ),
       );
 

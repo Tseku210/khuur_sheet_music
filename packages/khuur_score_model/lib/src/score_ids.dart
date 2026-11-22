@@ -6,7 +6,9 @@ import 'dart:math';
 import 'events.dart';
 import 'score.dart';
 
-/// The largest id in [score], of any kind, or 0 when it holds none.
+/// The largest id in [score], of any kind, or 0 when it holds none. The id
+/// of a note a [Glissando] names counts though the note is gone, so that no
+/// new note takes it and becomes that end.
 int largestId(Score score) => _ids(score).fold(0, max);
 
 Iterable<int> _ids(Score score) sync* {
@@ -22,7 +24,12 @@ Iterable<int> _ids(Score score) sync* {
       }
     }
   }
-  yield* score.spanners.map((spanner) => spanner.id.value);
+  for (final Spanner(:id, :kind) in score.spanners) {
+    yield id.value;
+    if (kind case Glissando(:final from, :final to)) {
+      yield* [?from?.value, ?to?.value];
+    }
+  }
 }
 
 Iterable<int> _itemIds(VoiceItem item) sync* {

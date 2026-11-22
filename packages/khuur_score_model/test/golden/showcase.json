@@ -681,6 +681,8 @@
     {
       "id": 87,
       "kind": "glissando",
+      "fromNote": 46,
+      "toNote": 72,
       "staff": 2,
       "voice": 2,
       "from": {
