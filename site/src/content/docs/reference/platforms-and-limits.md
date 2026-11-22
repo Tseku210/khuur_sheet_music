@@ -29,7 +29,7 @@ On the web the library builds with both compilers, dart2js and dart2wasm. CI bui
 | `khuur_score_model` | 0.5.0 | 3.13 | Not used |
 | `khuur_score_layout` | 0.5.0 | 3.13 | Not used |
 
-`khuur_sheet_music` depends on `khuur_synth` 0.1.0 or a later 0.1 release, and on `material_ui` 1.11.0 or a later 1.x release. An app made with `flutter create` on Flutter 3.47.5 meets the Android and iOS floors of `khuur_synth` with no change.
+`khuur_sheet_music` depends on `khuur_synth` 0.2.0 or a later 0.2 release, and on `material_ui` 1.11.0 or a later 1.x release. An app made with `flutter create` on Flutter 3.47.5 meets the Android and iOS floors of `khuur_synth` with no change.
 
 ## Limits
 

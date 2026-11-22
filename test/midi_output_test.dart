@@ -102,8 +102,8 @@ void main() {
     output.dispose();
   });
 
-  test('a note starts at its velocity weighed by its channel\'s last '
-      'expression', () async {
+  test('expression sends controller 11 to the channel and leaves the '
+      'velocity alone', () async {
     final rig = Rig();
     final output = rig.output;
     await output.load(piano);
@@ -121,9 +121,11 @@ void main() {
     await pumpEventQueue();
     expect(rig.take(), [
       const NoteOn(channel: 0, key: 60, velocity: 84, cents: 0),
-      const NoteOn(channel: 0, key: 62, velocity: 42, cents: 0),
+      const ControlChanged(channel: 0, controller: 11, value: 64),
+      const NoteOn(channel: 0, key: 62, velocity: 84, cents: 0),
       const NoteOn(channel: 16, key: 67, velocity: 84, cents: 0),
-      const NoteOn(channel: 0, key: 64, velocity: 1, cents: 0),
+      const ControlChanged(channel: 0, controller: 11, value: 0),
+      const NoteOn(channel: 0, key: 64, velocity: 84, cents: 0),
     ]);
     output.dispose();
   });

@@ -86,11 +86,8 @@ abstract interface class MidiOutput {
 /// Each SoundFont takes the next 16 of the synth's 256 channels in the
 /// order the output loaded it, so an output plays from at most 16.
 ///
-/// `khuur_synth` 0.1.1 sends no controller, so the output weighs each note
-/// by its channel's last [expression] as it starts, as FluidSynth's default
-/// modulators weigh velocity and expression together. A note starts as
-/// loud as it would under the controller, and a trill or repeated notes
-/// under a hairpin swell. A held note keeps the level it started at.
+/// [expression] sends MIDI controller 11 to the channel, so a held note
+/// follows it while it sounds.
 final class SynthOutput implements MidiOutput {
   /// An output that plays [reverb], null for none, at [gain], from 0 to 10.
   ///
@@ -130,8 +127,6 @@ final class SynthOutput implements MidiOutput {
   Synth? _synth;
 
   final Map<SoundFont, ({LoadedSoundFont font, int block})> _loaded = {};
-
-  final Map<int, int> _expression = {};
 
   /// Every start and every stop of the device, one after the other. A stop
   /// asked while a start runs comes after it, and a start after a stop
@@ -217,13 +212,10 @@ final class SynthOutput implements MidiOutput {
     required int velocity,
     required int cents,
   }) {
-    final at = _channel(soundFont, channel);
     _synth!.noteOn(
-      channel: at,
+      channel: _channel(soundFont, channel),
       key: key,
-      velocity: (velocity.clamp(1, 127) * (_expression[at] ?? 127) / 127)
-          .round()
-          .clamp(1, 127),
+      velocity: velocity.clamp(1, 127),
       cents: cents.toDouble(),
     );
   }
@@ -233,7 +225,11 @@ final class SynthOutput implements MidiOutput {
     required SoundFont soundFont,
     required int channel,
     required int value,
-  }) => _expression[_channel(soundFont, channel)] = value;
+  }) => _synth!.controlChange(
+    channel: _channel(soundFont, channel),
+    controller: 11,
+    value: value,
+  );
 
   @override
   void noteOff({
@@ -260,7 +256,6 @@ final class SynthOutput implements MidiOutput {
   void dispose() {
     _disposed = true;
     _loaded.clear();
-    _expression.clear();
     if (_synth case final synth?) {
       unawaited(synth.close());
     }

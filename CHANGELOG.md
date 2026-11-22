@@ -8,9 +8,9 @@
 * The sheet spaces notes by MuseScore 4's ratio of 1.5, so short notes take less room, from `khuur_score_layout` 0.5.0.
 * `ScorePlayer` and `scoreToMidi` play a glissando as chromatic steps, and MusicXML import reads a slide as a glissando, from `khuur_score_model` 0.5.0.
 * **Breaking:** `MidiOutput` gains `expression`, which sets a channel's MIDI controller 11. The player sends it for each channel before its first note and wherever that channel's value changes, and again after a seek, a pause, a loop or a new score. A class that implements `MidiOutput` adds it.
-* `SynthOutput` weighs each note's velocity by its channel's expression as the note starts, because `khuur_synth` cannot send a controller yet. So a trill under a hairpin swells, and a held note keeps the level it started at.
+* `SynthOutput` sends `expression` to FluidSynth as controller 11, so a held note swells and fades while it sounds. It needs `khuur_synth` 0.2.0.
 * `scoreToMidi` writes the expression of a part that swells as controller 11, from `khuur_score_model` 0.5.0.
-* Depends on `khuur_score_model` 0.5.0 and `khuur_score_layout` 0.5.0.
+* Depends on `khuur_score_model` 0.5.0, `khuur_score_layout` 0.5.0 and `khuur_synth` 0.2.0.
 
 ## 0.4.0
 * **Breaking:** `Edit` is sealed and gains `SetMeasureRepeat`, so an app that switches over every edit adds a case for it.
