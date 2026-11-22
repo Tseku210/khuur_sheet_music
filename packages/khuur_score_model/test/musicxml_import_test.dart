@@ -1482,6 +1482,100 @@ void main() {
       ]);
     });
 
+    test('keeps a slur of a second voice on the note of voice one its mark '
+        'is on, where a third voice starts a note as the second voice '
+        'stops', () {
+      const start = '<notations><slur type="start"/></notations>';
+      const stop = '<notations><slur type="stop"/></notations>';
+      final third = [
+        backup(16),
+        forward(8, '<voice>3</voice>'),
+        note('G4', 4, 'quarter', '<voice>3</voice>'),
+        forward(4, '<voice>3</voice>'),
+      ];
+      final ending = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 4, 'quarter', '<voice>1</voice>'),
+            note('D5', 8, 'half', '<voice>1</voice>$stop'),
+            note('E5', 4, 'quarter', '<voice>1</voice>'),
+            backup(16),
+            note('E4', 4, 'quarter', '<voice>2</voice>'),
+            note('F4', 4, 'quarter', '<voice>2</voice>$start'),
+            forward(8, '<voice>2</voice>'),
+            ...third,
+          ],
+        ]),
+      );
+      final starting = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 16, 'whole', '<voice>1</voice>$start'),
+            backup(16),
+            note('E4', 8, 'half', '<voice>2</voice>'),
+            forward(4, '<voice>2</voice>'),
+            note('F4', 4, 'quarter', '<voice>2</voice>$stop'),
+            ...third,
+          ],
+        ]),
+      );
+      String tones(Score score) => [
+        for (final last in [false, true])
+          (score.anchorOf(score.spanners.single, last: last)!.event
+                  as ChordEvent)
+              .notes
+              .single
+              .tone,
+      ].join(' to ');
+
+      expect(tones(ending), 'F4 to D5');
+      expect(tones(starting), 'C5 to F4');
+      for (final score in [ending, starting]) {
+        expect(
+          spannersOf(scoreFromMusicXml(scoreToMusicXml(score))),
+          spannersOf(score),
+        );
+      }
+    });
+
+    test('leaves out a slur or glissando that stops on another staff where '
+        'its own staff has only a note of voice one that started before '
+        'it', () {
+      for (final element in ['slur', 'glissando']) {
+        String mark(String type) =>
+            '<notations><$element type="$type"/></notations>';
+        final score = imported(
+          keyboard([
+            [
+              grand,
+              note('C5', 16, 'whole', '<voice>1</voice><staff>1</staff>'),
+              backup(16),
+              note('E4', 4, 'quarter', '<voice>2</voice><staff>1</staff>'),
+              note(
+                'F4',
+                4,
+                'quarter',
+                '<voice>2</voice><staff>1</staff>${mark('start')}',
+              ),
+              forward(8, '<voice>2</voice><staff>1</staff>'),
+              backup(16),
+              note('C3', 8, 'half', '<voice>5</voice><staff>2</staff>'),
+              note(
+                'D3',
+                8,
+                'half',
+                '<voice>5</voice><staff>2</staff>${mark('stop')}',
+              ),
+            ],
+          ]),
+        );
+
+        expect(spannersOf(score), isEmpty, reason: element);
+      }
+    });
+
     test('reads back two slurs of a second voice where the later one ends '
         'on a note of voice one', () {
       var score = blankScore(bars: 1);

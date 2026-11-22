@@ -218,10 +218,14 @@ final class _Placing {
     );
   }
 
-  /// The first time from [from] at which a spanner of [voice] on [staff]
-  /// attaches to [anchor]'s event. Where [voice] has a gap the spanner
-  /// attaches to the event of voice one, so a mark on such an event stands
-  /// for a time in that gap, which need not be the event's onset.
+  /// A time from [from] at which a spanner of [voice] on [staff] attaches to
+  /// [anchor]'s event, or the event's onset when there is none. Where
+  /// [voice] has a gap the spanner attaches to the event of voice one,
+  /// unless another voice starts a chord there ([Score.anchorAt]). So a mark
+  /// on an event of voice one stands for a time in such a gap, which need
+  /// not be the event's onset. It is the first such time, or, where another
+  /// voice starts a chord as the gap opens, halfway from there to the next
+  /// start of an event in the bar's other voices.
   Moment _timeOn(
     EventAnchor anchor,
     int staff,
@@ -238,14 +242,29 @@ final class _Placing {
     final column = score.measures[anchor.bar];
     final id = part.staves[staff];
     var at = from > event.onset ? from : event.onset;
-    if (column.staff(id).voice(voice) case final own?) {
-      for (final timed in timedEvents(own, measure: column.id, staff: id)) {
-        if (timed.onset <= at && at < timed.onset + timed.duration) {
-          at = timed.onset + timed.duration;
-        }
+    while (at < event.end) {
+      final found = score.anchorAt(id, voice, _point(anchor.bar, at))!;
+      if (found.voice == VoiceSlot.one) {
+        return at;
       }
+      if (found.voice != voice) {
+        var next = event.end;
+        for (final other in column.staff(id).voices.skip(1)) {
+          for (final timed in timedEvents(
+            other,
+            measure: column.id,
+            staff: id,
+          )) {
+            if (timed.onset > at && timed.onset < next) {
+              next = timed.onset;
+            }
+          }
+        }
+        return at + at.until(next) * Fraction(1, 2);
+      }
+      at = found.onset + found.duration;
     }
-    return at < event.end ? at : event.onset;
+    return event.onset;
   }
 
   /// A line written as directions. It starts at its start's time, or with

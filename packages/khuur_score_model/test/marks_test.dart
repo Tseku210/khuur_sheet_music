@@ -478,6 +478,48 @@ void main() {
         }
       });
 
+      test('ends on the event voice one starts there before a note a third '
+          'voice starts there, and on no rest of a third voice', () {
+        final together = fill(
+          voices(
+            [
+              chordOf(1, 'D5', value: NoteValue.half),
+              chordOf(7, 'C5', value: NoteValue.half),
+            ],
+            [...start, Gap(len(3, 4))],
+          ),
+          0,
+          [Gap(len(1, 2)), chordOf(6, 'G4', value: NoteValue.half)],
+          slot: VoiceSlot.three,
+        );
+        final resting = fill(
+          voices(held, [...start, Gap(len(3, 4))]),
+          0,
+          [Gap(len(3, 4)), rest(6, NoteValue.quarter)],
+          slot: VoiceSlot.three,
+        );
+        TimedEvent endAt(Score score, Moment offset) => score.anchorAt(
+          score.staves.first.id,
+          VoiceSlot.two,
+          pointAt(score, 0, offset),
+        )!;
+
+        expect(endAt(together, at(1, 2)).event.id, const EventId(7));
+        expect(endAt(resting, at(3, 4)).event.id, const EventId(1));
+        expect(
+          refusal(
+            addSpanner(
+              resting,
+              const Slur(),
+              pointAt(resting, 0, at(1, 8)),
+              pointAt(resting, 0, at(3, 4)),
+              voice: VoiceSlot.two,
+            ),
+          ),
+          isA<InvalidValue>(),
+        );
+      });
+
       test('goes when an erase leaves its end in such a gap, and undo brings '
           'it back', () {
         final score = voices(held, [
