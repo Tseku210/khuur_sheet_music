@@ -582,16 +582,15 @@ _Rippled _ripple(
   final last = rebuilt.measures[a + count - 1];
   final sectionEnd = ScorePoint(last.id, _barEnd(last));
 
-  ScorePoint? onset(ScorePoint point) => switch (timeOf(point)) {
-    final at? => place(kept(at) ?? time.land(at))!,
-    null => point,
-  };
-  ScorePoint close(ScorePoint point) => switch (timeOf(point)) {
+  /// Where a point of the section goes with its music. A session's range
+  /// may start at the end of the section's last bar, and that point stays
+  /// at the section's end unless bars are added after it.
+  ScorePoint follow(ScorePoint point) => switch (timeOf(point)) {
     final at? => place(kept(at) ?? time.land(at)) ?? sectionEnd,
     null => point,
   };
-  ScorePoint? firstOf(Spanner spanner) => moving.contains(spanner.staff)
-      ? onset(onItsNote(spanner, last: false))
+  ScorePoint firstOf(Spanner spanner) => moving.contains(spanner.staff)
+      ? follow(onItsNote(spanner, last: false))
       : spanner.first;
 
   bool unnoted(Spanner spanner) {
@@ -648,7 +647,6 @@ _Rippled _ripple(
       }
       final first = firstOf(spanner);
       return before != null &&
-              first != null &&
               rebuilt.compare(before, first) < 0 &&
               rebuilt.compare(first, stop) < 0
           ? first
@@ -659,8 +657,8 @@ _Rippled _ripple(
     rebuilt,
     cursor,
     selection,
-    onset: onset,
-    close: close,
+    onset: follow,
+    close: follow,
     movesCursor: moving.contains(cursor.staff),
     movesRange: switch (selection) {
       RangeSelection(:final top, :final bottom) => _reaches(
