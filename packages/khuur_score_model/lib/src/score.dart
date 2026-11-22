@@ -399,7 +399,8 @@ final class Score {
   }
 
   /// The event a spanner of [SpannerReach.events] on [staff] attaches to at
-  /// [at]: the one sounding there in [voice], else in voice one.
+  /// [at]: the one sounding there in [voice], else in voice one. [anchorOf]
+  /// also follows the note a glissando end names.
   TimedEvent? anchorAt(StaffId staff, VoiceSlot voice, ScorePoint at) =>
       eventAt(VoicePoint(staff: staff, voice: voice, at: at)) ??
       eventAt(VoicePoint(staff: staff, voice: VoiceSlot.one, at: at));
@@ -918,7 +919,8 @@ final class Spanner {
 /// What a spanner's ends attach to.
 enum SpannerReach {
   /// The events sounding at its points, in its voice or else voice one: a
-  /// slur, glissando or trill line.
+  /// slur, glissando or trill line. A glissando end that names a note is on
+  /// that note's event in any voice ([Spanner.anchorAmong]).
   events,
 
   /// Its points in time, the last one running to the end of the voice-one
