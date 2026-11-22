@@ -73,10 +73,24 @@ final class Score {
   /// [parts] in system order, and that every spanner names a bar and staff
   /// of the score and does not end before it starts.
   Score({
+    required ScoreMeta meta,
+    required Seq<Part> parts,
+    required Seq<MeasureColumn> measures,
+    Seq<Spanner> spanners = const Seq.empty(),
+  }) : this._(
+         _Places(),
+         meta: meta,
+         parts: parts,
+         measures: measures,
+         spanners: spanners,
+       );
+
+  Score._(
+    this._places, {
     required this.meta,
     required this.parts,
     required this.measures,
-    this.spanners = const Seq.empty(),
+    required this.spanners,
   }) : assert(parts.isNotEmpty, 'a score has at least one part'),
        assert(measures.isNotEmpty, 'a score has at least one measure'),
        assert(
@@ -168,7 +182,10 @@ final class Score {
     Seq<Part>? parts,
     Seq<MeasureColumn>? measures,
     Seq<Spanner>? spanners,
-  }) => Score(
+  }) => Score._(
+    measures == null || identical(measures, this.measures)
+        ? _places
+        : _Places(),
     meta: meta ?? this.meta,
     parts: parts ?? this.parts,
     measures: measures ?? this.measures,
@@ -179,7 +196,13 @@ final class Score {
   /// top to bottom. Every column's `staves` follows this order.
   late final List<Staff> staves = [for (final part in parts) ...part.staves];
 
-  late final Map<MeasureId, int> _indexById = {
+  /// Where the place of each bar by its id is kept once it is built. A
+  /// copy with the same bars, and one that [replacingBars] makes, shares it,
+  /// so an edit that writes bars many times over builds the index once and
+  /// not once for each copy.
+  final _Places _places;
+
+  Map<MeasureId, int> get _indexById => _places.byId ??= {
     for (var i = 0; i < measures.length; i++) measures[i].id: i,
   };
 
@@ -630,6 +653,29 @@ final class Score {
   /// [spanners].
   Iterable<Spanner> spannersTouching(MeasureId id) =>
       _spannersByBar[indexOf(id)] ?? const [];
+}
+
+/// The index of each bar of a score by its id. Null until it is first asked
+/// for.
+final class _Places {
+  Map<MeasureId, int>? byId;
+}
+
+/// [score] with the bars from [start] replaced by [bars], one for one. When
+/// every new bar has the id of the bar it replaces, the copy shares the
+/// score's index of bars by id. The library does not export this.
+Score replacingBars(Score score, int start, List<MeasureColumn> bars) {
+  final measures = score.measures;
+  final keepsIds = bars.indexed.every(
+    (bar) => bar.$2.id == measures[start + bar.$1].id,
+  );
+  return Score._(
+    keepsIds ? score._places : _Places(),
+    meta: score.meta,
+    parts: score.parts,
+    measures: measures.replaceRange(start, start + bars.length, bars),
+    spanners: score.spanners,
+  );
 }
 
 /// The title and credits of a score. An empty string means the score has

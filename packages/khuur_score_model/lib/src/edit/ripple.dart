@@ -559,7 +559,9 @@ _Rippled _ripple(
   }
   final rebuilt = _retied(
     score,
-    score.copyWith(measures: measures.replaceRange(a, b, bars)),
+    grown
+        ? score.copyWith(measures: measures.replaceRange(a, b, bars))
+        : replacingBars(score, a, bars),
     moving,
     max(a - 1, 0),
     a + count,
