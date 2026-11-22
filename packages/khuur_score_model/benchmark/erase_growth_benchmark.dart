@@ -1,8 +1,10 @@
 // Checks how the cost of erasing a chord from every bar in one edit grows
 // with the length of the score. It erases the second chord of every bar of
 // a score with a glissando in every bar, then of a score four times as
-// long, and compares the two times. It does so once with no ripple and once
-// with `Ripple.part`.
+// long, and compares the two times. It does so once with no ripple, once
+// with `Ripple.part`, and once with `Ripple.part` on a score that a
+// rehearsal mark every eight bars cuts into sections, whose glissandi name
+// their notes.
 //
 // Run it compiled, from packages/khuur_score_model. A JIT run measures the
 // compiler as much as the code. The compiler does not create `build`, which
@@ -27,7 +29,8 @@ const double _mostGrowth = 8;
 
 /// The median time of [runs] erases of the second chord of every bar of
 /// [score] in one edit, after [warmUps] that do not count. Fails when the
-/// erase is refused or leaves another count of chords than three a bar.
+/// erase is refused, leaves another count of chords than three a bar, or
+/// leaves a glissando that named the note it ended on.
 Duration eraseTime(
   Score score,
   Ripple ripple, {
@@ -65,6 +68,9 @@ Duration eraseTime(
     if (chords != 3 * bars) {
       throw StateError('the erase left $chords chords in $bars bars');
     }
+    if (left.spanners.any((line) => line.kind != const Glissando())) {
+      throw StateError('the erase left a glissando without its note');
+    }
     if (i >= warmUps) {
       times.add(watch.elapsed);
     }
@@ -72,15 +78,34 @@ Duration eraseTime(
   return (times..sort())[times.length ~/ 2];
 }
 
+/// [score] with a rehearsal mark on every eighth bar, so that a ripple
+/// moves music within eight bars at a time.
+Score sectioned(Score score) {
+  var session = EditSession.start(score);
+  for (var bar = 8; bar < score.measures.length; bar += 8) {
+    session = switch (session.run(
+      SetRehearsal(score.measures[bar].id, '$bar'),
+    )) {
+      Applied(:final session) => session,
+      _ => throw StateError('the rehearsal mark was refused'),
+    };
+  }
+  return session.score;
+}
+
 String _ms(Duration time) => (time.inMicroseconds / 1000).toStringAsFixed(3);
 
-/// Whether an erase with [ripple] grows by no more than [bound] from
-/// [bars] bars to four times as many.
-bool _holds(Ripple ripple, int bars, double bound) {
-  final what = ripple == Ripple.none ? 'erase' : 'rippled erase';
+/// Whether the erase called [what], with [ripple] on the score that
+/// [score] builds, grows by no more than [_mostGrowth] from [bars] bars to
+/// four times as many.
+bool _growsWithinBound(
+  String what,
+  Ripple ripple,
+  int bars,
+  Score Function(int) score,
+) {
   final times = [
-    for (final length in [bars, 4 * bars])
-      eraseTime(glided(length, named: false), ripple),
+    for (final length in [bars, 4 * bars]) eraseTime(score(length), ripple),
   ];
   for (final (i, time) in times.indexed) {
     stdout.writeln(
@@ -89,16 +114,34 @@ bool _holds(Ripple ripple, int bars, double bound) {
     );
   }
   final growth = times.last.inMicroseconds / times.first.inMicroseconds;
-  final over = growth > bound;
+  final over = growth > _mostGrowth;
   stdout.writeln(
     '$what: 4 times the bars cost ${growth.toStringAsFixed(2)} times the '
-    'time, bound $bound${over ? ', FAILED' : ''}',
+    'time, bound $_mostGrowth${over ? ', FAILED' : ''}',
   );
   return !over;
 }
 
 void main() {
-  final plain = _holds(Ripple.none, 4000, _mostGrowth);
-  final rippled = _holds(Ripple.part, 1000, _mostGrowth);
-  exitCode = plain && rippled ? 0 : 1;
+  final held = [
+    _growsWithinBound(
+      'erase',
+      Ripple.none,
+      4000,
+      (bars) => glided(bars, named: false),
+    ),
+    _growsWithinBound(
+      'rippled erase',
+      Ripple.part,
+      1000,
+      (bars) => glided(bars, named: false),
+    ),
+    _growsWithinBound(
+      'rippled erase in sections',
+      Ripple.part,
+      1000,
+      (bars) => sectioned(glided(bars, named: true)),
+    ),
+  ];
+  exitCode = held.every((held) => held) ? 0 : 1;
 }

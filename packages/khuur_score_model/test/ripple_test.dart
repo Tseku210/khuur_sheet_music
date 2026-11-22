@@ -1650,6 +1650,99 @@ void main() {
         }
       });
     }
+
+    test('is dropped with a rest it ends on', () {
+      final score = glided(
+        over([
+          chordOf(5, 'C4'),
+          rest(6, NoteValue.quarter),
+          chordOf(7, 'E4'),
+          chordOf(8, 'C4'),
+        ]),
+        Moment.zero,
+        at(1, 4),
+        named: false,
+      );
+      final session = EditSession.start(score);
+
+      final next = applied(
+        session.run(
+          Erase(
+            ItemSelection(Seq([eventRef(session, 2), eventRef(session, 6)])),
+            ripple: Ripple.part,
+          ),
+        ),
+      ).score;
+
+      expect(bar(next, 0, slot: VoiceSlot.two).take(2), [
+        'C4/quarter',
+        'E4/quarter',
+      ]);
+      expect(next.spanners, isEmpty);
+    });
+  });
+
+  group('A rippled erase of chords in two sections', () {
+    Score sections() {
+      var score = blankScore(bars: 4);
+      for (var b = 0; b < 4; b++) {
+        score = fill(score, b, quarters(1 + 4 * b, 'F4 G4 A4 B4'));
+      }
+      return changeBar(
+        score,
+        1,
+        (column) => column.copyWith(barline: Barline.doubleBar),
+      );
+    }
+
+    test('moves each end of a slur with the music of its own section', () {
+      var score = sections();
+      score = withSlur(
+        score,
+        pointAt(score, 0, at(1, 4)),
+        pointAt(score, 2, at(1, 2)),
+      );
+
+      final next = applied(pull(EditSession.start(score), [1, 9])).score;
+
+      expect(bar(next, 1).last, 'rest/quarter');
+      expect(bar(next, 3).last, 'rest/quarter');
+      expect(next.spanners.single.first, pointAt(next, 0, Moment.zero));
+      expect(next.spanners.single.last, pointAt(next, 2, at(1, 4)));
+    });
+
+    test('drops a line that loses its note in the second section and keeps '
+        'the ones around it in order', () {
+      var score = sections();
+      score = withSpanner(
+        score,
+        const Hairpin(crescendo: true),
+        pointAt(score, 0, at(1, 2)),
+        pointAt(score, 3, at(1, 4)),
+      );
+      score = withSpanner(
+        score,
+        const Glissando(),
+        pointAt(score, 1, at(3, 4)),
+        pointAt(score, 2, Moment.zero),
+      );
+      score = withSlur(
+        score,
+        pointAt(score, 2, at(1, 4)),
+        pointAt(score, 3, at(1, 2)),
+      );
+
+      final next = applied(pull(EditSession.start(score), [1, 9])).score;
+
+      expect(
+        [for (final line in next.spanners) line.kind],
+        [const Hairpin(crescendo: true), const Slur()],
+      );
+      expect(next.spanners.first.first, pointAt(next, 0, at(1, 4)));
+      expect(next.spanners.first.last, pointAt(next, 3, Moment.zero));
+      expect(next.spanners.last.first, pointAt(next, 2, Moment.zero));
+      expect(next.spanners.last.last, pointAt(next, 3, at(1, 4)));
+    });
   });
 
   group('A rippled erase of chords in many places', () {
