@@ -73,6 +73,15 @@ dart compile exe benchmark/erase_benchmark.dart -o build/erase_benchmark
 build/erase_benchmark
 ```
 
+After a change to `Erase` or to a ripple edit, also run the erase growth benchmark. It erases a chord in every bar of a score and of one four times as long. It exits with code 1 when the plain erase costs more than eight times as much on the longer score, or the rippled erase more than 24 times as much.
+
+```bash
+cd packages/khuur_score_model
+mkdir -p build
+dart compile exe benchmark/erase_growth_benchmark.dart -o build/erase_growth_benchmark
+build/erase_growth_benchmark
+```
+
 The glyph table `packages/khuur_score_layout/lib/src/bravura.g.dart` is generated. Do not edit it by hand. Change `tool/bravura_metadata.json` or the generator, then run `dart run tool/generate_bravura.dart` in `packages/khuur_score_layout`.
 
 The pictures of sheets on the docs site and in the README are generated too. After a change to what the sheet draws, or to the sample code on a page with a picture, draw them again and commit the files that change.
