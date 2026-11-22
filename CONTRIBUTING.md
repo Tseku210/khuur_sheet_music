@@ -64,6 +64,15 @@ dart compile exe benchmark/playback_benchmark.dart -o build/playback_benchmark
 build/playback_benchmark
 ```
 
+After a change to how an edit settles the spanners, also run the erase benchmark. It exits with code 1 when erasing the chords that glissandi end on costs more than three times as much under glissandi that name their notes as under ones that name none.
+
+```bash
+cd packages/khuur_score_model
+mkdir -p build
+dart compile exe benchmark/erase_benchmark.dart -o build/erase_benchmark
+build/erase_benchmark
+```
+
 The glyph table `packages/khuur_score_layout/lib/src/bravura.g.dart` is generated. Do not edit it by hand. Change `tool/bravura_metadata.json` or the generator, then run `dart run tool/generate_bravura.dart` in `packages/khuur_score_layout`.
 
 The pictures of sheets on the docs site and in the README are generated too. After a change to what the sheet draws, or to the sample code on a page with a picture, draw them again and commit the files that change.
