@@ -314,24 +314,17 @@ List<({int slice, double right})> lineStartReach(
   required TextMeasurer text,
 }) => [
   for (final segment in view.spanners)
-    if (segment.startsHere)
-      for (final staffView in view.staves)
-        if (staffView.source.staff == segment.spanner.staff)
-          ?_startReach(
-            segment,
-            staffView,
-            chords,
-            times: times,
-            style: style,
-            text: text,
-          ),
+    if (segment.startsHere &&
+        view.staves.any(
+          (staff) => staff.source.staff == segment.spanner.staff,
+        ))
+      ?_startReach(segment, chords, times: times, style: style, text: text),
 ];
 
 /// The slice and right reach of what the line of [segment] starts with, or
 /// null for a kind that starts with nothing.
 ({int slice, double right})? _startReach(
   SpannerSegment segment,
-  StaffView staffView,
   Map<EventId, PlacedChord> chords, {
   required List<Moment> times,
   required EngravingStyle style,
@@ -350,7 +343,7 @@ List<({int slice, double right})> lineStartReach(
   if (width == null) {
     return null;
   }
-  final start = pieceStart(segment, staffView);
+  final start = pieceStart(segment);
   final chord = start.event == null ? null : chords[start.event];
   final (:slice, :dx) = _lineStart(start, chord, times);
   return (slice: slice, right: dx + width);
@@ -723,7 +716,6 @@ List<SpannerPiece> spannerPieces(
     for (final (_, index) in order)
       _piece(
         segments[index].$1,
-        view.staves[segments[index].$2],
         skylines[segments[index].$2],
         chords,
         staff: segments[index].$2,
@@ -750,7 +742,6 @@ int _rank(SpannerKind kind) => switch (kind) {
 
 SpannerPiece _piece(
   SpannerSegment segment,
-  StaffView staffView,
   Skyline sky,
   Map<EventId, PlacedChord> chords, {
   required int staff,
@@ -765,8 +756,8 @@ SpannerPiece _piece(
   final kind = spanner.kind;
   final side = _sideOf(spanner);
   final s = side == Side.above ? -1.0 : 1.0;
-  final start = pieceStart(segment, staffView);
-  final end = pieceEnd(segment, staffView, barLength);
+  final start = pieceStart(segment);
+  final end = pieceEnd(segment, barLength);
   final startChord = start.event == null ? null : chords[start.event];
   final endChord = end.event == null ? null : chords[end.event];
   double free(double x0, double x1) =>
@@ -1064,62 +1055,27 @@ List<Glyph> _restatedGlyphs(SpannerKind kind) => switch (kind) {
   Glissando() => const [],
 };
 
-/// The event sounding at [at] in voice [slot] of [staff], as
-/// `Score.eventAt` finds it.
-TimedEvent? _sounding(StaffView staff, VoiceSlot slot, Moment at) => staff
-    .voices
-    .where((voice) => voice.slot == slot)
-    .expand((voice) => voice.events)
-    .where((e) => e.onset <= at && at < e.onset + e.duration)
-    .firstOrNull;
-
-/// The event a spanner of [SpannerReach.events] attaches to in the bar of
-/// [staff], at its last end when [last], by [Spanner.anchorAmong].
-TimedEvent? _anchor(
-  StaffView staff,
-  Spanner spanner, {
-  required bool last,
-}) => spanner.anchorAmong(
-  [for (final voice in staff.voices) voice.slot],
-  (slot, at) => _sounding(staff, slot, at),
-  last: last,
-);
-
 /// Where the piece of [segment] starts in its bar, and on which event.
 ///
 /// A segment's `to` is already `Score.endOf` its spanner.
-({Moment at, EventId? event}) pieceStart(
-  SpannerSegment segment,
-  StaffView staff,
-) {
+({Moment at, EventId? event}) pieceStart(SpannerSegment segment) {
   if (!segment.startsHere) {
     return (at: Moment.zero, event: null);
   }
-  switch (segment.spanner.kind.reach) {
-    case SpannerReach.events:
-      final anchor = _anchor(staff, segment.spanner, last: false);
-      return (at: anchor?.onset ?? segment.from, event: anchor?.event.id);
-    case SpannerReach.time:
-      return (at: segment.from, event: null);
-  }
+  final on = segment.startsOn;
+  return (at: on?.onset ?? segment.from, event: on?.event.id);
 }
 
 /// Where the piece of [segment] ends in its bar, and on which event.
 ({Moment at, EventId? event}) pieceEnd(
   SpannerSegment segment,
-  StaffView staff,
   Length barLength,
 ) {
   if (!segment.endsHere) {
     return (at: Moment.zero + barLength, event: null);
   }
-  switch (segment.spanner.kind.reach) {
-    case SpannerReach.events:
-      final anchor = _anchor(staff, segment.spanner, last: true);
-      return (at: anchor?.onset ?? segment.to, event: anchor?.event.id);
-    case SpannerReach.time:
-      return (at: segment.to, event: null);
-  }
+  final on = segment.endsOn;
+  return (at: on?.onset ?? segment.to, event: on?.event.id);
 }
 
 /// The spanners of one system.

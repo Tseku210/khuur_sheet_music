@@ -236,9 +236,10 @@ Map<String, Object?> _note(Note note) => switch (note) {
 Map<String, Object?> _spanner(Spanner spanner) => {
   'id': spanner.id.value,
   ...switch (spanner.kind) {
-    Slur(:final dashed) => {
+    Slur(:final dashed, :final endVoice) => {
       'kind': _kindName(spanner.kind),
       if (dashed) 'dashed': true,
+      if (endVoice != null) 'endVoice': endVoice.index + 1,
     },
     OctaveLine(:final shift) => {
       'kind': _kindName(spanner.kind),

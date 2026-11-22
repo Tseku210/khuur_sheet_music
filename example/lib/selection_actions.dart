@@ -85,13 +85,18 @@ final class Picked {
   }
 
   /// The line like [kind] that the score already has from the first picked
-  /// event to the last.
+  /// event to the last. A slur that names the voice it ends in is like one
+  /// that names none.
   Spanner? lineOf(SpannerKind kind) {
     final (first, last) = (events.first, events.last);
+    bool like(SpannerKind other) => switch ((other, kind)) {
+      (Slur(dashed: final a), Slur(dashed: final b)) => a == b,
+      _ => other == kind,
+    };
     return _score.spanners
         .where(
           (line) =>
-              line.kind == kind &&
+              like(line.kind) &&
               line.staff == first.ref.staff &&
               (!kind.joinsNotes || line.voice == first.voice) &&
               line.first == _startOf(first) &&

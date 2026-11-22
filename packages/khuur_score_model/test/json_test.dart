@@ -573,6 +573,30 @@ void main() {
       expect(score.anchorOf(slur, last: true)!.event.id, const EventId(6));
     });
 
+    test('loads a glissando saved before 0.5.0 that names no note on the '
+        'note a third voice starts at its end, where the note of voice one '
+        'there starts with its first note', () {
+      const file =
+          '{"schema":1,"parts":[{"id":1,"name":"Flute","instrument":{"key":"",'
+          '"program":0},"staves":[{"id":2}]}],"measures":[{"id":3,"meter":'
+          '"4/4","key":0,"staves":[{"clef":"treble","voices":[{"voice":1,'
+          '"items":[{"chord":4,"value":"quarter","notes":[{"id":5,"pitch":'
+          '"C5"}]},{"chord":6,"value":"half.","notes":[{"id":7,"pitch":"D5"}]}'
+          ']},{"voice":2,"items":[{"gap":"1/4"},{"chord":8,"value":"quarter",'
+          '"notes":[{"id":9,"pitch":"F4"}]},{"gap":"1/2"}]},{"voice":3,"items"'
+          ':[{"gap":"1/2"},{"chord":10,"value":"quarter","notes":[{"id":11,'
+          '"pitch":"G4"}]},{"gap":"1/4"}]}]}]}],"spanners":[{"id":15,"kind":'
+          '"glissando","staff":2,"voice":2,"from":{"measure":3,"at":"1/4"},'
+          '"to":{"measure":3,"at":"1/2"}}]}';
+
+      final score = scoreFromJson(jsonDecode(file) as Map<String, Object?>);
+
+      expect(score.spanners, hasLength(1));
+      final line = score.spanners.single;
+      expect(score.anchorOf(line, last: false)!.event.id, const EventId(8));
+      expect(score.anchorOf(line, last: true)!.event.id, const EventId(10));
+    });
+
     test('an edit mints no id a glissando names', () {
       final score = showcase();
       final line = score.spanners[7];

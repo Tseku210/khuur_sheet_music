@@ -18,7 +18,15 @@ String describeView(MeasureView view) => [
   view.voltaEnds,
   view.isRestOnly,
   for (final s in view.spanners)
-    (s.spanner.id, s.from, s.to, s.startsHere, s.endsHere),
+    (
+      s.spanner.id,
+      s.from,
+      s.to,
+      s.startsHere,
+      s.endsHere,
+      s.startsOn?.event.id,
+      s.endsOn?.event.id,
+    ),
   for (final staff in view.staves) ...[
     staff.source.staff,
     staff.clefChanged,

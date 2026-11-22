@@ -368,6 +368,8 @@ final class SpannerSegment {
     required this.to,
     required this.startsHere,
     required this.endsHere,
+    this.startsOn,
+    this.endsOn,
   });
 
   /// The whole spanner this segment is a piece of.
@@ -386,6 +388,14 @@ final class SpannerSegment {
 
   /// The spanner's last point is in this bar.
   final bool endsHere;
+
+  /// The event of this bar the spanner starts on ([Score.anchorOf]). Null
+  /// unless it [startsHere] and is of [SpannerReach.events].
+  final TimedEvent? startsOn;
+
+  /// The event of this bar the spanner ends on ([Score.anchorOf]). Null
+  /// unless it [endsHere] and is of [SpannerReach.events].
+  final TimedEvent? endsOn;
 }
 
 /// What changed between two score values, for incremental layout.

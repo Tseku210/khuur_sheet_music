@@ -162,6 +162,49 @@ void main() {
       expect(slurred.changesSince(plain).reflow, isFalse);
     });
 
+    test('relays out the bar a slur ends in when a bar two back changes the '
+        'note it ends on', () {
+      Score held({required bool fromTheStart}) {
+        var score = blankScore(bars: 3);
+        for (final (bar, tie) in [(0, fromTheStart), (1, true), (2, false)]) {
+          score = fill(score, bar, [
+            chordOf(bar + 1, 'C5', value: NoteValue.whole, tie: tie),
+          ]);
+        }
+        score = fill(score, 0, [
+          Gap(len(1, 4)),
+          chordOf(4, 'F4'),
+          Gap(len(1, 2)),
+        ], slot: VoiceSlot.two);
+        return fill(score, 2, [
+          Gap(len(1, 2)),
+          chordOf(5, 'G4'),
+          Gap(len(1, 4)),
+        ], slot: VoiceSlot.three);
+      }
+
+      final plain = held(fromTheStart: true);
+      final before = withSpanner(
+        plain,
+        const Slur(),
+        pointAt(plain, 0, at(1, 4)),
+        pointAt(plain, 2, at(1, 2)),
+        voice: VoiceSlot.two,
+      );
+      final after = before.copyWith(
+        measures: before.measures.replaceAt(
+          0,
+          held(fromTheStart: false).measures.first,
+        ),
+      );
+      EventId end(Score score) =>
+          score.anchorOf(score.spanners.single, last: true)!.event.id;
+
+      expect((end(before), end(after)), (const EventId(5), const EventId(3)));
+      expect(drawsDifferently(before, after, after.measures[2].id), isTrue);
+      expect(after.changesSince(before).relayout, bars(after, [0, 1, 2]));
+    });
+
     test('leaves out bars a removed spanner covered that are gone', () {
       final plain = blankScore(bars: 6);
       final slurred = withSlur(

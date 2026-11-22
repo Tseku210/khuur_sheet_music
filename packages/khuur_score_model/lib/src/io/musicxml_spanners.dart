@@ -111,6 +111,7 @@ final class _Placed {
     required this.first,
     required this.last,
     this.voice,
+    this.endVoice,
     this.stopsAfter,
   });
 
@@ -119,6 +120,10 @@ final class _Placed {
   final ScorePoint first;
   final ScorePoint last;
   final VoiceSlot? voice;
+
+  /// The voice a slur's stop is written in, when the slur would end on
+  /// another chord without the name.
+  final VoiceSlot? endVoice;
 
   /// The event a line written as directions stops after. The exporter
   /// writes the stop at that event's end.
@@ -136,8 +141,18 @@ final class _Placed {
         _ => null,
       },
     ),
+    (Slur(:final dashed), _) => Slur(dashed: dashed, endVoice: endVoice),
     (final kind, _) => kind,
   };
+
+  _Placed ending(VoiceSlot slot) => _Placed(
+    record,
+    staff: staff,
+    first: first,
+    last: last,
+    voice: voice,
+    endVoice: slot,
+  );
 
   Spanner spanner(SpannerId id) => Spanner(
     id: id,
@@ -199,23 +214,36 @@ final class _Placing {
       start.bar,
       _timeOn(start, staff, voice, from: Moment.zero),
     );
-    return _standing(
-      _Placed(
-        record,
-        staff: part.staves[staff],
-        first: first,
-        last: _point(
-          stop.bar,
-          _timeOn(
-            stop,
-            staff,
-            voice,
-            from: stop.bar == start.bar ? first.offset : Moment.zero,
-          ),
+    final placed = _Placed(
+      record,
+      staff: part.staves[staff],
+      first: first,
+      last: _point(
+        stop.bar,
+        _timeOn(
+          stop,
+          staff,
+          voice,
+          from: stop.bar == start.bar ? first.offset : Moment.zero,
         ),
-        voice: voice,
       ),
+      voice: voice,
     );
+    return _standing(_endingOn(placed, stop, staff));
+  }
+
+  /// [placed] naming the voice of [stop], when it is a slur that would
+  /// end on another chord than the one its stop is written on. MuseScore 4
+  /// ends a slur on the chord that carries its stop, in any voice.
+  _Placed _endingOn(_Placed placed, EventAnchor stop, int staff) {
+    final lane = stop.event.lane;
+    if (placed.record.kind is! Slur || lane.staff != staff) {
+      return placed;
+    }
+    final on = score.anchorOf(placed.spanner(const SpannerId(0)), last: true);
+    return on != null && on.voice == lane.slot && on.onset == stop.event.onset
+        ? placed
+        : placed.ending(lane.slot);
   }
 
   /// The first time at which a spanner of [voice] on [staff] attaches to

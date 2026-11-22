@@ -838,7 +838,7 @@ void main() {
       final bar = plain.measures.first;
       final slurred = joined(const Slur()).measureView(bar.id);
       expect(
-        pieceEnd(slurred.spanners.single, slurred.staves.single, bar.length),
+        pieceEnd(slurred.spanners.single, bar.length),
         (at: at(1, 2), event: const EventId(4)),
       );
 
@@ -886,8 +886,43 @@ void main() {
       final bar = score.measures.first;
       final view = score.measureView(bar.id);
       expect(
-        pieceEnd(view.spanners.single, view.staves.single, bar.length),
+        pieceEnd(view.spanners.single, bar.length),
         (at: at(1, 4), event: const EventId(2)),
+      );
+    });
+
+    test('a slur of voice two that ends where its voice has a gap runs to '
+        'the note a third voice starts there, not to a tied part of the note '
+        'voice one has held since before it', () {
+      var score = scoreOf([
+        [
+          chordOf(1, 'B4'),
+          chordOf(2, 'C5', tie: true),
+          chordOf(5, 'C5', value: NoteValue.half),
+        ],
+      ]);
+      score = fill(score, 0, [
+        Gap(len(1, 2)),
+        chordOf(3, 'F4'),
+        Gap(len(1, 4)),
+      ], slot: VoiceSlot.two);
+      score = fill(score, 0, [
+        Gap(len(3, 4)),
+        chordOf(4, 'G4'),
+      ], slot: VoiceSlot.three);
+      score = withSpanner(
+        score,
+        const Slur(),
+        pointAt(score, 0, at(1, 2)),
+        pointAt(score, 0, at(3, 4)),
+        voice: VoiceSlot.two,
+      );
+
+      final system = sheetOf(score).systemAt(0);
+      final to = headOf(system, noteRef(score, 0, 4));
+      expect(
+        curvesOf(system).singleWhere((curve) => curve.owner == spanner).end.x,
+        inInclusiveRange(to.left, to.right),
       );
     });
 
@@ -1510,8 +1545,8 @@ void main() {
               }
               compared++;
               final voice = spanner.voice ?? VoiceSlot.one;
-              final start = pieceStart(segment, staff);
-              final end = pieceEnd(segment, staff, measure.length);
+              final start = pieceStart(segment);
+              final end = pieceEnd(segment, measure.length);
               final reason = 'seed $seed step $step ${spanner.kind}';
               if (!segment.startsHere) {
                 expect(start, (at: Moment.zero, event: null), reason: reason);
