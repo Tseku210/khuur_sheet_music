@@ -40,7 +40,7 @@
 * `SpannerSegment.startsOn` and `endsOn` give the events a slur, glissando or trill line starts and ends on in that bar.
 * `Score.changesSince` also names the last bar of a slur, glissando or trill line over several bars when a bar from the one before its first bar to its last changes, so a layout update draws that end again.
 * A shorter `SetValue` removes each glissando that starts on its chord, with or without a ripple, as MuseScore 4 does. Undo brings it back.
-* A rippled `SetValue`, `EnterNote` or `EnterRest` no longer throws when the session's range starts at the end of a bar that ends its section. After a `SetValue` the range stays where it was, unless it is empty.
+* `EditSession.select` moves a range start at the end of a bar to the start of the next bar, since a range starts on music as in MuseScore 4. A rippled edit no longer throws under such a range, and no longer leaves it inside an added bar or on a filler rest. `copy`, and `Erase` or `Transpose` of the session's selection, now take the range from the next bar where they took nothing or were refused. Such a range that starts at the end of the last bar, or holds no time once moved, selects nothing. The selection the session keeps is then a new object, not the one passed in.
 
 ## 0.4.0
 * **Breaking:** the sealed `Edit` gains `SetMeasureRepeat`, so a `switch` over every edit adds a case for it.
