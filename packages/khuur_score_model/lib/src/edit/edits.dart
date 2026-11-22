@@ -212,11 +212,11 @@ enum Overfill {
 ///   chord that loses its end or its middle to removed time loses the ties
 ///   out of it and keeps the ties into it, as in MuseScore 4. A chord that
 ///   loses its start loses the ties into it, and the ties out of it that
-///   end on a head. A tie out of it that ends on no head stays when the
-///   start is all the chord loses, as in MuseScore 4. A chord that sounds
-///   across the point where an entry adds time loses the ties into and out
-///   of it. A longer [SetValue] takes no tie from the chords it makes
-///   longer.
+///   end on a head. A tie out of it that ended on no head stays when the
+///   start is all the chord loses and no head of its tone follows it, as
+///   in MuseScore 4. A chord that sounds across the point where an entry
+///   adds time loses the ties into and out of it. A longer [SetValue] takes
+///   no tie from the chords it makes longer.
 /// - Marks: articulations, fingerings and lyrics travel on their notes.
 ///   The directions and clef changes of the staves that move, the ends of
 ///   their spanners, a cursor on one of them and a range selection over one
