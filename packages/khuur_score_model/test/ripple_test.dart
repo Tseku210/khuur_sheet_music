@@ -1652,24 +1652,101 @@ void main() {
         }
       });
 
-      test('stays on a note that the ripple shortens at its end, $lines', () {
-        for (final (erased, left, last) in [
-          (2, ['C4/quarter', 'D4/half'], at(1, 4)),
-          (4, ['C4/half', 'D4/quarter'], at(1, 2)),
-        ]) {
-          final next = applied(
-            pull(EditSession.start(halves()), [erased]),
-          ).score;
+      test('is dropped with a note it starts on that the ripple shortens '
+          'at its end, $lines', () {
+        final session = EditSession.start(halves());
 
-          expect(
-            bar(next, 0, slot: VoiceSlot.two).take(2),
-            left,
-            reason: 'erased $erased',
-          );
+        final next = applied(pull(session, [2]));
+
+        expect(bar(next.score, 0, slot: VoiceSlot.two).take(2), [
+          'C4/quarter',
+          'D4/half',
+        ]);
+        expect(next.score.spanners, isEmpty);
+        expect(next.undo().score.spanners, session.score.spanners);
+      });
+
+      test('is dropped with a note it starts on that the ripple shortens '
+          'in its middle, $lines', () {
+        final score = glided(
+          over([
+            chordOf(5, 'C4', value: NoteValue.half.dotted),
+            chordOf(6, 'D4'),
+          ]),
+          Moment.zero,
+          at(3, 4),
+          named: named,
+        );
+
+        final next = applied(pull(EditSession.start(score), [2])).score;
+
+        expect(bar(next, 0, slot: VoiceSlot.two).take(2), [
+          'C4/half',
+          'D4/quarter',
+        ]);
+        expect(next.spanners, isEmpty);
+      });
+
+      /// Halves F4 and A4 in voice one, ids 1 and 2, over halves C4 and D4
+      /// in voice two, ids 5 and 6, with a line from C4 to D4.
+      Score halvesUnderHalves() => glided(
+        fill(
+          fill(blankScore(bars: 1), 0, [
+            chordOf(1, 'F4', value: NoteValue.half),
+            chordOf(2, 'A4', value: NoteValue.half),
+          ]),
+          0,
+          [
+            chordOf(5, 'C4', value: NoteValue.half),
+            chordOf(6, 'D4', value: NoteValue.half),
+          ],
+          slot: VoiceSlot.two,
+        ),
+        Moment.zero,
+        at(1, 2),
+        named: named,
+      );
+
+      test('is dropped when a shorter value takes the end of the note it '
+          'starts on, $lines', () {
+        for (final ripple in [Ripple.part, Ripple.staff]) {
+          for (final id in [1, 5]) {
+            final session = EditSession.start(halvesUnderHalves());
+
+            final next = applied(
+              session.run(
+                SetValue(
+                  eventRef(session, id),
+                  NoteValue.quarter,
+                  ripple: ripple,
+                ),
+              ),
+            ).score;
+
+            expect(
+              bar(next, 0, slot: VoiceSlot.two).take(2),
+              ['C4/quarter', 'D4/half'],
+              reason: '$ripple $id',
+            );
+            expect(next.spanners, isEmpty, reason: '$ripple $id');
+          }
+        }
+      });
+
+      test('stays on a note it ends on that the ripple shortens at its '
+          'end, $lines', () {
+        final erased = applied(pull(EditSession.start(halves()), [4])).score;
+        final session = EditSession.start(halvesUnderHalves());
+        final revalued = applied(revalue(session, 6, NoteValue.quarter)).score;
+
+        for (final next in [erased, revalued]) {
+          expect(bar(next, 0, slot: VoiceSlot.two).take(2), [
+            'C4/half',
+            'D4/quarter',
+          ]);
           expect(
             [next.spanners.single.first, next.spanners.single.last],
-            [pointAt(next, 0, Moment.zero), pointAt(next, 0, last)],
-            reason: 'erased $erased',
+            [pointAt(next, 0, Moment.zero), pointAt(next, 0, at(1, 2))],
           );
         }
       });
