@@ -1117,13 +1117,15 @@ final class Slur extends SpannerKind {
   /// Draw the curve as a dashed line.
   final bool dashed;
 
-  /// The voice whose chord the slur ends on, where that is not the chord
-  /// its last end falls to without a name ([Score.anchorOf]). MusicXML
-  /// import sets it to the voice a stop is written in when the slur would
-  /// otherwise end on another chord, as MuseScore 4 ends the slur on the
-  /// chord that carries its stop. The name goes with the slur through every edit.
-  /// While that voice sounds no chord at the last end, the end is where it
-  /// falls without a name.
+  /// The voice whose chord the slur ends on. `AddSpanner` sets it when the
+  /// slur ends on a chord that another voice than its own starts there, and
+  /// MusicXML import when the stop is written on such a chord or the slur
+  /// would end on another chord than the one its stop is on, as
+  /// MuseScore 4 keeps a slur on the chord it ends on. So a later edit of
+  /// another voice does not move the end. A slur without it, as a JSON file
+  /// can hold, ends where its last end falls ([Score.anchorOf]). The name
+  /// goes with the slur through every edit. While that voice sounds no
+  /// chord at the last end, the end is where it falls without a name.
   final VoiceSlot? endVoice;
 
   @override
@@ -1235,7 +1237,9 @@ final class PedalLine extends SpannerKind {
 /// A file whose line names a note that does not sound at that end loads
 /// without the line. An end that names no note is on the top note of the
 /// event the spanner's voice has there. When that voice has none, it is on
-/// an event of another voice ([Score.anchorOf]).
+/// an event of another voice ([Score.anchorOf]). `AddSpanner` names the top
+/// note of a last end that is on a chord another voice starts there, so the
+/// end stays on that note.
 ///
 /// The event a line ends on starts after the event it starts on, as in each
 /// line MuseScore 4's editor builds. So a line cannot end on an event of

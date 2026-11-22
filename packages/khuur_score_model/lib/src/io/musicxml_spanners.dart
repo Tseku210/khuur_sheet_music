@@ -232,18 +232,22 @@ final class _Placing {
     return _standing(_endingOn(placed, stop, staff));
   }
 
-  /// [placed] naming the voice of [stop], when it is a slur that would
-  /// end on another chord than the one its stop is written on. MuseScore 4
-  /// ends a slur on the chord that carries its stop, in any voice.
+  /// [placed] naming the voice of [stop], when it is a slur whose stop is
+  /// written on a chord that another voice than its own starts at its last
+  /// point, or that would end on another chord than the one its stop is
+  /// written on. MuseScore 4 ends a slur on the chord that carries its stop,
+  /// in any voice, and keeps it there.
   _Placed _endingOn(_Placed placed, EventAnchor stop, int staff) {
     final lane = stop.event.lane;
     if (placed.record.kind is! Slur || lane.staff != staff) {
       return placed;
     }
     final on = score.anchorOf(placed.spanner(const SpannerId(0)), last: true);
-    return on != null && on.voice == lane.slot && on.onset == stop.event.onset
-        ? placed
-        : placed.ending(lane.slot);
+    final onStop =
+        on != null && on.voice == lane.slot && on.onset == stop.event.onset;
+    final startsThere =
+        lane.slot != placed.voice && stop.event.onset == placed.last.offset;
+    return onStop && !startsThere ? placed : placed.ending(lane.slot);
   }
 
   /// The first time at which a spanner of [voice] on [staff] attaches to
