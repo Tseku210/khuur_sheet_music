@@ -1693,6 +1693,36 @@ void main() {
           }
         });
 
+        test('drops a line that ends on a note that starts before the note '
+            'it starts on', () {
+          String eighth(String pitch, [String mark = '']) => note(
+            pitch,
+            2,
+            'eighth',
+            '<voice>2</voice>'
+                '${mark.isEmpty ? '' : '<notations>$mark</notations>'}',
+          );
+          final held = [
+            voiced(1, 'D5', mark: line('stop'), type: 'half'),
+            voiced(1, 'rest', type: 'half'),
+          ];
+
+          final back = read(held, [
+            eighth('E4'),
+            eighth('F4', line('start')),
+            forward(4),
+            voiced(2, 'rest', type: 'half'),
+          ]);
+          final together = read(held, [
+            voiced(2, 'E4', mark: line('start')),
+            forward(4),
+            voiced(2, 'rest', type: 'half'),
+          ]);
+
+          expect(joined(back), isEmpty);
+          expect(joined(together), isEmpty);
+        });
+
         test('starts on a note of voice one that a note of its last '
             'voice sounds under', () {
           final score = read(

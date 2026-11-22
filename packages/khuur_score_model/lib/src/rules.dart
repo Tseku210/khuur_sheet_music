@@ -131,7 +131,9 @@ String? restMarksProblem(Set<Articulation> marks) =>
     restMarks.containsAll(marks) ? null : 'a rest holds only a fermata';
 
 /// Refuses [spanner] where it cannot stand in [score]: its ends out of
-/// order, or, for one that joins notes, both ends on one event.
+/// order, or, for one that joins notes, both ends on one event, or, for a
+/// glissando that names a note, an end on a chord that starts no later than
+/// the chord it starts on.
 String? spannerProblem(Score score, Spanner spanner) =>
     spannerOrderProblem(
       joinsNotes: spanner.kind.joinsNotes,
@@ -140,7 +142,36 @@ String? spannerProblem(Score score, Spanner spanner) =>
       lastBar: score.indexOf(spanner.last.measure),
       lastOffset: spanner.last.offset,
     ) ??
-    (score.isCollapsed(spanner) ? _endsAfterStart : null);
+    (_joinsNoLaterEvent(score, spanner) ? _endsAfterStart : null);
+
+/// Whether [spanner] joins notes and both its ends are on one event of
+/// [score] ([Score.isCollapsed]), or it is a glissando that names a note
+/// and ends on an event that starts no later than the event it starts on.
+/// A glissando's points can be in order while a note it names in another
+/// voice has sounded since before its start. A line that has lost a note it
+/// names is not judged by when its events start, since its ends are then
+/// not on the notes it means ([lostGlissandoNote]).
+bool _joinsNoLaterEvent(Score score, Spanner spanner) {
+  if (!spanner.kind.joinsNotes) {
+    return false;
+  }
+  final first = score.anchorOf(spanner, last: false);
+  final last = score.anchorOf(spanner, last: true);
+  if (first?.event.id == last?.event.id) {
+    return true;
+  }
+  if (spanner.kind case Glissando(:final from, :final to)
+      when first != null && last != null && (from != null || to != null)) {
+    if ((from != null && Glissando.noteIn(first.event, from)?.id != from) ||
+        (to != null && Glissando.noteIn(last.event, to)?.id != to)) {
+      return false;
+    }
+    final bars =
+        score.indexOf(last.ref.measure) - score.indexOf(first.ref.measure);
+    return bars < 0 || (bars == 0 && last.onset <= first.onset);
+  }
+  return false;
+}
 
 const _endsAfterStart = 'a slur or glissando ends after it starts';
 

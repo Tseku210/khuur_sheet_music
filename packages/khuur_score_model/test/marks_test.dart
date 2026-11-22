@@ -266,6 +266,121 @@ void main() {
       }
     });
 
+    group('a glissando between two voices', () {
+      final score = fill(
+        fill(
+          fill(blankScore(), 0, [
+            chordOf(1, 'D5', value: NoteValue.half),
+            chordOf(4, 'G5', value: NoteValue.half),
+          ]),
+          0,
+          [chordOf(2, 'E4'), chordOf(3, 'F4'), rest(7, NoteValue.half)],
+          slot: VoiceSlot.two,
+        ),
+        1,
+        [chordOf(5, 'A5', value: NoteValue.whole)],
+      );
+      EditOutcome glide(
+        int from,
+        int to,
+        ScorePoint first,
+        ScorePoint last,
+      ) => addSpanner(
+        score,
+        Glissando(from: NoteId(from), to: NoteId(to)),
+        first,
+        last,
+        voice: VoiceSlot.two,
+      );
+
+      test('is refused when the note it ends on starts before the note it '
+          'starts on', () {
+        final outcome = glide(
+          30,
+          10,
+          pointAt(score, 0, at(1, 4)),
+          pointAt(score, 0, at(3, 8)),
+        );
+
+        expect(
+          refusal(outcome),
+          isA<InvalidValue>().having(
+            (refused) => refused.message,
+            'message',
+            'a glissando must end after it starts',
+          ),
+        );
+      });
+
+      test('is refused when its two notes start together', () {
+        final outcome = glide(
+          20,
+          10,
+          pointAt(score, 0, Moment.zero),
+          pointAt(score, 0, at(1, 4)),
+        );
+
+        expect(refusal(outcome), isA<InvalidValue>());
+      });
+
+      test('is refused when the one note it names starts after the chord it '
+          'ends on', () {
+        final held = fill(score, 0, [
+          chordOf(2, 'E4', value: NoteValue.half),
+          rest(7, NoteValue.half),
+        ], slot: VoiceSlot.two);
+
+        final outcome = addSpanner(
+          held,
+          const Glissando(from: NoteId(40)),
+          pointAt(held, 0, at(1, 2)),
+          pointAt(held, 1, Moment.zero),
+          voice: VoiceSlot.two,
+        );
+        final back = addSpanner(
+          fill(held, 0, [
+            chordOf(1, 'D5'),
+            chordOf(4, 'G5'),
+            chordOf(6, 'B5', value: NoteValue.half),
+          ]),
+          const Glissando(from: NoteId(40)),
+          pointAt(held, 0, at(1, 4)),
+          pointAt(held, 0, at(3, 8)),
+          voice: VoiceSlot.two,
+        );
+
+        expect(applied(outcome).score.spanners, hasLength(1));
+        expect(refusal(back), isA<InvalidValue>());
+      });
+
+      test('joins a later note of the other voice, in its bar or the next', () {
+        for (final (to, last) in [
+          (40, pointAt(score, 0, at(1, 2))),
+          (50, pointAt(score, 1, Moment.zero)),
+        ]) {
+          final joined = applied(
+            glide(30, to, pointAt(score, 0, at(1, 4)), last),
+          );
+
+          expect(
+            joined.score.glissandoNotes(joined.score.spanners.single).to?.id,
+            NoteId(to),
+          );
+        }
+      });
+
+      test('that names a note its end lacks is refused for that note', () {
+        final outcome = glide(
+          40,
+          99,
+          pointAt(score, 0, at(1, 2)),
+          pointAt(score, 0, at(3, 4)),
+        );
+
+        expect(refusal(outcome), isA<StaleReference>());
+      });
+    });
+
     test('puts a line or hairpin on the staff, in no voice', () {
       final score = blankScore();
 

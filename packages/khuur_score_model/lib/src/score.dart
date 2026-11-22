@@ -1067,9 +1067,13 @@ final class PedalLine extends SpannerKind {
 /// 4. An edit that moves or shortens the note moves that end to the note's
 /// start, and an edit that takes the note off the staff removes the line.
 /// A file whose line names a note that does not sound at that end loads
-/// without the line. An end that names no note is on the top note of the
-/// event the spanner's voice has there, or voice one's when that voice has
-/// none.
+/// without the line. The chord a line that names a note ends on starts
+/// after the chord it starts on, as in each line MuseScore 4 builds, so a
+/// line cannot end on a note of another voice that has sounded since its
+/// start or before. `AddSpanner` refuses such a line, a JSON file with one
+/// does not load, and MusicXML import leaves it out. An end that names no
+/// note is on the top note of the event the spanner's voice has there, or
+/// voice one's when that voice has none.
 final class Glissando extends SpannerKind {
   /// A line from note [from] of the chord it starts on to note [to] of the
   /// chord it ends on, or between their top notes where an id is null.
