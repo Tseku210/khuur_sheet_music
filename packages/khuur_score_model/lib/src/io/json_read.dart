@@ -75,17 +75,17 @@ final class _Decoder {
           ),
       ]),
     );
+    final standing = <Spanner>[];
     for (final (i, spanner) in score.spanners.indexed) {
       if (spannerProblem(score, spanner) case final problem?) {
-        spanners[i]['to'].fail(problem);
+        if (!_savedBeforeTheRule(score, spanner)) {
+          spanners[i]['to'].fail(problem);
+        }
+      } else if (lostGlissandoNote(score, spanner) == null) {
+        standing.add(spanner);
       }
     }
-    return score.copyWith(
-      spanners: Seq([
-        for (final spanner in score.spanners)
-          if (lostGlissandoNote(score, spanner) == null) spanner,
-      ]),
-    );
+    return score.copyWith(spanners: Seq(standing));
   }
 
   Part _part(_In json) {
@@ -812,6 +812,16 @@ final Map<String, SpannerKind Function(_In json)> _kindByName = {
   ])
     _kindName(sample): read,
 };
+
+/// Whether [spanner] is a slur or glissando that names no note and ends on
+/// an event of [score] that starts too soon ([endsTooSoon]). A file saved
+/// before 0.5.0 can hold one, so it loads without the spanner.
+bool _savedBeforeTheRule(Score score, Spanner spanner) =>
+    switch (spanner.kind) {
+      Glissando(:final from, :final to) when from != null || to != null =>
+        false,
+      _ => endsTooSoon(score, spanner),
+    };
 
 /// The navigation marks written as a bare name, by that name.
 final Map<String, NavigationMark> _marksByName = {

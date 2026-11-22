@@ -570,8 +570,9 @@ final class SetDirections extends Edit {
 /// one event. Refused with [StaleReference] for a bar or staff that is
 /// gone or a [Glissando] note that no voice of the staff sounds at its end,
 /// [OutsideMeasure] for an end outside its bar, and [InvalidValue] for ends
-/// out of order, or for a [Glissando] that names a note and ends on a chord
-/// that starts no later than the chord it starts on.
+/// out of order, for a [Glissando] that ends on an event that starts no
+/// later than the event it starts on, or for a [Slur] that ends on one that
+/// starts before the event it starts on.
 final class AddSpanner extends Edit {
   /// Adds a spanner of [kind] from [first] to [last] on [staff].
   const AddSpanner({

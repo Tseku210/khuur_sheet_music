@@ -1452,7 +1452,10 @@ void main() {
     test('reads back two slurs of a second voice where the later one ends '
         'on a note of voice one', () {
       var score = blankScore(bars: 1);
-      score = fill(score, 0, [chordOf(1, 'C4', value: NoteValue.whole)]);
+      score = fill(score, 0, [
+        chordOf(1, 'C4', value: NoteValue.half),
+        chordOf(5, 'B3', value: NoteValue.half),
+      ]);
       score = fill(score, 0, slot: VoiceSlot.two, [
         chordOf(2, 'D4'),
         chordOf(3, 'E4'),

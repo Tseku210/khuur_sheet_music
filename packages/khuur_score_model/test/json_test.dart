@@ -515,7 +515,7 @@ void main() {
 
     test('loads without a slur or glissando that names no note and ends on a '
         'note of voice one that has sounded since before it starts, as a file '
-        'from 0.4.0 can hold', () {
+        'saved before 0.5.0 can hold', () {
       final score = fill(
         fill(blankScore(), 0, [chordOf(1, 'D5', value: NoteValue.whole)]),
         0,

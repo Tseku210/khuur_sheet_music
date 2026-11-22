@@ -955,7 +955,12 @@ sealed class SpannerKind {
   int get hashCode => runtimeType.hashCode;
 }
 
-/// A slur over notes of one voice.
+/// A slur over notes of one voice. Where that voice has no event at an end,
+/// the end is on voice one's. The event a slur ends on starts no sooner than
+/// the event it starts on, as in each slur MuseScore 4 builds, so a slur
+/// cannot end on a note of voice one that has sounded since before its
+/// start. `AddSpanner` refuses such a slur, an edit that leaves one removes
+/// it, and MusicXML import and a JSON file load without it.
 final class Slur extends SpannerKind {
   /// A solid slur, or a dashed one when [dashed].
   const Slur({this.dashed = false});
@@ -1067,13 +1072,18 @@ final class PedalLine extends SpannerKind {
 /// 4. An edit that moves or shortens the note moves that end to the note's
 /// start, and an edit that takes the note off the staff removes the line.
 /// A file whose line names a note that does not sound at that end loads
-/// without the line. The chord a line that names a note ends on starts
-/// after the chord it starts on, as in each line MuseScore 4 builds, so a
-/// line cannot end on a note of another voice that has sounded since its
-/// start or before. `AddSpanner` refuses such a line, a JSON file with one
-/// does not load, and MusicXML import leaves it out. An end that names no
-/// note is on the top note of the event the spanner's voice has there, or
-/// voice one's when that voice has none.
+/// without the line. An end that names no note is on the top note of the
+/// event the spanner's voice has there, or voice one's when that voice has
+/// none.
+///
+/// The event a line ends on starts after the event it starts on, as in each
+/// line MuseScore 4 builds. So a line cannot end on a note of another voice
+/// that has sounded since its start or before, whether the end names that
+/// note or is on voice one's event where its own voice has none.
+/// `AddSpanner` refuses such a line, an edit that leaves one removes it, and
+/// MusicXML import leaves it out. A JSON file with one that names a note
+/// does not load. One that names no note, as a file saved before 0.5.0 can
+/// hold, loads without the line.
 final class Glissando extends SpannerKind {
   /// A line from note [from] of the chord it starts on to note [to] of the
   /// chord it ends on, or between their top notes where an id is null.
