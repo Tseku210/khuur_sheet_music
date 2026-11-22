@@ -310,10 +310,11 @@ _Result _eraseRippled(
       }
       final first = score.indexOf(range.from.measure);
       final last = score.indexOf(range.to.measure);
+      final lines = _SectionLines(score);
       for (final scope in scopes.values) {
         var bar = first;
         while (bar <= last) {
-          final (_, end) = _sectionAround(now, bar);
+          final (start, end) = _sectionAround(now, bar);
           final length = now.barAt(bar).length;
           final from = bar == first
               ? Moment.zero.until(range.from.offset)
@@ -323,15 +324,19 @@ _Result _eraseRippled(
                     Moment.zero.until(range.to.offset)
               : length * Fraction(end - bar);
           if (to > from) {
-            final rippled = _ripple(
+            final rippled = lines.rippled(
               now,
-              ids,
-              staves: scope,
-              bar: bar,
-              shift: _Collapse([(from: from, to: to)]),
-              cursor: cursor,
-              selection: const Selection.none(),
-              inRuns: true,
+              [for (var i = start; i < end; i++) now.barAt(i).id],
+              (held) => _ripple(
+                held,
+                ids,
+                staves: scope,
+                bar: bar,
+                shift: _Collapse([(from: from, to: to)]),
+                cursor: cursor,
+                selection: const Selection.none(),
+                inRuns: true,
+              ),
             );
             now = rippled.score;
             cursor = rippled.cursor ?? cursor;
@@ -340,7 +345,7 @@ _Result _eraseRippled(
         }
       }
       return _Result(
-        now.flat,
+        lines.whole(now.flat),
         cursor: cursor,
         selection: const Selection.none(),
       );
