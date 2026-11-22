@@ -1,6 +1,8 @@
 /// The score root: parts, the global column list, and cross-bar spanners.
 library;
 
+import 'dart:math';
+
 import 'empty_bar.dart';
 import 'events.dart';
 import 'measure.dart';
@@ -577,20 +579,18 @@ final class Score {
       anchorOf(spanner, last: false)?.event.id ==
           anchorOf(spanner, last: true)?.event.id;
 
-  /// The notes a glissando [spanner] starts and ends on, each by
-  /// [Glissando.noteIn] from the event [anchorOf] finds at that end, or
+  /// The notes a glissando [spanner] starts and ends on, by
+  /// [Glissando.notesOn] from the events [anchorOf] finds at its ends, or
   /// null where that end is on a rest. Both are null for a spanner that is
   /// not a glissando.
-  ({Note? from, Note? to}) glissandoNotes(Spanner spanner) {
-    final kind = spanner.kind;
-    if (kind is! Glissando) {
-      return (from: null, to: null);
-    }
-    return (
-      from: Glissando.noteIn(anchorOf(spanner, last: false)?.event, kind.from),
-      to: Glissando.noteIn(anchorOf(spanner, last: true)?.event, kind.to),
-    );
-  }
+  ({Note? from, Note? to}) glissandoNotes(Spanner spanner) =>
+      switch (spanner.kind) {
+        final Glissando kind => kind.notesOn(
+          anchorOf(spanner, last: false)?.event,
+          anchorOf(spanner, last: true)?.event,
+        ),
+        _ => (from: null, to: null),
+      };
 
   /// Everything in effect at a point on a staff.
   ScoreContext contextAt(StaffId staff, ScorePoint at) {
@@ -661,8 +661,8 @@ final class Score {
   /// printed changes and tie arrivals, and the next column for outgoing tie
   /// targets. For a slur, glissando or trill line that ends in the bar it
   /// may also read every bar from the one before the line's first, to find
-  /// the event the line ends on ([anchorOf]), at a cost proportional to the
-  /// ties it follows back. No other measure is touched.
+  /// the events the line starts and ends on ([anchorOf]), at a cost
+  /// proportional to the ties it follows back. No other measure is touched.
   MeasureView measureView(MeasureId id) => buildMeasureView(this, indexOf(id));
 
   /// Which measures' [MeasureView]s may differ from those of [previous].
@@ -674,7 +674,8 @@ final class Score {
   /// different object than before, or when a spanner covering it was added
   /// or removed. The event a slur, glissando or trill line of more than one
   /// bar ends on can depend on every bar from the one before its first
-  /// ([anchorOf]), so the bar it ends in is relaid out when any of those is.
+  /// ([anchorOf]), and the note a glissando ends on depends on the chord it
+  /// starts on, so the bar it ends in is relaid out when any of those is.
   /// Every bar is relaid out when the parts change or when bars that survive
   /// change order. [meta] is not compared.
   ScoreChanges changesSince(Score previous) {
@@ -1248,11 +1249,12 @@ final class PedalLine extends SpannerKind {
 /// A shorter `SetValue`, or a ripple that removes part of a chord's time,
 /// removes each line that starts on that chord, as MuseScore 4 does.
 /// A file whose line names a note that does not sound at that end loads
-/// without the line. An end that names no note is on the top note of the
-/// event the spanner's voice has there. When that voice has none, it is on
-/// an event of another voice ([Score.anchorOf]). `AddSpanner` names the top
-/// note of a last end that is on a chord a voice other than the line's own
-/// starts there. The line then goes with that note.
+/// without the line. An end that names no note is on the event the
+/// spanner's voice has there. When that voice has none, it is on an event of
+/// another voice ([Score.anchorOf]). [notesOn] picks the note of that event.
+/// `AddSpanner` names that note at a last end that is on a chord a voice
+/// other than the line's own starts there. The line then goes with that
+/// note.
 ///
 /// The event a line ends on starts after the event it starts on, as in each
 /// line MuseScore 4's editor builds. So a line cannot end on an event of
@@ -1268,24 +1270,45 @@ final class PedalLine extends SpannerKind {
 /// there instead, when there is one.
 final class Glissando extends SpannerKind {
   /// A line from note [from] of the chord it starts on to note [to] of the
-  /// chord it ends on, or between their top notes where an id is null.
+  /// chord it ends on. [notesOn] gives the note of an end whose id is null.
   const Glissando({this.from, this.to});
 
   /// The note the line starts on, or null for the top note of its chord.
   final NoteId? from;
 
-  /// The note the line ends on, or null for the top note of its chord.
+  /// The note the line ends on, or null for the note of its chord at the
+  /// start note's place ([notesOn]).
   final NoteId? to;
 
-  /// The note of [event] that an end naming [id] lies on, where [event] is
-  /// what [Score.anchorOf] finds at that end. It is the note with that id,
-  /// or the chord's top note when [id] is null or names no note of the
-  /// chord. Null when [event] is not a chord.
-  static Note? noteIn(Event? event, NoteId? id) => switch (event) {
-    ChordEvent(:final notes) =>
-      notes.where((note) => note.id == id).firstOrNull ?? notes.last,
-    _ => null,
-  };
+  /// The notes this line joins, where [first] and [last] are the events
+  /// [Score.anchorOf] finds at its ends. An end on a rest has no note.
+  ///
+  /// The start is on the note [from] names, or on the chord's top note when
+  /// [from] is null or names no note of the chord. The end is on the note
+  /// [to] names. When [to] is null or names no note of the chord, the end is
+  /// on the note as far from the bottom of its chord as the start note is
+  /// from the bottom of its own, or on the top note when the chord has fewer
+  /// notes. MuseScore 4 picks the end of a new glissando that way. A line
+  /// that starts on a rest ends on the top note.
+  ({Note? from, Note? to}) notesOn(Event? first, Event? last) {
+    final start = first is ChordEvent ? first.notes : null;
+    final end = last is ChordEvent ? last.notes : null;
+    final place = start == null
+        ? null
+        : _indexOf(start, from) ?? start.length - 1;
+    return (
+      from: place == null ? null : start![place],
+      to: end == null
+          ? null
+          : end[_indexOf(end, to) ??
+                min(place ?? end.length - 1, end.length - 1)],
+    );
+  }
+
+  static int? _indexOf(Seq<Note> notes, NoteId? id) {
+    final index = id == null ? -1 : notes.indexWhere((note) => note.id == id);
+    return index < 0 ? null : index;
+  }
 
   /// This line on copies of its notes, where [copies] maps the id of each
   /// copied note to its copy's. An end whose note was not copied names none.
