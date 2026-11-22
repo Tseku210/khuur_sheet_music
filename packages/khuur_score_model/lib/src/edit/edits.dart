@@ -216,10 +216,10 @@ enum Overfill {
 ///   drops one that names the head. That holds when the note runs out of
 ///   the removed time and stays, shorter. A glissando is dropped too when
 ///   the chord it starts on loses its end or its middle. One that ends on
-///   a chord that loses only its end stays.
+///   a chord that loses its end or its middle stays.
 ///   Any other line ends where the time it covered ends, on the last event
 ///   that starts before then, and it is dropped when no time is left.
-///   MuseScore 4 drops that glissando and moves the ends the same way,
+///   MuseScore 4 drops glissandi and moves the other ends the same way,
 ///   and the result of an [Erase] does not depend on the order of its
 ///   selection. A slur, glissando or trill line end inside a note moves
 ///   with the note's onset, so it stays on that note.
