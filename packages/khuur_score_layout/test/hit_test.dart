@@ -17,8 +17,7 @@ const EngravingStyle style = EngravingStyle.standard;
 SheetLayout sheetOf(Score score, {double width = 120}) =>
     SheetLayout(score, width: width, text: const FakeMeasurer());
 
-/// The one-staff, one-bar sheet of [one] and [two], wide enough that no two
-/// onsets of a bar come within two spaces of each other.
+/// The one-staff, one-bar sheet of [one] and [two] at the standard style.
 SheetLayout barSheet(List<VoiceItem> one, {List<VoiceItem> two = const []}) =>
     sheetOf(
       scoreOf([
@@ -321,20 +320,31 @@ void main() {
 
     test('a tap inside a triplet of eighths, at an x that is no onset, gives '
         'a time where a sixteenth enters', () {
-      final layout = barSheet([
-        Tuplet(
-          id: const TupletId(50),
-          ratio: TupletRatio.triplet,
-          unit: NoteValue.eighth,
-          members: Seq([
-            chordOf(1, 'E4', value: eighth),
-            chordOf(2, 'E4', value: eighth),
-            chordOf(3, 'E4', value: eighth),
-          ]),
-        ),
-        chordOf(4, 'E4'),
-        chordOf(5, 'E4', value: half),
-      ]);
+      // Spaced wide enough for a tap halfway between two of the triplet's
+      // notes to be more than a staff space from both.
+      final layout = SheetLayout(
+        scoreOf([
+          [
+            staffOf([
+              Tuplet(
+                id: const TupletId(50),
+                ratio: TupletRatio.triplet,
+                unit: NoteValue.eighth,
+                members: Seq([
+                  chordOf(1, 'E4', value: eighth),
+                  chordOf(2, 'E4', value: eighth),
+                  chordOf(3, 'E4', value: eighth),
+                ]),
+              ),
+              chordOf(4, 'E4'),
+              chordOf(5, 'E4', value: half),
+            ]),
+          ],
+        ]),
+        width: 120,
+        text: const FakeMeasurer(),
+        style: const EngravingStyle(spacing: SpacingPolicy(quarterSpace: 4)),
+      );
       final system = layout.systemAt(0);
       final bar = system.bars.single;
       final onsets = voiceTimes(

@@ -344,7 +344,7 @@ void main() {
 
     test('a wider bar mid-score leaves every earlier system where it was', () {
       final previous = breaksOf(twelve, sheet);
-      final bars = [...twelve]..[7] = barOf(7, 16);
+      final bars = [...twelve]..[7] = barOf(7, 32);
       final resumed = breaksOf(bars, sheet, previous: previous);
 
       expect(startsOf(previous), [0, 3, 6, 9]);
