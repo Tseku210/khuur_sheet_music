@@ -248,23 +248,30 @@ _Result _eraseRippled(
       });
       var cursor = session.cursor;
       final range = _RangeFollower(score, session.selection);
+      final lines = _SectionLines(now);
       for (final (:staves, :bar, :cuts) in _sectionCuts(score, ripple, [
         for (final id in whole) targets[id]!,
       ])) {
-        final rippled = _ripple(
+        final (a, b) = _sectionAround(now.measures, bar);
+        final rippled = lines.rippled(
           now,
-          ids,
-          staves: staves,
-          bar: bar,
-          shift: _Collapse(cuts),
-          cursor: cursor,
-          selection: const Selection.none(),
+          [for (var i = a; i < b; i++) now.measures[i].id],
+          (held) => _ripple(
+            held,
+            ids,
+            staves: staves,
+            bar: bar,
+            shift: _Collapse(cuts),
+            cursor: cursor,
+            selection: const Selection.none(),
+          ),
         );
         now = rippled.score;
         cursor = rippled.cursor ?? cursor;
         range.close(staves, bar, rippled.closed);
       }
-      return _Result(now, cursor: cursor, selection: range.followed(now));
+      final after = lines.whole(now);
+      return _Result(after, cursor: cursor, selection: range.followed(after));
     case final RangeSelection range:
       var now = score;
       var cursor = session.cursor;
@@ -306,6 +313,70 @@ _Result _eraseRippled(
       }
       return _Result(now, cursor: cursor, selection: const Selection.none());
   }
+}
+
+/// The spanners of a score while an erase ripples it one section at a
+/// time. A ripple leaves a spanner with no end in its section as it is, so
+/// each section is rippled with only the spanners that have an end in it,
+/// and a score of many sections is not read through once for each.
+final class _SectionLines {
+  _SectionLines(this._before) : _now = [..._before.spanners] {
+    for (final (slot, line) in _before.spanners.indexed) {
+      _file(slot, line);
+    }
+  }
+
+  final Score _before;
+  final List<Spanner?> _now;
+  final _byBar = <MeasureId, List<int>>{};
+  var _moved = false;
+
+  void _file(int slot, Spanner line) {
+    for (final bar in {line.first.measure, line.last.measure}) {
+      final slots = _byBar[bar] ??= [];
+      if (!slots.contains(slot)) {
+        slots.add(slot);
+      }
+    }
+  }
+
+  /// What [ripple] makes of [score] with only the spanners that have an
+  /// end in [bars], the bars of the section it ripples. The score it
+  /// returns holds only those spanners.
+  _Rippled rippled(
+    Score score,
+    List<MeasureId> bars,
+    _Rippled Function(Score held) ripple,
+  ) {
+    final slots = [
+      for (final slot in {for (final bar in bars) ...?_byBar[bar]})
+        if (_now[slot] != null) slot,
+    ]..sort();
+    final held = Seq([for (final slot in slots) _now[slot]!]);
+    final rippled = ripple(score.copyWith(spanners: held));
+    final left = rippled.score.spanners;
+    if (!identical(left, held)) {
+      _moved = true;
+      var next = 0;
+      for (final slot in slots) {
+        final stays = next < left.length && left[next].id == _now[slot]!.id;
+        final line = _now[slot] = stays ? left[next++] : null;
+        if (line != null) {
+          _file(slot, line);
+        }
+      }
+    }
+    return rippled;
+  }
+
+  /// [rippled], the score that the last ripple returned, with every
+  /// spanner the ripples left, in the order they had. It is the score the
+  /// ripples began with when none of them changed a bar.
+  Score whole(Score rippled) => identical(rippled.measures, _before.measures)
+      ? _before
+      : rippled.copyWith(
+          spanners: _moved ? Seq(_now.nonNulls) : _before.spanners,
+        );
 }
 
 /// The first bar and the bar after the last of the stretch around bar
