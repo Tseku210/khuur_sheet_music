@@ -225,7 +225,7 @@ final class _Placing {
   /// on an event of voice one stands for a time in such a gap, which need
   /// not be the event's onset. It is the first such time, or, where another
   /// voice starts a chord as the gap opens, halfway from there to the next
-  /// start of an event in the bar's other voices.
+  /// start of an event in the bar's other voices, or to the event's end.
   Moment _timeOn(
     EventAnchor anchor,
     int staff,
