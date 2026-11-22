@@ -1221,31 +1221,38 @@ void main() {
       }
     });
 
-    test('follows what a rippled erase leaves of the chord it ends on', () {
+    test('follows the chord it ends on when a rippled erase moves it, and '
+        'goes when the erase removes the start of that chord', () {
+      final quarterThenHalf = [
+        chordOf(1, 'C4 G4'),
+        chordOf(2, 'D4 C5'),
+        chordOf(3, 'E4', value: NoteValue.half),
+      ];
+      final quarters = [
+        chordOf(1, 'C4 G4'),
+        chordOf(2, 'D4'),
+        chordOf(3, 'E4 C5'),
+        chordOf(4, 'F4'),
+      ];
+      const second = Glissando(from: NoteId(11), to: NoteId(20));
+      const third = Glissando(from: NoteId(11), to: NoteId(31));
       for (final (items, line, last, range, kept) in [
         (
-          [
-            chordOf(1, 'C4 G4'),
-            chordOf(2, 'D4 C5'),
-            chordOf(3, 'E4', value: NoteValue.half),
-          ],
-          const Glissando(from: NoteId(11), to: NoteId(20)),
+          quarterThenHalf,
+          second,
           at(1, 4),
-          (at(1, 8), at(3, 8)),
+          (at(1, 8), at(1, 4)),
           (('G4', 'D4'), at(1, 8)),
         ),
+        (quarterThenHalf, second, at(1, 4), (at(1, 8), at(3, 8)), null),
         (
-          [
-            chordOf(1, 'C4 G4'),
-            chordOf(2, 'D4'),
-            chordOf(3, 'E4 C5'),
-            chordOf(4, 'F4'),
-          ],
-          const Glissando(from: NoteId(11), to: NoteId(31)),
+          quarters,
+          third,
           at(1, 2),
-          (at(3, 8), at(5, 8)),
+          (at(3, 8), at(1, 2)),
           (('G4', 'C5'), at(3, 8)),
         ),
+        (quarters, third, at(1, 2), (at(3, 8), at(5, 8)), null),
       ]) {
         final score = fill(blankScore(), 0, items);
         final staff = score.staves.first.id;
@@ -1273,7 +1280,11 @@ void main() {
           ),
         ).score;
 
-        expect((joined(next), lastOf(next)), kept, reason: '$line');
+        expect(
+          next.spanners.isEmpty ? null : (joined(next), lastOf(next)),
+          kept,
+          reason: '$line $range',
+        );
       }
     });
 

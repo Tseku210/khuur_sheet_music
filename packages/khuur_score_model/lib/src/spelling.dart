@@ -62,6 +62,26 @@ final List<NoteValue> _candidates = [
     for (final dots in const [0, 1]) NoteValue(base, dots: dots),
 ]..sort((a, b) => b.length.compareTo(a.length));
 
+/// [length] as note values, the longest first, each with at most one dot
+/// and with no regard for the beat. A value that would leave less than the
+/// shortest value is passed over. Throws [ArgumentError] when no note
+/// values write [length].
+List<NoteValue> spellLongestFirst(Length length) {
+  final shortest = _candidates.last.length;
+  final values = <NoteValue>[];
+  var left = length;
+  while (left.isPositive) {
+    final value = _candidates.firstWhere(
+      (v) => v.length == left || v.length < left && shortest <= left - v.length,
+      orElse: () =>
+          throw ArgumentError('no note value writes ${left.wholeNotes}'),
+    );
+    values.add(value);
+    left -= value.length;
+  }
+  return values;
+}
+
 /// Greedy spelling of `[offset, offset + length)` on [grid]. Each step takes
 /// the longest value that fits and either stays inside one beat or crosses
 /// beats in a way that keeps the beat visible:

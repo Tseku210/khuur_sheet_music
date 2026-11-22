@@ -1,10 +1,5 @@
 part of 'session.dart';
 
-/// A change to the time of the staves a ripple moves, counted from the start
-/// of the edit's bar: `by` is added at `at` when positive, and the time from
-/// `at` for minus `by` is removed when negative.
-typedef _Shift = ({Length at, Length by});
-
 /// The edited voice's own change, counted from the start of the edit's
 /// bar: its music from `from` to `to` replaced by `music`. The music after
 /// `to` moves by the [_Shift] it comes with.
@@ -17,16 +12,17 @@ typedef _Splice = ({
 });
 
 /// What a ripple left: the score, the cursor and selection it moved (null
-/// keeps the session's), where its times now lie, and the bar after its
-/// section.
+/// keeps the session's), where its times now lie, the bar after its
+/// section, and the cuts it closed.
 final class _Rippled {
   const _Rippled(
     this.score,
     this.cursor,
     this.selection,
     this.place,
-    this.next,
-  );
+    this.next, [
+    this.closed = const [],
+  ]);
 
   final Score score;
   final VoicePoint? cursor;
@@ -38,6 +34,9 @@ final class _Rippled {
 
   /// The bar after the section. Null at the end of the score.
   final MeasureColumn? next;
+
+  /// The cuts that changed the section, counted from its first bar.
+  final List<_Cut> closed;
 }
 
 /// The staves that [ripple] moves for an edit on [staff], the staff that
@@ -102,7 +101,7 @@ _Result _enterRippled(
     ids,
     staves: _rippledStaves(score, at.staff, ripple),
     bar: bar,
-    shift: (at: from + rests, by: span - rests),
+    shift: _Grow(at: from + rests, by: span - rests),
     cursor: session.cursor,
     selection: session.selection,
     splice: (
@@ -208,7 +207,9 @@ _Result _setValueRippled(
     ids,
     staves: _rippledStaves(score, timed.ref.staff, ripple),
     bar: score.indexOf(timed.ref.measure),
-    shift: (at: by.isPositive ? to : from + value.length, by: by),
+    shift: by.isPositive
+        ? _Grow(at: to, by: by)
+        : _Collapse([(from: from + value.length, to: to)]),
     cursor: session.cursor,
     selection: session.selection,
     splice: (
@@ -227,7 +228,7 @@ _Result _setValueRippled(
 }
 
 /// Deletes what [selection] holds and pulls the later music that [ripple]
-/// moves back over each gap.
+/// moves back over the gaps.
 _Result _eraseRippled(
   Score score,
   Selection selection,
@@ -235,42 +236,45 @@ _Result _eraseRippled(
   Ripple ripple,
   EditSession session,
 ) {
-  var now = score;
-  var cursor = session.cursor;
-  Selection? selected;
-  void remove(List<StaffId> staves, int bar, Length from, Length to) {
-    final rippled = _ripple(
-      now,
-      ids,
-      staves: staves,
-      bar: bar,
-      shift: (at: from, by: from - to),
-      cursor: cursor,
-      selection: selected ?? session.selection,
-    );
-    now = rippled.score;
-    cursor = rippled.cursor ?? cursor;
-    selected = rippled.selection ?? selected;
-  }
-
   switch (selection) {
     case NoSelection():
       return _Result(score);
     case ItemSelection(:final items):
       final (:targets, :whole, :trimmed) = _picked(score, items);
-      now = _retie(score, trimmed, {
+      var now = _retie(score, trimmed, {
         for (final MapEntry(key: id, value: timed) in targets.entries)
           if (!whole.contains(id))
             (score.indexOf(timed.ref.measure), timed.ref.staff),
       });
-      for (final (:staves, :bar, :from, :to) in _gaps(score, ripple, [
+      var cursor = session.cursor;
+      final range = _RangeFollower(score, session.selection);
+      final lines = _SectionLines(now);
+      for (final (:staves, :bar, :cuts) in _sectionCuts(score, ripple, [
         for (final id in whole) targets[id]!,
       ])) {
-        remove(staves, bar, from, to);
+        final (a, b) = _sectionAround(now.measures, bar);
+        final rippled = lines.rippled(
+          now,
+          [for (var i = a; i < b; i++) now.measures[i].id],
+          (held) => _ripple(
+            held,
+            ids,
+            staves: staves,
+            bar: bar,
+            shift: _Collapse(cuts),
+            cursor: cursor,
+            selection: const Selection.none(),
+          ),
+        );
+        now = rippled.score;
+        cursor = rippled.cursor ?? cursor;
+        range.close(staves, bar, rippled.closed);
       }
-      return _Result(now, cursor: cursor, selection: selected);
+      final after = lines.whole(now);
+      return _Result(after, cursor: cursor, selection: range.followed(after));
     case final RangeSelection range:
-      selected = const Selection.none();
+      var now = score;
+      var cursor = session.cursor;
       final (:staves, lanes: _, inRange: _) = _covers(score, range);
       final scopes = <StaffId, List<StaffId>>{};
       for (final staff in staves) {
@@ -292,55 +296,87 @@ _Result _eraseRippled(
                     Moment.zero.until(range.to.offset)
               : length * Fraction(end - bar);
           if (to > from) {
-            remove(scope, bar, from, to);
+            final rippled = _ripple(
+              now,
+              ids,
+              staves: scope,
+              bar: bar,
+              shift: _Collapse([(from: from, to: to)]),
+              cursor: cursor,
+              selection: const Selection.none(),
+            );
+            now = rippled.score;
+            cursor = rippled.cursor ?? cursor;
           }
           bar = end;
         }
       }
-      return _Result(now, cursor: cursor, selection: selected);
+      return _Result(now, cursor: cursor, selection: const Selection.none());
   }
 }
 
-/// The time [events] take in the staves that [ripple] moves with each, as
-/// gaps within one bar each, last first: a pull of a later gap leaves the
-/// earlier ones where they were. Events that move together and overlap in
-/// time make one gap.
-List<({List<StaffId> staves, int bar, Length from, Length to})> _gaps(
-  Score score,
-  Ripple ripple,
-  List<TimedEvent> events,
-) {
-  final scopes = <StaffId, List<StaffId>>{};
-  final spans = <(StaffId, int), List<(Length, Length)>>{};
-  for (final timed in events) {
-    if (timed.tuplets.isNotEmpty) {
-      throw _Refuse(WouldSplitTuplet(timed.tuplets.last, timed.ref.measure));
+/// The spanners of a score while an erase ripples it one section at a
+/// time. A ripple leaves a spanner with no end in its section as it is, so
+/// each section is rippled with only the spanners that have an end in it,
+/// and a score of many sections is not read through once for each.
+final class _SectionLines {
+  _SectionLines(this._before) : _now = [..._before.spanners] {
+    for (final (slot, line) in _before.spanners.indexed) {
+      _file(slot, line);
     }
-    final from = Moment.zero.until(timed.onset);
-    final staves = _rippledStaves(score, timed.ref.staff, ripple);
-    scopes[staves.first] = staves;
-    final key = (staves.first, score.indexOf(timed.ref.measure));
-    (spans[key] ??= []).add((from, from + timed.duration));
   }
-  final gaps = <({List<StaffId> staves, int bar, Length from, Length to})>[];
-  for (final MapEntry(key: (first, bar), value: list) in spans.entries) {
-    final staves = scopes[first]!;
-    list.sort((x, y) => x.$1.compareTo(y.$1));
-    var (from, to) = list.first;
-    for (final (start, stop) in list.skip(1)) {
-      if (start > to) {
-        gaps.add((staves: staves, bar: bar, from: from, to: to));
-        from = start;
-      }
-      if (stop > to) {
-        to = stop;
+
+  final Score _before;
+  final List<Spanner?> _now;
+  final _byBar = <MeasureId, List<int>>{};
+  var _moved = false;
+
+  void _file(int slot, Spanner line) {
+    for (final bar in {line.first.measure, line.last.measure}) {
+      final slots = _byBar[bar] ??= [];
+      if (!slots.contains(slot)) {
+        slots.add(slot);
       }
     }
-    gaps.add((staves: staves, bar: bar, from: from, to: to));
   }
-  return gaps..sort(
-    (x, y) => x.bar != y.bar ? y.bar - x.bar : y.from.compareTo(x.from),
-  );
+
+  /// What [ripple] makes of [score] with only the spanners that have an
+  /// end in [bars], the bars of the section it ripples. The score it
+  /// returns holds only those spanners.
+  _Rippled rippled(
+    Score score,
+    List<MeasureId> bars,
+    _Rippled Function(Score held) ripple,
+  ) {
+    final slots = [
+      for (final slot in {for (final bar in bars) ...?_byBar[bar]})
+        if (_now[slot] != null) slot,
+    ]..sort();
+    final held = Seq([for (final slot in slots) _now[slot]!]);
+    final rippled = ripple(score.copyWith(spanners: held));
+    final left = rippled.score.spanners;
+    if (!identical(left, held)) {
+      _moved = true;
+      var next = 0;
+      for (final slot in slots) {
+        final stays = next < left.length && left[next].id == _now[slot]!.id;
+        final line = _now[slot] = stays ? left[next++] : null;
+        if (line != null) {
+          _file(slot, line);
+        }
+      }
+    }
+    return rippled;
+  }
+
+  /// [rippled], the score that the last ripple returned, with every
+  /// spanner the ripples left, in the order they had. It is the score the
+  /// ripples began with when none of them changed a bar.
+  Score whole(Score rippled) => identical(rippled.measures, _before.measures)
+      ? _before
+      : rippled.copyWith(
+          spanners: _moved ? Seq(_now.nonNulls) : _before.spanners,
+        );
 }
 
 /// The first bar and the bar after the last of the stretch around bar
@@ -361,11 +397,11 @@ List<({List<StaffId> staves, int bar, Length from, Length to})> _gaps(
   return (start, end);
 }
 
-/// [score] with the music of [staves] moved by [shift] through the section
-/// that holds bar [bar], and the edited voice changed by [splice]. The
-/// section grows by whole bars when the music no longer fits it, and every
-/// other staff rests in the new bars. The cursor, a range selection and
-/// spanner ends on [staves] follow the music.
+/// [score] with the music of [staves] moved by [shift], counted from bar
+/// [bar], through the section that holds the bar, and the edited voice
+/// changed by [splice]. The section grows by whole bars when the music no
+/// longer fits it, and every other staff rests in the new bars. The cursor,
+/// a range selection and spanner ends on [staves] follow the music.
 _Rippled _ripple(
   Score score,
   _Ids ids, {
@@ -383,18 +419,74 @@ _Rippled _ripple(
   final closing = old.last;
   final length = first.length;
   final origin = length * Fraction(bar - a);
-  final at = origin + shift.at;
-  final by = shift.by;
   final next = b < measures.length ? measures[b] : null;
   final moving = staves.toSet();
   final origins = <EventId, EventId>{};
+  final shortened = <EventId>{};
   final edited = measures[bar].id;
+  ScorePoint? unmoved(Length time) {
+    final (k, offset) = _barAt(origin + time, length);
+    return k < old.length ? ScorePoint(old[k].id, offset) : null;
+  }
+
+  final streams = {
+    for (final s in first.staves)
+      if (moving.contains(s.staff))
+        for (final slot in VoiceSlot.values)
+          (s.staff, slot): [
+            for (final (item, from) in _Stream(old, s.staff, slot).items)
+              (item: item, span: item.span, origin: from),
+          ],
+  };
+  var placed = shift.from(origin);
+  final starts = {for (final staff in moving) staff: <Length>[]};
+  if (placed is _Collapse && placed.cuts.isNotEmpty && splice == null) {
+    final hit = List.filled(placed.cuts.length, false);
+    var musicEnd = Length.zero;
+    for (final MapEntry(key: (staff, _), value: items) in streams.entries) {
+      final end = placed.musicEnd(items, hit, starts[staff]!);
+      if (end > musicEnd) {
+        musicEnd = end;
+      }
+    }
+    for (final list in starts.values) {
+      list.sort((x, y) => x.compareTo(y));
+    }
+    Length? lastMark;
+    for (final (:at, :direction) in _marks(old, moving)) {
+      final removed = direction ? placed.cutOver(at) : null;
+      if (removed != null) {
+        hit[removed] = true;
+      } else if (lastMark == null || at > lastMark) {
+        lastMark = at;
+      }
+    }
+    final changing = placed.changing(
+      hit,
+      musicEnd,
+      lastMark,
+      refills: () => !identical(
+        _ripple(
+          score,
+          ids,
+          staves: staves,
+          bar: a,
+          shift: _Collapse(const []),
+          cursor: cursor,
+          selection: const Selection.none(),
+        ).score,
+        score,
+      ),
+    );
+    if (changing == null) {
+      return _Rippled(score, null, null, unmoved, next);
+    }
+    placed = changing;
+  }
+  final time = placed;
 
   List<_Placed> moved(StaffId staff, VoiceSlot slot) {
-    final items = [
-      for (final (item, from) in _Stream(old, staff, slot).items)
-        (item: item, span: item.span, origin: from),
-    ];
+    final items = streams[(staff, slot)]!;
     if (splice != null && splice.staff == staff && splice.slot == slot) {
       return _spliced(
         items,
@@ -407,26 +499,24 @@ _Rippled _ripple(
         origins,
       );
     }
-    return by.isNegative
-        ? _shrunk(items, at, at - by)
-        : _grown(items, at, by, slot, edited, ids);
+    return time.voice(items, slot, edited, ids, shortened);
   }
 
-  final (count, voices) = _rippledVoices(old, moving, moved, ids, origins);
+  final (count, voices) = _rippledVoices(
+    old,
+    moving,
+    moved,
+    ids,
+    origins,
+    shortened,
+  );
 
   final end = length * Fraction(count);
 
-  /// Where [time] now lies. Null inside removed time.
-  Length? movedTime(Length time) => switch (time) {
-    _ when time < at => time,
-    _ when by.isNegative && time < at - by => null,
-    _ => time + by,
-  };
-
-  /// Where a mark at [time] goes: with its music, or where it was when no
+  /// Where a mark at [at] goes: with its music, or where it was when no
   /// music carries it into the section. A mark in removed time goes.
-  Length? kept(Length time) => switch (movedTime(time)) {
-    final moved? when moved >= end => time,
+  Length? kept(Length at) => switch (time.moved(at)) {
+    final moved? when moved >= end => at,
     final moved => moved,
   };
 
@@ -439,14 +529,23 @@ _Rippled _ripple(
         length,
         voices,
         direction: kept,
-        clef: (time) => movedTime(time) ?? at,
+        clef: time.land,
       ),
   };
   final grown = count > old.length;
   final untied = grown
       ? _untieAt(score, b - 1, _barEnd(closing), null).measures[b - 1]
       : closing;
-  final bars = _rippledBars(old, untied, cut, count, ids);
+  final bars = _rippledBars(
+    old,
+    untied,
+    cut,
+    count,
+    ids,
+    unsigned: (staff, k) =>
+        time is _Collapse &&
+        time.crosses(starts[staff]!, length * Fraction(k + 1)),
+  );
   ScorePoint? place(Length time) {
     if (time >= end) {
       return null;
@@ -456,11 +555,13 @@ _Rippled _ripple(
   }
 
   if (!grown && _same(bars, old)) {
-    return _Rippled(score, null, null, (time) => place(origin + time), next);
+    return _Rippled(score, null, null, (at) => place(origin + at), next);
   }
   final rebuilt = _retied(
     score,
-    score.copyWith(measures: measures.replaceRange(a, b, bars)),
+    grown
+        ? score.copyWith(measures: measures.replaceRange(a, b, bars))
+        : replacingBars(score, a, bars),
     moving,
     max(a - 1, 0),
     a + count,
@@ -482,30 +583,76 @@ _Rippled _ripple(
   final sectionEnd = ScorePoint(last.id, _barEnd(last));
 
   ScorePoint? onset(ScorePoint point) => switch (timeOf(point)) {
-    final time? => place(kept(time) ?? at)!,
+    final at? => place(kept(at) ?? time.land(at))!,
     null => point,
   };
   ScorePoint close(ScorePoint point) => switch (timeOf(point)) {
-    final time? => place(kept(time) ?? at) ?? sectionEnd,
+    final at? => place(kept(at) ?? time.land(at)) ?? sectionEnd,
     null => point,
   };
+  ScorePoint? firstOf(Spanner spanner) => moving.contains(spanner.staff)
+      ? onset(onItsNote(spanner, last: false))
+      : spanner.first;
+
+  bool unnoted(Spanner spanner) {
+    if (time is! _Collapse ||
+        spanner.kind is! Glissando ||
+        !moving.contains(spanner.staff)) {
+      return false;
+    }
+    bool startsInCut({required bool last}) {
+      final point = last ? spanner.last : spanner.first;
+      if (!index.containsKey(point.measure)) {
+        return false;
+      }
+      final onset = score.anchorOf(spanner, last: last)!.onset;
+      return time.cutOver(timeOf(ScorePoint(point.measure, onset))!) != null;
+    }
+
+    return startsInCut(last: false) || startsInCut(last: true);
+  }
+
   final spanners = _moveSpanners(
     rebuilt,
     score.spanners,
-    first: (spanner) => moving.contains(spanner.staff)
-        ? onset(onItsNote(spanner, last: false))
-        : spanner.first,
+    first: (spanner) => unnoted(spanner) ? null : firstOf(spanner),
     last: (spanner) {
-      final time = moving.contains(spanner.staff)
+      if (unnoted(spanner)) {
+        return null;
+      }
+      final at = moving.contains(spanner.staff)
           ? timeOf(onItsNote(spanner, last: true))
           : null;
-      if (time == null) {
+      if (at == null) {
         return spanner.last;
       }
-      return switch (movedTime(time)) {
-        final moved? => place(moved >= end ? time : moved)!,
-        null => _onsetBefore(rebuilt, spanner, place(at) ?? sectionEnd),
+      final moved = switch (time.moved(at)) {
+        final moved? => place(moved >= end ? at : moved),
+        null => place(time.land(at)) ?? sectionEnd,
       };
+      if (time is! _Collapse || spanner.kind.joinsNotes) {
+        return moved;
+      }
+      final ended = timeOf(_lastCoveredEnd(score, spanner))!;
+      final ends = time.land(ended);
+      final stop = place(ends) ?? sectionEnd;
+      final before = _onsetBefore(rebuilt, spanner, stop);
+      final lost = ends - time.land(at) < ended - at;
+      final short =
+          spanner.kind.reach == SpannerReach.time &&
+          moved != null &&
+          before != null &&
+          rebuilt.compare(moved, before) < 0;
+      if (!lost && !short) {
+        return moved;
+      }
+      final first = firstOf(spanner);
+      return before != null &&
+              first != null &&
+              rebuilt.compare(before, first) < 0 &&
+              rebuilt.compare(first, stop) < 0
+          ? first
+          : before;
     },
   );
   final followed = _follow(
@@ -529,8 +676,9 @@ _Rippled _ripple(
     rebuilt.copyWith(spanners: spanners),
     followed.cursor,
     followed.selection,
-    (time) => place(origin + time),
+    (at) => place(origin + at),
     next,
+    time is _Collapse ? time.cuts : const [],
   );
 }
 
@@ -544,6 +692,7 @@ _Rippled _ripple(
   List<_Placed> Function(StaffId staff, VoiceSlot slot) moved,
   _Ids ids,
   Map<EventId, EventId> origins,
+  Set<EventId> shortened,
 ) {
   final first = old.first;
   final length = first.length;
@@ -574,6 +723,7 @@ _Rippled _ripple(
           gaps: slot != VoiceSlot.one,
           length: length,
           origins: origins,
+          shortened: shortened,
         ),
       ),
   ];
@@ -584,14 +734,16 @@ _Rippled _ripple(
 /// place of its last bar and [cut] the new bars of each staff the ripple
 /// moved. A bar whose staves did not change is kept as it was, and bars past
 /// the old section are new, the last of them taking the section's closing
-/// barline, repeat end and closing navigation.
+/// barline, repeat end and closing navigation. A staff bar that [unsigned]
+/// names loses its measure-repeat sign.
 List<MeasureColumn> _rippledBars(
   List<MeasureColumn> old,
   MeasureColumn untied,
   Map<StaffId, List<StaffMeasure>> cut,
   int count,
-  _Ids ids,
-) {
+  _Ids ids, {
+  required bool Function(StaffId staff, int bar) unsigned,
+}) {
   final first = old.first;
   final closing = old.last;
   final length = first.length;
@@ -621,7 +773,9 @@ List<MeasureColumn> _rippledBars(
               base.staff(s.staff),
               cut[s.staff]![k],
               placed,
-            ))
+            ) &&
+            !(base.staff(s.staff).measureRepeat != null &&
+                unsigned(s.staff, k)))
           base.staff(s.staff)
         else
           cut[s.staff]![k],
@@ -810,31 +964,6 @@ List<_Placed> _grown(
       continue;
     }
     out.add(item);
-  }
-  return out;
-}
-
-/// [items] without the time from [from] to [to]. Each item loses its
-/// overlap with it, and an item inside it goes.
-List<_Placed> _shrunk(List<_Placed> items, Length from, Length to) {
-  final out = <_Placed>[];
-  var time = Length.zero;
-  for (final item in items) {
-    final start = time;
-    time += item.span;
-    final overlap = (time < to ? time : to) - (start > from ? start : from);
-    if (!overlap.isPositive) {
-      out.add(item);
-    } else if (overlap < item.span) {
-      if (item.item case Tuplet(:final id)) {
-        throw _Refuse(WouldSplitTuplet(id, item.origin));
-      }
-      out.add((
-        item: item.item,
-        span: item.span - overlap,
-        origin: item.origin,
-      ));
-    }
   }
   return out;
 }
