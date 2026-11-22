@@ -44,6 +44,104 @@ void main() {
     });
   });
 
+  group('fitXs', () {
+    final slices = [
+      Slice(at: at(0, 1), ideal: 4, rod: 3, pad: 1, left: 0.5, right: 1),
+      Slice(at: at(1, 4), ideal: 4, rod: 3, pad: 1, left: 1, right: 1.5),
+      Slice(at: at(1, 2), ideal: 4, rod: 2.5, pad: 1, right: 1.5),
+      Slice(at: at(1, 1), ideal: 0, rod: 0.5),
+    ];
+    const lead = 1.5;
+    List<double> xsAt(Fit fit, {double markRoom = 0}) =>
+        fitXs(slices, fit, 10, lead: lead, markRoom: markRoom);
+    double widthAt(Fit fit, {double markRoom = 0}) =>
+        squeezedWidth(slices, fit, lead: lead, markRoom: markRoom);
+
+    test('a stretched unit is its slices from the end of its lead', () {
+      for (final stretch in [0.0, 1.0, 1.7]) {
+        expect(
+          xsAt(Fit.stretched(stretch)),
+          sliceXs(slices, stretch, 10 + lead),
+        );
+      }
+    });
+
+    test('a unit that gives up half its padding keeps its lead and loses '
+        'half a pad from each rod', () {
+      const fit = Fit.squeezed(pad: 0.5, crush: 1);
+
+      expect(xsAt(fit), [11.5, 14, 16.5, 18.5]);
+      expect(widthAt(fit), 8.5);
+    });
+
+    test('a crushed unit scales every gap by one factor, keeps its last '
+        'reach whole and ends at its width from its head', () {
+      const fit = Fit.squeezed(pad: 0, crush: 0.8);
+
+      expect(widthAt(fit), closeTo(lead + 0.8 * 4 + 1.5, 1e-9));
+      expect(xsAt(fit), [
+        11.5,
+        closeTo(11.5 + 0.8 * 2, 1e-9),
+        closeTo(11.5 + 0.8 * 4, 1e-9),
+        closeTo(10 + widthAt(fit), 1e-9),
+      ]);
+    });
+
+    test('however hard a unit is crushed, its slices stay in order, each '
+        'on its own x, and none reaches out of it', () {
+      for (final crush in [0.9, 0.5, 0.1, 0.01]) {
+        final fit = Fit.squeezed(pad: 0, crush: crush);
+        final xs = xsAt(fit);
+
+        expect(xs.first, 10 + lead);
+        expect(xs.last, 10 + widthAt(fit));
+        for (final (index, slice) in slices.indexed) {
+          expect(xs[index] - slice.left, greaterThanOrEqualTo(10));
+          expect(xs[index] + slice.right, lessThanOrEqualTo(xs.last));
+          if (index > 0 && index < slices.length - 1) {
+            expect(xs[index], greaterThan(xs[index - 1]));
+          }
+        }
+      }
+    });
+
+    test('a unit crushed to nothing is as wide as its lead and its widest '
+        'reach', () {
+      expect(widthAt(const Fit.squeezed(pad: 0, crush: 0)), lead + 1.5);
+    });
+
+    test('a slice that reaches far left is held clear of the head, and the '
+        'slices after it follow it', () {
+      final wide = [
+        slices[0],
+        Slice(at: at(1, 4), ideal: 4, rod: 3, pad: 1, left: 4, right: 1),
+        ...slices.skip(2),
+      ];
+      final xs = fitXs(
+        wide,
+        const Fit.squeezed(pad: 0, crush: 0.1),
+        10,
+        lead: lead,
+        markRoom: 0,
+      );
+
+      expect(xs[1], 14);
+      expect(xs[2], closeTo(14.2, 1e-9));
+      expect(xs.last, closeTo(15.7, 1e-9));
+    });
+
+    test('a mark wider than the crushed slices widens the unit and moves '
+        'no slice', () {
+      const fit = Fit.squeezed(pad: 0, crush: 0.8);
+
+      expect(widthAt(fit, markRoom: 9), lead + 9);
+      expect(xsAt(fit, markRoom: 9), [
+        ...xsAt(fit).take(3),
+        10 + lead + 9,
+      ]);
+    });
+  });
+
   group('sliceTimes', () {
     test('every onset of every staff and voice, then the bar end', () {
       final view = viewOf(
@@ -148,7 +246,21 @@ void main() {
         );
 
         expect(slices[0].rod, 2 + policy.minGap + 0.5);
-        expect(slices.last, Slice(at: at(1, 1), ideal: 0, rod: 0.16));
+        expect(
+          slices.first,
+          Slice(
+            at: at(0, 1),
+            ideal: slices.first.ideal,
+            rod: 2 + policy.minGap + 0.5,
+            pad: policy.minGap,
+            left: 1,
+            right: 2,
+          ),
+        );
+        expect(
+          slices.last,
+          Slice(at: at(1, 1), ideal: 0, rod: 0.16, left: 0.5),
+        );
       },
     );
   });

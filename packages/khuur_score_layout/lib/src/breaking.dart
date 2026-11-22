@@ -1,7 +1,7 @@
 /// Line breaking and system planning over cached bars. Not exported.
 ///
 /// Everything here reads bars and never builds a system. It decides where
-/// each system starts, and for each system its stretch, its staff tops and
+/// each system starts, and for each system its fit, its staff tops and
 /// its height. So the sheet knows every system's place before any system
 /// is assembled, and assembles one only when somebody looks at it.
 library;
@@ -48,6 +48,10 @@ sealed class BreakUnit {
   /// The unit's time slices, ending with its last bar's end.
   List<Slice> get slices;
 
+  /// The width of the unit's widest mark, which a squeezed system keeps
+  /// room for after the unit's [lead].
+  double get markRoom;
+
   /// Per visible staff, how far the unit reaches outside it.
   List<BarStaff> get staves;
 
@@ -81,6 +85,9 @@ final class SingleBar extends BreakUnit {
   List<Slice> get slices => bar.slices;
 
   @override
+  double get markRoom => bar.markRoom;
+
+  @override
   List<BarStaff> get staves => bar.staves;
 
   @override
@@ -98,7 +105,7 @@ final class RestRun extends BreakUnit {
   /// is how far the count reaches above each staff's top line.
   RestRun(this.bars, {required double body, required double countRise})
     : slices = [
-        Slice(at: Moment.zero, ideal: body, rod: body),
+        Slice(at: Moment.zero, ideal: body, rod: body, right: body),
         bars.last.slices.last,
       ],
       staves = [
@@ -123,6 +130,10 @@ final class RestRun extends BreakUnit {
   /// The H-bar, which stretches with its system, and the last bar's end.
   @override
   final List<Slice> slices;
+
+  /// 0, since the H-bar's slice reaches as far as its rod.
+  @override
+  double get markRoom => 0;
 
   @override
   final List<BarStaff> staves;
@@ -293,7 +304,7 @@ final class SystemPlan {
   const SystemPlan({
     required this.key,
     required this.width,
-    required this.stretch,
+    required this.fit,
     required this.staves,
     required this.height,
     required this.labelAt,
@@ -302,12 +313,17 @@ final class SystemPlan {
   /// The inputs the plan is a function of.
   final SystemKey key;
 
-  /// The sheet's width, or the width of the system's rods when one bar
-  /// alone is wider than the sheet.
+  /// The sheet's width. It is wider only when the widest mark or the
+  /// widest slice of a unit, with the part names and brace, the heads and
+  /// the barlines, is wider than the sheet.
   final double width;
 
-  /// The one factor every spring of the system is scaled by.
-  final double stretch;
+  /// How the system's slices take their room.
+  final Fit fit;
+
+  /// The one factor every spring of the system is scaled by. 0 when the
+  /// system is squeezed.
+  double get stretch => fit.stretch;
 
   /// The visible staves, top to bottom.
   final List<PlannedStaff> staves;
@@ -351,7 +367,7 @@ typedef Breaks = ({
 /// [BarWidths]) fits, and a unit with `breakBefore` starts a new system (a
 /// page break is a system break, since the view has no pages). A unit
 /// wider than the sheet on its own gets a system to itself and is
-/// compressed to its rods.
+/// squeezed to the sheet as far as its notes and its widest mark allow.
 ///
 /// Greedy is chosen over optimal breaking for stability. Where a system
 /// starts depends only on where the one before it started and on the
@@ -596,7 +612,51 @@ Iterable<BarLayout> _firstBracket(List<BreakUnit> units) sync* {
   }
 }
 
-/// Plans the system of [key]. Its stretch comes from the slices, and its staff
+/// The fit of a system of [units] whose rods are wider than its sheet, and
+/// the width it comes to. [fixed] is everything of the system but its
+/// slices.
+///
+/// The system is wider than [sheet] only when it is wider at a crush of 0.
+/// It is then that wide, and the crush is the most that width holds.
+(Fit, double) _squeeze(List<BreakUnit> units, double sheet, double fixed) {
+  var rigid = fixed;
+  for (final unit in units) {
+    rigid += unit.slices.last.rod - unit.lead;
+  }
+  double widthAt(Fit fit) {
+    var width = rigid;
+    for (final unit in units) {
+      width += squeezedWidth(
+        unit.slices,
+        fit,
+        lead: unit.lead,
+        markRoom: unit.markRoom,
+      );
+    }
+    return width;
+  }
+
+  Fit most(Fit Function(double) of, double room) {
+    var low = 0.0;
+    var high = 1.0;
+    for (var round = 0; round < 50; round++) {
+      final middle = (low + high) / 2;
+      if (widthAt(of(middle)) <= room) {
+        low = middle;
+      } else {
+        high = middle;
+      }
+    }
+    return of(low);
+  }
+
+  Fit padded(double pad) => Fit.squeezed(pad: pad, crush: 1);
+  Fit crushed(double crush) => Fit.squeezed(pad: 0, crush: crush);
+  final room = math.max(sheet, widthAt(crushed(0)));
+  return (most(widthAt(padded(0)) <= room ? padded : crushed, room), room);
+}
+
+/// Plans the system of [key]. Its fit comes from the slices, and its staff
 /// tops and height from the bars' reach. Nothing is drawn.
 SystemPlan planSystem(SystemKey key, EngravingStyle style, TextMeasurer text) {
   final units = key.units;
@@ -612,12 +672,19 @@ SystemPlan planSystem(SystemKey key, EngravingStyle style, TextMeasurer text) {
   }
   final slices = [for (final unit in units) ...unit.slices];
   final room = key.width - fixed;
-  final fill = stretchFor(slices, room);
-  final ragged =
-      !style.justify ||
-      key.last &&
-          fixed + naturalWidth(slices) <
-              key.width * style.justifyLastSystemFrom;
+  final Fit fit;
+  var width = key.width;
+  if (rodWidth(slices) > room) {
+    (fit, width) = _squeeze(units, key.width, fixed);
+  } else {
+    final fill = stretchFor(slices, room);
+    final ragged =
+        !style.justify ||
+        key.last &&
+            fixed + naturalWidth(slices) <
+                key.width * style.justifyLastSystemFrom;
+    fit = Fit.stretched(ragged ? math.min(fill, 1) : fill);
+  }
 
   final number = text.measure('0', style.specOf(TextRole.barNumber));
   final numberRoom = style.barNumbers ? number.ascent + number.descent : 0.0;
@@ -710,8 +777,8 @@ SystemPlan planSystem(SystemKey key, EngravingStyle style, TextMeasurer text) {
   ];
   return SystemPlan(
     key: key,
-    width: math.max(key.width, fixed + rodWidth(slices)),
-    stretch: ragged ? math.min(fill, 1) : fill,
+    width: width,
+    fit: fit,
     staves: staves,
     height: y,
     labelAt: SpPoint(

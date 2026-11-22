@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:khuur_score_layout/src/assembly.dart';
 import 'package:khuur_score_layout/src/bar_layout.dart';
 import 'package:khuur_score_layout/src/breaking.dart';
 import 'package:khuur_score_layout/src/chords.dart';
@@ -214,20 +215,23 @@ void main() {
       );
     });
 
-    test('a bar wider than the sheet takes a system alone, as wide as its '
-        'rods', () {
+    test('a bar wider than the sheet takes a system alone and is squeezed '
+        'to the sheet', () {
       final bars = layoutsOf(barsOf([16, 16, 16]));
-      final breaks = breaksOf(bars, 10, lead: flush);
-      final plan = breaks.plans[1];
+      final rods = bars[1].widths.systemHead + bars[1].widths.minBody;
 
-      expect(startsOf(breaks), [0, 1, 2]);
-      expect(plan.stretch, 0);
-      expect(plan.width, greaterThan(10));
-      expect(
-        plan.width,
-        closeTo(bars[1].widths.systemHead + bars[1].widths.minBody, 1e-9),
-      );
-      expect(endOf(plan), closeTo(plan.width, 1e-9));
+      for (final width in [rods - 3, rods - 10, 12.0]) {
+        final breaks = breaksOf(bars, width, lead: flush);
+        final plan = breaks.plans[1];
+
+        expect(startsOf(breaks), [0, 1, 2], reason: 'width $width');
+        expect(plan.width, width, reason: 'width $width');
+        expect(
+          frameUnits(plan).last.barline + bars[1].slices.last.rod,
+          closeTo(width, 1e-9),
+          reason: 'width $width',
+        );
+      }
     });
 
     test('a key change at a system\'s first bar puts its courtesy at the end '
@@ -741,18 +745,21 @@ void main() {
       }
     });
 
-    test('without justify a bar wider than the sheet is still compressed to '
-        'its rods', () {
+    test('without justify a bar wider than the sheet is still squeezed to '
+        'the sheet', () {
       final bars = layoutsOf(barsOf([16, 16, 16]));
       final plan = breaksOf(
         bars,
-        10,
+        20,
         lead: flush,
         style: const EngravingStyle(justify: false),
       ).plans[1];
 
-      expect(plan.stretch, 0);
-      expect(endOf(plan), closeTo(plan.width, 1e-9));
+      expect(plan.width, 20);
+      expect(
+        frameUnits(plan).last.barline + bars[1].slices.last.rod,
+        closeTo(20, 1e-9),
+      );
     });
 
     test('the first system starts at the first indent and the others at the '
