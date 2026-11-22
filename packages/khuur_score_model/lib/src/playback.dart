@@ -624,14 +624,17 @@ Map<StaffId, _Spans> _trillSpans(Score score, _Timeline time) {
 /// to the onset of the last.
 Map<_Lane, _Spans> _slurSpans(Score score, _Timeline time) {
   final slurs = <_Lane, List<(Moment, Moment)>>{};
-  for (final Spanner(:kind, :staff, :voice, :first, :last) in score.spanners) {
-    if (kind is Slur) {
-      final slot = voice ?? VoiceSlot.one;
-      Moment onsetAt(ScorePoint point) => time.of(
-        point.measure,
-        score.anchorAt(staff, slot, point)!.onset,
-      );
-      (slurs[(staff, slot)] ??= []).add((onsetAt(first), onsetAt(last)));
+  for (final spanner in score.spanners) {
+    if (spanner.kind is Slur) {
+      Moment onsetAt({required bool last}) {
+        final anchor = score.anchorOf(spanner, last: last)!;
+        return time.of(anchor.ref.measure, anchor.onset);
+      }
+
+      (slurs[(spanner.staff, spanner.voice ?? VoiceSlot.one)] ??= []).add((
+        onsetAt(last: false),
+        onsetAt(last: true),
+      ));
     }
   }
   return slurs.map((lane, spans) => MapEntry(lane, _Spans(spans)));

@@ -1530,7 +1530,9 @@ void main() {
               .tone,
       ].join(' to ');
 
+      expect(spannersOf(ending), ['slur 0@1/4-0@1/2']);
       expect(tones(ending), 'F4 to D5');
+      expect(spannersOf(starting), ['slur 0@1/2-0@3/4']);
       expect(tones(starting), 'C5 to F4');
       for (final score in [ending, starting]) {
         expect(
@@ -1538,6 +1540,31 @@ void main() {
           spannersOf(score),
         );
       }
+    });
+
+    test('leaves out a slur of a second voice whose stop is on a note of '
+        'voice one that started before it, though a third voice starts a note '
+        'as the second voice stops', () {
+      const start = '<notations><slur type="start"/></notations>';
+      const stop = '<notations><slur type="stop"/></notations>';
+      final score = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 16, 'whole', '<voice>1</voice>$stop'),
+            backup(16),
+            note('E4', 4, 'quarter', '<voice>2</voice>'),
+            note('F4', 4, 'quarter', '<voice>2</voice>$start'),
+            forward(8, '<voice>2</voice>'),
+            backup(16),
+            forward(8, '<voice>3</voice>'),
+            note('G4', 4, 'quarter', '<voice>3</voice>'),
+            forward(4, '<voice>3</voice>'),
+          ],
+        ]),
+      );
+
+      expect(spannersOf(score), isEmpty);
     });
 
     test('leaves out a slur or glissando that stops on another staff where '

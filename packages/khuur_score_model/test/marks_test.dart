@@ -463,18 +463,6 @@ void main() {
           final end = joined.anchorOf(joined.spanners.single, last: true)!;
           expect(end.event.id, const EventId(6), reason: '$kind');
           expect(end.voice, VoiceSlot.three, reason: '$kind');
-          expect(
-            joined
-                .anchorAt(
-                  score.staves.first.id,
-                  VoiceSlot.two,
-                  pointAt(score, 0, at(3, 4)),
-                )!
-                .event
-                .id,
-            const EventId(6),
-            reason: '$kind',
-          );
         }
       });
 
@@ -498,11 +486,16 @@ void main() {
           [Gap(len(3, 4)), rest(6, NoteValue.quarter)],
           slot: VoiceSlot.three,
         );
-        TimedEvent endAt(Score score, Moment offset) => score.anchorAt(
-          score.staves.first.id,
-          VoiceSlot.two,
-          pointAt(score, 0, offset),
-        )!;
+        TimedEvent endAt(Score score, Moment offset) {
+          final joined = withSpanner(
+            score,
+            const Slur(),
+            pointAt(score, 0, at(1, 8)),
+            pointAt(score, 0, offset),
+            voice: VoiceSlot.two,
+          );
+          return joined.anchorOf(joined.spanners.single, last: true)!;
+        }
 
         expect(endAt(together, at(1, 2)).event.id, const EventId(7));
         expect(endAt(resting, at(3, 4)).event.id, const EventId(1));
@@ -540,7 +533,7 @@ void main() {
           third,
           slot: VoiceSlot.three,
         );
-        var later = blankScore(bars: 2);
+        var later = blankScore();
         later = fill(later, 0, [chordOf(7, 'C5', value: NoteValue.whole)]);
         later = fill(later, 0, [
           Gap(len(3, 4)),
