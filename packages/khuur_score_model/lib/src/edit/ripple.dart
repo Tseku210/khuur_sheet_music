@@ -620,7 +620,7 @@ List<MeasureColumn> _rippledBars(
             _sameStaff(
               base.staff(s.staff),
               cut[s.staff]![k],
-              placed.difference(_eventIds(cut[s.staff]![k])),
+              placed,
             ))
           base.staff(s.staff)
         else
@@ -872,7 +872,7 @@ Set<EventId> _eventIds(StaffMeasure bar) => {
 
 /// Whether [cut], a staff bar a ripple cut again, holds the same music as
 /// [old], so the bar can keep its old object. [placed] holds the id of
-/// every event the other cut bars hold.
+/// every event the cut bars hold, [cut] among them.
 bool _sameStaff(StaffMeasure old, StaffMeasure cut, Set<EventId> placed) =>
     old.clef == cut.clef &&
     _same(old.directions, cut.directions) &&
@@ -886,33 +886,48 @@ bool _sameStaff(StaffMeasure old, StaffMeasure cut, Set<EventId> placed) =>
       cut.voices,
       (x, y) =>
           x.slot == y.slot &&
-          _sameBy(x.items, y.items, (x, y) => _sameItem(x, y, placed)),
+          _sameBy(
+            x.items,
+            y.items,
+            (x, y) => _sameItem(x, y, placed, cut),
+          ),
     );
 
 /// Whether [old] and [cut] are the same item, or the same blank time under
 /// other ids: a re-cut bar mints new ids for the rests it fills in. A rest
 /// the ripple moved to another bar took its id there, so the blank time
-/// that follows it into its old bar is not the same.
-bool _sameItem(VoiceItem old, VoiceItem cut, Set<EventId> placed) =>
+/// that follows it into its old bar is not the same. [bar] is the cut bar
+/// that holds [cut].
+bool _sameItem(
+  VoiceItem old,
+  VoiceItem cut,
+  Set<EventId> placed,
+  StaffMeasure bar,
+) =>
     identical(old, cut) ||
     switch ((old, cut)) {
       (Gap(span: final a), Gap(span: final b)) => a == b,
       (final MeasureRest a, final MeasureRest b) =>
-        a.span == b.span && _elastic(a) && _elastic(b) && _free(a, b, placed),
+        a.span == b.span &&
+            _elastic(a) &&
+            _elastic(b) &&
+            _free(a, b, placed, bar),
       (final RestEvent a, final RestEvent b) =>
         a.value == b.value &&
             !a.hidden &&
             !b.hidden &&
             _elastic(a) &&
             _elastic(b) &&
-            _free(a, b, placed),
+            _free(a, b, placed, bar),
       _ => false,
     };
 
-/// Whether [old] in place of [cut] repeats no id of [placed], the ids the
-/// other cut bars hold.
-bool _free(Event old, Event cut, Set<EventId> placed) =>
-    old.id == cut.id || !placed.contains(old.id);
+/// Whether [old] in place of [cut] repeats no id that a cut bar other than
+/// [bar] holds. [placed] holds the ids of every cut bar.
+bool _free(Event old, Event cut, Set<EventId> placed, StaffMeasure bar) =>
+    old.id == cut.id ||
+    !placed.contains(old.id) ||
+    _eventIds(bar).contains(old.id);
 
 bool _sameBy<T>(Iterable<T> a, Iterable<T> b, bool Function(T, T) same) {
   if (a.length != b.length) {

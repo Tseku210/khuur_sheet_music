@@ -28,8 +28,7 @@ const double _mostGrowth = 8;
 /// A rippled erase closes each gap on its own, last first, and each close
 /// re-bars the section. So it is quadratic, and four times the bars cost
 /// sixteen times the time. Work in a close that grows with the square of
-/// the section makes that sixty-four times, and about forty at these
-/// lengths. The bound sits between.
+/// the section makes that sixty-four times. The bound sits between.
 const double _mostRippledGrowth = 24;
 
 /// The median time of [runs] erases of the second chord of every bar of
