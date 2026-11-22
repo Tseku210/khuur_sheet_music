@@ -42,7 +42,7 @@ export 'src/playback.dart'
         PlaybackScript,
         PlayedBar;
 export 'src/refs.dart';
-export 'src/score.dart' hide replacingBars;
+export 'src/score.dart' hide BarRuns, replacingBars;
 export 'src/seq.dart';
 export 'src/time.dart';
 export 'src/views.dart';
