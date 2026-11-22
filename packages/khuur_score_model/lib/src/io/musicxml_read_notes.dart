@@ -748,7 +748,7 @@ extension on _BarReader {
     final number = line.getAttribute('number') ?? '1';
     final kind = switch (name) {
       'slur' => Slur(dashed: line.getAttribute('line-type') == 'dashed'),
-      'glissando' => const Glissando(),
+      'glissando' || 'slide' => const Glissando(),
       'wavy-line' => const TrillLine(),
       _ => null,
     };

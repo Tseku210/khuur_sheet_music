@@ -50,6 +50,7 @@ List<_Attack> _attacks(
   bool graces = true,
   _Chord? closing,
   _Bar? played,
+  ChordEvent? glideTo,
 }) {
   final TimedEvent(:onset, :duration, :ref) = timed;
   final key = column.key;
@@ -103,24 +104,33 @@ List<_Attack> _attacks(
           )
         : 1,
   );
-  for (final note in chord.notes) {
-    final pieces = _canPlay(note, chord, figure, key)
-        ? figure
-        : _figure(null, chord, span);
+  final targets = ornament == null && chord.tremolo == 0
+      ? glideTo?.notes
+      : null;
+  for (final (n, note) in chord.notes.indexed) {
+    final pieces =
+        _glide(
+          note,
+          targets?[min(n, targets.length - 1)],
+          span,
+          key,
+        ) ??
+        _ornamented(
+          note,
+          chord,
+          _canPlay(note, chord, figure, key)
+              ? figure
+              : _figure(null, chord, span),
+          key,
+        );
     var at = onset + steal;
-    for (final (i, (steps, length)) in pieces.indexed) {
+    for (final (i, (sounded, length)) in pieces.indexed) {
       final last = i == pieces.length - 1;
       attacks.add(
         _Attack(
           onset: at,
           length: length,
-          note: switch (note) {
-            PitchedNote(:final pitch) when steps != 0 => note.copyWith(
-              pitch: chord.ornamentNote(pitch, steps, key),
-              tie: false,
-            ),
-            _ => note.copyWith(tie: last && note.tie),
-          },
+          note: sounded,
           stress: i == 0 ? _stress(chord.articulations) : 1,
           gate: _gate(last ? chord.articulations : const {}),
           joined: !last,
@@ -134,6 +144,55 @@ List<_Attack> _attacks(
     play(ending, onset + span + steal, close, closing.timed.ref);
   }
   return attacks;
+}
+
+List<(Note, Length)> _ornamented(
+  Note note,
+  ChordEvent chord,
+  List<(int, Length)> figure,
+  KeySignature key,
+) => [
+  for (final (i, (steps, length)) in figure.indexed)
+    (
+      switch (note) {
+        PitchedNote(:final pitch) when steps != 0 => note.copyWith(
+          pitch: chord.ornamentNote(pitch, steps, key),
+          tie: false,
+        ),
+        _ => note.copyWith(tie: i == figure.length - 1 && note.tie),
+      },
+      length,
+    ),
+];
+
+List<(Note, Length)>? _glide(
+  Note note,
+  Note? to,
+  Length span,
+  KeySignature key,
+) {
+  if ((note, to)
+      case (
+        PitchedNote(tie: false, :final pitch) && final from,
+        PitchedNote(pitch: Pitch(:final midiKey)),
+      )
+      when midiKey != pitch.midiKey) {
+    final count = (midiKey - pitch.midiKey).abs();
+    final way = (midiKey - pitch.midiKey).sign;
+    return [
+      for (var k = 0; k < count; k++)
+        (
+          k == 0
+              ? from
+              : from.copyWith(
+                  pitch: Transposition.chromatic(k * way)
+                      .apply(pitch, Alterations(key)),
+                ),
+          span * Fraction(1, count),
+        ),
+    ];
+  }
+  return null;
 }
 
 Length _written(Seq<GraceChord> graces) =>

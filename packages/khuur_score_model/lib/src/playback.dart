@@ -174,6 +174,7 @@ final class PlaybackCompiler {
     final (:channels, :sounds) = _soundSetup(score, options, time);
     final trills = _trillSpans(score, time);
     final slurs = _slurSpans(score, time);
+    final glissandi = _glideTargets(score);
     final windows = options.from == null && options.to == null
         ? [
             for (final (:index, :pass) in _playOrder(measures))
@@ -283,7 +284,9 @@ final class PlaybackCompiler {
           closed.add((at, next.timed.ref));
         }
         final graced = !closed.remove((k, chord.timed.ref));
-        final timeless = trilled || closing != null || !graced
+        final glideTo = glissandi[chord.timed.ref];
+        final timeless =
+            trilled || closing != null || !graced || glideTo != null
             ? null
             : chord.attacks;
         for (final attack
@@ -296,14 +299,16 @@ final class PlaybackCompiler {
                   graces: graced,
                   closing: closing?.$2,
                   played: bar,
+                  glideTo: glideTo,
                 )) {
           final (key, cents) = _key(attack.note, instrument);
           final start = bar.secondsAt(attack.onset);
           final end = bar.secondsAt(attack.onset + attack.length);
           final lane = (staff, voice, attack.note.tone);
           final _Sounding note;
-          if (ties.remove(lane) case (final held, final at)
+          if (ties[lane] case (final held, final at)
               when at == (k, attack.onset)) {
+            ties.remove(lane);
             note = held..end = end;
             if (attack.gate case final gate?) {
               note
@@ -513,6 +518,28 @@ Map<_Lane, _Spans> _slurSpans(Score score, _Timeline time) {
     }
   }
   return slurs.map((lane, spans) => MapEntry(lane, _Spans(spans)));
+}
+
+/// MusicXML writes a glissando for each note of a chord, so a chord can
+/// start several.
+Map<EventRef, ChordEvent> _glideTargets(Score score) {
+  final targets = <EventRef, ChordEvent>{};
+  for (final Spanner(:kind, :staff, :voice, :first, :last) in score.spanners) {
+    if (kind is Glissando) {
+      final slot = voice ?? VoiceSlot.one;
+      if ((
+            score.anchorAt(staff, slot, first),
+            score.anchorAt(staff, slot, last)?.event,
+          )
+          case (
+            TimedEvent(event: ChordEvent(), :final ref),
+            final ChordEvent to,
+          )) {
+        targets.putIfAbsent(ref, () => to);
+      }
+    }
+  }
+  return targets;
 }
 
 /// Spans of time, kept so that a lookup costs a binary search however many
@@ -804,8 +831,9 @@ final class PlaybackNote {
   final int channel;
 
   /// The event that produced this note. A tie chain reports its first
-  /// event; a grace note reports the grace chord's id. A note a
-  /// measure-repeat sign plays reports the written event it repeats.
+  /// event; a grace note reports the grace chord's id. Each step of a
+  /// glissando reports the chord it starts on. A note a measure-repeat sign
+  /// plays reports the written event it repeats.
   final EventRef source;
 }
 

@@ -296,6 +296,36 @@ Score twiceThroughEverything() {
 ChordEvent tremolo(ChordEvent chord, int strokes) =>
     chord.copyWith(tremolo: strokes);
 
+Score glided(
+  List<List<VoiceItem>> bars,
+  (int bar, int quarter) from,
+  (int bar, int quarter) to,
+) {
+  var score = blankScore(bars: bars.length);
+  for (final (i, items) in bars.indexed) {
+    score = fill(score, i, items);
+  }
+  score = changeBar(
+    score,
+    0,
+    tempos([const TempoMark(offset: Moment.zero, tempo: Tempo(60))]),
+  );
+  return withLine(
+    score,
+    const Glissando(),
+    pointAt(score, from.$1, at(from.$2, 4)),
+    pointAt(score, to.$1, at(to.$2, 4)),
+  );
+}
+
+List<int> keysBetween(
+  PlaybackScript script,
+  double fromSeconds,
+  double toSeconds,
+) => [
+  for (final note in script.notesBetween(fromSeconds, toSeconds)) note.key,
+];
+
 void main() {
   group('play order', () {
     test('plays the bars once in notated order', () {
@@ -3093,6 +3123,301 @@ void main() {
         reached(score, fromRit, slowingSeconds(0.75) - slowingSeconds(0.5)),
         (1, 1, 0.75),
       );
+    });
+  });
+
+  group('glissandi', () {
+    test('a note glides up a semitone at a time over its length, each step '
+        'reported as its chord', () {
+      final script = compiled(
+        glided(
+          [
+            [quarters(1, 'C4'), quarters(2, 'G4'), halves(3, 'C4')],
+          ],
+          (0, 0),
+          (0, 1),
+        ),
+      );
+
+      expect(notes(script, 0, 2), [
+        (0.0, 0.143, 60, 0, 1),
+        (0.143, 0.143, 61, 0, 1),
+        (0.286, 0.143, 62, 0, 1),
+        (0.429, 0.143, 63, 0, 1),
+        (0.571, 0.143, 64, 0, 1),
+        (0.714, 0.143, 65, 0, 1),
+        (0.857, 0.141, 66, 0, 1),
+        (1.0, 0.99, 67, 0, 2),
+      ]);
+      expect(sources(script, 0.5), [1]);
+      expect(sources(script, 1.5), [2]);
+    });
+
+    test('a note glides down, and to its own key not at all', () {
+      final down = compiled(
+        glided(
+          [
+            [quarters(1, 'E4'), quarters(2, 'C4'), halves(3, 'C4')],
+          ],
+          (0, 0),
+          (0, 1),
+        ),
+      );
+      final level = compiled(
+        glided(
+          [
+            [quarters(1, 'E4'), quarters(2, 'E4'), halves(3, 'C4')],
+          ],
+          (0, 0),
+          (0, 1),
+        ),
+      );
+
+      expect(keysBetween(down, 0, 1.5), [64, 63, 62, 61, 60]);
+      expect(notes(level, 0, 1.5), [
+        (0.0, 0.99, 64, 0, 1),
+        (1.0, 0.99, 64, 0, 2),
+      ]);
+    });
+
+    test('a glissando across a barline glides over the whole first note', () {
+      final script = compiled(
+        glided(
+          [
+            [wholes(1, 'C4')],
+            [wholes(2, 'E4')],
+          ],
+          (0, 0),
+          (1, 0),
+        ),
+      );
+
+      expect(attacks(script), [
+        (0.0, 60, 1),
+        (1.0, 61, 1),
+        (2.0, 62, 1),
+        (3.0, 63, 1),
+        (4.0, 64, 2),
+      ]);
+    });
+
+    test('each note of a chord glides to the note at its place in the next '
+        'chord, or to its top note', () {
+      final paired = compiled(
+        glided(
+          [
+            [chordOf(1, 'C4 E4'), chordOf(2, 'D4 G4'), halves(3, 'C4')],
+          ],
+          (0, 0),
+          (0, 1),
+        ),
+      );
+      final onto = compiled(
+        glided(
+          [
+            [chordOf(1, 'E4 F4'), quarters(2, 'G4'), halves(3, 'C4')],
+          ],
+          (0, 0),
+          (0, 1),
+        ),
+      );
+
+      expect(attacks(paired).take(6), [
+        (0.0, 60, 1),
+        (0.0, 64, 1),
+        (0.333, 65, 1),
+        (0.5, 61, 1),
+        (0.667, 66, 1),
+        (1.0, 62, 2),
+      ]);
+      expect(attacks(onto).take(6), [
+        (0.0, 64, 1),
+        (0.0, 65, 1),
+        (0.333, 65, 1),
+        (0.5, 66, 1),
+        (0.667, 66, 1),
+        (1.0, 67, 2),
+      ]);
+    });
+
+    test('a note tied into the glide holds through its first step, though '
+        'another note of the chord glides through its key', () {
+      final script = compiled(
+        glided(
+          [
+            [
+              chordOf(1, 'E4', tie: true),
+              chordOf(2, 'C4 E4'),
+              chordOf(3, 'G4 B4'),
+              quarters(4, 'C4'),
+            ],
+          ],
+          (0, 1),
+          (0, 2),
+        ),
+      );
+
+      expect(
+        notes(script, 0, 2).where((note) => note.$3 == 64),
+        [(0.0, 1.143, 64, 0, 1), (1.571, 0.143, 64, 0, 2)],
+      );
+    });
+
+    test('a glide into a tie lands on one note as long as the chain', () {
+      final script = compiled(
+        glided(
+          [
+            [
+              quarters(1, 'C4'),
+              chordOf(2, 'D4', tie: true),
+              quarters(3, 'D4'),
+              quarters(4, 'C4'),
+            ],
+          ],
+          (0, 0),
+          (0, 1),
+        ),
+      );
+
+      expect(notes(script, 0, 3), [
+        (0.0, 0.5, 60, 0, 1),
+        (0.5, 0.495, 61, 0, 1),
+        (1.0, 1.98, 62, 0, 2),
+      ]);
+    });
+
+    test('a note that ties on plays its tie and does not glide', () {
+      final script = compiled(
+        glided(
+          [
+            [
+              chordOf(1, 'C4', tie: true),
+              quarters(2, 'C4'),
+              quarters(3, 'E4'),
+              quarters(4, 'C4'),
+            ],
+          ],
+          (0, 0),
+          (0, 2),
+        ),
+      );
+
+      expect(notes(script, 0, 3), [
+        (0.0, 1.98, 60, 0, 1),
+        (2.0, 0.99, 64, 0, 3),
+      ]);
+    });
+
+    test('a trill, a trill line or a tremolo plays instead of the glide', () {
+      List<int> first(ChordEvent chord, {bool line = false}) {
+        var score = glided(
+          [
+            [chord, quarters(2, 'G4'), halves(3, 'C4')],
+          ],
+          (0, 0),
+          (0, 1),
+        );
+        if (line) {
+          score = withLine(
+            score,
+            const TrillLine(),
+            pointAt(score, 0, Moment.zero),
+            pointAt(score, 0, Moment.zero),
+          );
+        }
+        return keysBetween(compiled(score), 0, 1).toSet().toList();
+      }
+
+      expect(first(ornamented(quarters(1, 'C4'), Ornament.trill)), [60, 62]);
+      expect(first(quarters(1, 'C4'), line: true), [60, 62]);
+      expect(first(ornamented(quarters(1, 'C4'), Ornament.mordent)), [60, 59]);
+      expect(first(tremolo(quarters(1, 'C4'), 2)), [60]);
+    });
+
+    test('graces take their time first and the glide fills the rest', () {
+      final script = compiled(
+        glided(
+          [
+            [
+              chordOf(1, 'C4', graces: [grace(5, 'B3')]),
+              quarters(2, 'E4'),
+              halves(3, 'C4'),
+            ],
+          ],
+          (0, 0),
+          (0, 1),
+        ),
+      );
+
+      expect(attacks(script).take(6), [
+        (0.0, 59, 5),
+        (0.063, 60, 1),
+        (0.297, 61, 1),
+        (0.531, 62, 1),
+        (0.766, 63, 1),
+        (1.0, 64, 2),
+      ]);
+    });
+
+    test('a range that stops before the glide ends still glides, and one '
+        'that starts at its end does not', () {
+      final score = glided(
+        [
+          [quarters(1, 'C4'), quarters(2, 'E4'), halves(3, 'C4')],
+        ],
+        (0, 0),
+        (0, 1),
+      );
+
+      expect(
+        keysBetween(
+          compiled(
+            score,
+            PlaybackOptions(to: pointAt(score, 0, at(1, 4))),
+          ),
+          0,
+          double.infinity,
+        ),
+        [60, 61, 62, 63],
+      );
+      expect(
+        attacks(
+          compiled(
+            score,
+            PlaybackOptions(from: pointAt(score, 0, at(1, 4))),
+          ),
+        ).first,
+        (0.0, 64, 2),
+      );
+    });
+
+    test('one compiler follows a glissando added, and a target changed in '
+        'another bar', () {
+      final compiler = PlaybackCompiler();
+      final plain = glided(
+        [
+          [wholes(1, 'C4')],
+          [wholes(2, 'E4')],
+        ],
+        (0, 0),
+        (1, 0),
+      ).copyWith(spanners: const Seq.empty());
+      final withGlide = glided(
+        [
+          [wholes(1, 'C4')],
+          [wholes(2, 'E4')],
+        ],
+        (0, 0),
+        (1, 0),
+      );
+      final lowered = fill(withGlide, 1, [wholes(2, 'D4')]);
+
+      expect(keysBetween(compiler.compile(plain), 0, 8), [60, 64]);
+      expect(
+        keysBetween(compiler.compile(withGlide), 0, 8),
+        [60, 61, 62, 63, 64],
+      );
+      expect(keysBetween(compiler.compile(lowered), 0, 8), [60, 61, 62]);
     });
   });
 }

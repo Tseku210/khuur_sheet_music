@@ -980,7 +980,15 @@ final class PedalLine extends SpannerKind {
   const PedalLine();
 }
 
-/// A glissando line between notes of one voice.
+/// A glissando line between notes of one voice. Playback moves each note of
+/// the chord it starts on toward the chord it ends on in semitone steps,
+/// each an equal share of the note, as MuseScore 4 plays a chromatic
+/// glissando. Note `i`, lowest first, goes to note `i` of that chord, or
+/// to its top note when it has fewer, as MuseScore 4 guesses the end of a
+/// glissando that has no end note. The line belongs to the two chords, so
+/// every note of the first chord glides, where MuseScore glides only the
+/// notes that carry a line. A trill, mordent, turn or tremolo on the first
+/// chord plays instead, and a note that ties on plays its tie.
 final class Glissando extends SpannerKind {
   /// The glissando, which has no fields.
   const Glissando();

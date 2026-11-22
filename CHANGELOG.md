@@ -6,6 +6,7 @@
 * `ScorePlayer.play` starts sooner on a score with many slurs, because the compile no longer scans every slur for every chord.
 * `SheetView` squeezes a bar that is wider than the view into the view, unless one mark, or one note with the part names and the heads before it, is wider than the view. Before, the bar ran past the right edge and its last notes and barline were cut off. Narrow views cut off bars in many scores. A slur keeps clear of a high note, a stem or a beam near its ends, from `khuur_score_layout` 0.5.0.
 * The sheet spaces notes by MuseScore 4's ratio of 1.5, so short notes take less room, from `khuur_score_layout` 0.5.0.
+* `ScorePlayer` and `scoreToMidi` play a glissando as chromatic steps, and MusicXML import reads a slide as a glissando, from `khuur_score_model` 0.5.0.
 * Depends on `khuur_score_model` 0.5.0 and `khuur_score_layout` 0.5.0.
 
 ## 0.4.0
