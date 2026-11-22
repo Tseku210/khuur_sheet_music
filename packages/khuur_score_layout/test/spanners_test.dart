@@ -847,6 +847,9 @@ void main() {
       final line = linesOf(system, owner: spanner).single;
       final from = headOf(system, noteRef(score, 0, 3));
       final to = headOf(system, noteRef(score, 0, 4));
+      final curve = curvesOf(sheetOf(joined(const Slur())).systemAt(0)).single;
+      expect(curve.start.x, inInclusiveRange(from.left, from.right));
+      expect(curve.end.x, inInclusiveRange(to.left, to.right));
       expect(line.from.x, greaterThan(from.right));
       expect(line.to.x, lessThan(to.left));
       expect(line.from.x, lessThan(line.to.x));
