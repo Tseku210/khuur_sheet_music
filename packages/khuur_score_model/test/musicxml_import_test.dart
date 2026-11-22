@@ -2129,6 +2129,51 @@ void main() {
             joined(score),
           );
         });
+
+        test('reads back a line of a second voice that starts in a gap of '
+            'its voice over a rest of voice one and names a note of a third '
+            'voice, on that rest and that note', () {
+          String end(TimedEvent on) => switch (on.event) {
+            ChordEvent(:final notes) => '${on.voice.name} ${notes.single.tone}',
+            _ => '${on.voice.name} rest',
+          };
+          String ends(Score score) {
+            final line = score.spanners.single;
+            return '${spannersOf(score).single}, '
+                '${end(score.anchorOf(line, last: false)!)} to '
+                '${end(score.anchorOf(line, last: true)!)}, '
+                'to note ${score.glissandoNotes(line).to?.tone}';
+          }
+
+          var bar = blankScore(bars: 1);
+          bar = fill(bar, 0, [
+            chordOf(1, 'C5'),
+            rest(2, NoteValue.half),
+            chordOf(3, 'E5'),
+          ]);
+          bar = fill(bar, 0, slot: VoiceSlot.three, [
+            Gap(len(1, 4)),
+            chordOf(4, 'G4'),
+            chordOf(5, 'A4'),
+            Gap(len(1, 4)),
+          ]);
+          final score = withSpanner(
+            bar,
+            const Glissando(to: NoteId(50)),
+            pointAt(bar, 0, at(1, 4)),
+            pointAt(bar, 0, at(1, 2)),
+            voice: VoiceSlot.two,
+          );
+          final exported = scoreToMusicXml(score);
+          final back = scoreFromMusicXml(exported);
+
+          expect(
+            ends(score),
+            'glissando 0@1/4-0@1/2, one rest to three A4, to note A4',
+          );
+          expect(ends(back), ends(score));
+          expect(scoreToMusicXml(back), exported);
+        });
       });
 
       test('ends a line to a note of another staff on the top note of its '
