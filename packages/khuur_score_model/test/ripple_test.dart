@@ -1497,6 +1497,213 @@ void main() {
     });
   });
 
+  group('A rippled erase of chords in many places', () {
+    test('ends a slur on the note that takes the place of its erased last '
+        'note', () {
+      var score = fill(blankScore(), 0, quarters(1, 'F4 G4 A4 B4'));
+      score = withSlur(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(1, 2)),
+      );
+
+      final next = applied(pull(EditSession.start(score), [3])).score;
+
+      expect(bar(next, 0), [
+        'F4/quarter',
+        'G4/quarter',
+        'B4/quarter',
+        'rest/quarter',
+      ]);
+      expect(next.spanners.single.last, pointAt(next, 0, at(1, 2)));
+    });
+
+    test('writes a note whole that ends up inside one bar', () {
+      final session = barsOf([
+        quarters(1, 'F4 G4 A4 B4'),
+        [
+          chordOf(5, 'C5', value: NoteValue.half),
+          chordOf(6, 'D5', value: NoteValue.half),
+        ],
+      ]);
+
+      final next = applied(pull(session, [2, 4])).score;
+
+      expect(bar(next, 0), ['F4/quarter', 'A4/quarter', 'C5/half']);
+      expect(bar(next, 1), ['D5/half', 'rest/half']);
+    });
+
+    test('keeps a tuplet that ends up whole inside one bar', () {
+      final session = barsOf([
+        quarters(11, 'F4 G4 A4 B4'),
+        [tripletOfQuarters(), chordOf(6, 'D5', value: NoteValue.half)],
+      ]);
+
+      final next = applied(pull(session, [12, 14])).score;
+
+      expect(bar(next, 0), [
+        'F4/quarter',
+        'A4/quarter',
+        '3:2[F4/quarter, G4/quarter, A4/quarter]',
+      ]);
+      expect(bar(next, 1), ['D5/half', 'rest/half']);
+    });
+
+    test('gives the same score for any order of the selection', () {
+      Score lined() {
+        var score = blankScore(bars: 3);
+        for (var b = 0; b < 3; b++) {
+          score = fill(score, b, quarters(1 + 4 * b, 'F4 G4 A4 B4'));
+        }
+        score = withSlur(
+          score,
+          pointAt(score, 0, at(1, 4)),
+          pointAt(score, 1, at(1, 4)),
+        );
+        return withSpanner(
+          score,
+          const Hairpin(crescendo: true),
+          pointAt(score, 0, at(1, 2)),
+          pointAt(score, 2, at(1, 4)),
+        );
+      }
+
+      final orders = [
+        [2, 4, 6, 7, 10],
+        [10, 7, 6, 4, 2],
+        [6, 2, 10, 4, 7],
+      ];
+
+      expect(
+        {
+          for (final order in orders)
+            saved(applied(pull(EditSession.start(lined()), order)).score),
+        },
+        hasLength(1),
+      );
+    });
+
+    test('keeps the tie into a note that two gaps shorten', () {
+      var score = fill(blankScore(bars: 1), 0, [
+        chordOf(1, 'C4', tie: true),
+        chordOf(2, 'C4', value: NoteValue.half),
+        rest(3, NoteValue.quarter),
+      ]);
+      score = fill(score, 0, [
+        Gap(len(1, 4)),
+        chordOf(4, 'D5', value: NoteValue.quarter.dotted),
+        chordOf(5, 'E5', value: NoteValue.sixteenth),
+        chordOf(6, 'F5', value: NoteValue.sixteenth),
+        Gap(len(1, 4)),
+      ], slot: VoiceSlot.two);
+
+      final next = applied(pull(EditSession.start(score), [4, 6])).score;
+
+      expect(bar(next, 0).take(2), ['C4/quarter~', 'C4/sixteenth']);
+      expect(heard(next), hasLength(2));
+    });
+
+    test('writes a note that two gaps leave with five 256ths', () {
+      const short = NoteValue(DurationBase.oneTwentyEighth, dots: 1);
+      var score = fill(blankScore(bars: 1), 0, [
+        chordOf(1, 'C4', value: NoteValue.thirtySecond),
+        chordOf(2, 'D4', value: NoteValue.thirtySecond),
+        chordOf(3, 'E4', value: NoteValue.sixteenth),
+        rest(6, NoteValue.eighth),
+        rest(7, NoteValue.quarter),
+        rest(8, NoteValue.half),
+      ]);
+      score = fill(score, 0, [
+        chordOf(4, 'C5', value: short),
+        Gap(len(5, 256)),
+        chordOf(5, 'D5', value: short),
+        Gap(len(245, 256)),
+      ], slot: VoiceSlot.two);
+
+      final next = applied(pull(EditSession.start(score), [4, 5])).score;
+
+      expect(bar(next, 0).take(5), [
+        'C4/oneTwentyEighth.~',
+        'C4/oneTwentyEighth',
+        'D4/oneTwentyEighth.~',
+        'D4/oneTwentyEighth',
+        'E4/sixteenth',
+      ]);
+    });
+
+    test('drops a measure-repeat sign that the music is carried across', () {
+      var session = barsOf([
+        quarters(1, 'F4 G4 A4 B4'),
+        [],
+        [],
+        quarters(13, 'C5 D5 E5 F5'),
+      ]);
+      session = applied(
+        session.run(SetMeasureRepeat(idOf(session, 2), bars: 1)),
+      );
+      final blankBar = firstEvent(session.score, 1).id.value;
+
+      final next = applied(pull(session, [1, 2, 3, 4, blankBar])).score;
+
+      expect(bar(next, 1), [
+        'C5/quarter',
+        'D5/quarter',
+        'E5/quarter',
+        'F5/quarter',
+      ]);
+      expect(bar(next, 2), ['measure-rest']);
+      expect(next.measures[2].staves.first.measureRepeat, isNull);
+    });
+
+    test('keeps a hairpin on a note that loses only its start', () {
+      var score = fill(blankScore(bars: 1), 0, [
+        chordOf(1, 'F4', value: NoteValue.half),
+        chordOf(2, 'G4', value: NoteValue.half),
+      ]);
+      score = withSpanner(
+        score,
+        const Hairpin(crescendo: true),
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, Moment.zero),
+      );
+      final staff = score.staves.first.id;
+
+      final next = applied(
+        EditSession.start(score).run(
+          Erase(
+            RangeSelection(
+              from: pointAt(score, 0, Moment.zero),
+              to: pointAt(score, 0, at(1, 4)),
+              top: staff,
+              bottom: staff,
+            ),
+            ripple: Ripple.part,
+          ),
+        ),
+      ).score;
+
+      expect(bar(next, 0).take(2), ['F4/quarter', 'G4/half']);
+      expect(next.spanners.single.last, pointAt(next, 0, Moment.zero));
+    });
+
+    test('leaves a bar rest in each bar the pull empties', () {
+      final session = barsOf([
+        quarters(1, 'F4 G4 A4 B4'),
+        quarters(5, 'C5 D5 E5 F5'),
+      ]);
+
+      final next = applied(pull(session, [2, 4, 5, 7])).score;
+
+      expect(bar(next, 0), [
+        'F4/quarter',
+        'A4/quarter',
+        'D5/quarter',
+        'F5/quarter',
+      ]);
+      expect(bar(next, 1), ['measure-rest']);
+    });
+  });
+
   group('A ripple and the session', () {
     test('a range selection follows the music', () {
       final session = barsOf([

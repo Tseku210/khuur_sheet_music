@@ -772,8 +772,27 @@ void main() {
         ['a'],
       );
       expect([for (final s in next.spanners) s.id.value], [900, 901]);
-      expect(spannerIn(next, 900).last, pointAt(score, 0, at(1, 4)));
+      expect(spannerIn(next, 900).last, pointAt(score, 1, Moment.zero));
       expect(spannerIn(next, 901).first, pointAt(score, 1, Moment.zero));
+    });
+
+    test('drops a slur that ends in the cut of the last bar', () {
+      var score = fill(blankScore(bars: 1), 0, [
+        chordOf(1, 'F4', value: NoteValue.half),
+        chordOf(2, 'G4', value: NoteValue.half),
+      ]);
+      score = withSlur(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(1, 2)),
+      );
+      final session = EditSession.start(score);
+
+      final next = applied(
+        session.run(SetBarLength(idOf(session, 0), len(1, 2))),
+      ).score;
+
+      expect(next.spanners, isEmpty);
     });
 
     test('refuses a length that cuts a tuplet or cannot be written', () {

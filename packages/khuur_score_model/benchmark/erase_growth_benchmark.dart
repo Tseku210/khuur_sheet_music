@@ -25,12 +25,6 @@ import 'erase_benchmark.dart' show glided;
 /// the noise of a busy machine.
 const double _mostGrowth = 8;
 
-/// A rippled erase closes each gap on its own, last first, and each close
-/// re-bars the section. So it is quadratic, and four times the bars cost
-/// sixteen times the time. Work in a close that grows with the square of
-/// the section makes that sixty-four times. The bound sits between.
-const double _mostRippledGrowth = 24;
-
 /// The median time of [runs] erases of the second chord of every bar of
 /// [score] in one edit, after [warmUps] that do not count. Fails when the
 /// erase is refused or leaves another count of chords than three a bar.
@@ -105,6 +99,6 @@ bool _holds(Ripple ripple, int bars, double bound) {
 
 void main() {
   final plain = _holds(Ripple.none, 4000, _mostGrowth);
-  final rippled = _holds(Ripple.part, 100, _mostRippledGrowth);
+  final rippled = _holds(Ripple.part, 1000, _mostGrowth);
   exitCode = plain && rippled ? 0 : 1;
 }
