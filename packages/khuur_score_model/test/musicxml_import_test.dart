@@ -1472,6 +1472,7 @@ void main() {
 
       expect(spannersOf(score), ['slur 0@1/4-0@1/2']);
       final slur = score.spanners.single;
+      expect(slur.kind, const Slur());
       final from = score.anchorOf(slur, last: false)!;
       final to = score.anchorOf(slur, last: true)!;
       expect((from.voice, from.onset), (VoiceSlot.two, at(1, 4)));
@@ -1492,6 +1493,10 @@ void main() {
         final tone = (on.event as ChordEvent).notes.single.tone;
         return '${on.voice.name} $tone';
       }
+
+      List<SpannerKind> kindsOf(Score score) => [
+        for (final spanner in score.spanners) spanner.kind,
+      ];
 
       final together = imported(
         flute([
@@ -1535,6 +1540,8 @@ void main() {
         ]),
       );
 
+      expect(kindsOf(together), [const Slur(endVoice: VoiceSlot.four)]);
+      expect(kindsOf(later), [const Slur(endVoice: VoiceSlot.three)]);
       for (final (score, on) in [(together, 'four A4'), (later, 'three G4')]) {
         expect(end(score), on);
         expect(end(reloaded(score)), on);

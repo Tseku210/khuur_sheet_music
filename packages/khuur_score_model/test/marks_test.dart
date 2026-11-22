@@ -750,6 +750,53 @@ void main() {
       });
     });
 
+    test('ends a glissando of voice two on a note of voice three, under a '
+        'tied part of a note voice one starts with its first note, and a '
+        'ripple keeps it on that note or removes it with the note', () {
+      var score = fill(blankScore(), 0, [
+        chordOf(1, 'C5'),
+        chordOf(2, 'D5', tie: true),
+        chordOf(4, 'D5'),
+        chordOf(5, 'E5'),
+      ]);
+      score = fill(score, 0, [
+        Gap(len(1, 4)),
+        chordOf(3, 'F4'),
+        Gap(len(1, 2)),
+      ], slot: VoiceSlot.two);
+      score = fill(score, 0, [
+        Gap(len(1, 2)),
+        chordOf(6, 'G4'),
+        Gap(len(1, 4)),
+      ], slot: VoiceSlot.three);
+      final session = applied(
+        addSpanner(
+          score,
+          const Glissando(),
+          pointAt(score, 0, at(1, 4)),
+          pointAt(score, 0, at(1, 2)),
+          voice: VoiceSlot.two,
+        ),
+      );
+      List<EventId> ends(Score score) => [
+        for (final line in score.spanners)
+          score.anchorOf(line, last: true)!.event.id,
+      ];
+
+      Score pulled(int id) => applied(
+        session.run(
+          Erase(
+            ItemSelection(Seq([eventRef(session, id)])),
+            ripple: Ripple.part,
+          ),
+        ),
+      ).score;
+
+      expect(ends(session.score), [const EventId(6)]);
+      expect(ends(pulled(1)), [const EventId(6)]);
+      expect(pulled(4).spanners, isEmpty);
+    });
+
     test('puts a line or hairpin on the staff, in no voice', () {
       final score = blankScore();
 

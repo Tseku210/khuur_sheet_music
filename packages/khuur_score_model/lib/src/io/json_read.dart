@@ -783,7 +783,13 @@ final class _In {
 /// messages list them.
 final Map<String, SpannerKind Function(_In json)> _kindByName = {
   for (final (sample, read) in <(SpannerKind, SpannerKind Function(_In))>[
-    (const Slur(), (json) => Slur(dashed: json.maybe('dashed')?.flag ?? false)),
+    (
+      const Slur(),
+      (json) => Slur(
+        dashed: json.maybe('dashed')?.flag ?? false,
+        endVoice: json.maybe('endVoice')?.voice,
+      ),
+    ),
     (const Hairpin(crescendo: true), (_) => const Hairpin(crescendo: true)),
     (const Hairpin(crescendo: false), (_) => const Hairpin(crescendo: false)),
     (

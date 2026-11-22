@@ -838,7 +838,7 @@ void main() {
       final bar = plain.measures.first;
       final slurred = joined(const Slur()).measureView(bar.id);
       expect(
-        pieceEnd(slurred.spanners.single, slurred.staves.single, bar.length),
+        pieceEnd(slurred.spanners.single, bar.length),
         (at: at(1, 2), event: const EventId(4)),
       );
 
@@ -886,7 +886,7 @@ void main() {
       final bar = score.measures.first;
       final view = score.measureView(bar.id);
       expect(
-        pieceEnd(view.spanners.single, view.staves.single, bar.length),
+        pieceEnd(view.spanners.single, bar.length),
         (at: at(1, 4), event: const EventId(2)),
       );
     });
@@ -1545,8 +1545,8 @@ void main() {
               }
               compared++;
               final voice = spanner.voice ?? VoiceSlot.one;
-              final start = pieceStart(segment, staff);
-              final end = pieceEnd(segment, staff, measure.length);
+              final start = pieceStart(segment);
+              final end = pieceEnd(segment, measure.length);
               final reason = 'seed $seed step $step ${spanner.kind}';
               if (!segment.startsHere) {
                 expect(start, (at: Moment.zero, event: null), reason: reason);

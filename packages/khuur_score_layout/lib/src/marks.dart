@@ -793,10 +793,12 @@ const double _ornamentAccidentalGap = 0.2;
 /// the line, which draws one.
 Set<EventId> trillLineStarts(MeasureView view) => {
   for (final segment in view.spanners)
-    if (segment.startsHere && segment.spanner.kind is TrillLine)
-      for (final staff in view.staves)
-        if (staff.source.staff == segment.spanner.staff)
-          ?pieceStart(segment, staff).event,
+    if (segment.startsHere &&
+        segment.spanner.kind is TrillLine &&
+        view.staves.any(
+          (staff) => staff.source.staff == segment.spanner.staff,
+        ))
+      ?pieceStart(segment).event,
 };
 
 const List<Glyph> _circled = [

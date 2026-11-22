@@ -445,21 +445,119 @@ final class Score {
   };
 
   /// The event [spanner], of [SpannerReach.events], attaches to at its
-  /// first end, or at its last when [last], by [Spanner.anchorAmong].
+  /// first end, or at its last when [last].
+  ///
+  /// An end of a [Glissando] that names a note is on the chord that holds
+  /// the note, in whichever voice sounds it at that end. The last end of a
+  /// [Slur] that names a voice ([Slur.endVoice]) is on the chord that voice
+  /// sounds there. Every other end, and one whose note or voice sounds no
+  /// such chord there, is on the event of the spanner's voice, or of voice
+  /// one when that voice has none there.
+  ///
+  /// A last end that falls to an event voice one has held since before the
+  /// event the spanner starts on would run the line backward. It is on the
+  /// chord another voice starts at that end instead, the first such voice,
+  /// and on the event of voice one only when there is none. Voice one has
+  /// held its event since before that event when the event at the end, or
+  /// an event it is tied from through any number of ties and barlines,
+  /// starts before it. For a [Glissando], which may not end on an event
+  /// that starts with its first, starting with that event counts too. A
+  /// line that starts on the held note itself ends on voice one's event.
   TimedEvent? anchorOf(Spanner spanner, {required bool last}) {
     final at = last ? spanner.last : spanner.first;
-    final voices = _staffMeasure(at.measure, spanner.staff)?.voices;
-    return spanner.anchorAmong(
-      [for (final voice in voices ?? const <Voice>[]) voice.slot],
-      (voice, offset) => eventAt(
-        VoicePoint(
-          staff: spanner.staff,
-          voice: voice,
-          at: ScorePoint(at.measure, offset),
-        ),
-      ),
-      last: last,
-    );
+    TimedEvent? sounding(VoiceSlot voice) =>
+        eventAt(VoicePoint(staff: spanner.staff, voice: voice, at: at));
+    switch (spanner.kind) {
+      case Glissando(:final from, :final to):
+        if (last ? to : from case final named?) {
+          for (final slot in VoiceSlot.values) {
+            final timed = sounding(slot);
+            if (timed?.event case ChordEvent(:final notes)
+                when notes.any((note) => note.id == named)) {
+              return timed;
+            }
+          }
+        }
+      case Slur(:final endVoice?) when last:
+        final timed = sounding(endVoice);
+        if (timed?.event is ChordEvent) {
+          return timed;
+        }
+      default:
+    }
+    final own = sounding(spanner.voice ?? VoiceSlot.one);
+    if (own != null) {
+      return own;
+    }
+    final one = sounding(VoiceSlot.one);
+    if (!last || one == null) {
+      return one;
+    }
+    final start = anchorOf(spanner, last: false);
+    if (start == null ||
+        !_heldSince(one, start, orWith: spanner.kind is Glissando)) {
+      return one;
+    }
+    for (final slot in VoiceSlot.values.skip(1)) {
+      final timed = sounding(slot);
+      if (timed != null &&
+          timed.onset == at.offset &&
+          timed.event is ChordEvent) {
+        return timed;
+      }
+    }
+    return one;
+  }
+
+  /// Whether [held], or an event it is tied from, starts before [start],
+  /// or with it when [orWith]. Not when [start] is itself one of those
+  /// events, as the line then starts on the held note.
+  bool _heldSince(
+    TimedEvent held,
+    TimedEvent start, {
+    required bool orWith,
+  }) {
+    final bar = indexOf(start.ref.measure);
+    for (TimedEvent? part = held; part != null; part = _tiedFrom(part)) {
+      if (part.ref == start.ref) {
+        return false;
+      }
+      final bars = indexOf(part.ref.measure) - bar;
+      final order = bars != 0 ? bars : part.onset.compareTo(start.onset);
+      if (order < 0 || (order == 0 && orWith)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// The event [part] continues: the one before it in its voice that ends
+  /// where [part] starts and ties a note to every note of [part]. Null when
+  /// [part] starts a note of its own.
+  TimedEvent? _tiedFrom(TimedEvent part) {
+    final before = eventBefore(part);
+    if (before == null) {
+      return null;
+    }
+    final end = before.onset + before.duration;
+    final joined = before.ref.measure == part.ref.measure
+        ? end == part.onset
+        : part.onset.isZero &&
+              end == Moment.zero + column(before.ref.measure).length;
+    if (!joined) {
+      return null;
+    }
+    if ((before.event, part.event)
+        case (
+          ChordEvent(notes: final tied),
+          ChordEvent(:final notes),
+        )
+        when notes.every(
+          (note) => tied.any((from) => from.tie && from.tone == note.tone),
+        )) {
+      return before;
+    }
+    return null;
   }
 
   /// Whether [spanner] joins notes but starts and ends on one event.
@@ -550,7 +648,10 @@ final class Score {
   /// Everything layout needs to draw bar [id]. Cost is proportional to the
   /// bar's content plus the spanner count; it reads the previous column for
   /// printed changes and tie arrivals, and the next column for outgoing tie
-  /// targets. No other measure is touched.
+  /// targets. For a slur, glissando or trill line that ends in the bar it
+  /// may also read every bar from the one before the line's first, to find
+  /// the event the line ends on ([anchorOf]), at a cost proportional to the
+  /// ties it follows back. No other measure is touched.
   MeasureView measureView(MeasureId id) => buildMeasureView(this, indexOf(id));
 
   /// Which measures' [MeasureView]s may differ from those of [previous].
@@ -560,8 +661,11 @@ final class Score {
   /// view reads its own column, both neighbours and the spanners touching it.
   /// So a bar is relaid out when it is new, when it or either neighbour is a
   /// different object than before, or when a spanner covering it was added
-  /// or removed. Every bar is relaid out when the parts change or when bars
-  /// that survive change order. [meta] is not compared.
+  /// or removed. The event a slur, glissando or trill line of more than one
+  /// bar ends on can depend on every bar from the one before its first
+  /// ([anchorOf]), so the bar it ends in is relaid out when any of those is.
+  /// Every bar is relaid out when the parts change or when bars that survive
+  /// change order. [meta] is not compared.
   ScoreChanges changesSince(Score previous) {
     if (identical(previous, this)) {
       return ScoreChanges.none;
@@ -617,6 +721,20 @@ final class Score {
       for (final spanner in previous.spanners) {
         if (!now.contains(spanner)) {
           relayout.addAll(previous._covered(spanner).where(contains));
+        }
+      }
+    }
+    if (relayout.isNotEmpty) {
+      for (final spanner in spanners) {
+        final first = indexOf(spanner.first.measure);
+        final last = indexOf(spanner.last.measure);
+        if (spanner.kind.reach == SpannerReach.events && first < last) {
+          for (var i = first > 0 ? first - 1 : 0; i < last; i++) {
+            if (relayout.contains(measures[i].id)) {
+              relayout.add(measures[last].id);
+              break;
+            }
+          }
         }
       }
     }
@@ -905,8 +1023,8 @@ final class PartTemplate {
 /// offset lies inside it. If an overwrite leaves no event starting exactly
 /// at an anchor, the view attaches that end to the event sounding at that
 /// offset in [voice], or to an event of another voice where [voice] holds a
-/// gap ([anchorAmong]). Voice one fills every bar, so such an event always
-/// exists.
+/// gap ([Score.anchorOf]). Voice one fills every bar, so such an event
+/// always exists.
 final class Spanner {
   /// A spanner of the whole staff unless [voice] is given. It checks
   /// nothing itself; [Score] asserts its anchors in debug builds.
@@ -937,66 +1055,14 @@ final class Spanner {
   /// The end anchor, the onset of the last event covered. A spanner of
   /// [SpannerReach.time] runs on to the end of that event.
   final ScorePoint last;
-
-  /// The event this spanner, of [SpannerReach.events], attaches to at its
-  /// first end, or at its last when [last], where [sounding] gives the
-  /// event each of the staff's [voices] sounds at an offset of the bar that
-  /// end is in. An end of a [Glissando] that names a note is on the chord
-  /// that holds the note, in whichever voice sounds it. Every other end,
-  /// and one whose note no voice sounds there, is on the event of the
-  /// spanner's voice, or of voice one when that voice has none there.
-  ///
-  /// A last end that falls to an event of voice one that started before the
-  /// event the spanner starts on would run the line backward. It is on the
-  /// chord another voice starts at that end instead, the first such voice,
-  /// and on the event of voice one only when there is none. That needs both
-  /// ends in one bar, the only bar [sounding] reads.
-  TimedEvent? anchorAmong(
-    Iterable<VoiceSlot> voices,
-    TimedEvent? Function(VoiceSlot voice, Moment at) sounding, {
-    required bool last,
-  }) {
-    final at = (last ? this.last : first).offset;
-    final named = switch (kind) {
-      Glissando(:final from, :final to) => last ? to : from,
-      _ => null,
-    };
-    if (named != null) {
-      for (final slot in voices) {
-        final timed = sounding(slot, at);
-        if (timed?.event case ChordEvent(:final notes)
-            when notes.any((note) => note.id == named)) {
-          return timed;
-        }
-      }
-    }
-    final own = sounding(voice ?? VoiceSlot.one, at);
-    if (own != null) {
-      return own;
-    }
-    final one = sounding(VoiceSlot.one, at);
-    if (!last || one == null || first.measure != this.last.measure) {
-      return one;
-    }
-    final start = anchorAmong(voices, sounding, last: false);
-    if (start == null || one.onset >= start.onset) {
-      return one;
-    }
-    for (final slot in VoiceSlot.values) {
-      final timed = sounding(slot, at);
-      if (timed != null && timed.onset == at && timed.event is ChordEvent) {
-        return timed;
-      }
-    }
-    return one;
-  }
 }
 
 /// What a spanner's ends attach to.
 enum SpannerReach {
   /// The events sounding at its points, in its voice or else in another
-  /// ([Spanner.anchorAmong]): a slur, glissando or trill line. A glissando
-  /// end that names a note is on that note's event in any voice.
+  /// ([Score.anchorOf]): a slur, glissando or trill line. A glissando end
+  /// that names a note is on that note's event in any voice, and a slur's
+  /// last end that names a voice is on that voice's chord.
   events,
 
   /// Its points in time, the last one running to the end of the voice-one
@@ -1032,29 +1098,41 @@ sealed class SpannerKind {
 }
 
 /// A slur over notes of one voice. Where that voice has no event at an end,
-/// the end is on an event of another voice ([Spanner.anchorAmong]). The event
+/// the end is on an event of another voice ([Score.anchorOf]). The event
 /// a slur ends on starts no sooner than the event it starts on, as in each
 /// slur MuseScore 4's editor builds. A tied part of a note is an event of
-/// its own, so a slur may end on one that starts after its first event even
-/// when the note it is tied from started before. `AddSpanner` refuses a slur
-/// that ends on an event that starts before the one it starts on, an edit
-/// that leaves one removes it, and MusicXML import and a JSON file load
-/// without it.
+/// its own, so a slur may end on one of its own voice that starts after its
+/// first event even when the note it is tied from started before. A part
+/// of voice one that the end only falls to gives way to a chord another
+/// voice starts there, when there is one. `AddSpanner` refuses a slur that
+/// ends on an event that starts before the one it starts on, an edit that
+/// leaves one removes it, and MusicXML import and a JSON file load without
+/// it.
 final class Slur extends SpannerKind {
-  /// A solid slur, or a dashed one when [dashed].
-  const Slur({this.dashed = false});
+  /// A solid slur, or a dashed one when [dashed]. Its last end is on the
+  /// chord of [endVoice] when that is given.
+  const Slur({this.dashed = false, this.endVoice});
 
   /// Draw the curve as a dashed line.
   final bool dashed;
+
+  /// The voice whose chord the slur ends on, where that is not the chord
+  /// its last end falls to without a name ([Score.anchorOf]). MusicXML
+  /// import names the voice a stop is written in, as MuseScore 4 ends the
+  /// slur on that chord. The name goes with the slur through every edit.
+  /// While that voice sounds no chord at the last end, the end is where it
+  /// falls without a name.
+  final VoiceSlot? endVoice;
 
   @override
   bool get joinsNotes => true;
 
   @override
-  bool operator ==(Object other) => other is Slur && other.dashed == dashed;
+  bool operator ==(Object other) =>
+      other is Slur && other.dashed == dashed && other.endVoice == endVoice;
 
   @override
-  int get hashCode => dashed.hashCode;
+  int get hashCode => Object.hash(dashed, endVoice);
 }
 
 /// A crescendo or diminuendo wedge.
@@ -1153,17 +1231,18 @@ final class PedalLine extends SpannerKind {
 /// A file whose line names a note that does not sound at that end loads
 /// without the line. An end that names no note is on the top note of the
 /// event the spanner's voice has there. When that voice has none, it is on
-/// an event of another voice ([Spanner.anchorAmong]).
+/// an event of another voice ([Score.anchorOf]).
 ///
 /// The event a line ends on starts after the event it starts on, as in each
 /// line MuseScore 4's editor builds. So a line cannot end on an event of
 /// another voice that starts with its first event or before it, whether the
 /// end names a note of that event or is on voice one's event where its own
-/// voice has none. A tied part of a note is an event of its own.
-/// `AddSpanner` refuses such a line, an edit that leaves one removes
-/// it, and MusicXML import leaves it out. A JSON file with one that names a
-/// note does not load. One that names no note, as a file saved before 0.5.0
-/// can hold, loads without the line.
+/// voice has none. `AddSpanner` refuses such a line, an edit that leaves
+/// one removes it, and MusicXML import leaves it out. A JSON file with one
+/// that names a note does not load. One that names no note, as a file saved
+/// before 0.5.0 can hold, loads without the line. A tied part of a note is
+/// an event of its own, but a part of voice one that the end only falls to
+/// gives way to a chord another voice starts there, when there is one.
 final class Glissando extends SpannerKind {
   /// A line from note [from] of the chord it starts on to note [to] of the
   /// chord it ends on, or between their top notes where an id is null.
