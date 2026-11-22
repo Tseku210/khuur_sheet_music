@@ -2234,6 +2234,36 @@ void main() {
         expect(written(read), ['C4 start', 'D4 stop']);
         expect(written(score), ['G4 start', 'C5 stop']);
       });
+
+      test('writes a line that names no end note on the note at its start '
+          "note's place in the chord it ends on", () {
+        final read = imported(
+          flute([
+            [
+              opening(),
+              chord([('C4', line('start')), ('G4', '')]),
+              chord([('D4', ''), ('F4', ''), ('C5', line('stop'))]),
+              note('rest', 8, 'half'),
+            ],
+          ]),
+        );
+        final spanner = read.spanners.single;
+        final score = read.copyWith(
+          spanners: Seq([
+            Spanner(
+              id: spanner.id,
+              kind: Glissando(from: (spanner.kind as Glissando).from),
+              staff: spanner.staff,
+              voice: spanner.voice,
+              first: spanner.first,
+              last: spanner.last,
+            ),
+          ]),
+        );
+
+        expect(written(read), ['C4 start', 'C5 stop']);
+        expect(written(score), ['C4 start', 'D4 stop']);
+      });
     });
 
     test('reads any words with dashes as a tempo line', () {

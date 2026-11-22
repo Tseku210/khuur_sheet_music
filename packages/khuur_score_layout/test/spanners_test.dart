@@ -774,6 +774,77 @@ void main() {
       );
     });
 
+    test('a glissando that names no end note runs to the head at its start '
+        "note's place in the chord it ends on", () {
+      final plain = scoreOf([
+        [
+          chordOf(1, 'C4 G4'),
+          chordOf(2, 'D4 F4 C5'),
+          chordOf(3, 'C5', value: NoteValue.half),
+        ],
+      ]);
+      final score = withSpanner(
+        plain,
+        const Glissando(from: NoteId(10)),
+        pointAt(plain, 0, Moment.zero),
+        pointAt(plain, 0, at(1, 4)),
+      );
+      final system = sheetOf(score).systemAt(0);
+      final to = headOf(
+        system,
+        NoteRef(eventRef(score, 0, 2), const NoteId(20)),
+      );
+
+      expect(
+        linesOf(system, owner: spanner).single.to.y,
+        closeTo((to.top + to.bottom) / 2, 1e-9),
+      );
+    });
+
+    test('a glissando that names no end note moves its end to the next head '
+        'up when a note is added under its start note two bars before', () {
+      final plain = scoreOf([
+        [chordOf(1, 'G4', value: NoteValue.whole)],
+        [],
+        [chordOf(2, 'D4 F4 C5', value: NoteValue.whole)],
+      ]);
+      final score = withSpanner(
+        plain,
+        const Glissando(),
+        pointAt(plain, 0, Moment.zero),
+        pointAt(plain, 2, Moment.zero),
+      );
+      final layout = sheetOf(score);
+      final next = switch (EditSession.start(score).run(
+        AddToChord(event: eventRef(score, 0, 1), tone: Pitch.parse('E4')),
+      )) {
+        Applied(:final session) => session.score,
+        Refused(:final reason) => throw StateError('refused: $reason'),
+      };
+      double endOf(SheetLayout sheet) => [
+        for (var i = 0; i < sheet.systemCount; i++)
+          ...linesOf(sheet.systemAt(i), owner: spanner),
+      ].last.to.y;
+      double middle(SheetLayout sheet, int note) {
+        final head = [
+          for (var i = 0; i < sheet.systemCount; i++)
+            ...glyphsOf(
+              sheet.systemAt(i),
+              owner: ElementOwner(
+                NoteRef(eventRef(score, 2, 2), NoteId(note)),
+              ),
+            ),
+        ].single.bounds;
+        return (head.top + head.bottom) / 2;
+      }
+
+      final updated = layout.update(next);
+
+      expect(endOf(layout), closeTo(middle(layout, 20), 1e-9));
+      expect(endOf(updated), closeTo(middle(updated, 21), 1e-9));
+      expectSameSheet(updated, sheetOf(next));
+    });
+
     test('a glissando of voice two runs to the voice-one head it names, '
         'past the note its own voice plays under that head', () {
       final plain = fill(
