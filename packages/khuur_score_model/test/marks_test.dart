@@ -1,6 +1,9 @@
+import 'dart:math';
+
 import 'package:khuur_score_model/khuur_score_model.dart';
 import 'package:test/test.dart';
 
+import 'random_edits.dart';
 import 'support.dart';
 
 List<String> marksIn(Score score, int bar) => [
@@ -524,6 +527,195 @@ void main() {
       final hairpin = next.spanners.single;
       expect(hairpin.id, const SpannerId(950));
       expect((hairpin.first, hairpin.last), (last, last));
+    });
+  });
+
+  group('A glissando whose note is gone', () {
+    const line = Glissando(from: NoteId(11), to: NoteId(20));
+
+    EditSession glided({
+      Glissando kind = line,
+      String first = 'C4 G4',
+      String second = 'D4 C5',
+    }) {
+      final score = fill(blankScore(), 0, [
+        chordOf(1, first),
+        chordOf(2, second),
+        chordOf(3, 'C4', value: NoteValue.half),
+      ]);
+      return EditSession.start(
+        withSpanner(
+          score,
+          kind,
+          pointAt(score, 0, Moment.zero),
+          pointAt(score, 0, at(1, 4)),
+          voice: VoiceSlot.one,
+        ),
+      );
+    }
+
+    NoteRef head(EditSession session, int note) =>
+        NoteRef(eventRef(session, note ~/ 10), NoteId(note));
+
+    test('goes with the note it starts on, and undo brings both back', () {
+      final session = glided();
+
+      final next = applied(session.run(RemoveNote(head(session, 11))));
+
+      expect(bar(next.score, 0).first, 'C4/quarter');
+      expect(next.score.spanners, isEmpty);
+      expect(next.undo().score.spanners.single.kind, line);
+      expect(bar(next.undo().score, 0).first, 'C4+G4/quarter');
+      expect(next.undo().redo().score.spanners, isEmpty);
+    });
+
+    test('goes with the note it ends on', () {
+      final session = glided();
+
+      final next = applied(session.run(RemoveNote(head(session, 20))));
+
+      expect(next.score.spanners, isEmpty);
+    });
+
+    test('stays when another note of its chord goes', () {
+      final session = glided();
+
+      final next = applied(
+        session.run(
+          Batch([RemoveNote(head(session, 10)), RemoveNote(head(session, 21))]),
+        ),
+      );
+
+      expect(next.score.spanners.single.kind, line);
+      final (:from, :to) = next.score.glissandoNotes(
+        next.score.spanners.single,
+      );
+      expect((from!.id, to!.id), (const NoteId(11), const NoteId(20)));
+    });
+
+    test('goes when its chord becomes a rest', () {
+      final session = glided(
+        kind: const Glissando(from: NoteId(10), to: NoteId(20)),
+        first: 'G4',
+      );
+
+      final next = applied(session.run(RemoveNote(head(session, 10))));
+
+      expect(bar(next.score, 0).first, 'rest/quarter');
+      expect(next.score.spanners, isEmpty);
+    });
+
+    test('goes when a new note replaces its chord', () {
+      final session = glided();
+
+      final next = enterAt(session, 0, Moment.zero, tone: g4);
+
+      expect(bar(next.score, 0).first, 'G4/quarter');
+      expect(next.score.spanners, isEmpty);
+    });
+
+    test('does not move to a note added in the same batch', () {
+      final session = glided();
+
+      final next = applied(
+        session.run(
+          Batch([
+            RemoveNote(head(session, 11)),
+            AddToChord(event: eventRef(session, 1), tone: g4),
+          ]),
+        ),
+      );
+
+      expect(bar(next.score, 0).first, 'C4+G4/quarter');
+      expect(next.score.spanners, isEmpty);
+    });
+
+    test('goes with its note in the scores the edits make', () {
+      Set<NoteId> notesOf(Score score) => {
+        for (final staff in score.staves)
+          for (final slot in VoiceSlot.values)
+            for (final timed in score.laneOf(staff.id, slot))
+              if (timed.event case ChordEvent(:final notes))
+                for (final note in notes) note.id,
+      };
+      Score lined() {
+        var score = blankScore(parts: const [morinKhuur, clarinet], bars: 4);
+        for (var bar = 0; bar < 4; bar++) {
+          final id = 1000 + bar * 10;
+          score = fill(score, bar, [
+            chordOf(id, 'C4 G4'),
+            chordOf(id + 1, 'D4 C5'),
+            chordOf(id + 2, 'E4', value: NoteValue.half),
+          ]);
+          score = withSpanner(
+            score,
+            Glissando(
+              from: NoteId(id * 10 + bar % 2),
+              to: NoteId((id + 1) * 10 + bar ~/ 2),
+            ),
+            pointAt(score, bar, Moment.zero),
+            pointAt(score, bar, at(1, 4)),
+            voice: VoiceSlot.one,
+          );
+        }
+        return score;
+      }
+
+      Score withoutNamedNote(Score score, Random random) {
+        final named = [
+          for (final spanner in score.spanners)
+            if (spanner.kind case Glissando(:final from, :final to))
+              for (final (id, end) in [
+                (from, spanner.first),
+                (to, spanner.last),
+              ])
+                if (id != null)
+                  NoteRef(
+                    score.anchorAt(spanner.staff, spanner.voice!, end)!.ref,
+                    id,
+                  ),
+        ];
+        return named.isEmpty
+            ? score
+            : edited(score, RemoveNote(pick(random, named)));
+      }
+
+      var removed = 0;
+      var gone = 0;
+      for (var seed = 0; seed < 100; seed++) {
+        final random = Random(seed);
+        var score = lined();
+        for (var step = 0; step < 60; step++) {
+          final removes = step % 20 == 19;
+          final next = removes
+              ? withoutNamedNote(score, random)
+              : randomEdit(score, random);
+          final kept = {for (final spanner in next.spanners) spanner.id};
+          final notes = notesOf(next);
+          for (final spanner in score.spanners) {
+            if (spanner.kind case Glissando(:final from, :final to)
+                when !kept.contains(spanner.id) &&
+                    [?from, ?to].any((id) => !notes.contains(id))) {
+              removes ? removed++ : gone++;
+            }
+          }
+          score = next;
+        }
+      }
+
+      expect(removed, greaterThan(100), reason: 'by RemoveNote');
+      expect(gone, greaterThan(100), reason: 'by the other edits');
+    });
+
+    test('stays on the top note when it names none', () {
+      final session = glided(kind: const Glissando(to: NoteId(20)));
+
+      final next = applied(session.run(RemoveNote(head(session, 11))));
+
+      expect(
+        next.score.glissandoNotes(next.score.spanners.single).from!.id,
+        const NoteId(10),
+      );
     });
   });
 }

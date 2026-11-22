@@ -444,25 +444,52 @@ void main() {
     });
 
     test('reads a glissando that names no notes, as files saved before it '
-        'could, and one naming a note the score lacks', () {
-      Glissando read(Object? from, Object? to) {
+        'could', () {
+      final json = jsonDecode(saved(showcase()));
+      put(json, r'$.spanners[7].fromNote', missing);
+      put(json, r'$.spanners[7].toNote', missing);
+
+      expect(scoreFromJson(json).spanners[7].kind, const Glissando());
+    });
+
+    test('drops a glissando that names a note the chord at its end lacks, '
+        'and keeps every other line', () {
+      List<SpannerId> read(int from, int to) {
         final json = jsonDecode(saved(showcase()));
         put(json, r'$.spanners[7].fromNote', from);
         put(json, r'$.spanners[7].toNote', to);
-        return scoreFromJson(json).spanners[7].kind as Glissando;
+        return [for (final spanner in scoreFromJson(json).spanners) spanner.id];
       }
 
-      expect(read(missing, missing), const Glissando());
-      expect(
-        read(46, 5000),
-        const Glissando(from: NoteId(46), to: NoteId(5000)),
-      );
+      final all = [for (final spanner in showcase().spanners) spanner.id];
+      expect(read(46, 73), all);
+      for (final (from, to) in [(46, 5000), (5000, 72), (42, 72), (46, 46)]) {
+        expect(
+          read(from, to),
+          all.where((id) => id != const SpannerId(87)),
+          reason: 'from $from to $to',
+        );
+      }
     });
 
-    test('an edit after loading mints no id a glissando names', () {
-      final json = jsonDecode(saved(showcase()));
-      put(json, r'$.spanners[7].toNote', 5000);
-      final session = EditSession.start(scoreFromJson(json));
+    test('an edit mints no id a glissando names', () {
+      final score = showcase();
+      final line = score.spanners[7];
+      final session = EditSession.start(
+        score.copyWith(
+          spanners: score.spanners.replaceAt(
+            7,
+            Spanner(
+              id: line.id,
+              kind: const Glissando(from: NoteId(46), to: NoteId(5000)),
+              staff: line.staff,
+              voice: line.voice,
+              first: line.first,
+              last: line.last,
+            ),
+          ),
+        ),
+      );
 
       final next = applied(
         session.run(

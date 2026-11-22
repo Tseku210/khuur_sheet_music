@@ -55,7 +55,8 @@ T pick<T>(Random random, List<T> options) =>
 /// [score] after [edit], or as it was when the edit is refused. Throws when
 /// the edit leaves two things of a kind with one id, which no file may
 /// hold, or a score that does not load from its own JSON, since an app
-/// that saved it would lose the piece. Throws too when a rippled edit
+/// that saved it would lose the piece, or a glissando that names a note its
+/// chord has lost, which would glide another note. Throws too when a rippled edit
 /// changes the dynamic in force after the bars it changed, since the rest
 /// of the piece would play at another level, or the clef a note starts in
 /// while the note keeps its length.
@@ -75,6 +76,17 @@ Score edited(Score score, Edit edit) {
     throw StateError(
       '${edit.runtimeType} left a score that does not load: $error',
     );
+  }
+  for (final spanner in next.spanners) {
+    if (spanner.kind case Glissando(from: final first, to: final last)) {
+      final (:from, :to) = next.glissandoNotes(spanner);
+      if ((first != null && from?.id != first) ||
+          (last != null && to?.id != last)) {
+        throw StateError(
+          '${edit.runtimeType} left a glissando without its note',
+        );
+      }
+    }
   }
   final rippled = switch (edit) {
     EnterNote(:final ripple) ||
@@ -418,27 +430,39 @@ Score randomEdit(Score score, Random random) {
         ])
           (index, pick(random, _beatsIn(score.measures[index]))),
       ]..sort((a, b) => a.$1 != b.$1 ? a.$1 - b.$1 : a.$2.compareTo(b.$2));
+      final kind = switch (random.nextInt(7)) {
+        0 => Slur(dashed: random.nextBool()),
+        1 => OctaveLine(
+          pick(random, [OctaveShift.up8, OctaveShift.down8]),
+        ),
+        2 => Hairpin(crescendo: random.nextBool()),
+        3 => const PedalLine(),
+        4 => const TrillLine(),
+        5 => const Glissando(),
+        _ => TempoLine(
+          text: pick(random, ['rit.', ..._texts]),
+          factor: pick(random, [0.5, 0.75, 4 / 3]),
+        ),
+      };
+      final staff = pick(random, score.staves).id;
+      final voice = pick(random, [null, VoiceSlot.one, VoiceSlot.two]);
+      final first = pointAt(score, ends[0].$1, ends[0].$2);
+      final last = pointAt(score, ends[1].$1, ends[1].$2);
+      NoteId? named(ScorePoint end) =>
+          switch (score.anchorAt(staff, voice ?? VoiceSlot.one, end)?.event) {
+            ChordEvent(:final notes) => pick(random, [null, ...notes])?.id,
+            _ => null,
+          };
       return edited(
         score,
         AddSpanner(
-          kind: switch (random.nextInt(7)) {
-            0 => Slur(dashed: random.nextBool()),
-            1 => OctaveLine(
-              pick(random, [OctaveShift.up8, OctaveShift.down8]),
-            ),
-            2 => Hairpin(crescendo: random.nextBool()),
-            3 => const PedalLine(),
-            4 => const TrillLine(),
-            5 => const Glissando(),
-            _ => TempoLine(
-              text: pick(random, ['rit.', ..._texts]),
-              factor: pick(random, [0.5, 0.75, 4 / 3]),
-            ),
-          },
-          staff: pick(random, score.staves).id,
-          voice: pick(random, [null, VoiceSlot.one, VoiceSlot.two]),
-          first: pointAt(score, ends[0].$1, ends[0].$2),
-          last: pointAt(score, ends[1].$1, ends[1].$2),
+          kind: kind is Glissando
+              ? Glissando(from: named(first), to: named(last))
+              : kind,
+          staff: staff,
+          voice: voice,
+          first: first,
+          last: last,
         ),
       );
     case 10:

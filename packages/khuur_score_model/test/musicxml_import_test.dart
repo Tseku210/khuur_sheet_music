@@ -1640,6 +1640,38 @@ void main() {
         );
       });
 
+      test('drops a line to a note of voice one that a note of its own voice '
+          'sounds over', () {
+        String voiced(int voice, String pitch, [String mark = '']) => note(
+          pitch,
+          pitch == 'rest' ? 8 : 4,
+          pitch == 'rest' ? 'half' : 'quarter',
+          '<voice>$voice</voice>'
+          '${mark.isEmpty ? '' : '<notations>$mark</notations>'}',
+        );
+        Score read(String under) => imported(
+          flute([
+            [
+              opening(),
+              voiced(1, 'C5'),
+              voiced(1, 'D5', line('stop')),
+              voiced(1, 'rest'),
+              backup(16),
+              voiced(2, 'E4', line('start')),
+              under,
+              voiced(2, 'rest'),
+            ],
+          ]),
+        );
+
+        final free = read(forward(4));
+        expect(
+          '${free.glissandoNotes(free.spanners.single).to?.tone}',
+          'D5',
+        );
+        expect(read(voiced(2, 'F4')).spanners, isEmpty);
+      });
+
       test('writes a line that names no notes on the top notes', () {
         final read = imported(
           flute([
