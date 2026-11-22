@@ -440,6 +440,44 @@ void main() {
         expect(refusal(joining(const Glissando())), isA<InvalidValue>());
       });
 
+      test('ends on the note another voice starts there, not on the note of '
+          'voice one that has sounded since before it starts', () {
+        final score = fill(
+          voices(held, [...start, Gap(len(3, 4))]),
+          0,
+          [Gap(len(3, 4)), chordOf(6, 'G4')],
+          slot: VoiceSlot.three,
+        );
+
+        for (final kind in const [Glissando(), Slur()]) {
+          final joined = applied(
+            addSpanner(
+              score,
+              kind,
+              pointAt(score, 0, at(1, 8)),
+              pointAt(score, 0, at(3, 4)),
+              voice: VoiceSlot.two,
+            ),
+          ).score;
+
+          final end = joined.anchorOf(joined.spanners.single, last: true)!;
+          expect(end.event.id, const EventId(6), reason: '$kind');
+          expect(end.voice, VoiceSlot.three, reason: '$kind');
+          expect(
+            joined
+                .anchorAt(
+                  score.staves.first.id,
+                  VoiceSlot.two,
+                  pointAt(score, 0, at(3, 4)),
+                )!
+                .event
+                .id,
+            const EventId(6),
+            reason: '$kind',
+          );
+        }
+      });
+
       test('goes when an erase leaves its end in such a gap, and undo brings '
           'it back', () {
         final score = voices(held, [

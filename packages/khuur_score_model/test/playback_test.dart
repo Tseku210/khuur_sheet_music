@@ -1116,6 +1116,35 @@ void main() {
       ]);
     });
 
+    test('a slur of voice two that ends where its voice has a gap, on the '
+        'note a third voice starts there, slurs the note it starts on', () {
+      var plain = blankScore(bars: 1);
+      plain = fill(plain, 0, [chordOf(1, 'C5', value: NoteValue.whole)]);
+      plain = fill(plain, 0, [
+        chordOf(2, 'E4'),
+        chordOf(3, 'F4'),
+        Gap(len(1, 2)),
+      ], slot: VoiceSlot.two);
+      plain = fill(plain, 0, [
+        Gap(len(1, 2)),
+        chordOf(4, 'G4'),
+        Gap(len(1, 4)),
+      ], slot: VoiceSlot.three);
+      final slurred = withSpanner(
+        plain,
+        const Slur(),
+        pointAt(plain, 0, at(1, 4)),
+        pointAt(plain, 0, at(1, 2)),
+        voice: VoiceSlot.two,
+      );
+      double f4(Score score) => [
+        for (final note in compiled(score).notesBetween(0, double.infinity))
+          if (note.key == Pitch.parse('F4').midiKey) ms(note.duration),
+      ].single;
+
+      expect(f4(slurred), greaterThan(f4(plain)));
+    });
+
     test('trills under each of several trill lines, the note a line ends on '
         'too, in whatever order the lines are listed', () {
       var score = beats(2);

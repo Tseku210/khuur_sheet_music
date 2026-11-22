@@ -811,6 +811,48 @@ void main() {
       expect(line.to.x, lessThan(headOf(system, noteRef(score, 0, 2)).left));
     });
 
+    test('a slur or glissando of voice two that ends where its voice has a '
+        'gap runs to the note a third voice starts there, not back to the '
+        'note voice one has held since before it', () {
+      var plain = scoreOf([
+        [chordOf(1, 'C5', value: NoteValue.whole)],
+      ]);
+      plain = fill(plain, 0, [
+        chordOf(2, 'E4'),
+        chordOf(3, 'F4'),
+        Gap(len(1, 2)),
+      ], slot: VoiceSlot.two);
+      plain = fill(plain, 0, [
+        Gap(len(1, 2)),
+        chordOf(4, 'G4'),
+        Gap(len(1, 4)),
+      ], slot: VoiceSlot.three);
+      Score joined(SpannerKind kind) => withSpanner(
+        plain,
+        kind,
+        pointAt(plain, 0, at(1, 4)),
+        pointAt(plain, 0, at(1, 2)),
+        voice: VoiceSlot.two,
+      );
+
+      final bar = plain.measures.first;
+      final slurred = joined(const Slur()).measureView(bar.id);
+      expect(
+        pieceEnd(slurred.spanners.single, slurred.staves.single, bar.length),
+        (at: at(1, 2), event: const EventId(4)),
+      );
+
+      final score = joined(const Glissando());
+      final system = sheetOf(score).systemAt(0);
+      final line = linesOf(system, owner: spanner).single;
+      final from = headOf(system, noteRef(score, 0, 3));
+      final to = headOf(system, noteRef(score, 0, 4));
+      expect(line.from.x, greaterThan(from.right));
+      expect(line.to.x, lessThan(to.left));
+      expect(line.from.x, lessThan(line.to.x));
+      expect(line.to.y, closeTo((to.top + to.bottom) / 2, 1e-9));
+    });
+
     test('a tempo line prints its text above the staff and dashes on from '
         'it', () {
       final score = withSpanner(
