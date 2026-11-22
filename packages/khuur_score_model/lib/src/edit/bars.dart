@@ -496,7 +496,7 @@ Score _setBarLength(Score score, int index, Length? length, _Ids ids) {
             ? null
             : !removed(last)
             ? last
-            : spanner.kind.joinsNotes
+            : resume != null && spanner.kind.joinsNotes
             ? resume
             : _lastOnset(resized, spanner);
       },

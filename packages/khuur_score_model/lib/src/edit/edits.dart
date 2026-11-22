@@ -934,14 +934,16 @@ final class SetRehearsal extends Edit {
 /// end, with the event crossing the new end keeping its head, and so are
 /// clef changes, directions and tempo marks there. Spanner ends in the cut
 /// move as for [DeleteMeasures], but the end of a slur there moves to the
-/// start of the next bar, as under a [Ripple], and in the last bar its line
-/// is dropped. A glissando goes with its notes, and is dropped when the
-/// note it starts or ends on is in the cut. A slur, glissando or trill line
-/// end inside the note that crosses the new end stays on it. A lengthened
-/// bar is padded with rests in voice one and a gap in the other voices. Ties
-/// at the bar's end follow the [DeleteMeasures] rule. Refused with
-/// [WouldSplitTuplet] when the new end cuts a tuplet, and with
-/// [InvalidValue] for a length that is not a whole number of 128th notes.
+/// start of the next bar, as under a [Ripple]. In the last bar it moves to
+/// the last event before the cut, and the slur is dropped when that leaves
+/// both its ends on one event. A glissando goes with its notes, and is
+/// dropped when the note it starts or ends on is in the cut. A slur,
+/// glissando or trill line end inside the note that crosses the new end
+/// stays on it. A lengthened bar is padded with rests in voice one and a gap
+/// in the other voices. Ties at the bar's end follow the [DeleteMeasures]
+/// rule. Refused with [WouldSplitTuplet] when the new end cuts a tuplet, and
+/// with [InvalidValue] for a length that is not a whole number of 128th
+/// notes.
 final class SetBarLength extends Edit {
   /// Sets [measure]'s length to [length].
   const SetBarLength(this.measure, this.length);
