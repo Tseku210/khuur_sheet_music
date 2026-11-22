@@ -3430,6 +3430,40 @@ void main() {
       ]);
     });
 
+    test('a line of voice two glides to the voice-one note it names, past '
+        'the note its own voice plays there', () {
+      var score = fill(
+        fill(blankScore(), 0, [
+          chordOf(1, 'C5'),
+          chordOf(2, 'D5'),
+          halves(3, 'C5'),
+        ]),
+        0,
+        [chordOf(4, 'E4'), chordOf(5, 'F4'), rest(6, NoteValue.half)],
+        slot: VoiceSlot.two,
+      );
+      score = changeBar(
+        score,
+        0,
+        tempos([const TempoMark(offset: Moment.zero, tempo: Tempo(60))]),
+      );
+      score = withSpanner(
+        score,
+        const Glissando(from: NoteId(40), to: NoteId(20)),
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(1, 4)),
+        voice: VoiceSlot.two,
+      );
+
+      expect(
+        [
+          for (final (start, key, source) in attacks(compiled(score)))
+            if (source == 4) (start, key),
+        ],
+        [for (var step = 0; step < 10; step++) (step / 10, 64 + step)],
+      );
+    });
+
     test('a line that names no note, or a note its chord lacks, joins the '
         'top notes', () {
       for (final line in const [

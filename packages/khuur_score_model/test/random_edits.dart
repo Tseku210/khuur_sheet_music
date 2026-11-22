@@ -56,10 +56,11 @@ T pick<T>(Random random, List<T> options) =>
 /// the edit leaves two things of a kind with one id, which no file may
 /// hold, or a score that does not load from its own JSON, since an app
 /// that saved it would lose the piece, or a glissando that names a note its
-/// chord has lost. Throws too when a rippled edit changes the dynamic in
-/// force after the bars it changed, since the rest of the piece would play
-/// at another level, or the clef a note starts in while the note keeps its
-/// length.
+/// chord has lost. Throws when the edit removes a glissando that names both
+/// its notes while both are still on its staff, unless the edit picked the
+/// line. Throws too when a rippled edit changes the dynamic in force after
+/// the bars it changed, since the rest of the piece would play at another
+/// level, or the clef a note starts in while the note keeps its length.
 Score edited(Score score, Edit edit) {
   final outcome = EditSession.start(score).run(edit);
   if (outcome is! Applied) {
@@ -84,6 +85,18 @@ Score edited(Score score, Edit edit) {
           (last != null && to?.id != last)) {
         throw StateError(
           '${edit.runtimeType} left a glissando without its note',
+        );
+      }
+    }
+  }
+  final standing = {for (final spanner in next.spanners) spanner.id};
+  for (final spanner in score.spanners) {
+    if (spanner.kind case Glissando(:final from?, :final to?)
+        when !standing.contains(spanner.id) && !_picks(score, edit, spanner)) {
+      final notes = _notesOn(next, spanner.staff);
+      if (notes.contains(from) && notes.contains(to)) {
+        throw StateError(
+          '${edit.runtimeType} removed a glissando whose notes stay',
         );
       }
     }
@@ -115,6 +128,29 @@ Score edited(Score score, Edit edit) {
   }
   return next;
 }
+
+/// Whether [edit] removes [spanner] from [score] by picking it: by its id,
+/// or by a range that holds both its ends.
+bool _picks(Score score, Edit edit, Spanner spanner) => switch (edit) {
+  RemoveSpanner(spanner: final id) => id == spanner.id,
+  Erase(selection: ItemSelection(:final spanners)) => spanners.contains(
+    spanner.id,
+  ),
+  Erase(selection: RangeSelection(:final from, :final to)) => [
+    spanner.first,
+    spanner.last,
+  ].every((end) => score.compare(from, end) <= 0 && score.compare(end, to) < 0),
+  _ => false,
+};
+
+/// The ids of the notes on [staff] of [score], which may have lost it.
+Set<NoteId> _notesOn(Score score, StaffId staff) => {
+  if (score.staves.any((other) => other.id == staff))
+    for (final slot in VoiceSlot.values)
+      for (final timed in score.laneOf(staff, slot))
+        if (timed.event case ChordEvent(:final notes))
+          for (final note in notes) note.id,
+};
 
 /// The clef each note of [score] starts in, with the note's length. An
 /// erase can cut a note short from its start, and what is left may start
@@ -448,11 +484,15 @@ Score randomEdit(Score score, Random random) {
       final voice = pick(random, [null, VoiceSlot.one, VoiceSlot.two]);
       final first = pointAt(score, ends[0].$1, ends[0].$2);
       final last = pointAt(score, ends[1].$1, ends[1].$2);
-      NoteId? named(ScorePoint end) =>
-          switch (score.anchorAt(staff, voice ?? VoiceSlot.one, end)?.event) {
-            ChordEvent(:final notes) => pick(random, [null, ...notes])?.id,
-            _ => null,
-          };
+      NoteId? named(ScorePoint end) => pick(random, [
+        null,
+        for (final slot in VoiceSlot.values)
+          if (score
+                  .eventAt(VoicePoint(staff: staff, voice: slot, at: end))
+                  ?.event
+              case ChordEvent(:final notes))
+            ...notes,
+      ])?.id;
       return edited(
         score,
         AddSpanner(

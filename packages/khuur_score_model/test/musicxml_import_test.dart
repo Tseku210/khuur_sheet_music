@@ -1640,36 +1640,110 @@ void main() {
         );
       });
 
-      test('drops a line to a note of voice one that a note of its own voice '
-          'sounds over', () {
-        String voiced(int voice, String pitch, [String mark = '']) => note(
+      group('between two voices', () {
+        String voiced(
+          int voice,
+          String pitch, {
+          String mark = '',
+          String type = 'quarter',
+        }) => note(
           pitch,
-          pitch == 'rest' ? 8 : 4,
-          pitch == 'rest' ? 'half' : 'quarter',
+          type == 'half' ? 8 : 4,
+          type,
           '<voice>$voice</voice>'
           '${mark.isEmpty ? '' : '<notations>$mark</notations>'}',
         );
-        Score read(String under) => imported(
+        Score read(List<String> one, List<String> two) => imported(
           flute([
+            [opening(), ...one, backup(16), ...two],
+          ]),
+        );
+        List<(String, String)> joined(Score score) => [
+          for (final spanner in score.spanners)
+            switch (score.glissandoNotes(spanner)) {
+              (:final from, :final to) => ('${from?.tone}', '${to?.tone}'),
+            },
+        ];
+        final ending = [
+          voiced(1, 'C5'),
+          voiced(1, 'D5', mark: line('stop')),
+          voiced(1, 'rest', type: 'half'),
+        ];
+
+        test('ends on a note of voice one, whatever its own voice plays '
+            'under that note', () {
+          for (final own in [
+            [voiced(2, 'E4', mark: line('start')), forward(4)],
+            [voiced(2, 'E4', mark: line('start')), voiced(2, 'F4')],
+            [voiced(2, 'E4', mark: line('start'), type: 'half')],
+          ]) {
+            final score = read(ending, [
+              ...own,
+              voiced(2, 'rest', type: 'half'),
+            ]);
+
+            expect(joined(score), [('E4', 'D5')], reason: '$own');
+            expect(written(score), ['D5 stop', 'E4 start'], reason: '$own');
+            expect(
+              joined(scoreFromMusicXml(scoreToMusicXml(score))),
+              joined(score),
+              reason: '$own',
+            );
+            expect(joined(reloaded(score)), joined(score), reason: '$own');
+          }
+        });
+
+        test('starts on a note of voice one that a note of its last '
+            'voice sounds under', () {
+          final score = read(
             [
-              opening(),
-              voiced(1, 'C5'),
-              voiced(1, 'D5', line('stop')),
-              voiced(1, 'rest'),
+              voiced(1, 'C5', mark: line('start')),
+              voiced(1, 'D5'),
+              voiced(1, 'rest', type: 'half'),
+            ],
+            [
+              voiced(2, 'E4'),
+              voiced(2, 'F4', mark: line('stop')),
+              voiced(2, 'rest', type: 'half'),
+            ],
+          );
+
+          expect(joined(score), [('C5', 'F4')]);
+          expect(
+            joined(scoreFromMusicXml(scoreToMusicXml(score))),
+            joined(score),
+          );
+        });
+      });
+
+      test('ends a line to a note of another staff on the top note of its '
+          'own staff, and names no note there', () {
+        String staffed(int staff, String pitch, [String mark = '']) => note(
+          pitch,
+          pitch == 'rest' ? 8 : 4,
+          pitch == 'rest' ? 'half' : 'quarter',
+          '<voice>$staff</voice><staff>$staff</staff>'
+          '${mark.isEmpty ? '' : '<notations>$mark</notations>'}',
+        );
+        final score = imported(
+          keyboard([
+            [
+              grand,
+              staffed(1, 'C5', line('start')),
+              staffed(1, 'D5'),
+              staffed(1, 'rest'),
               backup(16),
-              voiced(2, 'E4', line('start')),
-              under,
-              voiced(2, 'rest'),
+              staffed(2, 'C3'),
+              staffed(2, 'E3', line('stop')),
+              staffed(2, 'rest'),
             ],
           ]),
         );
+        final spanner = score.spanners.single;
 
-        final free = read(forward(4));
-        expect(
-          '${free.glissandoNotes(free.spanners.single).to?.tone}',
-          'D5',
-        );
-        expect(read(voiced(2, 'F4')).spanners, isEmpty);
+        expect((spanner.kind as Glissando).to, isNull);
+        expect('${score.glissandoNotes(spanner).to?.tone}', 'D5');
+        expect(reloaded(score).spanners, hasLength(1));
       });
 
       test('writes a line that names no notes on the top notes', () {

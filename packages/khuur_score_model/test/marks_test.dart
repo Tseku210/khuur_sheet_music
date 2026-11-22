@@ -718,4 +718,244 @@ void main() {
       );
     });
   });
+
+  group('A glissando whose notes stay', () {
+    /// Voice one plays C5 and D5. Voice two plays [own], and its line runs
+    /// from its E4 to that D5.
+    Score crossing(List<VoiceItem> own) {
+      final score = fill(
+        fill(blankScore(), 0, [
+          chordOf(1, 'C5'),
+          chordOf(2, 'D5'),
+          rest(3, NoteValue.half),
+        ]),
+        0,
+        own,
+        slot: VoiceSlot.two,
+      );
+      return withSpanner(
+        score,
+        const Glissando(from: NoteId(40), to: NoteId(20)),
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(1, 4)),
+        voice: VoiceSlot.two,
+      );
+    }
+
+    (String, String) joined(Score score) =>
+        switch (score.glissandoNotes(score.spanners.single)) {
+          (:final from, :final to) => ('${from?.tone}', '${to?.tone}'),
+        };
+
+    Moment lastOf(Score score) => score.spanners.single.last.offset;
+
+    test('ends on the voice-one note it names while its own voice plays '
+        'under that note', () {
+      final score = crossing([
+        chordOf(4, 'E4'),
+        chordOf(5, 'F4'),
+        rest(6, NoteValue.half),
+      ]);
+
+      expect(joined(score), ('E4', 'D5'));
+      expect(joined(reloaded(score)), ('E4', 'D5'));
+      expect(
+        joined(
+          applied(
+            EditSession.start(score).run(
+              SetTone(
+                NoteRef(
+                  score.locate(const EventId(1))!,
+                  const NoteId(10),
+                ),
+                Pitch.parse('B4'),
+              ),
+            ),
+          ).score,
+        ),
+        ('E4', 'D5'),
+      );
+    });
+
+    test('keeps its voice-one note when a note is entered under that note '
+        'in its own voice, and when the new note is erased', () {
+      final session = EditSession.start(
+        crossing([
+          chordOf(4, 'E4'),
+          Gap(len(1, 4)),
+          rest(6, NoteValue.half),
+        ]),
+      );
+
+      final entered = applied(
+        session.run(
+          EnterNote(
+            at: point(session.score, 0, at(1, 4), voice: VoiceSlot.two),
+            tone: f4,
+            value: NoteValue.quarter,
+          ),
+        ),
+      );
+      final under = entered.score
+          .laneOf(entered.score.staves.first.id, VoiceSlot.two)
+          .elementAt(1);
+      final erased = applied(
+        entered.run(Erase(ItemSelection(Seq([under.ref])))),
+      );
+
+      expect(joined(session.score), ('E4', 'D5'));
+      expect(joined(entered.score), ('E4', 'D5'));
+      expect(joined(erased.score), ('E4', 'D5'));
+    });
+
+    test('joins a note to a voice-one note that it sounds over', () {
+      final score = crossing([
+        chordOf(4, 'E4', value: NoteValue.half),
+        rest(6, NoteValue.half),
+      ]);
+      final Spanner(:kind, :first, :last, :voice) = score.spanners.single;
+
+      final added = applied(
+        addSpanner(
+          score.copyWith(spanners: const Seq.empty()),
+          kind,
+          first,
+          last,
+          voice: voice,
+        ),
+      );
+
+      expect(joined(added.score), ('E4', 'D5'));
+      expect(joined(reloaded(added.score)), ('E4', 'D5'));
+    });
+
+    test('follows its last note when new music takes the time its end '
+        'stood at inside that note', () {
+      final score = fill(blankScore(), 0, [
+        chordOf(1, 'C4 G4'),
+        chordOf(2, 'D4'),
+        chordOf(3, 'E4 C5', value: NoteValue.half),
+      ]);
+      final session = EditSession.start(
+        withSpanner(
+          score,
+          const Glissando(from: NoteId(20), to: NoteId(31)),
+          pointAt(score, 0, at(1, 4)),
+          pointAt(score, 0, at(3, 4)),
+          voice: VoiceSlot.one,
+        ),
+      );
+      final end = point(session.score, 0, at(3, 4));
+
+      for (final edit in [
+        EnterNote(at: end, tone: f4, value: NoteValue.quarter),
+        EnterTuplet(
+          at: end,
+          ratio: TupletRatio.triplet,
+          unit: NoteValue.eighth,
+        ),
+      ]) {
+        final next = applied(session.run(edit)).score;
+
+        expect(bar(next, 0)[2], 'E4+C5/quarter', reason: '$edit');
+        expect(joined(next), ('D4', 'C5'), reason: '$edit');
+        expect(lastOf(next), at(1, 2), reason: '$edit');
+      }
+    });
+
+    test('follows what a rippled erase leaves of the chord it ends on', () {
+      for (final (items, line, last, range, kept) in [
+        (
+          [
+            chordOf(1, 'C4 G4'),
+            chordOf(2, 'D4 C5'),
+            chordOf(3, 'E4', value: NoteValue.half),
+          ],
+          const Glissando(from: NoteId(11), to: NoteId(20)),
+          at(1, 4),
+          (at(1, 8), at(3, 8)),
+          (('G4', 'D4'), at(1, 8)),
+        ),
+        (
+          [
+            chordOf(1, 'C4 G4'),
+            chordOf(2, 'D4'),
+            chordOf(3, 'E4 C5'),
+            chordOf(4, 'F4'),
+          ],
+          const Glissando(from: NoteId(11), to: NoteId(31)),
+          at(1, 2),
+          (at(3, 8), at(5, 8)),
+          (('G4', 'C5'), at(3, 8)),
+        ),
+      ]) {
+        final score = fill(blankScore(), 0, items);
+        final staff = score.staves.first.id;
+        final session = EditSession.start(
+          withSpanner(
+            score,
+            line,
+            pointAt(score, 0, Moment.zero),
+            pointAt(score, 0, last),
+            voice: VoiceSlot.one,
+          ),
+        );
+
+        final next = applied(
+          session.run(
+            Erase(
+              RangeSelection(
+                from: pointAt(score, 0, range.$1),
+                to: pointAt(score, 0, range.$2),
+                top: staff,
+                bottom: staff,
+              ),
+              ripple: Ripple.staff,
+            ),
+          ),
+        ).score;
+
+        expect((joined(next), lastOf(next)), kept, reason: '$line');
+      }
+    });
+
+    test('stays in the scores the edits make while both its notes do', () {
+      Score lined() {
+        var score = blankScore(parts: const [morinKhuur, clarinet], bars: 4);
+        for (var bar = 0; bar < 4; bar++) {
+          final id = 1000 + bar * 10;
+          score = fill(score, bar, [
+            chordOf(id, 'C4 G4'),
+            chordOf(id + 1, 'D4 C5', value: NoteValue.half),
+            chordOf(id + 2, 'E4'),
+          ]);
+          score = withSpanner(
+            score,
+            Glissando(
+              from: NoteId(id * 10 + bar % 2),
+              to: NoteId((id + 1) * 10 + bar ~/ 2),
+            ),
+            pointAt(score, bar, Moment.zero),
+            pointAt(score, bar, at(1 + bar % 2, 4)),
+            voice: bar < 2 ? VoiceSlot.one : VoiceSlot.two,
+          );
+        }
+        return score;
+      }
+
+      var kept = 0;
+      for (var seed = 0; seed < 300; seed++) {
+        final random = Random(seed);
+        var score = lined();
+        for (var step = 0; step < 40; step++) {
+          score = randomEdit(score, random);
+          kept += score.spanners
+              .where((spanner) => spanner.id.value < 904)
+              .length;
+        }
+      }
+
+      expect(kept, greaterThan(1000));
+    });
+  });
 }
