@@ -31,7 +31,8 @@ _Result _enterTuplet(
 
 /// [timed] rewritten at [value] from its onset. It keeps its ids, its marks
 /// and the ties into it. A tie out of it stays only while it ends on the
-/// head it ended on before, or on none.
+/// head it ended on before, or on none. A chord made shorter loses the
+/// glissandi that start on it.
 Score _setValue(Score score, TimedEvent timed, NoteValue value, _Ids ids) {
   final unchanged = switch (timed.event) {
     ChordEvent(value: final old) || RestEvent(value: final old) => old == value,
@@ -41,7 +42,7 @@ Score _setValue(Score score, TimedEvent timed, NoteValue value, _Ids ids) {
     return score;
   }
   final write = _overwrite(
-    score,
+    _withoutGlissandiFrom(score, timed, value),
     VoicePoint(
       staff: timed.ref.staff,
       voice: timed.voice,
@@ -59,4 +60,23 @@ Score _setValue(Score score, TimedEvent timed, NoteValue value, _Ids ids) {
   return chord is ChordEvent && chord.notes.any(moves)
       ? _replace(write.score, last, _untied(chord, moves))
       : write.score;
+}
+
+/// [score] without the glissandi that start on [timed], when [timed] is a
+/// chord longer than [value].
+Score _withoutGlissandiFrom(Score score, TimedEvent timed, NoteValue value) {
+  final event = timed.event;
+  if (event is! ChordEvent || value.length >= event.value.length) {
+    return score;
+  }
+  bool startsHere(Spanner spanner) =>
+      spanner.kind is Glissando &&
+      spanner.staff == timed.ref.staff &&
+      spanner.first.measure == timed.ref.measure &&
+      score.anchorOf(spanner, last: false)?.event.id == event.id;
+  return score.spanners.any(startsHere)
+      ? score.copyWith(
+          spanners: Seq(score.spanners.where((line) => !startsHere(line))),
+        )
+      : score;
 }

@@ -1250,6 +1250,58 @@ void main() {
     });
   });
 
+  group('A glissando on a chord that SetValue makes shorter', () {
+    for (final named in [false, true]) {
+      final lines = named ? 'that names its notes' : 'that names no note';
+
+      EditSession glided() {
+        final score = fill(blankScore(), 0, [
+          chordOf(1, 'C4 G4', value: NoteValue.half),
+          chordOf(2, 'D4 C5', value: NoteValue.half),
+        ]);
+        return EditSession.start(
+          withSpanner(
+            score,
+            named
+                ? const Glissando(from: NoteId(11), to: NoteId(20))
+                : const Glissando(),
+            pointAt(score, 0, Moment.zero),
+            pointAt(score, 0, at(1, 2)),
+            voice: VoiceSlot.one,
+          ),
+        );
+      }
+
+      test('goes when it starts on the chord, and undo brings it back, '
+          '$lines', () {
+        final session = glided();
+
+        final next = applied(
+          session.run(SetValue(eventRef(session, 1), NoteValue.quarter)),
+        );
+
+        expect(bar(next.score, 0), [
+          'C4+G4/quarter',
+          'rest/quarter',
+          'D4+C5/half',
+        ]);
+        expect(next.score.spanners, isEmpty);
+        expect(next.undo().score.spanners, session.score.spanners);
+      });
+
+      test('stays when it ends on the chord, $lines', () {
+        final session = glided();
+
+        final next = applied(
+          session.run(SetValue(eventRef(session, 2), NoteValue.quarter)),
+        ).score;
+
+        expect(bar(next, 0).take(2), ['C4+G4/half', 'D4+C5/quarter']);
+        expect(next.spanners, session.score.spanners);
+      });
+    }
+  });
+
   group('A glissando whose notes stay', () {
     /// Voice one plays C5 and D5. Voice two plays [own], and its line runs
     /// from its E4 to that D5.
@@ -1395,7 +1447,8 @@ void main() {
     });
 
     test('follows the chord it ends on when a rippled erase moves it, and '
-        'goes when the erase removes the start of that chord', () {
+        'goes when the erase removes the start of that chord or the end of '
+        'the chord it starts on', () {
       final quarterThenHalf = [
         chordOf(1, 'C4 G4'),
         chordOf(2, 'D4 C5'),
@@ -1410,13 +1463,7 @@ void main() {
       const second = Glissando(from: NoteId(11), to: NoteId(20));
       const third = Glissando(from: NoteId(11), to: NoteId(31));
       for (final (items, line, last, range, kept) in [
-        (
-          quarterThenHalf,
-          second,
-          at(1, 4),
-          (at(1, 8), at(1, 4)),
-          (('G4', 'D4'), at(1, 8)),
-        ),
+        (quarterThenHalf, second, at(1, 4), (at(1, 8), at(1, 4)), null),
         (quarterThenHalf, second, at(1, 4), (at(1, 8), at(3, 8)), null),
         (
           quarters,
