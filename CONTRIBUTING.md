@@ -55,6 +55,15 @@ dart compile exe benchmark/layout_benchmark.dart -o build/layout_benchmark
 build/layout_benchmark
 ```
 
+After a change to the playback compile, also run the playback benchmark. It exits with code 1 when a score four times as long costs more than eight times as much to compile.
+
+```bash
+cd packages/khuur_score_model
+mkdir -p build
+dart compile exe benchmark/playback_benchmark.dart -o build/playback_benchmark
+build/playback_benchmark
+```
+
 The glyph table `packages/khuur_score_layout/lib/src/bravura.g.dart` is generated. Do not edit it by hand. Change `tool/bravura_metadata.json` or the generator, then run `dart run tool/generate_bravura.dart` in `packages/khuur_score_layout`.
 
 The pictures of sheets on the docs site and in the README are generated too. After a change to what the sheet draws, or to the sample code on a page with a picture, draw them again and commit the files that change.

@@ -253,8 +253,10 @@ final class PlaybackCompiler {
               trilled,
         ];
         final trilled =
-            (trills[staff]?.any((t) => t.$1 <= written && written <= t.$2) ??
-                false) ||
+            switch (trills[staff]?.reachFrom(written)) {
+              final end? => written <= end,
+              null => false,
+            } ||
             continued.length == chord.event.notes.length &&
                 continued.contains(true);
         for (final note in chord.event.notes) {
@@ -265,11 +267,10 @@ final class PlaybackCompiler {
             );
           }
         }
-        final slurred =
-            slurs[(staff, voice)]?.any(
-              (s) => s.$1 <= written && written < s.$2,
-            ) ??
-            false;
+        final slurred = switch (slurs[(staff, voice)]?.reachFrom(written)) {
+          final end? => written < end,
+          null => false,
+        };
         // Graces right after a trill end it, so they play at the end of the
         // trilled chord, in its bar, and the chord they lead to plays on its
         // beat. When play starts at that chord, its graces stay on it.
@@ -282,17 +283,20 @@ final class PlaybackCompiler {
           closed.add((at, next.timed.ref));
         }
         final graced = !closed.remove((k, chord.timed.ref));
+        final timeless = trilled || closing != null || !graced
+            ? null
+            : chord.attacks;
         for (final attack
-            in trilled || closing != null || !graced
-                ? _attacks(
-                    chord.timed,
-                    chord.event,
-                    column,
-                    trill: trilled,
-                    graces: graced,
-                    closing: closing?.$2,
-                  )
-                : chord.attacks) {
+            in timeless ??
+                _attacks(
+                  chord.timed,
+                  chord.event,
+                  column,
+                  trill: trilled,
+                  graces: graced,
+                  closing: closing?.$2,
+                  played: bar,
+                )) {
           final (key, cents) = _key(attack.note, instrument);
           final start = bar.secondsAt(attack.onset);
           final end = bar.secondsAt(attack.onset + attack.length);
@@ -306,7 +310,9 @@ final class PlaybackCompiler {
                 ..gate = gate
                 ..gatedFrom = start;
             }
-            note.legato = slurred && note.gate == null;
+            note
+              ..legato = slurred && note.gate == null
+              ..joined = attack.joined;
           } else {
             note = _Sounding(
               start: start,
@@ -314,6 +320,7 @@ final class PlaybackCompiler {
               gate: attack.gate,
               gatedFrom: start,
               legato: slurred && attack.gate == null,
+              joined: attack.joined,
               key: key,
               cents: cents,
               velocity: min((level * attack.stress).round(), 127),
@@ -477,10 +484,7 @@ final class _Timeline {
 /// The spans of every trill line, by staff, from the onset of the note it
 /// starts on to the onset of the note it ends on, the notes the sheet draws
 /// it over.
-Map<StaffId, List<(Moment, Moment)>> _trillSpans(
-  Score score,
-  _Timeline time,
-) {
+Map<StaffId, _Spans> _trillSpans(Score score, _Timeline time) {
   final trills = <StaffId, List<(Moment, Moment)>>{};
   for (final Spanner(:kind, :staff, :first, :last) in score.spanners) {
     if (kind is TrillLine) {
@@ -491,12 +495,12 @@ Map<StaffId, List<(Moment, Moment)>> _trillSpans(
       (trills[staff] ??= []).add((onsetAt(first), onsetAt(last)));
     }
   }
-  return trills;
+  return trills.map((staff, spans) => MapEntry(staff, _Spans(spans)));
 }
 
 /// Where each voice's slurs run, from the onset of the first slurred note
 /// to the onset of the last.
-Map<_Lane, List<(Moment, Moment)>> _slurSpans(Score score, _Timeline time) {
+Map<_Lane, _Spans> _slurSpans(Score score, _Timeline time) {
   final slurs = <_Lane, List<(Moment, Moment)>>{};
   for (final Spanner(:kind, :staff, :voice, :first, :last) in score.spanners) {
     if (kind is Slur) {
@@ -508,7 +512,35 @@ Map<_Lane, List<(Moment, Moment)>> _slurSpans(Score score, _Timeline time) {
       (slurs[(staff, slot)] ??= []).add((onsetAt(first), onsetAt(last)));
     }
   }
-  return slurs;
+  return slurs.map((lane, spans) => MapEntry(lane, _Spans(spans)));
+}
+
+/// Spans of time, kept so that a lookup costs a binary search however many
+/// there are.
+final class _Spans {
+  factory _Spans(List<(Moment, Moment)> spans) {
+    final sorted = stableSorted(spans, (a, b) => a.$1.compareTo(b.$1));
+    final reach = <Moment>[];
+    for (final (_, end) in sorted) {
+      reach.add(reach.isEmpty || reach.last < end ? end : reach.last);
+    }
+    return _Spans._([for (final (start, _) in sorted) start], reach);
+  }
+
+  const _Spans._(this._starts, this._reach);
+
+  /// In order.
+  final List<Moment> _starts;
+
+  /// The latest end of the spans up to each one.
+  final List<Moment> _reach;
+
+  /// The latest end of the spans that start at or before [at], or null
+  /// when none does.
+  Moment? reachFrom(Moment at) {
+    final after = _partition(_starts.length, (i) => _starts[i] > at);
+    return after == 0 ? null : _reach[after - 1];
+  }
 }
 
 /// The MIDI key and cents [note] plays on [instrument]. A drum note plays
@@ -848,8 +880,9 @@ final class _Chord {
   final TimedEvent timed;
   final ChordEvent event;
 
-  /// What it plays when no trill line covers it.
-  final List<_Attack> attacks;
+  /// What it plays when no trill line covers it and its graces are its own,
+  /// or null when it trills, since a trill is timed as its bar plays.
+  final List<_Attack>? attacks;
 }
 
 /// One note struck, in whole-note time from the bar's downbeat.
@@ -860,6 +893,7 @@ final class _Attack {
     required this.note,
     required this.stress,
     required this.gate,
+    required this.joined,
     required this.source,
   });
 
@@ -875,6 +909,10 @@ final class _Attack {
   /// The share of [length] its marks make it sound, or null where none do.
   final double? gate;
 
+  /// Whether the next note of its trill, mordent, turn or tremolo follows
+  /// it, so that it sounds until that note starts.
+  final bool joined;
+
   /// Its chord, or its grace chord.
   final EventRef source;
 }
@@ -887,6 +925,7 @@ final class _Sounding {
     required this.gate,
     required this.gatedFrom,
     required this.legato,
+    required this.joined,
     required this.key,
     required this.cents,
     required this.velocity,
@@ -911,9 +950,13 @@ final class _Sounding {
   /// mark sets its length.
   bool legato;
 
+  /// Whether it ends where the next note of its figure starts.
+  bool joined;
+
   /// Seconds cut from the end. A mark shortens the chain from the note it is
   /// on, and a chain with none is cut as the one note it stands for.
-  double get release => legato ? 0 : (end - gatedFrom) * (1 - (gate ?? 0.9));
+  double get release =>
+      legato || joined ? 0 : (end - gatedFrom) * (1 - (gate ?? _unmarkedGate));
   double overlap = 0;
   final int key;
   final int cents;

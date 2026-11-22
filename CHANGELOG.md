@@ -1,3 +1,8 @@
+## 0.4.1
+* `ScorePlayer` and `scoreToMidi` sound a note that has no staccato, staccatissimo or tenuto and is not slurred for 0.99 of its length, as MuseScore 4 does, where they let it go after 0.9. Trills, mordents, turns and tremolos play without a gap between their notes, and a trill plays about 13 notes a second at any tempo, from `khuur_score_model` 0.4.1.
+* A hairpin arrives at the next dynamic only when that dynamic lies the way it moves, as in MuseScore 4.
+* `ScorePlayer.play` starts sooner on a score with many slurs, because the compile no longer scans every slur for every chord.
+
 ## 0.4.0
 * **Breaking:** `Edit` is sealed and gains `SetMeasureRepeat`, so an app that switches over every edit adds a case for it.
 * A bar can repeat the bar before it, or two bars can repeat the two before them, under a measure-repeat sign. `SetMeasureRepeat(measure, bars: 1)` puts a bar under the one-bar sign, `bars: 2` puts it and the bar after under the two-bar sign, and `bars: null` clears either, as one undo step. Its `staff` names one staff, and without it the sign goes on every staff. The covered bar's notes give way to a whole-bar rest. Writing a note into the bar clears its sign. `SetMeter` with `MeterContent.keepBars` keeps a sign that still stands. Where a meter change would break a sign, it first writes the repeated notes into the sign's bar, with their slurs and trill lines, so they go on sounding. The written-out notes play at the dynamic in force where they stand. The edit is refused where there are not enough bars before, where the bars differ in length, and over a layout break between the two bars of a two-bar sign.
