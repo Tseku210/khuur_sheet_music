@@ -68,8 +68,9 @@ T pick<T>(Random random, List<T> options) =>
 /// than the event it starts on, or a slur that ends on one that starts
 /// before. Throws when the edit removes a glissando that names both its
 /// notes while both are still on its staff and the chord it ends on still
-/// starts after the chord it starts on, unless the edit picked the line or
-/// a ripple removed the time that one of those chords started in.
+/// starts after the chord it starts on, unless the edit picked the line,
+/// made the chord it starts on shorter, or removed with a ripple the time
+/// that the chord it ends on started in.
 /// Throws too when a rippled edit changes the dynamic in force after the bars
 /// it changed, or the clef a note starts in while the note keeps its length.
 Score edited(Score score, Edit edit) {
@@ -118,7 +119,7 @@ Score edited(Score score, Edit edit) {
   for (final spanner in score.spanners) {
     if (spanner.kind case Glissando(:final from?, :final to?)
         when !standing.contains(spanner.id) && !_picks(score, edit, spanner)) {
-      if (_startedInRemovedTime(score, next, edit, spanner.staff, [from, to])) {
+      if (_lostANote(score, next, edit, spanner.staff, from, to)) {
         continue;
       }
       final starts = _noteStartsOn(next, spanner.staff);
@@ -172,26 +173,49 @@ bool _picks(Score score, Edit edit, Spanner spanner) => switch (edit) {
   _ => false,
 };
 
-bool _startedInRemovedTime(
+/// Whether [edit] took time from the chord of [from], as a ripple that
+/// removes time or a shorter [SetValue] does, or removed with a ripple the
+/// time that the chord of [to] starts in.
+bool _lostANote(
   Score score,
   Score next,
   Edit edit,
   StaffId staff,
-  List<NoteId> notes,
+  NoteId from,
+  NoteId to,
 ) {
-  final starts = _noteStartsOn(score, staff);
-  return _removedTime(score, next, edit).any(
-    (cut) => notes
-        .map((note) => starts[note])
-        .nonNulls
-        .any(
-          (start) =>
-              score.compare(cut.$1, start) <= 0 &&
-              score.compare(start, cut.$2) < 0,
-        ),
-  );
+  final chords = {
+    for (final slot in VoiceSlot.values)
+      for (final timed in score.laneOf(staff, slot))
+        if (timed.event case ChordEvent(:final notes))
+          for (final note in notes) note.id: timed,
+  };
+  ScorePoint at(TimedEvent timed, Length into) =>
+      ScorePoint(timed.ref.measure, timed.onset + into);
+  bool cut(NoteId note, {required bool wholeChord}) {
+    final chord = chords[note];
+    if (chord == null) {
+      return false;
+    }
+    if (edit case SetValue(ripple: Ripple.none, :final event, :final value)) {
+      return wholeChord &&
+          event.id == chord.event.id &&
+          value.length < (chord.event as ChordEvent).value.length;
+    }
+    final start = at(chord, Length.zero);
+    return _removedTime(score, next, edit).any(
+      (removed) =>
+          score.compare(start, removed.$2) < 0 &&
+          (wholeChord
+              ? score.compare(removed.$1, at(chord, chord.duration)) < 0
+              : score.compare(removed.$1, start) <= 0),
+    );
+  }
+
+  return cut(from, wholeChord: true) || cut(to, wholeChord: false);
 }
 
+/// The time [edit] removed from [score] with a ripple.
 List<(ScorePoint, ScorePoint)> _removedTime(
   Score score,
   Score next,

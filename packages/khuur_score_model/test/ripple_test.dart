@@ -1687,8 +1687,6 @@ void main() {
         expect(next.spanners, isEmpty);
       });
 
-      /// Halves F4 and A4 in voice one, ids 1 and 2, over halves C4 and D4
-      /// in voice two, ids 5 and 6, with a line from C4 to D4.
       Score halvesUnderHalves() => glided(
         fill(
           fill(blankScore(bars: 1), 0, [

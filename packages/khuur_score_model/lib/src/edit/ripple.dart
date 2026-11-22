@@ -582,33 +582,46 @@ _Rippled _ripple(
   final last = rebuilt.measures[a + count - 1];
   final sectionEnd = ScorePoint(last.id, _barEnd(last));
 
-  /// Where a point of the section goes with its music. A session's range
-  /// may start at the end of the section's last bar, and that point stays
-  /// at the section's end unless bars are added after it.
+  ScorePoint placeOrEnd(Length time) => place(time) ?? sectionEnd;
+
+  /// Where a point of the section goes with its music.
   ScorePoint follow(ScorePoint point) => switch (timeOf(point)) {
-    final at? => place(kept(at) ?? time.land(at)) ?? sectionEnd,
+    final at? => placeOrEnd(kept(at) ?? time.land(at)),
     null => point,
   };
   ScorePoint firstOf(Spanner spanner) => moving.contains(spanner.staff)
       ? follow(onItsNote(spanner, last: false))
       : spanner.first;
 
+  /// Whether the cuts take a glissando's note from it.
   bool unnoted(Spanner spanner) {
     if (time is! _Collapse ||
         spanner.kind is! Glissando ||
         !moving.contains(spanner.staff)) {
       return false;
     }
-    bool startsInCut({required bool last}) {
+    ({TimedEvent event, Length start})? anchored({required bool last}) {
       final point = last ? spanner.last : spanner.first;
       if (!index.containsKey(point.measure)) {
-        return false;
+        return null;
       }
-      final onset = score.anchorOf(spanner, last: last)!.onset;
-      return time.cutOver(timeOf(ScorePoint(point.measure, onset))!) != null;
+      final event = score.anchorOf(spanner, last: last)!;
+      return (
+        event: event,
+        start: timeOf(ScorePoint(point.measure, event.onset))!,
+      );
     }
 
-    return startsInCut(last: false) || startsInCut(last: true);
+    final from = anchored(last: false);
+    final shortensFirstChord =
+        from != null &&
+        from.event.event is ChordEvent &&
+        time.cutsInto(from.start, from.start + from.event.duration);
+    bool startsInCut(({TimedEvent event, Length start})? end) =>
+        end != null && time.cutOver(end.start) != null;
+    return shortensFirstChord ||
+        startsInCut(from) ||
+        startsInCut(anchored(last: true));
   }
 
   final spanners = _moveSpanners(
@@ -627,14 +640,14 @@ _Rippled _ripple(
       }
       final moved = switch (time.moved(at)) {
         final moved? => place(moved >= end ? at : moved),
-        null => place(time.land(at)) ?? sectionEnd,
+        null => placeOrEnd(time.land(at)),
       };
       if (time is! _Collapse || spanner.kind.joinsNotes) {
         return moved;
       }
       final ended = timeOf(_lastCoveredEnd(score, spanner))!;
       final ends = time.land(ended);
-      final stop = place(ends) ?? sectionEnd;
+      final stop = placeOrEnd(ends);
       final before = _onsetBefore(rebuilt, spanner, stop);
       final lost = ends - time.land(at) < ended - at;
       final short =

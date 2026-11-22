@@ -214,11 +214,12 @@ enum Overfill {
 ///   one event. A glissando goes with its notes, and is dropped when the
 ///   note it starts or ends on starts in removed time, as [RemoveNote]
 ///   drops one that names the head. That holds when the note runs out of
-///   the removed time and stays, shorter. A note that loses only its end
-///   keeps its glissando, where MuseScore 4 drops one that starts on it.
+///   the removed time and stays, shorter. A glissando is dropped too when
+///   the chord it starts on loses its end or its middle. One that ends on
+///   a chord that loses only its end stays.
 ///   Any other line ends where the time it covered ends, on the last event
 ///   that starts before then, and it is dropped when no time is left.
-///   Apart from that glissando, MuseScore 4 moves the ends the same way,
+///   MuseScore 4 drops that glissando and moves the ends the same way,
 ///   and the result of an [Erase] does not depend on the order of its
 ///   selection. A slur, glissando or trill line end inside a note moves
 ///   with the note's onset, so it stays on that note.
@@ -289,8 +290,9 @@ final class SetTone extends Edit {
 /// Longer: overwrites what follows, split and tied at a barline, with bars
 /// appended past the end of the score; inside a tuplet it must still end in
 /// the tuplet. A tie out of the event stays only while it ends on the head
-/// it ended on before, or on none. The cursor and selection stay.
-/// Idempotent.
+/// it ended on before, or on none. A chord made shorter loses each
+/// glissando that starts on it, as in MuseScore 4, with or without a
+/// ripple. The cursor and selection stay. Idempotent.
 ///
 /// With [ripple] set to [Ripple.part] or [Ripple.staff], the music after
 /// the event moves by the change instead, in every staff of the part or in

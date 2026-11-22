@@ -1230,6 +1230,8 @@ final class PedalLine extends SpannerKind {
 /// ([Score.anchorOf]). The line goes with a note it names, as in MuseScore
 /// 4. An edit that moves or shortens the note moves that end to the note's
 /// start, and an edit that takes the note off the staff removes the line.
+/// A shorter `SetValue`, or a ripple that removes part of a chord's time,
+/// removes each line that starts on that chord, as MuseScore 4 does.
 /// A file whose line names a note that does not sound at that end loads
 /// without the line. An end that names no note is on the top note of the
 /// event the spanner's voice has there. When that voice has none, it is on

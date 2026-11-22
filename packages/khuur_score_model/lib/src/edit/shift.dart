@@ -106,6 +106,13 @@ final class _Collapse extends _Shift {
     return i >= 0 && time < cuts[i].to ? i : null;
   }
 
+  /// Whether a cut removes any of the time from [from] up to [to].
+  bool cutsInto(Length from, Length to) {
+    final i = _cutAt(from);
+    return (i >= 0 && from < cuts[i].to) ||
+        (i + 1 < cuts.length && cuts[i + 1].from < to);
+  }
+
   @override
   Length? moved(Length time) {
     final i = _cutAt(time);
