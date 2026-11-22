@@ -2382,6 +2382,14 @@ void main() {
         expectRange(next, (0, at(1, 2)), (1, at(1, 4)));
       });
 
+      test('an erase on one staff still drops one that holds no time', () {
+        final next = applied(
+          erase(ranged(twoHands(), at(1, 2), at(1, 2)), [3], Ripple.staff),
+        );
+
+        expect(next.selection, isA<NoSelection>());
+      });
+
       test('an erase that moves both staves moves it with them', () {
         final next = applied(
           erase(ranged(twoHands(), at(1, 2), at(1, 1)), [3], Ripple.part),

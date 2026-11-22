@@ -300,7 +300,9 @@ final class SetTone extends Edit {
 /// and a shorter one pulls it back, so nothing after the event is written
 /// over or turned into rests. An event in a tuplet cannot change its length
 /// this way, and the edit is refused with [WouldSplitTuplet]. The cursor
-/// and a range selection on the staves that move follow the music.
+/// and a range selection on the staves that move follow the music. A range
+/// that also covers a staff that holds still keeps its own time too, so it
+/// runs from the earlier start to the later end.
 final class SetValue extends Edit {
   /// Changes [event]'s written value to [value].
   const SetValue(this.event, this.value, {this.ripple = Ripple.none});
