@@ -2016,6 +2016,51 @@ void main() {
       expect(range.to, pointAt(next.score, 1, at(3, 4)));
     });
 
+    group('under a range that starts at the end of the section', () {
+      EditSession ranged() {
+        final session = barsOf([
+          [
+            chordOf(1, 'F4'),
+            rest(2, NoteValue.quarter),
+            rest(3, NoteValue.half),
+          ],
+          quarters(5, 'C5 D5 E5 F5'),
+        ]);
+        final score = changeBar(
+          session.score,
+          0,
+          (column) => column.copyWith(barline: Barline.doubleBar),
+        );
+        return EditSession.start(score).select(
+          RangeSelection(
+            from: pointAt(score, 0, at(1, 1)),
+            to: pointAt(score, 1, at(1, 2)),
+            top: score.staves.first.id,
+            bottom: score.staves.first.id,
+          ),
+        );
+      }
+
+      test('a longer value pushes the music and the range stays', () {
+        final next = applied(revalue(ranged(), 1, NoteValue.half));
+
+        expect(bar(next.score, 0), ['F4/half', 'rest/half']);
+        final range = next.selection as RangeSelection;
+        expect(range.from, pointAt(next.score, 0, at(1, 1)));
+        expect(range.to, pointAt(next.score, 1, at(1, 2)));
+      });
+
+      test('a new note pushes the music', () {
+        final session = ranged();
+
+        final next = applied(
+          push(session, point(session.score, 0, Moment.zero)),
+        );
+
+        expect(bar(next.score, 0).take(2), ['C5/quarter', 'F4/quarter']);
+      });
+    });
+
     test('the cursor follows the music it sat on', () {
       final session = barsOf([quarters(1, 'F4 G4 A4 B4'), []]);
       final placed = session.placeCursor(point(session.score, 0, at(3, 4)));
