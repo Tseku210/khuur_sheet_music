@@ -891,6 +891,41 @@ void main() {
       );
     });
 
+    test('a slur of voice two that ends where its voice has a gap runs to '
+        'the note a third voice starts there, not to a tied part of the note '
+        'voice one has held since before it', () {
+      var score = scoreOf([
+        [
+          chordOf(1, 'B4'),
+          chordOf(2, 'C5', tie: true),
+          chordOf(5, 'C5', value: NoteValue.half),
+        ],
+      ]);
+      score = fill(score, 0, [
+        Gap(len(1, 2)),
+        chordOf(3, 'F4'),
+        Gap(len(1, 4)),
+      ], slot: VoiceSlot.two);
+      score = fill(score, 0, [
+        Gap(len(3, 4)),
+        chordOf(4, 'G4'),
+      ], slot: VoiceSlot.three);
+      score = withSpanner(
+        score,
+        const Slur(),
+        pointAt(score, 0, at(1, 2)),
+        pointAt(score, 0, at(3, 4)),
+        voice: VoiceSlot.two,
+      );
+
+      final system = sheetOf(score).systemAt(0);
+      final to = headOf(system, noteRef(score, 0, 4));
+      expect(
+        curvesOf(system).singleWhere((curve) => curve.owner == spanner).end.x,
+        inInclusiveRange(to.left, to.right),
+      );
+    });
+
     test('a tempo line prints its text above the staff and dashes on from '
         'it', () {
       final score = withSpanner(

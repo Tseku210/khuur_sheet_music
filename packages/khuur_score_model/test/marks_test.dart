@@ -624,6 +624,132 @@ void main() {
       });
     });
 
+    group('a slur of voice two that ends on a note of voice three, under a '
+        'note voice one has held since before it', () {
+      String end(Score score, Spanner slur) {
+        final on = score.anchorOf(slur, last: true)!;
+        final tones = switch (on.event) {
+          ChordEvent(:final notes) => notes.map((note) => '${note.tone}'),
+          _ => const ['rest'],
+        };
+        return '${on.voice.name} ${tones.join(' ')}';
+      }
+
+      List<String> ends(Score score) => [
+        for (final slur in score.spanners) end(score, slur),
+      ];
+
+      Score under(List<VoiceItem> one) {
+        var score = fill(blankScore(), 0, one);
+        score = fill(score, 0, [
+          chordOf(2, 'E4'),
+          chordOf(3, 'F4'),
+          Gap(len(1, 2)),
+        ], slot: VoiceSlot.two);
+        return fill(score, 0, [
+          Gap(len(1, 2)),
+          chordOf(6, 'G4'),
+          Gap(len(1, 4)),
+        ], slot: VoiceSlot.three);
+      }
+
+      EditSession slurred(Score score, ScorePoint first, ScorePoint last) =>
+          applied(
+            addSpanner(score, const Slur(), first, last, voice: VoiceSlot.two),
+          );
+
+      test('stays on that note when SetMeter, a ripple insert or a paste '
+          'splits the held note into tied parts', () {
+        final score = under([chordOf(1, 'C5', value: NoteValue.whole)]);
+        final session = slurred(
+          score,
+          pointAt(score, 0, at(1, 4)),
+          pointAt(score, 0, at(1, 2)),
+        );
+        final staff = score.staves.first.id;
+        VoicePoint inVoiceOne(int bar, Moment offset) => VoicePoint(
+          staff: staff,
+          voice: VoiceSlot.one,
+          at: pointAt(score, bar, offset),
+        );
+        EnterNote insert(NoteValue value) => EnterNote(
+          at: inVoiceOne(0, Moment.zero),
+          tone: Pitch.parse('B4'),
+          value: value,
+          appendBar: false,
+          ripple: Ripple.part,
+        );
+        final clip = session
+            .select(
+              RangeSelection(
+                from: pointAt(score, 0, Moment.zero),
+                to: pointAt(score, 1, Moment.zero),
+                top: staff,
+                bottom: staff,
+              ),
+            )
+            .copy()!;
+
+        expect(ends(session.score), ['three G4']);
+        for (final (edit, slurs) in [
+          (SetMeter(from: score.measures.first.id, meter: Meter.twoFour), 1),
+          (insert(NoteValue.quarter), 1),
+          (insert(NoteValue.eighth), 1),
+          (Paste(clip, at: inVoiceOne(1, at(1, 8))), 2),
+        ]) {
+          expect(
+            ends(applied(session.run(edit)).score),
+            List.filled(slurs, 'three G4'),
+            reason: '${edit.runtimeType}',
+          );
+        }
+      });
+
+      test('ends on that note in the bar after its first, not on the part of '
+          'the held note that is tied over the barline', () {
+        Score across(
+          List<VoiceItem> one,
+          List<VoiceItem> two,
+          Moment start,
+        ) {
+          var score = fill(blankScore(), 0, one);
+          score = fill(score, 0, two, slot: VoiceSlot.two);
+          score = fill(score, 1, [chordOf(7, 'C5', value: NoteValue.whole)]);
+          score = fill(score, 1, [
+            chordOf(8, 'E4'),
+            Gap(len(3, 4)),
+          ], slot: VoiceSlot.two);
+          score = fill(score, 1, [
+            Gap(len(1, 2)),
+            chordOf(6, 'G4'),
+            Gap(len(1, 4)),
+          ], slot: VoiceSlot.three);
+          return slurred(
+            score,
+            pointAt(score, 0, start),
+            pointAt(score, 1, at(1, 2)),
+          ).score;
+        }
+
+        final before = across(
+          [chordOf(1, 'C5', value: NoteValue.whole, tie: true)],
+          [Gap(len(3, 4)), chordOf(3, 'F4')],
+          at(3, 4),
+        );
+        final after = across(
+          [
+            chordOf(1, 'D5', value: NoteValue.half),
+            chordOf(4, 'C5', value: NoteValue.half, tie: true),
+          ],
+          [Gap(len(1, 4)), chordOf(3, 'F4'), Gap(len(1, 2))],
+          at(1, 4),
+        );
+
+        expect(ends(before), ['three G4']);
+        expect(ends(after), ['one C5']);
+      });
+    });
+
     test('puts a line or hairpin on the staff, in no voice', () {
       final score = blankScore();
 

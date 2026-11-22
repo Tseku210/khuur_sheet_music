@@ -1482,6 +1482,75 @@ void main() {
       ]);
     });
 
+    test('ends a slur on the note its stop is on, in a fourth voice that '
+        'starts with a third or under a note voice one starts in that bar, '
+        'and keeps it there through a save and an export', () {
+      const start = '<notations><slur type="start"/></notations>';
+      const stop = '<notations><slur type="stop"/></notations>';
+      String end(Score score) {
+        final on = score.anchorOf(score.spanners.single, last: true)!;
+        final tone = (on.event as ChordEvent).notes.single.tone;
+        return '${on.voice.name} $tone';
+      }
+
+      final together = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 16, 'whole', '<voice>1</voice>'),
+            backup(16),
+            note('E4', 4, 'quarter', '<voice>2</voice>'),
+            note('F4', 4, 'quarter', '<voice>2</voice>$start'),
+            forward(8, '<voice>2</voice>'),
+            backup(16),
+            forward(8, '<voice>3</voice>'),
+            note('G4', 4, 'quarter', '<voice>3</voice>'),
+            forward(4, '<voice>3</voice>'),
+            backup(16),
+            forward(8, '<voice>4</voice>'),
+            note('A4', 4, 'quarter', '<voice>4</voice>$stop'),
+            forward(4, '<voice>4</voice>'),
+          ],
+        ]),
+      );
+      final later = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 16, 'whole', '<voice>1</voice>'),
+            backup(16),
+            forward(12, '<voice>2</voice>'),
+            note('F4', 4, 'quarter', '<voice>2</voice>$start'),
+          ],
+          [
+            note('D5', 16, 'whole', '<voice>1</voice>'),
+            backup(16),
+            note('E4', 4, 'quarter', '<voice>2</voice>'),
+            forward(12, '<voice>2</voice>'),
+            backup(16),
+            forward(8, '<voice>3</voice>'),
+            note('G4', 4, 'quarter', '<voice>3</voice>$stop'),
+            forward(4, '<voice>3</voice>'),
+          ],
+        ]),
+      );
+
+      for (final (score, on) in [(together, 'four A4'), (later, 'three G4')]) {
+        expect(end(score), on);
+        expect(end(reloaded(score)), on);
+        final exported = scoreToMusicXml(score);
+        final back = scoreFromMusicXml(exported);
+        expect(end(back), on);
+        expect(scoreToMusicXml(back), exported);
+      }
+      final halved = applied(
+        EditSession.start(together).run(
+          SetMeter(from: together.measures.first.id, meter: Meter.twoFour),
+        ),
+      ).score;
+      expect(end(halved), 'four A4');
+    });
+
     test('keeps a slur of a second voice on the note of voice one its mark '
         'is on, where a third voice starts a note as the second voice '
         'stops', () {
