@@ -988,10 +988,12 @@ sealed class SpannerKind {
 /// A slur over notes of one voice. Where that voice has no event at an end,
 /// the end is on an event of another voice ([Spanner.anchorAmong]). The event
 /// a slur ends on starts no sooner than the event it starts on, as in each
-/// slur MuseScore 4's editor builds, so a slur cannot end on a note of voice
-/// one that has sounded since before its start. `AddSpanner` refuses such a
-/// slur, an edit that leaves one removes it, and MusicXML import and a JSON
-/// file load without it.
+/// slur MuseScore 4's editor builds. A tied part of a note is an event of
+/// its own, so a slur may end on one that starts after its first event even
+/// when the note it is tied from started before. `AddSpanner` refuses a slur
+/// that ends on an event that starts before the one it starts on, an edit
+/// that leaves one removes it, and MusicXML import and a JSON file load
+/// without it.
 final class Slur extends SpannerKind {
   /// A solid slur, or a dashed one when [dashed].
   const Slur({this.dashed = false});
@@ -1108,10 +1110,11 @@ final class PedalLine extends SpannerKind {
 /// an event of another voice ([Spanner.anchorAmong]).
 ///
 /// The event a line ends on starts after the event it starts on, as in each
-/// line MuseScore 4's editor builds. So a line cannot end on a note of
-/// another voice that has sounded since its start or before, whether the
-/// end names that note or is on voice one's event where its own voice has
-/// none. `AddSpanner` refuses such a line, an edit that leaves one removes
+/// line MuseScore 4's editor builds. So a line cannot end on an event of
+/// another voice that starts with its first event or before it, whether the
+/// end names a note of that event or is on voice one's event where its own
+/// voice has none. A tied part of a note is an event of its own.
+/// `AddSpanner` refuses such a line, an edit that leaves one removes
 /// it, and MusicXML import leaves it out. A JSON file with one that names a
 /// note does not load. One that names no note, as a file saved before 0.5.0
 /// can hold, loads without the line.

@@ -4,6 +4,7 @@
 * A mark that would pass the end of a squeezed bar moves left to end there, and so do a tuplet number and the start of a line. A beam hook between stems closer than the hook is long stops at the stem it points to.
 * `SpacingPolicy.ratio` defaults to 1.5, MuseScore 4's spacing ratio, where it was 1.41. A note twice as long gets 1.5 times the space, so a bar of sixteenths is about 3 staff spaces narrower and a half note 0.3 wider. Most layouts change. An app that wants the old spacing passes `SpacingPolicy(ratio: 1.41)`.
 * A glissando is drawn from the head it starts on to the head it ends on, in any voice of its staff, where it ran between the middles of the two chords. Two lines from one chord no longer draw on top of each other.
+* A slur, or a glissando that names no note there, whose last end lies in a gap of its voice, under an event of voice one that started before its first event in the same bar, is drawn to the chord another voice starts there, when there is one. It ran back to voice one's event.
 * Depends on `khuur_score_model` 0.5.0, whose `Transposition` and `Glissando` changed.
 
 ## 0.4.0
