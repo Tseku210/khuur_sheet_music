@@ -212,8 +212,10 @@ enum Overfill {
 ///   that takes the removed note's place, or on the rest there when no
 ///   music follows, and it is dropped when that leaves both its ends on
 ///   one event. A glissando goes with its notes, and is dropped when the
-///   note it starts or ends on is removed, as [RemoveNote] drops one that
-///   names the head. Any other line ends where the time it covered
+///   note it starts or ends on starts in removed time, as [RemoveNote]
+///   drops one that names the head. That holds when the note runs out of
+///   the removed time and stays, shorter. A note that loses only its end
+///   keeps its glissando. Any other line ends where the time it covered
 ///   ends, on the last event that starts before then, and it is dropped
 ///   when no time is left. MuseScore 4 moves the ends the same way, and
 ///   the result of an [Erase] does not depend on the order of its

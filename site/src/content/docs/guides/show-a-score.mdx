@@ -140,7 +140,7 @@ The new note first fills any rest at the cursor. Then the later music of the par
 
 A slur, trill line or glissando moves with the notes it starts and ends on. `SetBarLength` keeps them on their notes in the same way.
 
-When a ripple removes the note a slur ends on, the slur ends on the note that takes its place, as in MuseScore 4. A slur left on one note is dropped. A glissando goes with its notes, and is dropped when the note it starts or ends on is removed. A hairpin, a pedal line or another line ends where the time it covered ends, and is dropped when no time is left. Erasing the same notes in any order gives the same score.
+When a ripple removes the note a slur ends on, the slur ends on the note that takes its place, as in MuseScore 4. A slur left on one note is dropped. A glissando goes with its notes, and is dropped when the note it starts or ends on starts in the removed time, even when the rest of that note stays. A note that loses only its end keeps its glissando. A hairpin, a pedal line or another line ends where the time it covered ends, and is dropped when no time is left. Erasing the same notes in any order gives the same score.
 
 A ripple stays inside the section that holds the edit. A section ends at any barline other than a regular one, and at a repeat sign, a volta, a rehearsal mark, a segno or coda, a key change and a meter change. A bar of irregular length, such as a pickup, is a section of its own.
 

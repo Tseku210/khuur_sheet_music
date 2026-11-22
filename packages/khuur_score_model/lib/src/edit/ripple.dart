@@ -594,25 +594,22 @@ _Rippled _ripple(
       ? onset(onItsNote(spanner, last: false))
       : spanner.first;
 
-  /// Whether the cuts remove the whole event that an end of [spanner], a
-  /// glissando, is on. A glissando goes with its notes.
   bool unnoted(Spanner spanner) {
     if (time is! _Collapse ||
         spanner.kind is! Glissando ||
         !moving.contains(spanner.staff)) {
       return false;
     }
-    bool removed({required bool last}) {
+    bool startsInCut({required bool last}) {
       final point = last ? spanner.last : spanner.first;
       if (!index.containsKey(point.measure)) {
         return false;
       }
-      final event = score.anchorOf(spanner, last: last)!;
-      final from = timeOf(ScorePoint(point.measure, event.onset))!;
-      return time.removes(from, from + event.duration);
+      final onset = score.anchorOf(spanner, last: last)!.onset;
+      return time.cutOver(timeOf(ScorePoint(point.measure, onset))!) != null;
     }
 
-    return removed(last: false) || removed(last: true);
+    return startsInCut(last: false) || startsInCut(last: true);
   }
 
   final spanners = _moveSpanners(
