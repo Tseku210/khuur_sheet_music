@@ -473,6 +473,46 @@ void main() {
       }
     });
 
+    test('refuses a glissando whose end note starts no later than its start '
+        'note', () {
+      final score = fill(
+        fill(blankScore(), 0, [
+          chordOf(1, 'D5', value: NoteValue.half),
+          chordOf(4, 'G5', value: NoteValue.half),
+        ]),
+        0,
+        [chordOf(2, 'E4'), chordOf(3, 'F4'), rest(7, NoteValue.half)],
+        slot: VoiceSlot.two,
+      );
+      Score glided(int from, int to, Moment first, Moment last) => withSpanner(
+        score,
+        Glissando(from: NoteId(from), to: NoteId(to)),
+        pointAt(score, 0, first),
+        pointAt(score, 0, last),
+        voice: VoiceSlot.two,
+      );
+
+      expect(
+        reloaded(glided(30, 40, at(1, 4), at(1, 2))).spanners,
+        hasLength(1),
+      );
+      for (final back in [
+        glided(30, 10, at(1, 4), at(3, 8)),
+        glided(20, 10, Moment.zero, at(1, 4)),
+      ]) {
+        expect(
+          () => reloaded(back),
+          throwsA(
+            isA<ScoreFormatException>().having(
+              (error) => '$error',
+              'message',
+              contains('a slur or glissando ends after it starts'),
+            ),
+          ),
+        );
+      }
+    });
+
     test('an edit mints no id a glissando names', () {
       final score = showcase();
       final line = score.spanners[7];

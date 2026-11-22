@@ -56,11 +56,12 @@ T pick<T>(Random random, List<T> options) =>
 /// the edit leaves two things of a kind with one id, which no file may
 /// hold, or a score that does not load from its own JSON, since an app
 /// that saved it would lose the piece, or a glissando that names a note its
-/// chord has lost. Throws when the edit removes a glissando that names both
-/// its notes while both are still on its staff, unless the edit picked the
-/// line. Throws too when a rippled edit changes the dynamic in force after
-/// the bars it changed, or the clef a note starts in while the note keeps
-/// its length.
+/// chord has lost, or one that names a note and ends on a chord that starts
+/// no later than the chord it starts on. Throws when the edit removes a
+/// glissando that names both its notes while both are still on its staff,
+/// unless the edit picked the line. Throws too when a rippled edit changes
+/// the dynamic in force after the bars it changed, or the clef a note starts
+/// in while the note keeps its length.
 Score edited(Score score, Edit edit) {
   final outcome = EditSession.start(score).run(edit);
   if (outcome is! Applied) {
@@ -85,6 +86,21 @@ Score edited(Score score, Edit edit) {
           (last != null && to?.id != last)) {
         throw StateError(
           '${edit.runtimeType} left a glissando without its note',
+        );
+      }
+    }
+  }
+  for (final spanner in next.spanners) {
+    if (spanner.kind case Glissando(:final from, :final to)
+        when from != null || to != null) {
+      final first = next.anchorOf(spanner, last: false)!;
+      final last = next.anchorOf(spanner, last: true)!;
+      final bars =
+          next.indexOf(last.ref.measure) - next.indexOf(first.ref.measure);
+      if (bars < 0 || (bars == 0 && last.onset <= first.onset)) {
+        throw StateError(
+          '${edit.runtimeType} left a glissando that ends no later than it '
+          'starts',
         );
       }
     }
