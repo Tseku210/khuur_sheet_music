@@ -1,0 +1,111 @@
+// Checks how the cost of erasing a chord from every bar in one edit grows
+// with the length of the score. It erases the second chord of every bar of
+// a score with a glissando in every bar, then of a score four times as
+// long, and compares the two times. It does so once with no ripple and once
+// with `Ripple.part`.
+//
+// Run it compiled, from packages/khuur_score_model. A JIT run measures the
+// compiler as much as the code. The compiler does not create `build`, which
+// git ignores.
+//
+//   mkdir -p build && dart compile exe benchmark/erase_growth_benchmark.dart -o build/erase_growth_benchmark
+//   build/erase_growth_benchmark
+//
+// It prints one line per score and one per erase, and exits with 1 when
+// the longer score costs more than the erase's bound times the shorter.
+
+import 'dart:io';
+
+import 'package:khuur_score_model/khuur_score_model.dart';
+
+import 'erase_benchmark.dart' show glided;
+
+/// Four times the bars cost four times the time when the erase is linear
+/// and sixteen times when it is quadratic. The bound sits between, clear of
+/// the noise of a busy machine.
+const double _mostGrowth = 8;
+
+/// A rippled erase closes each gap on its own, last first, and each close
+/// re-bars the section. So it is quadratic, and four times the bars cost
+/// sixteen times the time. Work in a close that grows with the square of
+/// the section makes that sixty-four times, and about forty at these
+/// lengths. The bound sits between.
+const double _mostRippledGrowth = 24;
+
+/// The median time of [runs] erases of the second chord of every bar of
+/// [score] in one edit, after [warmUps] that do not count. Fails when the
+/// erase is refused or leaves another count of chords than three a bar.
+Duration eraseTime(
+  Score score,
+  Ripple ripple, {
+  int warmUps = 2,
+  int runs = 7,
+}) {
+  final bars = score.measures.length;
+  final staff = score.staves.first.id;
+  final erase = Erase(
+    ItemSelection(
+      Seq([
+        for (var bar = 0; bar < bars; bar++)
+          score.locate(EventId(4 * bar + 1))!,
+      ]),
+    ),
+    ripple: ripple,
+  );
+  final watch = Stopwatch();
+  final times = <Duration>[];
+  for (var i = 0; i < warmUps + runs; i++) {
+    final session = EditSession.start(score);
+    watch
+      ..reset()
+      ..start();
+    final outcome = session.run(erase);
+    watch.stop();
+    final left = switch (outcome) {
+      Applied(:final session) => session.score,
+      _ => throw StateError('the erase was refused'),
+    };
+    final chords = left
+        .laneOf(staff, VoiceSlot.one)
+        .where((timed) => timed.event is ChordEvent)
+        .length;
+    if (chords != 3 * bars) {
+      throw StateError('the erase left $chords chords in $bars bars');
+    }
+    if (i >= warmUps) {
+      times.add(watch.elapsed);
+    }
+  }
+  return (times..sort())[times.length ~/ 2];
+}
+
+String _ms(Duration time) => (time.inMicroseconds / 1000).toStringAsFixed(3);
+
+/// Whether an erase with [ripple] grows by no more than [bound] from
+/// [bars] bars to four times as many.
+bool _holds(Ripple ripple, int bars, double bound) {
+  final what = ripple == Ripple.none ? 'erase' : 'rippled erase';
+  final times = [
+    for (final length in [bars, 4 * bars])
+      eraseTime(glided(length, named: false), ripple),
+  ];
+  for (final (i, time) in times.indexed) {
+    stdout.writeln(
+      '$what of a chord a bar: ${i == 0 ? bars : 4 * bars} bars, '
+      'median ${_ms(time)} ms',
+    );
+  }
+  final growth = times.last.inMicroseconds / times.first.inMicroseconds;
+  final over = growth > bound;
+  stdout.writeln(
+    '$what: 4 times the bars cost ${growth.toStringAsFixed(2)} times the '
+    'time, bound $bound${over ? ', FAILED' : ''}',
+  );
+  return !over;
+}
+
+void main() {
+  final plain = _holds(Ripple.none, 4000, _mostGrowth);
+  final rippled = _holds(Ripple.part, 100, _mostRippledGrowth);
+  exitCode = plain && rippled ? 0 : 1;
+}
