@@ -1102,12 +1102,13 @@ sealed class SpannerKind {
 /// a slur ends on starts no sooner than the event it starts on, as in each
 /// slur MuseScore 4's editor builds. A tied part of a note is an event of
 /// its own, so a slur may end on one of its own voice that starts after its
-/// first event even when the note it is tied from started before. A part
-/// of voice one that the end only falls to gives way to a chord another
-/// voice starts there, when there is one. `AddSpanner` refuses a slur that
-/// ends on an event that starts before the one it starts on, an edit that
-/// leaves one removes it, and MusicXML import and a JSON file load without
-/// it.
+/// first event even when the note it is tied from started before. Where
+/// the last end only falls to voice one's event, and voice one has held
+/// that event through any ties since before the slur's first event, the
+/// end is on the chord another voice starts there instead, when there is
+/// one. `AddSpanner` refuses a slur that ends on an event that starts
+/// before the one it starts on, an edit that leaves one removes it, and
+/// MusicXML import and a JSON file load without it.
 final class Slur extends SpannerKind {
   /// A solid slur, or a dashed one when [dashed]. Its last end is on the
   /// chord of [endVoice] when that is given.
@@ -1118,8 +1119,9 @@ final class Slur extends SpannerKind {
 
   /// The voice whose chord the slur ends on, where that is not the chord
   /// its last end falls to without a name ([Score.anchorOf]). MusicXML
-  /// import names the voice a stop is written in, as MuseScore 4 ends the
-  /// slur on that chord. The name goes with the slur through every edit.
+  /// import sets it to the voice a stop is written in when the slur would
+  /// otherwise end on another chord, as MuseScore 4 ends the slur on the
+  /// chord that carries its stop. The name goes with the slur through every edit.
   /// While that voice sounds no chord at the last end, the end is where it
   /// falls without a name.
   final VoiceSlot? endVoice;
@@ -1241,8 +1243,10 @@ final class PedalLine extends SpannerKind {
 /// one removes it, and MusicXML import leaves it out. A JSON file with one
 /// that names a note does not load. One that names no note, as a file saved
 /// before 0.5.0 can hold, loads without the line. A tied part of a note is
-/// an event of its own, but a part of voice one that the end only falls to
-/// gives way to a chord another voice starts there, when there is one.
+/// an event of its own. Where the last end only falls to voice one's event,
+/// and voice one has held that event through any ties since the line's
+/// first event or before, the end is on the chord another voice starts
+/// there instead, when there is one.
 final class Glissando extends SpannerKind {
   /// A line from note [from] of the chord it starts on to note [to] of the
   /// chord it ends on, or between their top notes where an id is null.
