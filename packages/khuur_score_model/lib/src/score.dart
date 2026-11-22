@@ -94,6 +94,10 @@ final class Score {
     _Runs? runs,
   }) : _flat = measures,
        _runs = runs,
+       assert(
+         (measures == null) != (runs == null),
+         'a score holds its bars in one list or in runs, not both',
+       ),
        assert(parts.isNotEmpty, 'a score has at least one part'),
        assert(
          (measures ?? runs!.flat).isNotEmpty,
@@ -177,12 +181,12 @@ final class Score {
 
   /// The global, ordered list of bars. Bar *numbers* are derived from
   /// position; bar *identity* is [MeasureColumn.id].
-  Seq<MeasureColumn> get measures => _flat ??= _runs!.flat;
+  Seq<MeasureColumn> get measures => _flat ?? _runs!.flat;
 
-  /// The bars as one list.
-  Seq<MeasureColumn>? _flat;
+  /// The bars as one list, or null when the score holds them in [_runs].
+  final Seq<MeasureColumn>? _flat;
 
-  /// The bars in runs.
+  /// The bars in runs, in a score where [_flat] is null.
   final _Runs? _runs;
 
   /// Cross-bar marks, in no particular order.
@@ -208,9 +212,9 @@ final class Score {
   late final List<Staff> staves = [for (final part in parts) ...part.staves];
 
   /// Where the place of each bar by its id is kept once it is built. A
-  /// copy with the same bars, and one that [replacingBars] makes, shares it,
-  /// so an edit that writes bars many times over builds the index once and
-  /// not once for each copy.
+  /// copy with the same bars, and one that [BarRuns.withBars] makes, shares
+  /// it, so an edit that writes bars many times over builds the index once
+  /// and not once for each copy.
   final _Places _places;
 
   Map<MeasureId, int> get _indexById => _places.byId ??= {
@@ -300,12 +304,12 @@ final class Score {
   EventRef? locate(EventId id) => _refById[id];
 
   late final Map<EventId, EventRef> _refById = {
-    for (final column in measures)
-      for (final staff in column.staves)
+    for (var bar = 0; bar < barCount; bar++)
+      for (final staff in barAt(bar).staves)
         for (final voice in staff.voices)
           for (final timed in timedEvents(
             voice,
-            measure: column.id,
+            measure: barAt(bar).id,
             staff: staff.staff,
           ))
             timed.event.id: timed.ref,
@@ -331,7 +335,8 @@ final class Score {
   /// building a [measureView] per bar. Throws if [staff] is not in this
   /// score.
   Iterable<TimedEvent> laneOf(StaffId staff, VoiceSlot voice) sync* {
-    for (final column in measures) {
+    for (var bar = 0; bar < barCount; bar++) {
+      final column = barAt(bar);
       if (column.staff(staff).voice(voice) case final lane?) {
         yield* timedEvents(lane, measure: column.id, staff: staff);
       }
@@ -837,9 +842,8 @@ final class _Runs {
   Seq<MeasureColumn> get flat => Seq(_runs.expand((run) => run));
 }
 
-/// How the edit engine reads and replaces the bars of a score in runs
-/// without asking for the one list of [Score.measures]. The library does
-/// not export this.
+/// How the edit engine reads and replaces the bars of a score, whether it
+/// holds them in one list or in runs. The library does not export this.
 extension BarRuns on Score {
   /// The bar at [index], as `measures[index]`.
   MeasureColumn barAt(int index) => switch (_runs) {
@@ -850,19 +854,22 @@ extension BarRuns on Score {
   /// How many bars the score has, as `measures.length`.
   int get barCount => _runs?.length ?? _flat!.length;
 
-  /// This score with its bars also in runs, so that [withBars] copies only
-  /// the runs it writes. It has the same [Score.measures] and index of bars
-  /// by id.
-  Score get inRuns => _runs != null
-      ? this
-      : Score._(
-          _places,
-          meta: meta,
-          parts: parts,
-          measures: _flat,
-          spanners: spanners,
-          runs: _Runs.of(_flat!),
-        );
+  /// This score with its bars in runs, so that [withBars] copies only the
+  /// runs it writes.
+  Score get inRuns => _runs != null ? this : _holding(null, _Runs.of(_flat!));
+
+  /// This score with its bars in one list.
+  Score get flat => _runs == null ? this : _holding(_runs.flat, null);
+
+  /// This score with the same bars held as [flat] or as [runs].
+  Score _holding(Seq<MeasureColumn>? flat, _Runs? runs) => Score._(
+    _places,
+    meta: meta,
+    parts: parts,
+    measures: flat,
+    spanners: spanners,
+    runs: runs,
+  );
 
   /// This score with each bar of [bars] in place of the bar at its index.
   /// When every new bar has the id of the bar it replaces, the copy shares
@@ -889,11 +896,6 @@ extension BarRuns on Score {
     );
   }
 }
-
-/// [score] with the bars from [start] replaced by [bars], one for one, as
-/// [BarRuns.withBars] replaces them. The library does not export this.
-Score replacingBars(Score score, int start, List<MeasureColumn> bars) =>
-    score.withBars({for (final (i, bar) in bars.indexed) start + i: bar});
 
 /// The title and credits of a score. An empty string means the score has
 /// none of that kind, and layout prints nothing for it.

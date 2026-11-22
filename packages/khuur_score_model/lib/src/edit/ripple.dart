@@ -249,13 +249,9 @@ _Result _eraseRippled(
       var cursor = session.cursor;
       final range = _RangeFollower(score, session.selection);
       final lines = _SectionLines(now);
-      final sections = _sectionCuts(score, ripple, [
+      for (final (:staves, :bar, :cuts) in _sectionCuts(score, ripple, [
         for (final id in whole) targets[id]!,
-      ]);
-      if (sections.length > 1) {
-        now = now.inRuns;
-      }
-      for (final (:staves, :bar, :cuts) in sections) {
+      ])) {
         final (a, b) = _sectionAround(now, bar);
         final rippled = lines.rippled(
           now,
@@ -268,13 +264,14 @@ _Result _eraseRippled(
             shift: _Collapse(cuts),
             cursor: cursor,
             selection: const Selection.none(),
+            inRuns: true,
           ),
         );
         now = rippled.score;
         cursor = rippled.cursor ?? cursor;
         range.close(staves, bar, rippled.closed);
       }
-      final after = lines.whole(now);
+      final after = lines.whole(now.flat);
       return _Result(after, cursor: cursor, selection: range.followed(after));
     case final RangeSelection range:
       var now = score;
@@ -287,9 +284,6 @@ _Result _eraseRippled(
       }
       final first = score.indexOf(range.from.measure);
       final last = score.indexOf(range.to.measure);
-      if (scopes.length > 1 || _sectionAround(score, first).$2 <= last) {
-        now = now.inRuns;
-      }
       for (final scope in scopes.values) {
         var bar = first;
         while (bar <= last) {
@@ -311,6 +305,7 @@ _Result _eraseRippled(
               shift: _Collapse([(from: from, to: to)]),
               cursor: cursor,
               selection: const Selection.none(),
+              inRuns: true,
             );
             now = rippled.score;
             cursor = rippled.cursor ?? cursor;
@@ -318,7 +313,11 @@ _Result _eraseRippled(
           bar = end;
         }
       }
-      return _Result(now, cursor: cursor, selection: const Selection.none());
+      return _Result(
+        now.flat,
+        cursor: cursor,
+        selection: const Selection.none(),
+      );
   }
 }
 
@@ -408,7 +407,9 @@ final class _SectionLines {
 /// [bar], through the section that holds the bar, and the edited voice
 /// changed by [splice]. The section grows by whole bars when the music no
 /// longer fits it, and every other staff rests in the new bars. The cursor,
-/// a range selection and spanner ends on [staves] follow the music.
+/// a range selection and spanner ends on [staves] follow the music. With
+/// [inRuns], a section that does not grow is written into a score that
+/// holds its bars in runs.
 _Rippled _ripple(
   Score score,
   _Ids ids, {
@@ -418,6 +419,7 @@ _Rippled _ripple(
   required VoicePoint cursor,
   required Selection selection,
   _Splice? splice,
+  bool inRuns = false,
 }) {
   final (a, b) = _sectionAround(score, bar);
   final old = [for (var i = a; i < b; i++) score.barAt(i)];
@@ -567,7 +569,9 @@ _Rippled _ripple(
     score,
     grown
         ? score.copyWith(measures: score.measures.replaceRange(a, b, bars))
-        : replacingBars(score, a, bars),
+        : (inRuns ? score.inRuns : score).withBars({
+            for (final (i, bar) in bars.indexed) a + i: bar,
+          }),
     moving,
     max(a - 1, 0),
     a + count,
