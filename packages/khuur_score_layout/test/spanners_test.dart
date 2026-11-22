@@ -774,6 +774,43 @@ void main() {
       );
     });
 
+    test('a glissando of voice two runs to the voice-one head it names, '
+        'past the note its own voice plays under that head', () {
+      final plain = fill(
+        scoreOf([
+          [
+            chordOf(1, 'C5'),
+            chordOf(2, 'D5'),
+            const RestEvent(id: EventId(3), value: NoteValue.half),
+          ],
+        ]),
+        0,
+        [
+          chordOf(4, 'E4'),
+          chordOf(5, 'F4'),
+          const RestEvent(id: EventId(6), value: NoteValue.half),
+        ],
+        slot: VoiceSlot.two,
+      );
+      final score = withSpanner(
+        plain,
+        const Glissando(from: NoteId(40), to: NoteId(20)),
+        pointAt(plain, 0, Moment.zero),
+        pointAt(plain, 0, at(1, 4)),
+        voice: VoiceSlot.two,
+      );
+      final system = sheetOf(score).systemAt(0);
+      final line = linesOf(system, owner: spanner).single;
+      double middle(int event) {
+        final head = headOf(system, noteRef(score, 0, event));
+        return (head.top + head.bottom) / 2;
+      }
+
+      expect(line.from.y, closeTo(middle(4), 1e-9));
+      expect(line.to.y, closeTo(middle(2), 1e-9));
+      expect(line.to.x, lessThan(headOf(system, noteRef(score, 0, 2)).left));
+    });
+
     test('a tempo line prints its text above the staff and dashes on from '
         'it', () {
       final score = withSpanner(
