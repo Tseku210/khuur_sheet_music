@@ -450,9 +450,10 @@ final class Score {
   /// An end of a [Glissando] that names a note is on the chord that holds
   /// the note, in whichever voice sounds it at that end. The last end of a
   /// [Slur] that names a voice ([Slur.endVoice]) is on the chord that voice
-  /// sounds there. Every other end, and one whose note or voice sounds no
-  /// such chord there, is on the event of the spanner's voice, or of voice
-  /// one when that voice has none there.
+  /// sounds there, when that chord starts after the event the slur starts
+  /// on. Every other end, and one whose note or voice sounds no such chord
+  /// there, is on the event of the spanner's voice, or of voice one when
+  /// that voice has none there.
   ///
   /// A last end that falls to an event voice one has held since before the
   /// event the spanner starts on would run the line backward. It is on the
@@ -480,7 +481,10 @@ final class Score {
         }
       case Slur(:final endVoice?) when last:
         final timed = sounding(endVoice);
-        if (timed?.event is ChordEvent) {
+        final start = anchorOf(spanner, last: false);
+        if (timed != null &&
+            timed.event is ChordEvent &&
+            (start == null || _startsAfter(timed, start))) {
           return timed;
         }
       default:
@@ -508,6 +512,13 @@ final class Score {
     }
     return one;
   }
+
+  bool _startsAfter(TimedEvent event, TimedEvent other) =>
+      compare(
+        ScorePoint(event.ref.measure, event.onset),
+        ScorePoint(other.ref.measure, other.onset),
+      ) >
+      0;
 
   /// Whether [held], or an event it is tied from, starts before [start],
   /// or with it when [orWith]. Not when [start] is itself one of those
@@ -1118,14 +1129,16 @@ final class Slur extends SpannerKind {
   final bool dashed;
 
   /// The voice whose chord the slur ends on. `AddSpanner` sets it when the
-  /// slur ends on a chord that another voice than its own starts there, and
+  /// slur ends on a chord that a voice other than its own starts there, and
   /// MusicXML import when the stop is written on such a chord or the slur
   /// would end on another chord than the one its stop is on, as
-  /// MuseScore 4 keeps a slur on the chord it ends on. So a later edit of
-  /// another voice does not move the end. A slur without it, as a JSON file
-  /// can hold, ends where its last end falls ([Score.anchorOf]). The name
-  /// goes with the slur through every edit. While that voice sounds no
-  /// chord at the last end, the end is where it falls without a name.
+  /// MuseScore 4 keeps a slur on the chord it ends on. The end is on the
+  /// chord that voice sounds at the last end, while that chord starts after
+  /// the event the slur starts on, so a note that another voice starts or
+  /// ties there does not take the end. While the voice sounds no such chord
+  /// there, the end is where it falls without a name ([Score.anchorOf]),
+  /// as it is for a slur without one, which a JSON file can hold. The name
+  /// goes with the slur through every edit.
   final VoiceSlot? endVoice;
 
   @override
@@ -1238,8 +1251,8 @@ final class PedalLine extends SpannerKind {
 /// without the line. An end that names no note is on the top note of the
 /// event the spanner's voice has there. When that voice has none, it is on
 /// an event of another voice ([Score.anchorOf]). `AddSpanner` names the top
-/// note of a last end that is on a chord another voice starts there, so the
-/// end stays on that note.
+/// note of a last end that is on a chord a voice other than the line's own
+/// starts there. The line then goes with that note.
 ///
 /// The event a line ends on starts after the event it starts on, as in each
 /// line MuseScore 4's editor builds. So a line cannot end on an event of

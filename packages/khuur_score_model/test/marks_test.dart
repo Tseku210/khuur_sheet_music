@@ -868,8 +868,8 @@ void main() {
         );
       });
 
-      test('keeps the kind AddSpanner is given when the slur ends in its own '
-          'voice or names a voice', () {
+      test('stores the kind AddSpanner is given, with only the end voice '
+          'added where AddSpanner names the end', () {
         final score = under([chordOf(1, 'C5', value: NoteValue.whole)]);
         Spanner made(SpannerKind kind, Moment first, Moment last) => applied(
           addSpanner(

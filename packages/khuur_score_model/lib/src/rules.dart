@@ -182,12 +182,11 @@ _Ends _endsOf(Score score, Spanner spanner) {
 const _endsAfterStart = 'a slur or glissando ends after it starts';
 
 /// [spanner] naming the chord its last end is on, when it joins notes,
-/// names no last end and ends in [score] on a chord that another voice than
+/// names no last end and ends in [score] on a chord that a voice other than
 /// its own starts at its last point. A [Slur] names the voice and a
 /// [Glissando] the chord's top note. The same object otherwise. MuseScore 4
 /// keeps the chord a slur ends on and the note a glissando ends on from
-/// when the line is made, so no later edit of another voice moves the end.
-/// The name does not move the end either.
+/// when the line is made.
 Spanner endNamed(Score score, Spanner spanner) {
   final on = switch (spanner.kind) {
     Slur(endVoice: null) ||

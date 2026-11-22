@@ -582,9 +582,10 @@ final class SetDirections extends Edit {
 /// Adds a spanner from [first] to [last] on [staff], with a new id, at the
 /// end of `Score.spanners`. A slur or glissando belongs to [voice], voice
 /// one when it names none, and must end after it starts. One that names no
-/// last end and ends on a chord another voice starts there is stored with
-/// that end named, a slur with [Slur.endVoice] and a glissando with
-/// [Glissando.to], so a later edit of another voice does not move the end.
+/// last end and ends on a chord a voice other than its own starts there is
+/// stored with that end named, a slur with [Slur.endVoice] and a glissando
+/// with [Glissando.to]. While that chord stays, a note that another voice
+/// later starts or ties there does not take the end.
 /// A line or hairpin belongs to the staff, so [voice] is ignored, and may
 /// start and end on one event. Refused with [StaleReference] for a bar or
 /// staff that is gone or a [Glissando] note that no voice of the staff
