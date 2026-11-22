@@ -21,7 +21,7 @@ sealed class _Shift {
   Length land(Length time);
 
   /// [items] after the shift. A chord that removed time makes shorter is
-  /// entered in [shortened].
+  /// entered in [shortened] and loses its ties, as [_Loss.shortened].
   List<_Placed> voice(
     List<_Placed> items,
     VoiceSlot slot,
@@ -248,17 +248,17 @@ final class _Collapse extends _Shift {
       if (!overlap.isPositive) {
         out.add(item);
       } else if (overlap < item.span) {
-        if (item.item case Tuplet(:final id)) {
-          throw _Refuse(WouldSplitTuplet(id, item.origin));
+        final VoiceItem left;
+        switch (item.item) {
+          case Tuplet(:final id):
+            throw _Refuse(WouldSplitTuplet(id, item.origin));
+          case final ChordEvent chord:
+            shortened.add(chord.id);
+            left = _untied(chord, (_) => true);
+          case final other:
+            left = other;
         }
-        if (item.item case ChordEvent(:final id)) {
-          shortened.add(id);
-        }
-        out.add((
-          item: item.item,
-          span: item.span - overlap,
-          origin: item.origin,
-        ));
+        out.add((item: left, span: item.span - overlap, origin: item.origin));
       } else {
         continue;
       }

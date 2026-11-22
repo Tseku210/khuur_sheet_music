@@ -96,10 +96,11 @@ _Result _enterRippled(
     throw _Refuse(WouldCrossBarline(column.id, span - room));
   }
   final from = Moment.zero.until(offset);
+  final staves = _rippledStaves(score, at.staff, ripple);
   final rippled = _ripple(
-    score,
+    _rebuiltAcross(score, staves, bar, from + rests),
     ids,
-    staves: _rippledStaves(score, at.staff, ripple),
+    staves: staves,
     bar: bar,
     shift: _Grow(at: from + rests, by: span - rests),
     cursor: session.cursor,
@@ -134,6 +135,28 @@ _Result _enterRippled(
       EventRef(measure: at.at.measure, staff: at.staff, id: event.id),
     ),
   );
+}
+
+/// [score] with every chord of [staves] that sounds across [time], counted
+/// from the start of bar [bar], as [_Loss.rebuilt].
+Score _rebuiltAcross(Score score, List<StaffId> staves, int bar, Length time) {
+  final (k, offset) = _barAt(time, score.barAt(bar).length);
+  if (bar + k >= score.barCount) {
+    return score;
+  }
+  final at = ScorePoint(score.barAt(bar + k).id, offset);
+  var now = score;
+  for (final staff in staves) {
+    for (final voice in VoiceSlot.values) {
+      final across = score.eventAt(
+        VoicePoint(staff: staff, voice: voice, at: at),
+      );
+      if (across != null && across.onset < offset) {
+        now = _lose(now, across, _Loss.rebuilt);
+      }
+    }
+  }
+  return now;
 }
 
 /// Whether [tuplet], or the innermost tuplet in it that holds [at], has
@@ -202,8 +225,9 @@ _Result _setValueRippled(
   }
   final from = Moment.zero.until(timed.onset);
   final to = from + timed.duration;
+  final cut = by.isNegative ? _lose(score, timed, _Loss.shortened) : score;
   final rippled = _ripple(
-    score,
+    cut,
     ids,
     staves: _rippledStaves(score, timed.ref.staff, ripple),
     bar: score.indexOf(timed.ref.measure),
@@ -217,7 +241,9 @@ _Result _setValueRippled(
       slot: timed.voice,
       from: from,
       to: to,
-      music: [_piece(timed.event, value, ids, first: true, tied: false)],
+      music: [
+        _piece(_target(cut, ref).event, value, ids, first: true, tied: false),
+      ],
     ),
   );
   return _Result(
@@ -565,6 +591,11 @@ _Rippled _ripple(
   if (!grown && _same(bars, old)) {
     return _Rippled(score, null, null, (at) => place(origin + at), next);
   }
+  final index = {for (final (i, column) in old.indexed) column.id: i};
+  Length? timeOf(ScorePoint point) => switch (index[point.measure]) {
+    final i? => length * Fraction(i) + Moment.zero.until(point.offset),
+    null => null,
+  };
   final rebuilt = _retied(
     score,
     grown
@@ -576,12 +607,13 @@ _Rippled _ripple(
     max(a - 1, 0),
     a + count,
     origins,
+    lostItsStart: (was) => switch (timeOf(
+      ScorePoint(was.ref.measure, was.onset),
+    )) {
+      final start? => time is _Collapse && time.cutOver(start) != null,
+      null => false,
+    },
   );
-  final index = {for (final (i, column) in old.indexed) column.id: i};
-  Length? timeOf(ScorePoint point) => switch (index[point.measure]) {
-    final i? => length * Fraction(i) + Moment.zero.until(point.offset),
-    null => null,
-  };
   ScorePoint onItsNote(Spanner spanner, {required bool last}) {
     final point = last ? spanner.last : spanner.first;
     return index.containsKey(point.measure)
@@ -1096,18 +1128,20 @@ bool _sameBy<T>(Iterable<T> a, Iterable<T> b, bool Function(T, T) same) {
 /// [after] without the ties on [staves], in bars [from] up to [to], that a
 /// ripple sent somewhere else. A tie stays while it ends on the event it
 /// ended on before, on the next piece of its own note, or on a new note of
-/// its tone, and while it ends on no head where it ended on none.
-/// [origins] names the event each new piece came from. [_retie] cannot
-/// do this, because it looks every event up in [before] by its id, and the
-/// pieces a ripple cuts have new ids.
+/// its tone, and while it ends on no head where it ended on none. A tie
+/// into another note that [lostItsStart], as it was in [before], goes, as
+/// [_Loss.rebuilt]. [origins] names the event each new piece came from.
+/// [_retie] cannot do this, because it looks every event up in [before] by
+/// its id, and the pieces a ripple cuts have new ids.
 Score _retied(
   Score before,
   Score after,
   Set<StaffId> staves,
   int from,
   int to,
-  Map<EventId, EventId> origins,
-) {
+  Map<EventId, EventId> origins, {
+  required bool Function(TimedEvent was) lostItsStart,
+}) {
   EventId source(EventId id) {
     var at = id;
     for (var earlier = origins[at]; earlier != null; earlier = origins[at]) {
@@ -1135,9 +1169,12 @@ Score _retied(
       return behind != null;
     }
     final target = source(ahead.timed.event.id);
-    return target != old.event.id &&
-        target != behind?.timed.event.id &&
-        was(ahead.timed) != null;
+    if (target == old.event.id) {
+      return false;
+    }
+    final next = was(ahead.timed);
+    return next != null &&
+        (target != behind?.timed.event.id || lostItsStart(next));
   }
 
   return _untieWhere(after, [

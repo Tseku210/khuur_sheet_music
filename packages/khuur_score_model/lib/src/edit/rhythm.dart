@@ -30,9 +30,9 @@ _Result _enterTuplet(
 }
 
 /// [timed] rewritten at [value] from its onset. It keeps its ids, its marks
-/// and the ties into it. A tie out of it stays only while it ends on the
-/// head it ended on before, or on none. A chord made shorter loses the
-/// glissandi that start on it.
+/// and the ties into it. A tie out of a chord made longer stays only while
+/// it ends on the head it ended on before, or on none. A chord made shorter
+/// is [_Loss.shortened].
 Score _setValue(Score score, TimedEvent timed, NoteValue value, _Ids ids) {
   final unchanged = switch (timed.event) {
     ChordEvent(value: final old) || RestEvent(value: final old) => old == value,
@@ -41,14 +41,30 @@ Score _setValue(Score score, TimedEvent timed, NoteValue value, _Ids ids) {
   if (unchanged) {
     return score;
   }
+  final cut = switch (timed.event) {
+    ChordEvent(value: final old) when value.length < old.length => _lose(
+      score,
+      timed,
+      _Loss.shortened,
+    ),
+    _ => score,
+  };
   final write = _overwrite(
-    _withoutGlissandiFrom(score, timed, value),
+    cut,
     VoicePoint(
       staff: timed.ref.staff,
       voice: timed.voice,
       at: ScorePoint(timed.ref.measure, timed.onset),
     ),
-    [_piece(timed.event, value, ids, first: true, tied: false)],
+    [
+      _piece(
+        _target(cut, timed.ref).event,
+        value,
+        ids,
+        first: true,
+        tied: false,
+      ),
+    ],
     ids,
     Overfill.splitAndTie,
   );
@@ -62,21 +78,49 @@ Score _setValue(Score score, TimedEvent timed, NoteValue value, _Ids ids) {
       : write.score;
 }
 
-/// [score] without the glissandi that start on [timed], when [timed] is a
-/// chord longer than [value].
-Score _withoutGlissandiFrom(Score score, TimedEvent timed, NoteValue value) {
-  final event = timed.event;
-  if (event is! ChordEvent || value.length >= event.value.length) {
+/// What an edit takes from a chord whose time it changes, as MuseScore 4
+/// does.
+enum _Loss {
+  /// The chord is made shorter where it stands, so the ties out of it and
+  /// the glissandi that start on it go, as in `Score::changeCRlen`.
+  shortened,
+
+  /// The chord is taken out and written again, so the ties into it and the
+  /// glissandi that end on it go too. MuseScore does this to a chord that
+  /// loses its start to a time delete and to one that sounds across the
+  /// place where an insert adds time.
+  rebuilt,
+}
+
+/// [score] without what [loss] takes from [timed]. It is [score] itself
+/// when [timed] is no chord or has none of it.
+Score _lose(Score score, TimedEvent timed, _Loss loss) {
+  final chord = timed.event;
+  if (chord is! ChordEvent) {
     return score;
   }
-  bool startsHere(Spanner spanner) =>
+  final rebuilt = loss == _Loss.rebuilt;
+  var now = score;
+  if (chord.notes.any((note) => note.tie)) {
+    now = _replace(now, timed, _untied(chord, (_) => true));
+  }
+  if (rebuilt) {
+    final before = _previous(score, timed);
+    bool into(Note note) => note.tie && headOfTone(chord, note.tone) != null;
+    if (before case TimedEvent(event: final ChordEvent prior)
+        when prior.notes.any(into)) {
+      now = _replace(now, before, _untied(prior, into));
+    }
+  }
+  bool lost(Spanner spanner) =>
       spanner.kind is Glissando &&
       spanner.staff == timed.ref.staff &&
-      spanner.first.measure == timed.ref.measure &&
-      score.anchorOf(spanner, last: false)?.event.id == event.id;
-  return score.spanners.any(startsHere)
-      ? score.copyWith(
-          spanners: Seq(score.spanners.where((line) => !startsHere(line))),
+      (score.anchorOf(spanner, last: false)?.event.id == chord.id ||
+          (rebuilt &&
+              score.anchorOf(spanner, last: true)?.event.id == chord.id));
+  return score.spanners.any(lost)
+      ? now.copyWith(
+          spanners: Seq(score.spanners.where((line) => !lost(line))),
         )
-      : score;
+      : now;
 }
