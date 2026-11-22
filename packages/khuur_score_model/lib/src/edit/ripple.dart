@@ -138,7 +138,7 @@ _Result _enterRippled(
 }
 
 /// [score] with every chord of [staves] that sounds across [time], counted
-/// from the start of bar [bar], as [_Loss.rebuilt].
+/// from the start of bar [bar], as [_Loss.acrossAddedTime].
 Score _rebuiltAcross(Score score, List<StaffId> staves, int bar, Length time) {
   final (k, offset) = _barAt(time, score.barAt(bar).length);
   if (bar + k >= score.barCount) {
@@ -152,7 +152,7 @@ Score _rebuiltAcross(Score score, List<StaffId> staves, int bar, Length time) {
         VoicePoint(staff: staff, voice: voice, at: at),
       );
       if (across != null && across.onset < offset) {
-        now = _lose(now, across, _Loss.rebuilt);
+        now = _lose(now, across, _Loss.acrossAddedTime);
       }
     }
   }

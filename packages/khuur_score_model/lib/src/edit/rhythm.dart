@@ -86,10 +86,8 @@ enum _Loss {
 
   /// The chord sounds across the place where a rippled entry adds time, so
   /// the ties into it and the glissandi that end on it go too. MuseScore 4
-  /// takes the same from a chord across the place where it inserts time. A
-  /// chord that loses its start to removed time is not this case, because
-  /// [_retied] keeps a tie out of it that ends on no head.
-  rebuilt,
+  /// takes the same from a chord across the place where it inserts time.
+  acrossAddedTime,
 }
 
 /// [score] without what [loss] takes from [timed]. It is [score] itself
@@ -99,12 +97,12 @@ Score _lose(Score score, TimedEvent timed, _Loss loss) {
   if (chord is! ChordEvent) {
     return score;
   }
-  final rebuilt = loss == _Loss.rebuilt;
+  final bothSides = loss == _Loss.acrossAddedTime;
   var now = score;
   if (chord.notes.any((note) => note.tie)) {
     now = _replace(now, timed, _untied(chord, (_) => true));
   }
-  if (rebuilt) {
+  if (bothSides) {
     final before = _previous(score, timed);
     bool into(Note note) => note.tie && headOfTone(chord, note.tone) != null;
     if (before case TimedEvent(event: final ChordEvent prior)
@@ -116,7 +114,7 @@ Score _lose(Score score, TimedEvent timed, _Loss loss) {
       spanner.kind is Glissando &&
       spanner.staff == timed.ref.staff &&
       (score.anchorOf(spanner, last: false)?.event.id == chord.id ||
-          (rebuilt &&
+          (bothSides &&
               score.anchorOf(spanner, last: true)?.event.id == chord.id));
   return score.spanners.any(lost)
       ? now.copyWith(

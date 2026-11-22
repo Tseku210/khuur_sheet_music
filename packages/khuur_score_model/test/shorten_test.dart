@@ -54,8 +54,8 @@ EditSession erasedAll(EditSession session, List<int> ids) => applied(
 );
 
 /// Two bars. Voice two holds A3 for the first, then C4 for a dotted half
-/// with a tie, then [after] for a quarter. Voice one's second bar starts
-/// with two eighths, 11 and 12.
+/// with a tie, then [after] for a quarter. Voice one ends its first bar
+/// with a quarter and starts its second with two eighths.
 EditSession overTheBarline(String after) {
   var score = fill(blankScore(), 0, [
     chordOf(1, 'E5', value: NoteValue.half.dotted),
@@ -482,6 +482,24 @@ void main() {
         'C4/quarter.~',
         'D4/quarter',
         'gap 3/8',
+      ]);
+    });
+
+    test('keeps a tie that ends on no note out of a note that loses only '
+        'its start to two erased notes in a row', () {
+      final session = under([
+        chordOf(5, 'A3', value: NoteValue.quarter.dotted),
+        chordOf(6, 'C4', value: NoteValue.half, tie: true),
+        chordOf(7, 'D4', value: NoteValue.eighth),
+      ]);
+
+      final next = erasedAll(session, [2, 3]);
+
+      expect(bar(next.score, 0, slot: VoiceSlot.two), [
+        'A3/quarter',
+        'C4/eighth~',
+        'D4/eighth',
+        'gap 1/2',
       ]);
     });
 
