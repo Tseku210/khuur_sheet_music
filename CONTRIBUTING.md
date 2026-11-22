@@ -73,7 +73,7 @@ dart compile exe benchmark/erase_benchmark.dart -o build/erase_benchmark
 build/erase_benchmark
 ```
 
-After a change to `Erase` or to a ripple edit, also run the erase growth benchmark. It erases a chord in every bar of a score and of one four times as long. It exits with code 1 when the plain erase or the rippled erase costs more than eight times as much on the longer score.
+After a change to `Erase` or to a ripple edit, also run the erase growth benchmark. It erases a chord in every bar of a score and of one four times as long. It exits with code 1 when the plain erase, the rippled erase, or the rippled erase of a score with a rehearsal mark every eight bars costs more than eight times as much on the longer score.
 
 ```bash
 cd packages/khuur_score_model
