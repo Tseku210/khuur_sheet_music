@@ -359,17 +359,26 @@ Score _rewriteVoice(
   List<VoiceItem> Function(Seq<VoiceItem> items) write,
 ) {
   final column = score.column(timed.ref.measure);
-  final staff = column.staff(timed.ref.staff);
   return score.copyWith(
     measures: score.measures.replaceAt(
       score.indexOf(column.id),
-      column.withStaff(
-        staff.withVoice(
-          Voice(
-            slot: timed.voice,
-            items: Seq(write(staff.voice(timed.voice)!.items)),
-          ),
-        ),
+      _voiceRewritten(column, timed, write),
+    ),
+  );
+}
+
+/// [column], the bar of [timed], with [timed]'s voice rewritten by [write].
+MeasureColumn _voiceRewritten(
+  MeasureColumn column,
+  TimedEvent timed,
+  List<VoiceItem> Function(Seq<VoiceItem> items) write,
+) {
+  final staff = column.staff(timed.ref.staff);
+  return column.withStaff(
+    staff.withVoice(
+      Voice(
+        slot: timed.voice,
+        items: Seq(write(staff.voice(timed.voice)!.items)),
       ),
     ),
   );
@@ -378,14 +387,42 @@ Score _rewriteVoice(
 /// [score] with [replacement] in place of the event with its id in
 /// [timed]'s voice.
 Score _replace(Score score, TimedEvent timed, Event replacement) =>
-    _rewriteVoice(
-      score,
-      timed,
-      (items) => [
-        for (final item in items)
-          item is Content ? _replaceEvent(item, replacement) : item,
-      ],
-    );
+    _rewriteVoice(score, timed, _replacing(replacement));
+
+/// Puts [replacement] in place of the event with its id among a voice's
+/// items.
+List<VoiceItem> Function(Seq<VoiceItem> items) _replacing(Event replacement) =>
+    (items) => [
+      for (final item in items)
+        item is Content ? _replaceEvent(item, replacement) : item,
+    ];
+
+/// The bars of [score] while an edit writes several of them. The list of
+/// bars is copied once, at the first write.
+final class _BarWrites {
+  _BarWrites(this.score);
+
+  final Score score;
+  List<MeasureColumn>? _written;
+
+  MeasureColumn operator [](int bar) => _written?[bar] ?? score.measures[bar];
+
+  void operator []=(int bar, MeasureColumn column) =>
+      (_written ??= score.measures.toList())[bar] = column;
+
+  /// Puts [replacement] in place of the event with its id in [timed]'s
+  /// voice.
+  void replace(TimedEvent timed, Event replacement) {
+    final bar = score.indexOf(timed.ref.measure);
+    this[bar] = _voiceRewritten(this[bar], timed, _replacing(replacement));
+  }
+
+  bool get changed => _written != null;
+
+  /// [score] with the bars written, or [score] itself when none was.
+  Score get written =>
+      changed ? score.copyWith(measures: Seq(_written!)) : score;
+}
 
 /// [head] and every head tied to it, in time order. A tie joins a head to
 /// the head of the same tone in the adjacent event of its voice, as
@@ -534,7 +571,7 @@ Score _untieWhere(
   Iterable<(int bar, StaffId staff)> lanes,
   bool Function(TimedEvent timed, ChordEvent chord, Note note) moves,
 ) {
-  var untied = after;
+  final untied = _BarWrites(after);
   for (final (bar, staff) in lanes) {
     final column = after.measures[bar];
     for (final voice in column.staff(staff).voices) {
@@ -549,12 +586,12 @@ Score _untieWhere(
         }
         bool clears(Note note) => moves(timed, chord, note);
         if (chord.notes.any(clears)) {
-          untied = _replace(untied, timed, _untied(chord, clears));
+          untied.replace(timed, _untied(chord, clears));
         }
       }
     }
   }
-  return untied;
+  return untied.written;
 }
 
 /// Refuses [staff] when the score no longer has it.
