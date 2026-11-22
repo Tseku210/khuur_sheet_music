@@ -1623,28 +1623,52 @@ void main() {
         expect(next.spanners, isEmpty);
       });
 
-      test('stays on a note that the ripple only makes shorter, $lines', () {
-        for (final erased in [1, 2]) {
-          final score = glided(
-            over([
-              chordOf(5, 'C4', value: NoteValue.half),
-              chordOf(6, 'D4', value: NoteValue.half),
-            ]),
-            Moment.zero,
-            at(1, 2),
-            named: named,
-          );
+      Score halves() => glided(
+        over([
+          chordOf(5, 'C4', value: NoteValue.half),
+          chordOf(6, 'D4', value: NoteValue.half),
+        ]),
+        Moment.zero,
+        at(1, 2),
+        named: named,
+      );
 
-          final next = applied(pull(EditSession.start(score), [erased])).score;
+      test('is dropped with a note that starts in the removed time and '
+          'runs out of it, $lines', () {
+        for (final (erased, left) in [
+          (1, ['C4/quarter', 'D4/half']),
+          (3, ['C4/half', 'D4/quarter']),
+        ]) {
+          final next = applied(
+            pull(EditSession.start(halves()), [erased]),
+          ).score;
 
           expect(
             bar(next, 0, slot: VoiceSlot.two).take(2),
-            ['C4/quarter', 'D4/half'],
+            left,
+            reason: 'erased $erased',
+          );
+          expect(next.spanners, isEmpty, reason: 'erased $erased');
+        }
+      });
+
+      test('stays on a note that the ripple shortens at its end, $lines', () {
+        for (final (erased, left, last) in [
+          (2, ['C4/quarter', 'D4/half'], at(1, 4)),
+          (4, ['C4/half', 'D4/quarter'], at(1, 2)),
+        ]) {
+          final next = applied(
+            pull(EditSession.start(halves()), [erased]),
+          ).score;
+
+          expect(
+            bar(next, 0, slot: VoiceSlot.two).take(2),
+            left,
             reason: 'erased $erased',
           );
           expect(
             [next.spanners.single.first, next.spanners.single.last],
-            [pointAt(next, 0, Moment.zero), pointAt(next, 0, at(1, 4))],
+            [pointAt(next, 0, Moment.zero), pointAt(next, 0, last)],
             reason: 'erased $erased',
           );
         }
