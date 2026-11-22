@@ -18,7 +18,10 @@
 /// A quarter tone is a pitch bend before the note, with the wheel's end at
 /// two semitones. A track that bends sets that
 /// range first. The pedal is in the notes it holds, which the script
-/// already lengthens, and not a controller.
+/// already lengthens, and not a controller. Each track sets its channel's
+/// expression, controller 11, at its start and wherever the script's
+/// [ChannelSetup.expression] changes, so a held note of a part that swells
+/// follows a hairpin.
 ///
 /// A bank under 128 is a bank select with the bank as its most significant
 /// byte, which is how a GS synthesizer and FluidSynth read a SoundFont
@@ -88,7 +91,7 @@ Uint8List scoreToMidi(Score score) {
 
   final parts = {for (final part in score.parts) part.id: part};
   final tracks = <PartId, _Track>{};
-  for (final ChannelSetup(:channel, :part, :program, :bank)
+  for (final ChannelSetup(:channel, :part, :program, :bank, :expression)
       in script.channels) {
     final track = tracks[part] = _Track()..text(0, parts[part]!.name);
     if (bank < 128) {
@@ -97,6 +100,13 @@ Uint8List scoreToMidi(Score score) {
         ..add(0, _Rank.setup, [0xB0 | channel, 32, 0]);
     }
     track.add(0, _Rank.setup, [0xC0 | channel, program]);
+    for (final ExpressionPoint(:seconds, :value) in expression.points) {
+      track.add(tempo.tickAt(seconds), _Rank.expression, [
+        0xB0 | channel,
+        11,
+        value,
+      ]);
+    }
   }
   // A bend holds a whole channel, as in the player, so it is kept by
   // channel and not by track.
@@ -245,8 +255,8 @@ final class _TimeSignature {
 }
 
 /// The order of events at one tick: a key is let go before it is struck
-/// again, and a bend comes before the note it bends.
-enum _Rank { off, setup, bend, on }
+/// again, and an expression or a bend comes before the note it shapes.
+enum _Rank { off, setup, expression, bend, on }
 
 final class _Track {
   final List<({int tick, _Rank rank, List<int> bytes})> _events = [];

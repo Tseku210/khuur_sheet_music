@@ -187,14 +187,16 @@ Score withTempoLine(
   staff: staff,
 );
 
+/// How loud each note starts, as [sounded].
 List<int> velocities(PlaybackScript script) => [
-  for (final note in script.notesBetween(0, double.infinity)) note.velocity,
+  for (final note in script.notesBetween(0, double.infinity))
+    sounded(script, note),
 ];
 
-/// Each source event id with the velocity it strikes at.
+/// Each source event id with how loud it starts, as [sounded].
 Map<int, int> loudness(PlaybackScript script) => {
   for (final note in script.notesBetween(0, double.infinity))
-    note.source.id.value: note.velocity,
+    note.source.id.value: sounded(script, note),
 };
 
 ChordEvent withMarks(ChordEvent chord, Set<Articulation> marks) =>
@@ -704,6 +706,32 @@ void main() {
       expect(velocities(compiled(oneBar)), [p, p, f, f, p, p, f, f]);
     });
 
+    test('swells as the bar it repeats', () {
+      var score = withDynamics(beats(2), 0, {
+        Moment.zero: Dynamic.p,
+        at(3, 4): Dynamic.f,
+      });
+      score = withLine(
+        score,
+        const Hairpin(crescendo: true),
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(3, 4)),
+      );
+      final points = compiled(
+        repeating(score, {1: 1}),
+      ).channels.single.expression.points;
+      final first = [
+        for (final point in points)
+          if (point.seconds < 2.4) (ms(point.seconds), point.value),
+      ];
+
+      expect(first, hasLength(25));
+      expect([
+        for (final point in points)
+          if (point.seconds >= 2.4) (ms(point.seconds - 2.4), point.value),
+      ], first);
+    });
+
     test('plays a dynamic written under the sign from where it stands, '
         'through the rest of the signs', () {
       final p = Dynamic.p.velocity;
@@ -825,7 +853,7 @@ void main() {
         (1.2, 1.188, 67, 0, 3),
       ]);
       expect(
-        {for (final note in script.notesBetween(0, 10)) note.velocity},
+        {for (final note in script.notesBetween(0, 10)) sounded(script, note)},
         {64},
       );
     });
@@ -1485,7 +1513,7 @@ void main() {
       );
 
       expect(velocities(compiled(score)), [
-        ...[64, 61, 59, 56],
+        ...[64, 62, 58, 56],
         ...[53, 64, 64, 64],
         ...[64, 64, 96, 96],
       ]);
@@ -1515,7 +1543,7 @@ void main() {
         ...[80, 80, 80, 80],
       ]);
       expect(played(Dynamic.p, Dynamic.f, crescendo: false), [
-        ...[42, 39, 37, 34],
+        ...[42, 39, 36, 34],
         ...[80, 80, 80, 80],
       ]);
     });
@@ -1554,7 +1582,7 @@ void main() {
         pointAt(score, 1, at(3, 4)),
       );
 
-      expect(velocities(compiled(score)), [64, 66, 68, 70, 64, 61, 59, 56]);
+      expect(velocities(compiled(score)), [64, 66, 68, 70, 64, 62, 58, 56]);
     });
 
     test('a compiler plays a hairpin added since its last compile', () {
@@ -1582,8 +1610,8 @@ void main() {
       });
     });
 
-    test('accent and marcato strike harder, up to 127', () {
-      var score = blankScore();
+    Score accents({required PartTemplate part}) {
+      var score = blankScore(parts: [part]);
       score = fill(score, 0, [
         withMarks(quarters(1, 'C4'), {Articulation.accent}),
         withMarks(quarters(2, 'C4'), {Articulation.marcato}),
@@ -1598,9 +1626,29 @@ void main() {
         withMarks(quarters(6, 'C4'), {Articulation.marcato}),
         rest(7, NoteValue.half),
       ]);
-      score = withDynamics(score, 1, {Moment.zero: Dynamic.ff});
+      return withDynamics(score, 1, {Moment.zero: Dynamic.ff});
+    }
 
-      expect(velocities(compiled(score)), [80, 96, 64, 120, 120, 127]);
+    test('accent and marcato strike harder, up to 127', () {
+      expect(velocities(compiled(accents(part: piano))), [
+        80,
+        96,
+        64,
+        120,
+        120,
+        127,
+      ]);
+    });
+
+    test('on a part that swells, the attack carries the accents, up to '
+        'velocity 127', () {
+      final script = compiled(accents(part: morinKhuur));
+
+      expect(
+        [for (final note in script.notesBetween(0, 10)) note.velocity],
+        [105, 126, 84, 127, 120, 127],
+      );
+      expect(velocities(script), [80, 96, 64, 97, 120, 127]);
     });
 
     test('articulations set how long the last note of a chain sounds', () {
@@ -1663,6 +1711,160 @@ void main() {
       ]);
       expect(sources(compiled(score), 1), [1, 4]);
     });
+  });
+
+  group('expression curve', () {
+    List<(double, int)> curve(PlaybackScript script) => [
+      for (final ExpressionPoint(:seconds, :value)
+          in script.channels.first.expression.points)
+        (ms(seconds), value),
+    ];
+
+    Score held(
+      int bars, {
+      bool tied = false,
+      Ornament? ornament,
+      PartTemplate part = morinKhuur,
+    }) {
+      var score = blankScore(parts: [part], bars: bars + 1);
+      for (var i = 0; i < bars; i++) {
+        final whole = wholes(i + 1, 'C4', tie: tied && i < bars - 1);
+        score = fill(score, i, [
+          if (ornament == null) whole else ornamented(whole, ornament),
+        ]);
+      }
+      return fill(score, bars, [wholes(bars + 1, 'C4')]);
+    }
+
+    Score swelled(Score score, int bars) {
+      final marked = withDynamics(
+        withDynamics(score, 0, {Moment.zero: Dynamic.p}),
+        bars,
+        {Moment.zero: Dynamic.f},
+      );
+      return withLine(
+        marked,
+        const Hairpin(crescendo: true),
+        pointAt(marked, 0, Moment.zero),
+        pointAt(marked, bars, Moment.zero),
+      );
+    }
+
+    void expectRising(List<(double, int)> points, int from, int to) {
+      expect(points.first, (0.0, from));
+      expect(points.last.$2, to);
+      for (final (i, point) in points.indexed.skip(1)) {
+        expect(point.$1, greaterThan(points[i - 1].$1));
+        expect(point.$2, greaterThan(points[i - 1].$2));
+      }
+    }
+
+    test('a held p whole note swells to f under a crescendo, in 24 steps', () {
+      final script = compiled(swelled(held(1), 1));
+
+      expect(
+        [for (final n in script.notesBetween(0, 10)) n.velocity],
+        [84, 84],
+      );
+      expect(velocities(script), [42, 80]);
+      final points = curve(script);
+      expect(points, hasLength(25));
+      expectRising(points, 64, 121);
+      expect(points[1], (0.1, 66));
+      expect(points.last, (2.4, 121));
+    });
+
+    test('two tied whole notes swell across the tie, a step a sixteenth', () {
+      final script = compiled(swelled(held(2, tied: true), 2));
+
+      expect(script.notesBetween(0, 10), hasLength(2));
+      expect(ms(script.notesBetween(0, 10).first.duration), 4.752);
+      final points = curve(script);
+      expect(points, hasLength(33));
+      expectRising(points, 64, 121);
+      expect(points.last, (4.8, 121));
+    });
+
+    test('a trill under a crescendo swells note by note', () {
+      final script = compiled(swelled(held(1, ornament: Ornament.trill), 1));
+      final trill = [
+        for (final note in script.notesBetween(0, 2.39)) sounded(script, note),
+      ];
+
+      expectRising(curve(script), 64, 121);
+      expect(trill.first, 42);
+      expect(trill.last, greaterThan(70));
+      for (final (i, level) in trill.indexed.skip(1)) {
+        expect(level, greaterThanOrEqualTo(trill[i - 1]));
+      }
+    });
+
+    test('a held fp eases from f to p in 0.4 seconds, in six steps', () {
+      final score = withDynamics(held(1), 0, {Moment.zero: Dynamic.fp});
+      final script = compiled(score);
+
+      expect(velocities(script), [80, 42]);
+      expect(curve(script), [
+        (0.0, 121),
+        (0.067, 111),
+        (0.133, 102),
+        (0.2, 92),
+        (0.267, 83),
+        (0.333, 73),
+        (0.4, 64),
+      ]);
+    });
+
+    test('sf holds its level until the next note starts, then the level '
+        'returns', () {
+      final score = withDynamics(beats(1), 0, {
+        Moment.zero: Dynamic.p,
+        at(1, 4): Dynamic.sf,
+      });
+      final script = compiled(score);
+
+      expect(velocities(script), [42, 100, 42, 42]);
+      expect(curve(script), [(0.0, 64), (0.6, 127), (1.2, 64)]);
+    });
+
+    test('a part that does not swell, a kit and parts sharing a channel '
+        'hold full expression', () {
+      final struck = swelled(held(1, part: piano), 1);
+      final shared = compiled(
+        withDynamics(
+          blankScore(parts: List.filled(17, morinKhuur), bars: 1),
+          0,
+          {Moment.zero: Dynamic.p},
+        ),
+      );
+
+      expect(curve(compiled(struck)), [(0.0, 127)]);
+      expect(velocities(compiled(struck)), [42, 80]);
+      expect(drums.instrument.singleNoteDynamics, isFalse);
+      expect(
+        {
+          for (final setup in shared.channels)
+            if (setup.channel == 0 || setup.channel == 1)
+              setup.expression.points.single.value,
+        },
+        {127},
+      );
+      expect(shared.channels[2].expression.points.single.value, 97);
+    });
+
+    test(
+      'a range that starts inside a crescendo starts at its level there',
+      () {
+        final score = swelled(held(1), 1);
+        final script = compiled(
+          score,
+          PlaybackOptions(from: pointAt(score, 0, at(1, 2))),
+        );
+
+        expect(curve(script).first, (0.0, 92));
+        expect(curve(script).last, (1.2, 121));
+      },
+    );
   });
 
   group('ornaments', () {

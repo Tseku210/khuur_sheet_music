@@ -22,6 +22,14 @@ typedef SentProgram = ({
   int program,
 });
 
+typedef SentExpression = ({
+  double at,
+  int afterOns,
+  SoundFont soundFont,
+  int channel,
+  int value,
+});
+
 /// A key that is on, on a channel of a SoundFont.
 typedef HeldKey = ({SoundFont soundFont, int channel, int key});
 
@@ -34,8 +42,11 @@ final class FakeMidiOutput implements MidiOutput {
   /// Every call in order, with the wall second it arrived at, as
   /// `1.500 on 0:60`. A note is written `channel:key` and a program
   /// `channel = bank/program`. [ons], [programs] and [held] say which
-  /// SoundFont each is from.
+  /// SoundFont each is from. An expression is in [expressions] and not
+  /// here.
   final List<String> log = [];
+
+  final List<SentExpression> expressions = [];
 
   final List<SentNote> ons = [];
 
@@ -114,6 +125,19 @@ final class FakeMidiOutput implements MidiOutput {
     );
     held.add((soundFont: soundFont, channel: channel, key: key));
   }
+
+  @override
+  void expression({
+    required SoundFont soundFont,
+    required int channel,
+    required int value,
+  }) => expressions.add((
+    at: _seconds,
+    afterOns: ons.length,
+    soundFont: soundFont,
+    channel: channel,
+    value: value,
+  ));
 
   @override
   void noteOff({

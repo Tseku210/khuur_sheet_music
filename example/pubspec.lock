@@ -208,10 +208,10 @@ packages:
     dependency: transitive
     description:
       name: khuur_synth
-      sha256: e578327b99d1f0d5ff727465e2811481165279436c3ffa1a003f5892242b14be
+      sha256: "79316083a5bc051dca753b6794386cff6c1e2b66227c34c171caa0b9fd44fadf"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.1"
+    version: "0.2.0"
   leak_tracker:
     dependency: transitive
     description:

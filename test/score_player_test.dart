@@ -1072,6 +1072,109 @@ void main() {
     });
   });
 
+  group('expression', () {
+    Score swell() {
+      var score = atSixty(blankScore(parts: const [clarinet]));
+      score = fill(score, 0, [chordOf(1, 'G4', value: NoteValue.whole)]);
+      score = fill(score, 1, [chordOf(2, 'G4', value: NoteValue.whole)]);
+      score = changeBar(
+        score,
+        0,
+        (column) => column.withStaff(
+          column.staves.first.copyWith(
+            directions: Seq([const DynamicMark(Moment.zero, Dynamic.p)]),
+          ),
+        ),
+      );
+      score = changeBar(
+        score,
+        1,
+        (column) => column.withStaff(
+          column.staves.first.copyWith(
+            directions: Seq([const DynamicMark(Moment.zero, Dynamic.f)]),
+          ),
+        ),
+      );
+      return withSpanner(
+        score,
+        const Hairpin(crescendo: true),
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 1, Moment.zero),
+      );
+    }
+
+    final curve = PlaybackCompiler()
+        .compile(swell())
+        .channels
+        .single
+        .expression;
+
+    int? sent(Rig rig) => rig.midi.expressions.lastOrNull?.value;
+
+    testPlayer(
+      'sets the channel before the first note and follows the script while '
+      'the note is held',
+      (tester, rig) async {
+        await rig.player.play(swell());
+        expect(rig.midi.expressions.first, (
+          at: 0.0,
+          afterOns: 0,
+          soundFont: pianoFile,
+          channel: 0,
+          value: 64,
+        ));
+        for (var i = 0; i < 8; i++) {
+          await tester.pump(half);
+          expect(sent(rig), curve.at(rig.seconds));
+        }
+        expect(rig.midi.ons, hasLength(2));
+        expect(rig.midi.expressions, hasLength(curve.points.length));
+      },
+    );
+
+    testPlayer('starts at the value where play starts', (tester, rig) async {
+      final score = swell();
+      await rig.player.play(score, startAt: pointAt(score, 0, at(1, 2)));
+
+      expect(
+        [
+          for (final e in rig.midi.expressions) (e.afterOns, e.value),
+        ],
+        [(0, curve.at(2))],
+      );
+    });
+
+    testPlayer('a pause keeps the value at the paused second, and a loop '
+        'sets the value its start holds', (tester, rig) async {
+      await rig.player.play(swell(), loop: true);
+      await tester.pump(second * 1.05);
+      rig.player.pause();
+      expect(sent(rig), curve.at(rig.seconds));
+
+      rig.player.resume();
+      await tester.pump(second * 7.5);
+      expect(rig.seconds, closeTo(0.55, 1e-6));
+      expect(sent(rig), curve.at(rig.seconds));
+      expect(
+        rig.midi.expressions.map((e) => e.value),
+        containsAllInOrder([121, 64]),
+      );
+    });
+
+    testPlayer('after a stall sends only the latest value', (
+      tester,
+      rig,
+    ) async {
+      await rig.player.play(swell());
+      final before = rig.midi.expressions.length;
+      rig.time.stalled += second;
+      await tester.pump(const Duration(milliseconds: 170));
+
+      expect(rig.midi.expressions, hasLength(before + 1));
+      expect(sent(rig), curve.at(rig.seconds));
+    });
+  });
+
   group('pause, stop and dispose', () {
     testPlayer(
       'pause releases what sounds, and resume does not strike it again',

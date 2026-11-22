@@ -86,6 +86,10 @@ final class ContractOutput implements MidiOutput {
   /// The channels of each SoundFont whose program finished.
   final Set<(SoundFont, int)> programmed = {};
 
+  final Map<(SoundFont, int), int> expressed = {};
+
+  bool movedUnderHeldKey = false;
+
   /// True from a [rest] until the next [program]. A note then breaks the
   /// promise of [rest].
   bool rested = false;
@@ -193,6 +197,22 @@ final class ContractOutput implements MidiOutput {
       violate('output-contract', '$name after rest, before a program');
     }
     held.add(voice);
+  }
+
+  @override
+  void expression({
+    required SoundFont soundFont,
+    required int channel,
+    required int value,
+  }) {
+    _record('expression ${nameOf(soundFont)} $channel = $value');
+    final before = expressed[(soundFont, channel)];
+    if (before != null &&
+        before != value &&
+        held.any((v) => v.soundFont == soundFont && v.channel == channel)) {
+      movedUnderHeldKey = true;
+    }
+    expressed[(soundFont, channel)] = value;
   }
 
   @override

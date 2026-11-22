@@ -171,7 +171,7 @@ final class PlaybackCompiler {
     final measures = score.measures;
     final time = _Timeline(score);
     final tempo = _TempoMap(score, time);
-    final (:channels, :sounds) = _soundSetup(score, options, time);
+    final (:channels, :sounds) = _soundSetup(score, options, time, tempo);
     final trills = _trillSpans(score, time);
     final slurs = _slurSpans(score, time);
     final glissandi = _glideTargets(score);
@@ -227,22 +227,29 @@ final class PlaybackCompiler {
         playing: fragment.events.where(plays).toList(),
       );
       timeline.add(bar);
+      for (final (setup: _, :swell, :staves) in channels) {
+        if (swell != null) {
+          swell.sample(bar, measures, index, staves, time);
+        }
+      }
       (int, Moment) tiedOn(Moment end) =>
           end == Moment.zero + column.length ? (k + 1, Moment.zero) : (k, end);
       for (final chord in bar.heard) {
         final TimedEvent(:onset, :voice, ref: EventRef(:staff)) = chord.timed;
-        final (:channel, :instrument, :loudness) = sounds[staff]!;
+        final (:channel, :instrument, :loudness, :swells) = sounds[staff]!;
         final position = onset + time.startOf(index);
         final written = time.of(chord.timed.ref.measure, onset);
-        final level = loudness.at(
-          written == position ||
-                  loudness.markedIn(
-                    _underSignsFrom(measures, index, staff, time),
-                    position,
-                  )
-              ? position
-              : written,
-        );
+        final levelAt =
+            written == position ||
+                loudness.markedIn(
+                  _underSignsFrom(measures, index, staff, time),
+                  position,
+                )
+            ? position
+            : written;
+        final level = swells
+            ? max(loudness.heldAt(levelAt), _swellVelocity)
+            : loudness.at(levelAt);
         // A chord trills under a trill line, and on from a trilled chord
         // every note of it is tied from, as one long note trills to its
         // end. So a line that ends on a note trills all of it, however it
@@ -350,13 +357,23 @@ final class PlaybackCompiler {
         (a, b) => a.start.compareTo(b.start),
       ),
       totalSeconds: seconds,
-      channels: channels,
+      channels: [
+        for (final (:setup, :swell, staves: _) in channels)
+          swell == null ? setup : setup._expressing(swell.build()),
+      ],
       bars: [for (final bar in timeline) bar.played],
     );
   }
 }
 
-typedef _Sound = ({int channel, Instrument instrument, _Loudness loudness});
+typedef _Sound = ({
+  int channel,
+  Instrument instrument,
+  _Loudness loudness,
+  bool swells,
+});
+
+typedef _Heard = ({ChannelSetup setup, _Swell? swell, List<StaffId> staves});
 
 /// Where the run of bars under measure-repeat signs on [staff] that ends
 /// with bar [index] starts.
@@ -452,38 +469,137 @@ final class _Timeline {
 
 /// The channel and sound of every unmuted staff, and the channel setups to
 /// send for the parts that are heard.
-({List<ChannelSetup> channels, Map<StaffId, _Sound> sounds}) _soundSetup(
+///
+/// A part swells when its instrument has single-note dynamics and no other
+/// heard part plays on its channel, since expression moves the whole
+/// channel.
+({List<_Heard> channels, Map<StaffId, _Sound> sounds}) _soundSetup(
   Score score,
   PlaybackOptions options,
   _Timeline time,
+  _TempoMap tempo,
 ) {
-  final channels = <ChannelSetup>[];
-  final sounds = <StaffId, _Sound>{};
+  final heard = <(Part, int)>[];
   var melodic = 0;
-  for (final Part(:id, :instrument, :staves) in score.parts) {
-    final channel = instrument.isPercussion
+  for (final part in score.parts) {
+    final channel = part.instrument.isPercussion
         ? 9
         : _melodicChannels[melodic++ % _melodicChannels.length];
-    if (!options.muted.contains(id)) {
-      channels.add(
-        ChannelSetup(
-          channel: channel,
-          part: id,
-          program: instrument.program,
-          bank: instrument.bank,
-        ),
+    if (!options.muted.contains(part.id)) {
+      heard.add((part, channel));
+    }
+  }
+  final shared = <int>{};
+  final seen = <int>{};
+  for (final (_, channel) in heard) {
+    if (!seen.add(channel)) {
+      shared.add(channel);
+    }
+  }
+  final channels = <_Heard>[];
+  final sounds = <StaffId, _Sound>{};
+  for (final (Part(:id, :instrument, :staves), channel) in heard) {
+    final loudness = _Loudness(score, staves, time, tempo);
+    final swells = instrument.singleNoteDynamics && !shared.contains(channel);
+    channels.add((
+      setup: ChannelSetup(
+        channel: channel,
+        part: id,
+        program: instrument.program,
+        bank: instrument.bank,
+      ),
+      swell: swells ? _Swell(loudness) : null,
+      staves: [for (final staff in staves) staff.id],
+    ));
+    for (final staff in staves) {
+      sounds[staff.id] = (
+        channel: channel,
+        instrument: instrument,
+        loudness: loudness,
+        swells: swells,
       );
-      final loudness = _Loudness(score, staves, time);
-      for (final staff in staves) {
-        sounds[staff.id] = (
-          channel: channel,
-          instrument: instrument,
-          loudness: loudness,
-        );
-      }
     }
   }
   return (channels: channels, sounds: sounds);
+}
+
+/// The velocity a note of a part that swells strikes at with no accent, and
+/// the level at which its channel's expression is full. It leaves room on
+/// velocity for a marcato: 84 times 1.5 is 126.
+const _swellVelocity = 84;
+
+final class _Swell {
+  _Swell(this._loudness);
+
+  final _Loudness _loudness;
+  final List<ExpressionPoint> _points = [];
+
+  /// A bar whose staves are all under measure-repeat signs of one bar
+  /// reads that bar's levels, until a dynamic or hairpin written in the run
+  /// of signs takes over, as its chords do.
+  void sample(
+    _Bar bar,
+    Seq<MeasureColumn> measures,
+    int index,
+    List<StaffId> staves,
+    _Timeline time,
+  ) {
+    final own = time.startOf(index);
+    final column = measures[index];
+    final sources = {
+      for (final staff in staves)
+        playedBar(
+          measures,
+          index,
+          column.staves.indexWhere((s) => s.staff == staff),
+        ),
+    };
+    if (sources.length != 1 || sources.single == index) {
+      _stretch(bar, own, bar.from, bar.to);
+      return;
+    }
+    final takeover = _loudness.firstMarkIn(
+      _underSignsFrom(measures, index, staves.first, time),
+      Moment.zero + own + column.length,
+    );
+    final cut = switch (takeover) {
+      null => bar.to,
+      final at when at - own < bar.from => bar.from,
+      final at when at - own > bar.to => bar.to,
+      final at => at - own,
+    };
+    _stretch(bar, time.startOf(sources.single), bar.from, cut);
+    _stretch(bar, own, cut, bar.to);
+  }
+
+  /// Adds the levels from [from] to [to] into [bar], read at [base] plus
+  /// the offset.
+  void _stretch(_Bar bar, Length base, Moment from, Moment to) {
+    if (!(from < to)) {
+      return;
+    }
+    _add(bar.secondsAt(from), _loudness.heldAt(from + base));
+    for (final (at, level) in _loudness.changesIn(from + base, to + base)) {
+      _add(bar.secondsAt(at - base), level);
+    }
+  }
+
+  void _add(double seconds, double level) {
+    final value = min((level * 127 / _swellVelocity).round(), 127);
+    if (_points.lastOrNull?.seconds == seconds) {
+      _points.removeLast();
+    }
+    if (_points.lastOrNull?.value != value) {
+      _points.add(ExpressionPoint(seconds, value));
+    }
+  }
+
+  Expression build() => _points.isEmpty
+      ? Expression.full
+      : Expression._([
+          ExpressionPoint(0, _points.first.value),
+          ..._points.skip(1),
+        ]);
 }
 
 /// The spans of every trill line, by staff, from the onset of the note it
@@ -824,7 +940,9 @@ final class PlaybackNote {
   final int cents;
 
   /// The MIDI velocity, from the dynamic at the note and its accents. It is
-  /// 12 to 127, from [Dynamic.pppp] up to the cap.
+  /// 12 to 127, from [Dynamic.pppp] up to the cap. On a part that swells it
+  /// is at least 84, and its channel's [ChannelSetup.expression] carries the
+  /// level below that.
   final int velocity;
 
   /// The MIDI channel, 0 to 15. Channel 9 plays percussion parts.
@@ -845,7 +963,16 @@ final class ChannelSetup {
     required this.part,
     required this.program,
     this.bank = 0,
+    this.expression = Expression.full,
   });
+
+  ChannelSetup _expressing(Expression expression) => ChannelSetup(
+    channel: channel,
+    part: part,
+    program: program,
+    bank: bank,
+    expression: expression,
+  );
 
   /// The MIDI channel, 0 to 15. A percussion part plays on 9, and pitched parts
   /// share channels in turn when there are more than 15.
@@ -859,6 +986,57 @@ final class ChannelSetup {
 
   /// The sound bank, 0 or more, of the part's instrument.
   final int bank;
+
+  /// The channel's expression, MIDI controller 11, through the script. It
+  /// follows the dynamics for a part whose instrument has
+  /// [Instrument.singleNoteDynamics], unless another heard part shares the
+  /// channel, and is [Expression.full] otherwise.
+  final Expression expression;
+}
+
+/// A change of a channel's expression: [value] from [seconds] on.
+final class ExpressionPoint {
+  /// [value] from [seconds] of the script on.
+  const ExpressionPoint(this.seconds, this.value);
+
+  /// Seconds from the start of the script.
+  final double seconds;
+
+  /// 0 to 127, the value of MIDI controller 11.
+  final int value;
+}
+
+/// How loud a channel lets its notes sound through a script, as MIDI
+/// controller 11 (expression), held from each point to the next. It scales
+/// the notes already sounding too, so a held note follows it.
+///
+/// A level at or above a velocity of 84 is full expression, 127, and the
+/// note's velocity carries the rest. Below it the expression is the level
+/// times 127 / 84, and the note strikes at 84 or its accents' share above.
+/// So a note starts at about the loudness it would have on a part that does
+/// not swell, unless it has both an accent and a marcato, which the cap of
+/// 127 holds back.
+final class Expression {
+  const Expression._(this.points);
+
+  /// 127 throughout, as a channel with no expression plays.
+  static const full = Expression._([ExpressionPoint(0, 127)]);
+
+  /// In order of time, the first at 0, no two in a row with one value.
+  final List<ExpressionPoint> points;
+
+  /// The value at [seconds]. Before 0 it is the value at 0.
+  int at(double seconds) {
+    final after = _partition(points.length, (i) => points[i].seconds > seconds);
+    return points[after == 0 ? 0 : after - 1].value;
+  }
+
+  /// The first second after [seconds] where the value changes, or null
+  /// when it holds to the end.
+  double? nextAfter(double seconds) {
+    final after = _partition(points.length, (i) => points[i].seconds > seconds);
+    return after == points.length ? null : points[after].seconds;
+  }
 }
 
 /// One pass through a bar, and when in the script it plays.

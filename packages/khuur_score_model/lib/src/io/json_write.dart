@@ -34,6 +34,13 @@ Map<String, Object?> _instrument(Instrument instrument) => {
     ],
   if (instrument.lowest case final lowest?) 'lowest': _pitch(lowest),
   if (instrument.highest case final highest?) 'highest': _pitch(highest),
+  if (!instrument.isPercussion &&
+      instrument.singleNoteDynamics !=
+          Instrument(
+            key: instrument.key,
+            program: instrument.program,
+          ).singleNoteDynamics)
+    'singleNoteDynamics': instrument.singleNoteDynamics,
 };
 
 /// [column], with its meter, key and clefs left out where they are the

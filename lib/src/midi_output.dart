@@ -42,6 +42,18 @@ abstract interface class MidiOutput {
     required int cents,
   });
 
+  /// Sets the expression of [channel] of [soundFont], MIDI controller 11,
+  /// to [value], 0 to 127. It scales the notes the channel sounds until the
+  /// next call, on a synthesizer that takes the controller the ones already
+  /// sounding too. The player sends it for each channel before its first
+  /// note and again wherever the script's value changes, so an output
+  /// assumes no starting value.
+  void expression({
+    required SoundFont soundFont,
+    required int channel,
+    required int value,
+  });
+
   /// Lets go of [key] on [channel] of [soundFont]. The sound rings out as
   /// the instrument releases it.
   void noteOff({
@@ -73,6 +85,9 @@ abstract interface class MidiOutput {
 ///
 /// Each SoundFont takes the next 16 of the synth's 256 channels in the
 /// order the output loaded it, so an output plays from at most 16.
+///
+/// [expression] sends MIDI controller 11 to the channel, so a held note
+/// follows it while it sounds.
 final class SynthOutput implements MidiOutput {
   /// An output that plays [reverb], null for none, at [gain], from 0 to 10.
   ///
@@ -196,11 +211,24 @@ final class SynthOutput implements MidiOutput {
     required int key,
     required int velocity,
     required int cents,
-  }) => _synth!.noteOn(
+  }) {
+    _synth!.noteOn(
+      channel: _channel(soundFont, channel),
+      key: key,
+      velocity: velocity.clamp(1, 127),
+      cents: cents.toDouble(),
+    );
+  }
+
+  @override
+  void expression({
+    required SoundFont soundFont,
+    required int channel,
+    required int value,
+  }) => _synth!.controlChange(
     channel: _channel(soundFont, channel),
-    key: key,
-    velocity: velocity.clamp(1, 127),
-    cents: cents.toDouble(),
+    controller: 11,
+    value: value,
   );
 
   @override
