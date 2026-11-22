@@ -42,14 +42,41 @@ EditSession under(List<VoiceItem> low) {
   return EditSession.start(fill(score, 0, low, slot: VoiceSlot.two));
 }
 
-EditSession erased(EditSession session, int id) => applied(
+EditSession erased(EditSession session, int id) => erasedAll(session, [id]);
+
+EditSession erasedAll(EditSession session, List<int> ids) => applied(
   session.run(
     Erase(
-      ItemSelection(Seq([eventRef(session, id)])),
+      ItemSelection(Seq([for (final id in ids) eventRef(session, id)])),
       ripple: Ripple.part,
     ),
   ),
 );
+
+/// Two bars. Voice two holds A3 for the first, then C4 for a dotted half
+/// with a tie, then [after] for a quarter. Voice one's second bar starts
+/// with two eighths, 11 and 12.
+EditSession overTheBarline(String after) {
+  var score = fill(blankScore(), 0, [
+    chordOf(1, 'E5', value: NoteValue.half.dotted),
+    chordOf(4, 'A5'),
+  ]);
+  score = fill(score, 0, [
+    chordOf(5, 'A3', value: NoteValue.whole),
+  ], slot: VoiceSlot.two);
+  score = fill(score, 1, [
+    chordOf(11, 'E5', value: NoteValue.eighth),
+    chordOf(12, 'F5', value: NoteValue.eighth),
+    chordOf(13, 'G5'),
+    chordOf(14, 'A5', value: NoteValue.half),
+  ]);
+  return EditSession.start(
+    fill(score, 1, [
+      chordOf(7, 'C4', value: NoteValue.half.dotted, tie: true),
+      chordOf(8, after),
+    ], slot: VoiceSlot.two),
+  );
+}
 
 void main() {
   group('A note or rest entered over part of a chord', () {
@@ -264,6 +291,32 @@ void main() {
       expect(tiesOf(next.undo(), 1), {'C4': true});
     });
 
+    test('shorter with a ripple keeps a tie that ends on no note out of '
+        'a note of another voice that loses only its start', () {
+      final session = under([
+        chordOf(5, 'A3', value: NoteValue.quarter.dotted),
+        chordOf(6, 'C4', value: NoteValue.quarter.dotted, tie: true),
+        chordOf(7, 'D4'),
+      ]);
+
+      final next = applied(
+        session.run(
+          SetValue(
+            eventRef(session, 2),
+            NoteValue.eighth,
+            ripple: Ripple.part,
+          ),
+        ),
+      );
+
+      expect(bar(next.score, 0, slot: VoiceSlot.two), [
+        'A3/quarter.',
+        'C4/quarter~',
+        'D4/quarter',
+        'gap 1/8',
+      ]);
+    });
+
     test('longer with a ripple keeps the ties of a chord another voice '
         'holds across it', () {
       final session = under([
@@ -360,6 +413,118 @@ void main() {
 
       expect(bar(next.score, 0).last, 'C4/quarter');
       expect(bar(next.score, 1).first, 'C4/quarter');
+    });
+
+    test('keeps a tie that ends on no note out of a note that loses only '
+        'its start', () {
+      final session = under([
+        chordOf(5, 'A3', value: NoteValue.quarter.dotted),
+        chordOf(6, 'C4', value: NoteValue.quarter.dotted, tie: true),
+        chordOf(7, 'D4'),
+      ]);
+
+      final next = erased(session, 2);
+
+      expect(bar(next.score, 0, slot: VoiceSlot.two), [
+        'A3/quarter',
+        'C4/quarter~',
+        'D4/quarter',
+        'gap 1/4',
+      ]);
+    });
+
+    test('keeps only the tie that ends on no note, of a chord that loses '
+        'only its start', () {
+      final session = under([
+        chordOf(5, 'A3', value: NoteValue.quarter.dotted),
+        chordOf(6, 'C4 E4', value: NoteValue.quarter.dotted, tie: true),
+        chordOf(7, 'E4'),
+      ]);
+
+      final next = erased(session, 2);
+
+      expect(tiesOf(next, 6), {'C4': true, 'E4': false});
+    });
+
+    test('keeps a tie that ends on no note on the last piece of a note '
+        'that loses only its start', () {
+      final next = erased(overTheBarline('D4'), 11);
+
+      expect(bar(next.score, 1, slot: VoiceSlot.two), [
+        'C4/half~',
+        'C4/eighth~',
+        'D4/quarter',
+        'gap 1/8',
+      ]);
+    });
+
+    test('drops the tie into a note from the last piece of a note that '
+        'loses only its start', () {
+      final next = erased(overTheBarline('C4'), 11);
+
+      expect(bar(next.score, 1, slot: VoiceSlot.two), [
+        'C4/half~',
+        'C4/eighth',
+        'C4/quarter',
+        'gap 1/8',
+      ]);
+    });
+
+    test('keeps a tie that ends on no note out of a note that loses only '
+        'its start and moves back across a barline', () {
+      final next = erasedAll(overTheBarline('D4'), [4, 11]);
+
+      expect(bar(next.score, 0, slot: VoiceSlot.two), [
+        'A3/half.',
+        'C4/quarter~',
+      ]);
+      expect(bar(next.score, 1, slot: VoiceSlot.two), [
+        'C4/quarter.~',
+        'D4/quarter',
+        'gap 3/8',
+      ]);
+    });
+
+    test('drops a tie that ends on no note from a note that loses its '
+        'end', () {
+      final session = under([
+        chordOf(5, 'C4', value: NoteValue.quarter.dotted, tie: true),
+        chordOf(6, 'D4', value: NoteValue.quarter.dotted),
+        chordOf(7, 'E4'),
+      ]);
+
+      final next = erased(session, 2);
+
+      expect(bar(next.score, 0, slot: VoiceSlot.two).first, 'C4/quarter');
+    });
+
+    test('drops a tie that ends on no note from a note that loses its '
+        'middle', () {
+      final session = under([
+        chordOf(5, 'C4', value: NoteValue.half.dotted, tie: true),
+        chordOf(6, 'D4'),
+      ]);
+
+      final next = erased(session, 2);
+
+      expect(bar(next.score, 0, slot: VoiceSlot.two).first, 'C4/half');
+    });
+
+    test('drops a tie that ends on no note from a note that loses its '
+        'start and its end', () {
+      final session = under([
+        chordOf(5, 'A3', value: NoteValue.quarter.dotted),
+        chordOf(6, 'C4', value: NoteValue.half, tie: true),
+        chordOf(7, 'D4', value: NoteValue.eighth),
+      ]);
+
+      final next = erasedAll(session, [2, 4]);
+
+      expect(bar(next.score, 0, slot: VoiceSlot.two), [
+        'A3/quarter',
+        'C4/quarter',
+        'gap 1/2',
+      ]);
     });
   });
 }
