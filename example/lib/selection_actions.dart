@@ -1,5 +1,5 @@
 import 'package:khuur_sheet_music/khuur_sheet_music.dart';
-import 'package:material_ui/material_ui.dart';
+import 'package:material_ui/material_ui.dart' hide Interval;
 
 /// The selected events in time order, which is what every button of the
 /// action row but Delete works on. Each event names its staff in its `ref`
@@ -204,8 +204,7 @@ List<SelectionAction> selectionActions(
   Press without(TimedEvent dropped) => Reselect(
     ItemSelection(Seq(picked.items.where((item) => item.event != dropped.ref))),
   );
-  Press transpose(int steps) =>
-      RunEdit(Transpose(picked.selection, Transposition.diatonic(steps)));
+  Press transpose(Transposition by) => RunEdit(Transpose(picked.selection, by));
   // A second press takes the line away, as a second line over the same
   // notes would only hide under the first.
   Press line(SpannerKind kind, {VoiceSlot? voice}) =>
@@ -247,22 +246,28 @@ List<SelectionAction> selectionActions(
     (
       label: 'Pitch down',
       icon: Icons.arrow_downward,
-      press: chords.isEmpty ? null : transpose(-1),
+      press: chords.isEmpty
+          ? null
+          : transpose(const Transposition.diatonic(-1)),
     ),
     (
       label: 'Pitch up',
       icon: Icons.arrow_upward,
-      press: chords.isEmpty ? null : transpose(1),
+      press: chords.isEmpty ? null : transpose(const Transposition.diatonic(1)),
     ),
     (
       label: 'Octave down',
       icon: Icons.keyboard_double_arrow_down,
-      press: chords.isEmpty ? null : transpose(-7),
+      press: chords.isEmpty
+          ? null
+          : transpose(Transposition.interval(-Interval.octave)),
     ),
     (
       label: 'Octave up',
       icon: Icons.keyboard_double_arrow_up,
-      press: chords.isEmpty ? null : transpose(7),
+      press: chords.isEmpty
+          ? null
+          : transpose(const Transposition.interval(Interval.octave)),
     ),
     (label: 'Tie', icon: Icons.link, press: tie == null ? null : RunEdit(tie)),
     (

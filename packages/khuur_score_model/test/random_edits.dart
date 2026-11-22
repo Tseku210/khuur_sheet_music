@@ -530,6 +530,7 @@ Score randomEdit(Score score, Random random) {
             Transposition.diatonic(-2),
             Transposition.chromatic(1),
           ]),
+          keys: random.nextBool(),
         ),
       );
     case 16:
