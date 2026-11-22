@@ -330,10 +330,14 @@ final class EditSession {
   /// that still resolve. Removed items and spanners drop out, and a range
   /// that loses one of its bars or staves becomes no selection. A range end
   /// that a shortened bar no longer holds moves back to the bar's new end.
+  ///
+  /// A range that starts at the end of a bar is taken from the start of the
+  /// next bar. When that leaves no time before its end, or no bar follows,
+  /// nothing is selected.
   EditSession select(Selection selection) => EditSession._(
     score,
     cursor,
-    selection,
+    _startingInItsBar(score, selection),
     _past,
     _future,
     _nextId,
@@ -373,6 +377,25 @@ ScorePoint? _normalize(Score score, ScorePoint point) {
   return index + 1 < score.measures.length
       ? ScorePoint(score.measures[index + 1].id, Moment.zero)
       : null;
+}
+
+/// [selection] with a range start at the end of its bar spelled as offset 0
+/// of the next bar, or no selection when that leaves the range no time. A
+/// range with a bar that [score] does not have is left as it is.
+Selection _startingInItsBar(Score score, Selection selection) {
+  if (selection is! RangeSelection) {
+    return selection;
+  }
+  final RangeSelection(:from, :to, :top, :bottom) = selection;
+  if (!score.contains(from.measure) ||
+      !score.contains(to.measure) ||
+      from.offset != _barEnd(score.column(from.measure))) {
+    return selection;
+  }
+  final start = _normalize(score, from);
+  return start != null && score.compare(start, to) < 0
+      ? RangeSelection(from: start, to: to, top: top, bottom: bottom)
+      : const Selection.none();
 }
 
 /// Keeps [cursor] while its bar and staff exist, moving it to the bar start
@@ -608,7 +631,10 @@ final class ItemSelection extends Selection {
 /// A time range across a contiguous block of staves: every voice of staves
 /// [top]..[bottom] (system order) from [from] (inclusive) to [to]
 /// (exclusive). [to] may sit at the very end of its bar (offset equal to
-/// the bar length) so a range can end at the end of the score.
+/// the bar length) so a range can end at the end of the score. [from] must lie
+/// before the end of its bar. [EditSession.select] moves one at the end of
+/// a bar to the start of the next bar, and an edit that takes a range
+/// refuses it with [OutsideMeasure].
 final class RangeSelection extends Selection {
   /// Selects from [from] to [to] on the staves from [top] to [bottom].
   const RangeSelection({
