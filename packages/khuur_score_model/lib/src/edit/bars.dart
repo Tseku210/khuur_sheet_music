@@ -483,7 +483,11 @@ Score _setBarLength(Score score, int index, Length? length, _Ids ids) {
       },
       last: (spanner) {
         final last = onItsNote(spanner, last: true);
-        return removed(last) ? _lastOnset(resized, spanner) : last;
+        return !removed(last)
+            ? last
+            : spanner.kind.joinsNotes
+            ? resume
+            : _lastOnset(resized, spanner);
       },
     ),
   );

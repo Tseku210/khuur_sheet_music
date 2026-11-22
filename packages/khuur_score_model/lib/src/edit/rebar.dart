@@ -454,7 +454,8 @@ typedef _Placed = ({VoiceItem item, Length span, MeasureId origin});
 /// is rests in voice one and gaps in the others ([gaps]), and a whole bar
 /// of it is a measure rest. Refused when a barline would cut a tuplet.
 /// Each later piece of a split event is entered in [origins] under the
-/// event it came from.
+/// event it came from. A chord in [shortened] is spelled by
+/// [spellLongestFirst] in each bar.
 List<List<VoiceItem>> _cut(
   List<_Placed> items,
   int count,
@@ -463,6 +464,7 @@ List<List<VoiceItem>> _cut(
   required bool gaps,
   Length? length,
   Map<EventId, EventId>? origins,
+  Set<EventId> shortened = const {},
 }) {
   final barLength = length ?? meter.length;
   final grid = BeatGrid.meter(meter);
@@ -470,12 +472,14 @@ List<List<VoiceItem>> _cut(
   void split(List<_Span> spans, Event event) {
     final values = [
       for (final span in spans)
-        spellOnGrid(
-          grid,
-          span.offset,
-          span.length,
-          rest: event is! ChordEvent,
-        ),
+        shortened.contains(event.id)
+            ? spellLongestFirst(span.length)
+            : spellOnGrid(
+                grid,
+                span.offset,
+                span.length,
+                rest: event is! ChordEvent,
+              ),
     ];
     final pieces = _split(event, [for (final v in values) ...v], ids);
     for (final piece in pieces.skip(1)) {

@@ -1686,6 +1686,22 @@ void main() {
       expect(next.spanners.single.last, pointAt(next, 0, Moment.zero));
     });
 
+    test('keeps a slur on the rest that takes the place of its erased last '
+        'note', () {
+      var score = fill(blankScore(bars: 1), 0, quarters(1, 'F4 G4 A4 B4'));
+      score = withSlur(
+        score,
+        pointAt(score, 0, at(1, 2)),
+        pointAt(score, 0, at(3, 4)),
+      );
+
+      final next = applied(pull(EditSession.start(score), [4])).score;
+
+      expect(bar(next, 0).last, 'rest/quarter');
+      expect(next.spanners.single.first, pointAt(next, 0, at(1, 2)));
+      expect(next.spanners.single.last, pointAt(next, 0, at(3, 4)));
+    });
+
     test('leaves a bar rest in each bar the pull empties', () {
       final session = barsOf([
         quarters(1, 'F4 G4 A4 B4'),

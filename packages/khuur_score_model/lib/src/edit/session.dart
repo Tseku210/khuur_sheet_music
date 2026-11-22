@@ -40,6 +40,7 @@ part 'parts.dart';
 part 'rebar.dart';
 part 'ripple.dart';
 part 'rhythm.dart';
+part 'shift.dart';
 part 'transpose.dart';
 
 /// An immutable editing session: the current score, where the cursor is,
