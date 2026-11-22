@@ -776,7 +776,31 @@ void main() {
       expect(spannerIn(next, 901).first, pointAt(score, 1, Moment.zero));
     });
 
-    test('drops a slur that ends in the cut of the last bar', () {
+    test('ends a slur that ends in the cut of the last bar on the last '
+        'note before the cut', () {
+      var score = fill(blankScore(bars: 1), 0, [
+        chordOf(1, 'F4'),
+        chordOf(2, 'G4'),
+        chordOf(3, 'A4', value: NoteValue.half),
+      ]);
+      score = withSlur(
+        score,
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(1, 2)),
+      );
+      final session = EditSession.start(score);
+
+      final next = applied(
+        session.run(SetBarLength(idOf(session, 0), len(1, 2))),
+      ).score;
+
+      expect(
+        [next.spanners.single.first, next.spanners.single.last],
+        [pointAt(next, 0, Moment.zero), pointAt(next, 0, at(1, 4))],
+      );
+    });
+
+    test('drops a slur that the cut of the last bar leaves on one note', () {
       var score = fill(blankScore(bars: 1), 0, [
         chordOf(1, 'F4', value: NoteValue.half),
         chordOf(2, 'G4', value: NoteValue.half),
@@ -794,6 +818,56 @@ void main() {
 
       expect(next.spanners, isEmpty);
     });
+
+    for (final named in [false, true]) {
+      test('drops a glissando with a note in the cut, one that '
+          '${named ? 'names its notes' : 'names no note'}', () {
+        var score = blankScore();
+        score = fill(score, 0, [
+          chordOf(1, 'F4'),
+          chordOf(2, 'G4'),
+          chordOf(3, 'A4'),
+          chordOf(4, 'B4'),
+        ]);
+        score = fill(score, 1, [
+          chordOf(5, 'C5'),
+          chordOf(6, 'D5'),
+          chordOf(7, 'E5'),
+          chordOf(8, 'F5'),
+        ]);
+        Glissando line(int from, int to) => named
+            ? Glissando(from: NoteId(10 * from), to: NoteId(10 * to))
+            : const Glissando();
+        score = withSpanner(
+          score,
+          line(2, 4),
+          pointAt(score, 0, at(1, 4)),
+          pointAt(score, 0, at(3, 4)),
+          voice: VoiceSlot.one,
+        );
+        score = withSpanner(
+          score,
+          line(4, 6),
+          pointAt(score, 0, at(3, 4)),
+          pointAt(score, 1, at(1, 4)),
+          voice: VoiceSlot.one,
+        );
+        score = withSpanner(
+          score,
+          line(1, 2),
+          pointAt(score, 0, Moment.zero),
+          pointAt(score, 0, at(1, 4)),
+          voice: VoiceSlot.one,
+        );
+        final session = EditSession.start(score);
+
+        final next = applied(
+          session.run(SetBarLength(idOf(session, 0), len(1, 2))),
+        ).score;
+
+        expect([for (final s in next.spanners) s.id.value], [902]);
+      });
+    }
 
     test('refuses a length that cuts a tuplet or cannot be written', () {
       final session = sessionWith([

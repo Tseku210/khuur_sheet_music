@@ -1497,6 +1497,161 @@ void main() {
     });
   });
 
+  group('A glissando whose note a ripple removes', () {
+    Score glided(
+      Score score,
+      Moment first,
+      Moment last, {
+      required bool named,
+    }) {
+      NoteId? noteAt(Moment offset) => named
+          ? (score
+                        .eventAt(
+                          VoicePoint(
+                            staff: score.staves.first.id,
+                            voice: VoiceSlot.two,
+                            at: pointAt(score, 0, offset),
+                          ),
+                        )!
+                        .event
+                    as ChordEvent)
+                .notes
+                .first
+                .id
+          : null;
+      return withSpanner(
+        score,
+        Glissando(from: noteAt(first), to: noteAt(last)),
+        pointAt(score, 0, first),
+        pointAt(score, 0, last),
+        voice: VoiceSlot.two,
+      );
+    }
+
+    /// Quarters F4 G4 A4 B4 in voice one, ids 1 to 4, over [under] in voice
+    /// two.
+    Score over(List<VoiceItem> under) => fill(
+      fill(blankScore(bars: 1), 0, quarters(1, 'F4 G4 A4 B4')),
+      0,
+      under,
+      slot: VoiceSlot.two,
+    );
+
+    for (final named in [false, true]) {
+      final lines = named ? 'that names its notes' : 'that names no note';
+
+      test('is dropped with the note it ends on, $lines', () {
+        final score = glided(
+          over(quarters(5, 'C4 D4 E4 C4')),
+          Moment.zero,
+          at(1, 4),
+          named: named,
+        );
+        final session = EditSession.start(score);
+
+        final next = applied(
+          session.run(
+            Erase(
+              ItemSelection(Seq([eventRef(session, 2), eventRef(session, 6)])),
+              ripple: Ripple.part,
+            ),
+          ),
+        ).score;
+
+        expect(bar(next, 0, slot: VoiceSlot.two).take(2), [
+          'C4/quarter',
+          'E4/quarter',
+        ]);
+        expect(next.spanners, isEmpty);
+      });
+
+      test('is dropped with the note it starts on, $lines', () {
+        final score = glided(
+          over(quarters(5, 'C4 D4 E4 C4')),
+          Moment.zero,
+          at(1, 2),
+          named: named,
+        );
+        final session = EditSession.start(score);
+
+        final next = applied(
+          session.run(
+            Erase(
+              ItemSelection(Seq([eventRef(session, 1), eventRef(session, 5)])),
+              ripple: Ripple.part,
+            ),
+          ),
+        ).score;
+
+        expect(bar(next, 0, slot: VoiceSlot.two).take(2), [
+          'D4/quarter',
+          'E4/quarter',
+        ]);
+        expect(next.spanners, isEmpty);
+      });
+
+      test('is dropped when a shorter value in another voice removes the '
+          'note it ends on, $lines', () {
+        final score = glided(
+          fill(
+            fill(blankScore(bars: 1), 0, [
+              chordOf(1, 'F4', value: NoteValue.half),
+              chordOf(2, 'A4', value: NoteValue.half),
+            ]),
+            0,
+            [
+              chordOf(5, 'C4'),
+              chordOf(6, 'D4'),
+              chordOf(7, 'E4'),
+              Gap(len(1, 4)),
+            ],
+            slot: VoiceSlot.two,
+          ),
+          Moment.zero,
+          at(1, 4),
+          named: named,
+        );
+
+        final next = applied(
+          revalue(EditSession.start(score), 1, NoteValue.quarter),
+        ).score;
+
+        expect(bar(next, 0, slot: VoiceSlot.two).take(2), [
+          'C4/quarter',
+          'E4/quarter',
+        ]);
+        expect(next.spanners, isEmpty);
+      });
+
+      test('stays on a note that the ripple only makes shorter, $lines', () {
+        for (final erased in [1, 2]) {
+          final score = glided(
+            over([
+              chordOf(5, 'C4', value: NoteValue.half),
+              chordOf(6, 'D4', value: NoteValue.half),
+            ]),
+            Moment.zero,
+            at(1, 2),
+            named: named,
+          );
+
+          final next = applied(pull(EditSession.start(score), [erased])).score;
+
+          expect(
+            bar(next, 0, slot: VoiceSlot.two).take(2),
+            ['C4/quarter', 'D4/half'],
+            reason: 'erased $erased',
+          );
+          expect(
+            [next.spanners.single.first, next.spanners.single.last],
+            [pointAt(next, 0, Moment.zero), pointAt(next, 0, at(1, 4))],
+            reason: 'erased $erased',
+          );
+        }
+      });
+    }
+  });
+
   group('A rippled erase of chords in many places', () {
     test('ends a slur on the note that takes the place of its erased last '
         'note', () {
