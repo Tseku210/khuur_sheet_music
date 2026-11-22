@@ -1430,6 +1430,25 @@ void main() {
       expect(score.spanners.single.voice, VoiceSlot.two);
     });
 
+    test('drops a slur that stops on a note of voice one that starts before '
+        'the note it starts on', () {
+      const start = '<notations><slur type="start"/></notations>';
+      const stop = '<notations><slur type="stop"/></notations>';
+      final score = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 16, 'whole', '<voice>1</voice>$stop'),
+            backup(16),
+            note('E4', 4, 'quarter', '<voice>2</voice>'),
+            note('F4', 4, 'quarter', '<voice>2</voice>$start'),
+          ],
+        ]),
+      );
+
+      expect(spannersOf(score), isEmpty);
+    });
+
     test('reads back two slurs of a second voice where the later one ends '
         'on a note of voice one', () {
       var score = blankScore(bars: 1);

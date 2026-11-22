@@ -381,6 +381,97 @@ void main() {
       });
     });
 
+    group('a slur or glissando of voice two that ends in a gap', () {
+      Score voices(List<VoiceItem> one, List<VoiceItem> two) =>
+          fill(fill(blankScore(), 0, one), 0, two, slot: VoiceSlot.two);
+      final held = [chordOf(1, 'D5', value: NoteValue.whole)];
+      final start = [
+        Gap(len(1, 8)),
+        chordOf(2, 'E4', value: NoteValue.eighth),
+      ];
+
+      test('is refused when the note of voice one there has sounded since '
+          'before it starts', () {
+        final score = voices(held, [...start, Gap(len(3, 4))]);
+
+        for (final (kind, name) in const [
+          (Glissando(), 'a glissando'),
+          (Slur(), 'a slur'),
+        ]) {
+          final outcome = addSpanner(
+            score,
+            kind,
+            pointAt(score, 0, at(1, 8)),
+            pointAt(score, 0, at(3, 4)),
+            voice: VoiceSlot.two,
+          );
+
+          expect(
+            refusal(outcome),
+            isA<InvalidValue>().having(
+              (refused) => refused.message,
+              'message',
+              '$name must end after it starts',
+            ),
+          );
+        }
+      });
+
+      test('joins a note of voice one that starts with its first note as a '
+          'slur, not as a glissando', () {
+        final score = voices(
+          [
+            chordOf(1, 'D5', value: NoteValue.eighth),
+            chordOf(3, 'C5', value: NoteValue.half),
+            chordOf(4, 'B4', value: NoteValue.eighth),
+            chordOf(5, 'A4'),
+          ],
+          [...start, Gap(len(3, 4))],
+        );
+        EditOutcome joining(SpannerKind kind) => addSpanner(
+          score,
+          kind,
+          pointAt(score, 0, at(1, 8)),
+          pointAt(score, 0, at(1, 4)),
+          voice: VoiceSlot.two,
+        );
+
+        expect(applied(joining(const Slur())).score.spanners, hasLength(1));
+        expect(refusal(joining(const Glissando())), isA<InvalidValue>());
+      });
+
+      test('goes when an erase leaves its end in such a gap, and undo brings '
+          'it back', () {
+        final score = voices(held, [
+          ...start,
+          chordOf(3, 'F4', value: NoteValue.half),
+          chordOf(4, 'G4'),
+        ]);
+        final end = EventRef(
+          measure: score.measures.first.id,
+          staff: score.staves.first.id,
+          id: const EventId(4),
+        );
+
+        for (final kind in const [Glissando(), Slur()]) {
+          final lined = applied(
+            addSpanner(
+              score,
+              kind,
+              pointAt(score, 0, at(1, 8)),
+              pointAt(score, 0, at(3, 4)),
+              voice: VoiceSlot.two,
+            ),
+          );
+
+          final erased = applied(lined.run(Erase(ItemSelection(Seq([end])))));
+
+          expect(erased.score.spanners, isEmpty, reason: '$kind');
+          expect(erased.undo().score.spanners, hasLength(1), reason: '$kind');
+        }
+      });
+    });
+
     test('puts a line or hairpin on the staff, in no voice', () {
       final score = blankScore();
 

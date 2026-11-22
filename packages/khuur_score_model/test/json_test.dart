@@ -513,6 +513,43 @@ void main() {
       }
     });
 
+    test('loads without a slur or glissando that names no note and ends on a '
+        'note of voice one that has sounded since before it starts, as a file '
+        'from 0.4.0 can hold', () {
+      final score = fill(
+        fill(blankScore(), 0, [chordOf(1, 'D5', value: NoteValue.whole)]),
+        0,
+        [
+          Gap(len(1, 8)),
+          chordOf(2, 'E4', value: NoteValue.eighth),
+          chordOf(3, 'F4'),
+          Gap(len(1, 2)),
+        ],
+        slot: VoiceSlot.two,
+      );
+      Score lined(SpannerKind kind, Moment last) => withSpanner(
+        withSpanner(
+          score,
+          const Slur(),
+          pointAt(score, 0, at(1, 8)),
+          pointAt(score, 0, at(1, 4)),
+          voice: VoiceSlot.two,
+        ),
+        kind,
+        pointAt(score, 0, at(1, 8)),
+        pointAt(score, 0, last),
+        voice: VoiceSlot.two,
+      );
+
+      for (final kind in const [Glissando(), Slur()]) {
+        expect(
+          reloaded(lined(kind, at(3, 4))).spanners.map((line) => line.id),
+          [const SpannerId(900)],
+          reason: '$kind',
+        );
+      }
+    });
+
     test('an edit mints no id a glissando names', () {
       final score = showcase();
       final line = score.spanners[7];
