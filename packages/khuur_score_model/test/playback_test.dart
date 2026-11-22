@@ -1145,6 +1145,39 @@ void main() {
       expect(f4(slurred), greaterThan(f4(plain)));
     });
 
+    test('a slur of voice two that ends on a note of voice one that starts '
+        'with its first note does not lengthen that first note, though a '
+        'third voice starts a note at its end', () {
+      var plain = blankScore(bars: 1);
+      plain = fill(plain, 0, [
+        chordOf(1, 'C5'),
+        chordOf(2, 'D5', value: const NoteValue(DurationBase.half, dots: 1)),
+      ]);
+      plain = fill(plain, 0, [
+        Gap(len(1, 4)),
+        chordOf(3, 'F4'),
+        Gap(len(1, 2)),
+      ], slot: VoiceSlot.two);
+      plain = fill(plain, 0, [
+        Gap(len(1, 2)),
+        chordOf(4, 'G4'),
+        Gap(len(1, 4)),
+      ], slot: VoiceSlot.three);
+      final slurred = withSpanner(
+        plain,
+        const Slur(),
+        pointAt(plain, 0, at(1, 4)),
+        pointAt(plain, 0, at(1, 2)),
+        voice: VoiceSlot.two,
+      );
+      double f4(Score score) => [
+        for (final note in compiled(score).notesBetween(0, double.infinity))
+          if (note.key == Pitch.parse('F4').midiKey) ms(note.duration),
+      ].single;
+
+      expect(f4(slurred), f4(plain));
+    });
+
     test('trills under each of several trill lines, the note a line ends on '
         'too, in whatever order the lines are listed', () {
       var score = beats(2);

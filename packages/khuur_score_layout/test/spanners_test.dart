@@ -856,6 +856,41 @@ void main() {
       expect(line.to.y, closeTo((to.top + to.bottom) / 2, 1e-9));
     });
 
+    test('a slur of voice two that ends where its voice has a gap stays on '
+        'the note voice one holds there when that note starts with its first '
+        'note, though a third voice starts a note there', () {
+      var score = scoreOf([
+        [
+          chordOf(1, 'C5'),
+          chordOf(2, 'D5', value: const NoteValue(DurationBase.half, dots: 1)),
+        ],
+      ]);
+      score = fill(score, 0, [
+        Gap(len(1, 4)),
+        chordOf(3, 'F4'),
+        Gap(len(1, 2)),
+      ], slot: VoiceSlot.two);
+      score = fill(score, 0, [
+        Gap(len(1, 2)),
+        chordOf(4, 'G4'),
+        Gap(len(1, 4)),
+      ], slot: VoiceSlot.three);
+      score = withSpanner(
+        score,
+        const Slur(),
+        pointAt(score, 0, at(1, 4)),
+        pointAt(score, 0, at(1, 2)),
+        voice: VoiceSlot.two,
+      );
+
+      final bar = score.measures.first;
+      final view = score.measureView(bar.id);
+      expect(
+        pieceEnd(view.spanners.single, view.staves.single, bar.length),
+        (at: at(1, 4), event: const EventId(2)),
+      );
+    });
+
     test('a tempo line prints its text above the staff and dashes on from '
         'it', () {
       final score = withSpanner(

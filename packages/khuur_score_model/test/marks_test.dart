@@ -520,6 +520,85 @@ void main() {
         );
       });
 
+      test('ends on the note voice one holds there, not on the note a third '
+          'voice starts there, when the held note starts no sooner than its '
+          'first note', () {
+        final third = [Gap(len(1, 2)), chordOf(6, 'G4'), Gap(len(1, 4))];
+        final together = fill(
+          voices(
+            [
+              chordOf(1, 'C5'),
+              chordOf(
+                3,
+                'D5',
+                value: const NoteValue(DurationBase.half, dots: 1),
+              ),
+            ],
+            [Gap(len(1, 4)), chordOf(2, 'F4'), Gap(len(1, 2))],
+          ),
+          0,
+          third,
+          slot: VoiceSlot.three,
+        );
+        var later = blankScore(bars: 2);
+        later = fill(later, 0, [chordOf(7, 'C5', value: NoteValue.whole)]);
+        later = fill(later, 0, [
+          Gap(len(3, 4)),
+          chordOf(2, 'F4'),
+        ], slot: VoiceSlot.two);
+        later = fill(later, 1, [chordOf(3, 'D5', value: NoteValue.whole)]);
+        later = fill(later, 1, third, slot: VoiceSlot.three);
+
+        for (final (score, first, last) in [
+          (
+            together,
+            pointAt(together, 0, at(1, 4)),
+            pointAt(together, 0, at(1, 2)),
+          ),
+          (later, pointAt(later, 0, at(3, 4)), pointAt(later, 1, at(1, 2))),
+        ]) {
+          final joined = applied(
+            addSpanner(score, const Slur(), first, last, voice: VoiceSlot.two),
+          ).score;
+
+          expect(
+            joined.anchorOf(joined.spanners.single, last: true)!.event.id,
+            const EventId(3),
+          );
+        }
+      });
+
+      test('starts on the note voice one holds there, not on the note a '
+          'third voice starts there', () {
+        final score = fill(
+          voices(held, [
+            Gap(len(1, 2)),
+            chordOf(2, 'E4', value: NoteValue.half),
+          ]),
+          0,
+          [Gap(len(1, 4)), chordOf(6, 'G4'), Gap(len(1, 2))],
+          slot: VoiceSlot.three,
+        );
+
+        for (final kind in const [Glissando(), Slur()]) {
+          final joined = applied(
+            addSpanner(
+              score,
+              kind,
+              pointAt(score, 0, at(1, 4)),
+              pointAt(score, 0, at(1, 2)),
+              voice: VoiceSlot.two,
+            ),
+          ).score;
+
+          expect(
+            joined.anchorOf(joined.spanners.single, last: false)!.event.id,
+            const EventId(1),
+            reason: '$kind',
+          );
+        }
+      });
+
       test('goes when an erase leaves its end in such a gap, and undo brings '
           'it back', () {
         final score = voices(held, [
