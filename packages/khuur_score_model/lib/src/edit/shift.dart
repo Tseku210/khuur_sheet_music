@@ -106,6 +106,24 @@ final class _Collapse extends _Shift {
     return i >= 0 && time < cuts[i].to ? i : null;
   }
 
+  /// Whether the cuts remove all the time from [from] up to [to].
+  bool removes(Length from, Length to) {
+    var covered = from;
+    for (
+      var i = max(_cutAt(from), 0);
+      i < cuts.length && cuts[i].from <= covered;
+      i++
+    ) {
+      if (cuts[i].to > covered) {
+        covered = cuts[i].to;
+      }
+      if (covered >= to) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   @override
   Length? moved(Length time) {
     final i = _cutAt(time);

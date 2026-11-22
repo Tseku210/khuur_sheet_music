@@ -207,11 +207,13 @@ enum Overfill {
 ///   keep their place in the music. A direction in removed time is
 ///   dropped, as [DeleteMeasures] drops it. A clef change there moves to
 ///   where the time was removed, so the clef that follows is kept. A
-///   spanner start there moves to the music after it. The end of a slur or
-///   a glissando there moves to the music after it too, so the line ends
-///   on the note that takes the removed note's place, or on the rest there
-///   when no music follows, and it is dropped when that leaves both its
-///   ends on one event. Any other line ends where the time it covered
+///   spanner start there moves to the music after it. The end of a slur
+///   there moves to the music after it too, so the slur ends on the note
+///   that takes the removed note's place, or on the rest there when no
+///   music follows, and it is dropped when that leaves both its ends on
+///   one event. A glissando goes with its notes, and is dropped when the
+///   note it starts or ends on is removed, as [RemoveNote] drops one that
+///   names the head. Any other line ends where the time it covered
 ///   ends, on the last event that starts before then, and it is dropped
 ///   when no time is left. MuseScore 4 moves the ends the same way, and
 ///   the result of an [Erase] does not depend on the order of its
@@ -931,14 +933,15 @@ final class SetRehearsal extends Edit {
 /// meter's length (null). Content beyond a shortened length is cut from the
 /// end, with the event crossing the new end keeping its head, and so are
 /// clef changes, directions and tempo marks there. Spanner ends in the cut
-/// move as for [DeleteMeasures], but the end of a slur or a glissando there
-/// moves to the start of the next bar, as under a [Ripple], and in the last
-/// bar its line is dropped. A slur, glissando or trill line end inside the
-/// note that crosses the new end stays on it. A lengthened bar is padded with rests in
-/// voice one and a gap in the other voices. Ties at the bar's end follow the
-/// [DeleteMeasures] rule. Refused with [WouldSplitTuplet] when the new end
-/// cuts a tuplet, and with [InvalidValue] for a length that is not a whole
-/// number of 128th notes.
+/// move as for [DeleteMeasures], but the end of a slur there moves to the
+/// start of the next bar, as under a [Ripple], and in the last bar its line
+/// is dropped. A glissando goes with its notes, and is dropped when the
+/// note it starts or ends on is in the cut. A slur, glissando or trill line
+/// end inside the note that crosses the new end stays on it. A lengthened
+/// bar is padded with rests in voice one and a gap in the other voices. Ties
+/// at the bar's end follow the [DeleteMeasures] rule. Refused with
+/// [WouldSplitTuplet] when the new end cuts a tuplet, and with
+/// [InvalidValue] for a length that is not a whole number of 128th notes.
 final class SetBarLength extends Edit {
   /// Sets [measure]'s length to [length].
   const SetBarLength(this.measure, this.length);

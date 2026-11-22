@@ -468,6 +468,11 @@ Score _setBarLength(Score score, int index, Length? length, _Ids ids) {
         : point;
   }
 
+  bool unnoted(Spanner spanner) =>
+      spanner.kind is Glissando &&
+      (removed(onItsNote(spanner, last: false)) ||
+          removed(onItsNote(spanner, last: true)));
+
   final resume = next == null ? null : ScorePoint(next.id, Moment.zero);
   final cut = untied.copyWith(
     measures: untied.measures.replaceAt(index, resized),
@@ -479,11 +484,17 @@ Score _setBarLength(Score score, int index, Length? length, _Ids ids) {
       untied.spanners,
       first: (spanner) {
         final first = onItsNote(spanner, last: false);
-        return removed(first) ? resume : first;
+        return unnoted(spanner)
+            ? null
+            : removed(first)
+            ? resume
+            : first;
       },
       last: (spanner) {
         final last = onItsNote(spanner, last: true);
-        return !removed(last)
+        return unnoted(spanner)
+            ? null
+            : !removed(last)
             ? last
             : spanner.kind.joinsNotes
             ? resume
