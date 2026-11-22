@@ -205,8 +205,9 @@ ChordEvent withMarks(ChordEvent chord, Set<Articulation> marks) =>
 Score at80(
   List<List<VoiceItem>> bars, {
   KeySignature key = KeySignature.cMajor,
+  Meter meter = Meter.fourFour,
 }) {
-  var score = blankScore(bars: bars.length, key: key);
+  var score = blankScore(bars: bars.length, key: key, meter: meter);
   for (final (i, items) in bars.indexed) {
     score = fill(score, i, items);
   }
@@ -228,11 +229,12 @@ GraceChord grace(
   int id,
   String pitch, {
   GraceKind kind = GraceKind.acciaccatura,
+  NoteValue value = NoteValue.eighth,
   bool tie = false,
 }) => GraceChord(
   id: EventId(id),
   kind: kind,
-  value: NoteValue.eighth,
+  value: value,
   notes: Seq([
     PitchedNote(id: NoteId(id * 10), pitch: Pitch.parse(pitch), tie: tie),
   ]),
@@ -1532,7 +1534,7 @@ void main() {
   });
 
   group('ornaments', () {
-    test('an acciaccatura takes a 32nd from the start of its chord', () {
+    test('an acciaccatura takes a 64th from the start of its chord', () {
       final score = at80([
         [
           withMarks(chordOf(1, 'C4', graces: [grace(5, 'D4')]), {
@@ -1545,54 +1547,143 @@ void main() {
       final script = compiled(score);
 
       expect(notes(script), [
-        (0.0, 0.084, 62, 0, 5),
-        (0.094, 0.591, 60, 0, 1),
-        (0.75, 0.084, 65, 0, 6),
-        (0.844, 0.084, 67, 0, 7),
-        (0.938, 0.506, 64, 0, 2),
+        (0.0, 0.042, 62, 0, 5),
+        (0.047, 0.633, 60, 0, 1),
+        (0.75, 0.042, 65, 0, 6),
+        (0.797, 0.042, 67, 0, 7),
+        (0.844, 0.591, 64, 0, 2),
         (1.5, 1.35, 72, 0, 3),
       ]);
       expect(loudness(script), {5: 64, 1: 80, 6: 64, 7: 64, 2: 64, 3: 64});
       expect(sources(script, 0.05), [1]);
     });
 
-    test('appoggiaturas take half their chord, and graces at most half', () {
+    test('acciaccaturas keep a 64th at a slow tempo, and take at most half '
+        'their chord', () {
+      final score = changeBar(
+        at80([
+          [
+            chordOf(
+              1,
+              'C5',
+              value: NoteValue.sixteenth,
+              graces: [grace(5, 'Ab5')],
+            ),
+            chordOf(
+              2,
+              'D5',
+              value: NoteValue.sixteenth,
+              graces: [grace(9, 'F5'), grace(10, 'G5'), grace(11, 'A5')],
+            ),
+            chordOf(
+              3,
+              'E5',
+              value: NoteValue.eighth,
+              graces: [grace(6, 'F5'), grace(7, 'G5')],
+            ),
+            chordOf(4, 'C5'),
+            halves(8, 'C5'),
+          ],
+        ]),
+        0,
+        tempos([const TempoMark(offset: Moment.zero, tempo: Tempo(40))]),
+      );
+
+      expect(attacks(compiled(score)), [
+        (0.0, 80, 5),
+        (0.094, 72, 1),
+        (0.375, 77, 9),
+        (0.438, 79, 10),
+        (0.5, 81, 11),
+        (0.563, 74, 2),
+        (0.75, 77, 6),
+        (0.844, 79, 7),
+        (0.938, 76, 3),
+        (1.5, 72, 4),
+        (3.0, 72, 8),
+      ]);
+    });
+
+    test('a lone appoggiatura takes its written value, up to half its '
+        'chord, and with any other grace they are all quick', () {
       final score = at80([
         [
           halves(1, 'C5').copyWith(
-            graces: Seq([grace(5, 'D5', kind: GraceKind.appoggiatura)]),
+            graces: Seq([
+              grace(
+                5,
+                'D5',
+                kind: GraceKind.appoggiatura,
+                value: NoteValue.half,
+              ),
+            ]),
           ),
-          withMarks(
-            chordOf(
-              2,
-              'E4',
-              graces: [
-                grace(6, 'F4', kind: GraceKind.appoggiatura),
-                grace(7, 'G4'),
-              ],
-            ),
-            {Articulation.tenuto},
+          chordOf(
+            2,
+            'E5',
+            graces: [
+              grace(
+                6,
+                'F5',
+                kind: GraceKind.appoggiatura,
+                value: NoteValue.sixteenth,
+              ),
+            ],
           ),
           chordOf(
             3,
-            'D5',
-            value: NoteValue.eighth,
-            graces: [grace(8, 'A4'), grace(9, 'B4'), grace(10, 'C5')],
+            'G4',
+            graces: [
+              grace(7, 'A4', kind: GraceKind.appoggiatura),
+              grace(8, 'B4'),
+            ],
           ),
-          rest(4, NoteValue.eighth),
         ],
       ]);
 
-      expect(notes(compiled(score)), [
-        (0.0, 0.675, 74, 0, 5),
-        (0.75, 0.675, 72, 0, 1),
-        (1.5, 0.169, 65, 0, 6),
-        (1.688, 0.169, 67, 0, 7),
-        (1.875, 0.375, 64, 0, 2),
-        (2.25, 0.056, 69, 0, 8),
-        (2.313, 0.056, 71, 0, 9),
-        (2.375, 0.056, 72, 0, 10),
-        (2.438, 0.169, 74, 0, 3),
+      expect(attacks(compiled(score)), [
+        (0.0, 74, 5),
+        (0.75, 72, 1),
+        (1.5, 77, 6),
+        (1.688, 76, 2),
+        (2.25, 69, 7),
+        (2.297, 71, 8),
+        (2.344, 67, 3),
+      ]);
+    });
+
+    test('in a compound meter a lone appoggiatura may take two thirds of a '
+        'principal longer than an eighth', () {
+      final score = at80(meter: Meter.simple(6, 8), [
+        [
+          chordOf(
+            1,
+            'C5',
+            value: const NoteValue(DurationBase.quarter, dots: 1),
+            graces: [
+              grace(
+                5,
+                'D5',
+                kind: GraceKind.appoggiatura,
+                value: const NoteValue(DurationBase.quarter, dots: 1),
+              ),
+            ],
+          ),
+          chordOf(
+            2,
+            'G4',
+            value: NoteValue.eighth,
+            graces: [grace(6, 'A4', kind: GraceKind.appoggiatura)],
+          ),
+          rest(3, NoteValue.quarter),
+        ],
+      ]);
+
+      expect(attacks(compiled(score)), [
+        (0.0, 74, 5),
+        (0.75, 72, 1),
+        (1.125, 69, 6),
+        (1.313, 67, 2),
       ]);
     });
 
@@ -1886,6 +1977,194 @@ void main() {
       ]);
     });
 
+    test('graces right after a trill end it, so the note they lead to plays '
+        'on its beat, and graces after a mordent or a rest stay on theirs', () {
+      final score = at80([
+        [
+          ornamented(quarters(1, 'E5'), Ornament.trill),
+          chordOf(
+            2,
+            'F5',
+            graces: [
+              grace(
+                5,
+                'D5',
+                kind: GraceKind.appoggiatura,
+                value: NoteValue.sixteenth,
+              ),
+              grace(
+                6,
+                'E5',
+                kind: GraceKind.appoggiatura,
+                value: NoteValue.sixteenth,
+              ),
+            ],
+          ),
+          ornamented(quarters(3, 'A4'), Ornament.mordent),
+          chordOf(4, 'C5', graces: [grace(7, 'B4')]),
+        ],
+        [
+          ornamented(chordOf(8, 'E5', value: NoteValue.eighth), Ornament.trill),
+          rest(9, NoteValue.eighth),
+          chordOf(
+            10,
+            'F5',
+            graces: [
+              grace(
+                11,
+                'D5',
+                kind: GraceKind.appoggiatura,
+                value: NoteValue.sixteenth,
+              ),
+            ],
+          ),
+          rest(12, NoteValue.half),
+        ],
+      ]);
+
+      expect(attacks(compiled(score)), [
+        (0.0, 76, 1),
+        (0.094, 77, 1),
+        (0.188, 76, 1),
+        (0.281, 77, 1),
+        (0.375, 76, 1),
+        (0.469, 77, 1),
+        (0.563, 76, 1),
+        (0.656, 74, 5),
+        (0.703, 76, 6),
+        (0.75, 77, 2),
+        (1.5, 69, 3),
+        (1.594, 67, 3),
+        (1.688, 69, 3),
+        (2.25, 71, 7),
+        (2.297, 72, 4),
+        (3.0, 76, 8),
+        (3.094, 77, 8),
+        (3.188, 76, 8),
+        (3.281, 77, 8),
+        (3.75, 74, 11),
+        (3.938, 77, 10),
+      ]);
+    });
+
+    test('a trill ends on its main note before the graces that end it, or '
+        'on the note above when they start on its main note', () {
+      final score = at80([
+        [
+          ornamented(quarters(1, 'E5'), Ornament.trill),
+          chordOf(2, 'D5', graces: [grace(3, 'E5')]),
+          rest(4, NoteValue.half),
+        ],
+      ]);
+
+      expect(attacks(compiled(score)), [
+        (0.0, 76, 1),
+        (0.117, 77, 1),
+        (0.234, 76, 1),
+        (0.352, 77, 1),
+        (0.469, 76, 1),
+        (0.586, 77, 1),
+        (0.703, 76, 3),
+        (0.75, 74, 2),
+      ]);
+    });
+
+    test('a lone appoggiatura after a trill leans on its own beat', () {
+      final score = at80([
+        [
+          ornamented(quarters(1, 'E5'), Ornament.trill),
+          chordOf(
+            2,
+            'F5',
+            graces: [
+              grace(3, 'D5', kind: GraceKind.appoggiatura),
+            ],
+          ),
+          rest(4, NoteValue.half),
+        ],
+      ]);
+
+      expect(attacks(compiled(score)), [
+        (0.0, 76, 1),
+        (0.094, 77, 1),
+        (0.188, 76, 1),
+        (0.281, 77, 1),
+        (0.375, 76, 1),
+        (0.469, 77, 1),
+        (0.563, 76, 1),
+        (0.656, 77, 1),
+        (0.75, 74, 3),
+        (1.125, 77, 2),
+      ]);
+    });
+
+    test('graces that open a bar end the trill line on the bar before, '
+        'unless play starts at them', () {
+      final compiler = PlaybackCompiler();
+      var score = at80([
+        [
+          quarters(1, 'C4'),
+          quarters(2, 'D4'),
+          quarters(3, 'E4'),
+          quarters(4, 'F4'),
+        ],
+        [
+          chordOf(
+            7,
+            'G4',
+            graces: [
+              grace(
+                5,
+                'E4',
+                kind: GraceKind.appoggiatura,
+                value: NoteValue.sixteenth,
+              ),
+              grace(
+                6,
+                'F4',
+                kind: GraceKind.appoggiatura,
+                value: NoteValue.sixteenth,
+              ),
+            ],
+          ),
+          rest(8, NoteValue.quarter),
+          rest(9, NoteValue.half),
+        ],
+      ]);
+      List<(double, int, int)> from(int bar) => attacks(
+        compiler.compile(
+          score,
+          PlaybackOptions(from: pointAt(score, bar, Moment.zero)),
+        ),
+      ).where((a) => a.$1 >= 2.0 || bar == 1).toList();
+      expect(from(0), [
+        (2.25, 65, 4),
+        (3.0, 64, 5),
+        (3.047, 65, 6),
+        (3.094, 67, 7),
+      ]);
+      score = withLine(
+        score,
+        const TrillLine(),
+        pointAt(score, 0, at(3, 4)),
+        pointAt(score, 0, at(3, 4)),
+      );
+
+      expect(from(0), [
+        (2.25, 65, 4),
+        (2.344, 67, 4),
+        (2.438, 65, 4),
+        (2.531, 67, 4),
+        (2.625, 65, 4),
+        (2.719, 67, 4),
+        (2.813, 65, 4),
+        (2.906, 64, 5),
+        (2.953, 65, 6),
+        (3.0, 67, 7),
+      ]);
+      expect(from(1), [(0.0, 64, 5), (0.047, 65, 6), (0.094, 67, 7)]);
+    });
+
     test('a tie holds into the next attack of its pitch, from the last '
         'stroke of a tremolo or from a grace', () {
       final score = at80([
@@ -1909,7 +2188,7 @@ void main() {
         (0.375, 60, 1),
         (1.5, 64, 3),
         (2.25, 65, 9),
-        (2.344, 64, 4),
+        (2.297, 64, 4),
         (3.0, 60, 5),
         (3.094, 62, 5),
         (3.188, 60, 5),

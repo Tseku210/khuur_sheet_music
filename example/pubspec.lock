@@ -196,7 +196,7 @@ packages:
       path: "../packages/khuur_score_model"
       relative: true
     source: path
-    version: "0.4.0"
+    version: "0.4.1"
   khuur_sheet_music:
     dependency: "direct main"
     description:

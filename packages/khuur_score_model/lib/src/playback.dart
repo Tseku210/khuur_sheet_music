@@ -101,6 +101,58 @@ final class PlaybackCompiler {
     return fragment;
   }
 
+  /// The chord with graces that plays right after [chord] in its voice, with
+  /// the index of its window: later in window [k], whose [heard] chords
+  /// hold it, or at the start of the window after, the next bar played.
+  /// Null when the next chord has no graces or one lone appoggiatura,
+  /// which leans on its own beat, when a rest or a gap comes first, or when
+  /// [chord] ties on.
+  (int, _Chord)? _gracedAfter(
+    _Chord chord,
+    List<_Window> windows,
+    int k,
+    List<_Chord> heard,
+    Seq<MeasureColumn> measures,
+  ) {
+    final TimedEvent(:onset, :duration, :voice, ref: EventRef(:staff)) =
+        chord.timed;
+    if (chord.event.notes.any((note) => note.tie)) {
+      return null;
+    }
+    final end = onset + duration;
+    _Chord? graced(Iterable<_Chord> chords, Moment at) {
+      final next = chords
+          .where(
+            (c) =>
+                c.timed.ref.staff == staff &&
+                c.timed.voice == voice &&
+                c.timed.onset == at,
+          )
+          .firstOrNull;
+      final graces = next?.event.graces ?? const Seq<GraceChord>.empty();
+      final leans =
+          graces.length == 1 && graces.single.kind == GraceKind.appoggiatura;
+      return graces.isEmpty || leans ? null : next;
+    }
+
+    if (end != Moment.zero + measures[windows[k].index].length) {
+      return switch (graced(heard, end)) {
+        final next? => (k, next),
+        null => null,
+      };
+    }
+    if (k + 1 == windows.length || windows[k + 1].from != Moment.zero) {
+      return null;
+    }
+    return switch (graced(
+      _played(measures, windows[k + 1].index).chords,
+      Moment.zero,
+    )) {
+      final next? => (k + 1, next),
+      null => null,
+    };
+  }
+
   /// Compiles [score] into a script, playing what [options] asks.
   ///
   /// A bar whose column an edit did not replace reuses the fragment cached from
@@ -139,6 +191,8 @@ final class PlaybackCompiler {
     // the note it holds and whether the chord it goes on from trills.
     final ties = <(StaffId, VoiceSlot, Tone), (_Sounding, (int, Moment))>{};
     final trilledTies = <(StaffId, VoiceSlot, Tone), ((int, Moment), bool)>{};
+    // The window and chord of each grace chord a trill before it played.
+    final closed = <(int, EventRef)>{};
     var seconds = 0.0;
     for (final (k, (:index, :pass, :from, :to)) in windows.indexed) {
       final column = measures[index];
@@ -172,9 +226,8 @@ final class PlaybackCompiler {
         playing: fragment.events.where(plays).toList(),
       );
       timeline.add(bar);
-      (int, Moment) tiedOn(Moment end) => end == Moment.zero + column.length
-          ? (k + 1, Moment.zero)
-          : (k, end);
+      (int, Moment) tiedOn(Moment end) =>
+          end == Moment.zero + column.length ? (k + 1, Moment.zero) : (k, end);
       for (final chord in bar.heard) {
         final TimedEvent(:onset, :voice, ref: EventRef(:staff)) = chord.timed;
         final (:channel, :instrument, :loudness) = sounds[staff]!;
@@ -196,8 +249,7 @@ final class PlaybackCompiler {
         final continued = [
           for (final note in chord.event.notes)
             if (trilledTies.remove((staff, voice, note.tone))
-                case (final at, final trilled)
-                when at == (k, onset))
+                case (final at, final trilled) when at == (k, onset))
               trilled,
         ];
         final trilled =
@@ -218,9 +270,28 @@ final class PlaybackCompiler {
               (s) => s.$1 <= written && written < s.$2,
             ) ??
             false;
+        // Graces right after a trill end it, so they play at the end of the
+        // trilled chord, in its bar, and the chord they lead to plays on its
+        // beat. When play starts at that chord, its graces stay on it.
+        final closing =
+            (chord.event.ornament ?? (trilled ? Ornament.trill : null)) ==
+                Ornament.trill
+            ? _gracedAfter(chord, windows, k, bar.heard, measures)
+            : null;
+        if (closing case (final at, final next)) {
+          closed.add((at, next.timed.ref));
+        }
+        final graced = !closed.remove((k, chord.timed.ref));
         for (final attack
-            in trilled
-                ? _attacks(chord.timed, chord.event, column.key, trill: true)
+            in trilled || closing != null || !graced
+                ? _attacks(
+                    chord.timed,
+                    chord.event,
+                    column,
+                    trill: trilled,
+                    graces: graced,
+                    closing: closing?.$2,
+                  )
                 : chord.attacks) {
           final (key, cents) = _key(attack.note, instrument);
           final start = bar.secondsAt(attack.onset);
@@ -492,6 +563,7 @@ final class PlaybackOptions {
   /// with its repeats unrolled. The player loops the returned script when
   /// the user asked for a loop.
   final ScorePoint? from;
+
   /// The end of the range, which does not play. Null plays to the end of the
   /// last bar.
   final ScorePoint? to;
@@ -695,6 +767,7 @@ final class PlaybackNote {
   /// The MIDI velocity, from the dynamic at the note and its accents. It is
   /// 12 to 127, from [Dynamic.pppp] up to the cap.
   final int velocity;
+
   /// The MIDI channel, 0 to 15. Channel 9 plays percussion parts.
   final int channel;
 
@@ -717,10 +790,13 @@ final class ChannelSetup {
   /// The MIDI channel, 0 to 15. A percussion part plays on 9, and pitched parts
   /// share channels in turn when there are more than 15.
   final int channel;
+
   /// The part it plays.
   final PartId part;
+
   /// The MIDI program, 0 to 127, of the part's instrument.
   final int program;
+
   /// The sound bank, 0 or more, of the part's instrument.
   final int bank;
 }
@@ -741,8 +817,10 @@ final class PlayedBar {
   /// How many times the bar has played, counting this time: 1 for the
   /// first time through.
   final int pass;
+
   /// Seconds from the script start to where the bar starts playing.
   final double start;
+
   /// Seconds from the script start to where the bar stops playing, which is
   /// where the next played bar starts.
   final double end;

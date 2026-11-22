@@ -382,8 +382,13 @@ final class DrumNote extends Note {
 
 /// Grace notes attached before a principal chord. Zero duration in the
 /// voice. Playback plays them on the beat, in time taken from the start of
-/// the principal: a 32nd for each acciaccatura, or half the principal when
-/// any is an appoggiatura, and never more than half.
+/// the principal, as MuseScore 4 does: a lone appoggiatura takes its
+/// written value, up to half the principal, or two thirds of one longer
+/// than an eighth in a compound meter. Any other graces take a 64th each,
+/// up to half the principal together, and each its written share. Graces
+/// right after a trilled chord in their voice, other than a lone
+/// appoggiatura, end its trill instead: they play at the end of that chord,
+/// a 64th each and at most half of it, and the principal plays on its beat.
 final class GraceChord {
   /// Asserts that [notes] is not empty.
   GraceChord({
@@ -399,8 +404,9 @@ final class GraceChord {
   /// Which kind of grace, which sets how long it plays.
   final GraceKind kind;
 
-  /// Written value, which sets its flags and beams. Playback times graces
-  /// by [kind], not by this.
+  /// Written value, which sets its flags and beams. Playback lets a lone
+  /// appoggiatura take this long, up to its limit, and shares the time of
+  /// several graces by it.
   final NoteValue value;
 
   /// Heads, all pitched or all drums like the principal chord's.
@@ -410,12 +416,13 @@ final class GraceChord {
 /// How a grace chord is drawn and how much time it takes from its
 /// principal. See [GraceChord].
 enum GraceKind {
-  /// A short grace, drawn with a slash through the stem. Each takes a 32nd,
+  /// A short grace, drawn with a slash through the stem. Each takes a 64th,
   /// and all of them together at most half the principal.
   acciaccatura,
 
-  /// A leaning grace, drawn without the slash. With any appoggiatura among
-  /// them, a chord's graces take half its time.
+  /// A leaning grace, drawn without the slash. Alone it takes its written
+  /// value, up to half the principal. Among other graces it is as quick as
+  /// an acciaccatura.
   appoggiatura,
 }
 
