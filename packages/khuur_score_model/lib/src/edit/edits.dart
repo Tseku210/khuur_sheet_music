@@ -81,9 +81,12 @@ sealed class Edit {
 /// Entered onto a rest at least as long as itself, it pushes nothing and
 /// the edit is the overwriting one. Entered inside a note, it splits that
 /// note: the head stays before the new note and the rest of it moves after.
-/// That note, and each note of the other voices that sounds across the
-/// place where the time is added, loses the ties into and out of it and
-/// each glissando that starts or ends on it, as in MuseScore 4.
+/// The time is added after the rests the new note takes, which is later
+/// than [at] when the note starts on a rest shorter than itself. Each note
+/// of the staves that move that sounds across that place, the split note
+/// among them, loses the ties into and out of it and each glissando that
+/// starts or ends on it. MuseScore 4 takes the same from a note that sounds
+/// across the place where it adds time, and it adds the time at the cursor.
 /// Inside a tuplet it only fills rests: the edit is refused with
 /// [WouldSplitTuplet] when the tuplet has music where the note would go.
 /// At the start of a tuplet that begins with music, the whole tuplet moves.
@@ -206,11 +209,14 @@ enum Overfill {
 /// - Ties: a tie stays while it ends on the head it ended on before, on the
 ///   next piece of its own note, or on a new note of its tone, and while it
 ///   ends on no head where it ended on none. Otherwise it is cleared. A
-///   chord that removed time makes shorter loses the ties out of it, as in
-///   MuseScore 4, and keeps the ties into it while it keeps its start. A
-///   chord that loses its start to removed time, or that sounds across the
-///   point where an entry adds time, loses the ties into it too. A longer
-///   [SetValue] takes no tie from the chords it makes longer.
+///   chord that loses its end or its middle to removed time loses the ties
+///   out of it and keeps the ties into it, as in MuseScore 4. A chord that
+///   loses its start loses the ties into it, and the ties out of it that
+///   end on a head. A tie out of it that ends on no head stays when the
+///   start is all the chord loses, as in MuseScore 4. A chord that sounds
+///   across the point where an entry adds time loses the ties into and out
+///   of it. A longer [SetValue] takes no tie from the chords it makes
+///   longer.
 /// - Marks: articulations, fingerings and lyrics travel on their notes.
 ///   The directions and clef changes of the staves that move, the ends of
 ///   their spanners, a cursor on one of them and a range selection over one

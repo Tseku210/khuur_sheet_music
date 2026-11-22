@@ -1129,8 +1129,10 @@ bool _sameBy<T>(Iterable<T> a, Iterable<T> b, bool Function(T, T) same) {
 /// ripple sent somewhere else. A tie stays while it ends on the event it
 /// ended on before, on the next piece of its own note, or on a new note of
 /// its tone, and while it ends on no head where it ended on none. A tie
-/// into another note that [lostItsStart], as it was in [before], goes, as
-/// [_Loss.rebuilt]. [origins] names the event each new piece came from.
+/// into another note goes when either note [lostItsStart], as it was in
+/// [before]. MuseScore 4 takes such a note out and writes it again, and
+/// only a tie that ends on no head comes back with it. [origins] names the
+/// event each new piece came from.
 /// [_retie] cannot do this, because it looks every event up in [before] by
 /// its id, and the pieces a ripple cuts have new ids.
 Score _retied(
@@ -1171,6 +1173,9 @@ Score _retied(
     final target = source(ahead.timed.event.id);
     if (target == old.event.id) {
       return false;
+    }
+    if (lostItsStart(old)) {
+      return true;
     }
     final next = was(ahead.timed);
     return next != null &&

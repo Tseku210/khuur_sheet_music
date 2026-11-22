@@ -78,17 +78,17 @@ Score _setValue(Score score, TimedEvent timed, NoteValue value, _Ids ids) {
       : write.score;
 }
 
-/// What an edit takes from a chord whose time it changes, as MuseScore 4
-/// does.
+/// What an edit takes from a chord whose time it changes.
 enum _Loss {
   /// The chord is made shorter where it stands, so the ties out of it and
   /// the glissandi that start on it go, as in `Score::changeCRlen`.
   shortened,
 
-  /// The chord is taken out and written again, so the ties into it and the
-  /// glissandi that end on it go too. MuseScore does this to a chord that
-  /// loses its start to a time delete and to one that sounds across the
-  /// place where an insert adds time.
+  /// The chord sounds across the place where a rippled entry adds time, so
+  /// the ties into it and the glissandi that end on it go too. MuseScore 4
+  /// takes the same from a chord across the place where it inserts time. A
+  /// chord that loses its start to removed time is not this case, because
+  /// [_retied] keeps a tie out of it that ends on no head.
   rebuilt,
 }
 
