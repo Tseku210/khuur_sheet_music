@@ -29,6 +29,8 @@
 * A held note follows the dynamics while it sounds, as in MuseScore 4. Each `ChannelSetup` has an `Expression`, a list of `ExpressionPoint`s. Under a hairpin it moves in steps of a sixteenth and at least 24, an fp eases from f to p over 0.4 seconds, and an sf, sfz or rfz holds its level until the next note or rest on its staff starts, or the bar ends. From velocity 84 up the expression is full, so a held note does not swell past about f.
 * `Instrument.singleNoteDynamics` defaults by General MIDI program, as MuseScore 4's instrument list does in 641 of its 646 instruments. It is on for organs, bowed strings, voices, brass, winds and synths, and off for pianos, mallets, guitars, basses, pizzicato, harp, timpani, other plucked and struck sounds, and kits. A part that shares its channel keeps full expression. JSON stores it only when it differs from the default.
 * `scoreToMidi` writes each channel's expression as controller 11, at its start and wherever it changes.
+* An `Erase` of many items copies the bar list once for each pass it makes, not once for each item, so its cost grows in step with the score. It copied the list once for each bar it wrote, each chord it took a head from and each tie it cleared. Erasing a chord in every bar of 16000 bars takes 66 ms where it took 770 ms.
+* A rippled `Erase` of many chords no longer costs the cube of its section. It still costs the square, since it closes each gap on its own and re-bars the section each time. Erasing a chord in every bar of 1000 bars with `Ripple.part` takes 2.6 s where it took 31 s.
 
 ## 0.4.0
 * **Breaking:** the sealed `Edit` gains `SetMeasureRepeat`, so a `switch` over every edit adds a case for it.

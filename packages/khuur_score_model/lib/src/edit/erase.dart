@@ -63,15 +63,14 @@ Score _eraseItems(Score score, Seq<ElementRef> items, _Ids ids) {
         (heads[event.id] ??= {}).add(note);
     }
   }
-  var trimmed = score;
+  final trimmed = _BarWrites(score);
   for (final MapEntry(key: id, value: notes) in heads.entries) {
     final timed = targets[id]!;
     final chord = timed.event as ChordEvent;
     if (chord.notes.every((n) => notes.contains(n.id))) {
       whole.add(id);
     } else {
-      trimmed = _replace(
-        trimmed,
+      trimmed.replace(
         timed,
         chord.copyWith(
           notes: Seq([
@@ -82,7 +81,7 @@ Score _eraseItems(Score score, Seq<ElementRef> items, _Ids ids) {
       );
     }
   }
-  return (targets: targets, whole: whole, trimmed: trimmed);
+  return (targets: targets, whole: whole, trimmed: trimmed.written);
 }
 
 /// Erases every voice of the staves from [RangeSelection.top] to
@@ -110,33 +109,26 @@ Score _eraseRange(
     ids,
     keep: keep,
   );
-  var measures = cleared.measures;
+  final bars = _BarWrites(cleared);
   for (final (bar, staff) in lanes) {
-    final column = measures[bar];
+    final column = bars[bar];
     final old = column.staff(staff);
     final kept = [
       for (final d in old.directions)
         if (!inRange(ScorePoint(column.id, d.offset))) d,
     ];
     if (kept.length != old.directions.length) {
-      measures = measures.replaceAt(
-        bar,
-        column.withStaff(old.copyWith(directions: Seq(kept))),
-      );
+      bars[bar] = column.withStaff(old.copyWith(directions: Seq(kept)));
     }
   }
   final spanners = [
     for (final s in score.spanners)
       if (!staves.contains(s.staff) || !inRange(s.first) || !inRange(s.last)) s,
   ];
-  final unchanged =
-      identical(measures, cleared.measures) &&
-      spanners.length == score.spanners.length;
+  final unchanged = !bars.changed && spanners.length == score.spanners.length;
   return _retie(
     score,
-    unchanged
-        ? cleared
-        : cleared.copyWith(measures: measures, spanners: Seq(spanners)),
+    unchanged ? cleared : bars.written.copyWith(spanners: Seq(spanners)),
     lanes,
   );
 }
@@ -156,9 +148,9 @@ Score _clear(
   _Ids ids, {
   Set<TupletId> keep = const {},
 }) {
-  var measures = score.measures;
+  final bars = _BarWrites(score);
   for (final (bar, staff) in lanes) {
-    final column = measures[bar];
+    final column = bars[bar];
     final old = column.staff(staff);
     var cleared = old;
     for (final voice in old.voices) {
@@ -196,12 +188,10 @@ Score _clear(
       );
     }
     if (!identical(cleared, old)) {
-      measures = measures.replaceAt(bar, column.withStaff(cleared));
+      bars[bar] = column.withStaff(cleared);
     }
   }
-  return identical(measures, score.measures)
-      ? score
-      : score.copyWith(measures: measures);
+  return bars.written;
 }
 
 /// [items], one frame sounding from [onset] at [scale], with what [pick]
