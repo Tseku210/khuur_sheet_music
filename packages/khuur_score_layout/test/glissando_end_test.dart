@@ -64,8 +64,8 @@ Score bars(List<List<VoiceItem>> bars, {List<VoiceItem>? lastBarTwo}) {
 }
 
 void main() {
-  group('A glissando whose last end names no note and falls on a rest of '
-      'its own voice', () {
+  group('A glissando that starts on a note, names no end note and would '
+      'end on a rest', () {
     test('runs to the head of the chord voice two starts there', () {
       final plain = bars(
         [

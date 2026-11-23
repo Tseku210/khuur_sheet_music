@@ -97,8 +97,8 @@ List<(double, int, int)> attacks(Score score) {
 }
 
 void main() {
-  group('A glissando whose last end names no note and falls on a rest of '
-      'its own voice', () {
+  group('A glissando that starts on a note, names no last note and would '
+      'end on a rest', () {
     Score restUnderVoiceTwo() => fill(
       fill(blankScore(), 0, [
         chordOf(1, 'C4'),
@@ -363,7 +363,7 @@ void main() {
       );
     });
 
-    test('orders drums by the line their sound prints on, then by key', () {
+    test('orders drums by the line their sound prints on', () {
       const kit = PartTemplate(
         name: 'Kit',
         instrument: Instrument(
@@ -405,6 +405,30 @@ void main() {
         'Kick Kick',
       );
       expect(notesOf(built(score, Moment.zero, at(1, 4))), 'Crash Floor tom');
+    });
+
+    test('orders drums on one line by their MIDI keys', () {
+      const kit = PartTemplate(
+        name: 'Kit',
+        instrument: Instrument(
+          key: 'kit',
+          program: 0,
+          bank: 128,
+          clef: Clef.percussion,
+          drums: [
+            DrumSound(name: 'Crash', position: Pitch(Step.a, 5), midiKey: 51),
+            DrumSound(name: 'Kick', position: Pitch(Step.f, 4), midiKey: 36),
+            DrumSound(name: 'Ride', position: Pitch(Step.a, 5), midiKey: 49),
+          ],
+        ),
+      );
+      final score = fill(blankScore(parts: const [kit]), 0, [
+        hit(1, const [Drum('Crash'), Drum('Ride')]),
+        hit(2, const [Drum('Kick')]),
+        hit(3, const [Drum('Kick')], value: NoteValue.half),
+      ]);
+
+      expect(notesOf(built(score, Moment.zero, at(1, 4))), 'Crash Kick');
     });
   });
 }
