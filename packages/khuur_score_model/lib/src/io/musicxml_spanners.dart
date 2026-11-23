@@ -130,7 +130,8 @@ final class _Placed {
   final EventId? stopsAfter;
 
   /// A glissando names the notes its marks are written on. Its staff is
-  /// the one it starts on, and a stop written on another staff names none.
+  /// the one it starts on. A stop written on another staff names none, so
+  /// the line ends where [Score.anchorOf] puts such an end on its own staff.
   SpannerKind get kind => switch ((record.kind, record.start.anchor)) {
     (Glissando(), final EventAnchor start) => Glissando(
       from: start.kept,

@@ -167,7 +167,11 @@ _Ends _endsOf(Score score, Spanner spanner) {
     return _Ends.allowed;
   }
   if (kind is Glissando) {
-    final notes = kind.notesOn(first.event, last.event);
+    final notes = kind.notesOn(
+      first.event,
+      last.event,
+      instrument: score.partOf(spanner.staff).instrument,
+    );
     if ((kind.from != null && notes.from?.id != kind.from) ||
         (kind.to != null && notes.to?.id != kind.to)) {
       return _Ends.allowed;
@@ -219,7 +223,11 @@ Spanner endsHeld(Score score, Spanner spanner) {
         );
       }
     case final Glissando line:
-      final notes = line.notesOn(first.event, last.event);
+      final notes = line.notesOn(
+        first.event,
+        last.event,
+        instrument: score.partOf(spanner.staff).instrument,
+      );
       kind = Glissando(
         from: notes.from?.id ?? line.from,
         to: notes.to?.id ?? line.to,

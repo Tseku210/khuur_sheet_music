@@ -11,6 +11,7 @@ import 'pitch.dart';
 import 'refs.dart';
 import 'rules.dart';
 import 'seq.dart';
+import 'stable_sort.dart';
 import 'time.dart';
 import 'views.dart';
 import 'voice_walk.dart';
@@ -485,6 +486,10 @@ final class Score {
   /// starts before it. For a [Glissando], which may not end on an event
   /// that starts with its first, starting with that event counts too. A
   /// line that starts on the held note itself ends on voice one's event.
+  ///
+  /// A last end of a [Glissando] that names no note and falls on a rest stays
+  /// on that rest. Only `AddSpanner` moves the end of a new line from a note
+  /// to a chord there.
   TimedEvent? anchorOf(Spanner spanner, {required bool last}) {
     final at = last ? spanner.last : spanner.first;
     TimedEvent? sounding(VoiceSlot voice) =>
@@ -607,6 +612,7 @@ final class Score {
         final Glissando kind => kind.notesOn(
           anchorOf(spanner, last: false)?.event,
           anchorOf(spanner, last: true)?.event,
+          instrument: partOf(spanner.staff).instrument,
         ),
         _ => (from: null, to: null),
       };
@@ -1379,7 +1385,10 @@ final class PedalLine extends SpannerKind {
 /// another voice ([Score.anchorOf]). [notesOn] picks the note of that event.
 /// `AddSpanner`, and each edit before it changes the score, name the note
 /// of each end that is on a chord, so the line then goes with those notes,
-/// as MuseScore 4 keeps the notes a glissando joins.
+/// as MuseScore 4 keeps the notes a glissando joins. A new line from a note
+/// that would end on a rest ends instead on the first chord a voice of the
+/// staff starts there, in voice order from voice one. `AddSpanner` names that
+/// note, as MuseScore 4 picks a line's end only when it makes the line.
 ///
 /// The event a line ends on starts after the event it starts on, as in each
 /// line MuseScore 4's editor builds. So a line cannot end on an event of
@@ -1406,7 +1415,8 @@ final class Glissando extends SpannerKind {
   final NoteId? to;
 
   /// The notes this line joins, where [first] and [last] are the events
-  /// [Score.anchorOf] finds at its ends. An end on a rest has no note.
+  /// [Score.anchorOf] finds at its ends, on a staff of [instrument]. An end
+  /// on a rest has no note.
   ///
   /// The start is on the note [from] names, or on the chord's top note when
   /// [from] is null or names no note of the chord. The end is on the note
@@ -1417,9 +1427,19 @@ final class Glissando extends SpannerKind {
   /// that starts on a rest ends on the top note. `AddSpanner` and each edit
   /// name the notes picked, so adding or removing a note of either chord
   /// later does not move an end.
-  ({Note? from, Note? to}) notesOn(Event? first, Event? last) {
-    final start = first is ChordEvent ? first.notes : null;
-    final end = last is ChordEvent ? last.notes : null;
+  ///
+  /// Top and bottom are by staff line, as MuseScore 4 orders a chord's
+  /// notes, and by sound for notes on one line. A pitched note's line is its
+  /// letter and octave, so B sharp 3 is below C flat 4 although it sounds
+  /// higher. A drum's line is where [instrument] prints its sound, and drums
+  /// on one line go by their MIDI keys.
+  ({Note? from, Note? to}) notesOn(
+    Event? first,
+    Event? last, {
+    required Instrument instrument,
+  }) {
+    final start = first is ChordEvent ? _byLine(first.notes, instrument) : null;
+    final end = last is ChordEvent ? _byLine(last.notes, instrument) : null;
     final place = start == null
         ? null
         : _indexOf(start, from) ?? start.length - 1;
@@ -1432,7 +1452,25 @@ final class Glissando extends SpannerKind {
     );
   }
 
-  static int? _indexOf(Seq<Note> notes, NoteId? id) {
+  static List<Note> _byLine(Seq<Note> notes, Instrument instrument) {
+    DrumSound sound(Drum drum) => instrument.soundOf(drum)!;
+    int line(Note note) => switch (note) {
+      PitchedNote(:final pitch) => pitch.diatonic,
+      DrumNote(:final drum) => sound(drum).position.diatonic,
+    };
+    int height(Note a, Note b) => switch ((a, b)) {
+      (final PitchedNote x, final PitchedNote y) => x.pitch.compareTo(y.pitch),
+      (final DrumNote x, final DrumNote y) =>
+        sound(x.drum).midiKey - sound(y.drum).midiKey,
+      _ => 0,
+    };
+    return stableSorted(notes, (a, b) {
+      final byLine = line(a) - line(b);
+      return byLine != 0 ? byLine : height(a, b);
+    });
+  }
+
+  static int? _indexOf(List<Note> notes, NoteId? id) {
     final index = id == null ? -1 : notes.indexWhere((note) => note.id == id);
     return index < 0 ? null : index;
   }

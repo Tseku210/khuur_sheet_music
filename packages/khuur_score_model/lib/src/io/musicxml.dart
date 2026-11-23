@@ -816,7 +816,11 @@ final class _Export {
         final (from, fromStream) = anchor(last: false);
         final (to, toStream) = anchor(last: true);
         final notes = switch (spanner.kind) {
-          final Glissando kind => kind.notesOn(from.event, to.event),
+          final Glissando kind => kind.notesOn(
+            from.event,
+            to.event,
+            instrument: score.partOf(spanner.staff).instrument,
+          ),
           _ => (from: null, to: null),
         };
         return (
