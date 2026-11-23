@@ -35,7 +35,7 @@ const int _sectionedBars = 16000;
 
 /// The shorter of the two tied scores. With an index of every event built
 /// once for each section, the erase grows about 18 times from 1000 bars to
-/// 4000, and takes over 30 seconds a run at 16000.
+/// 4000, and takes about 30 seconds a run at 16000.
 const int _tiedBars = 1000;
 
 /// The shorter of the two scores a range is erased from. With every
