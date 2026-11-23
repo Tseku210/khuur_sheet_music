@@ -216,7 +216,10 @@ final class _Placing {
       return _inVoice(record, start, stop, slot);
     }
     final voice = stop.event.lane.slot;
-    final ofStop = record.kind is! Slur || record.start.above == voice.stemsUp
+    final ofStop =
+        stop.event.lane.staff != staff ||
+            record.kind is! Slur ||
+            record.start.above == voice.stemsUp
         ? _inVoice(record, start, stop, voice)
         : null;
     return ofStop != null && _startsOn(ofStop, start)
