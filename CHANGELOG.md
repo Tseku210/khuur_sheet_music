@@ -11,6 +11,7 @@
 * **Breaking:** `MidiOutput` gains `expression`, which sets a channel's MIDI controller 11. The player sends it for each channel before its first note and wherever that channel's value changes, and again after a seek, a pause, a loop or a new score. A class that implements `MidiOutput` adds it.
 * `SynthOutput` sends `expression` to FluidSynth as controller 11, so a held note swells and fades while it sounds. It needs `khuur_synth` 0.2.0.
 * `scoreToMidi` writes the expression of a part that swells as controller 11, from `khuur_score_model` 0.5.0.
+* `SetLetRing` sets or clears a let-ring tie on a note, from `khuur_score_model` 0.5.0.
 * Depends on `khuur_score_model` 0.5.0, `khuur_score_layout` 0.5.0 and `khuur_synth` 0.2.0.
 
 ## 0.4.0

@@ -58,6 +58,7 @@
 * `scoreToMusicXml` writes a plain tie to no note as `<tied type="let-ring"/>` with a `<tie type="start"/>`, and its `<encoding>` gains a `<supports>` line for the let-ring mark. `scoreFromMusicXml` reads that pair as a plain tie, or as `Note.letRing` when a note of its pitch follows.
 * A rippled `Erase` that takes only the start of a chord keeps its let-ring tie, even when a note of its tone then follows. A rippled edit that takes the end of the chord removes it. `Paste` keeps it on a note before the pasted music, and `SetTie` clears or replaces it.
 * JSON gains an optional `letRing` key. The schema stays 1, older files load the same, and an older reader loads such a note untied.
+* `SetLetRing(note, letRing: true)` gives a note a let-ring tie, and `letRing: false` clears it. A note with a plain tie keeps it and the edit changes nothing, as in MuseScore 4, even when that tie has no note to land on.
 
 ## 0.4.0
 * **Breaking:** the sealed `Edit` gains `SetMeasureRepeat`, so a `switch` over every edit adds a case for it.
