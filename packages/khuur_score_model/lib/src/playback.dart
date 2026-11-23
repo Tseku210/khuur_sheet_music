@@ -59,12 +59,12 @@ final class PlaybackCompiler {
   /// chords and fermatas of the bar the sign repeats on that staff, and
   /// keeps its own whole-bar rest as the event playing, so the sheet marks
   /// the sign.
-  _Fragment _played(Seq<MeasureColumn> measures, int index) {
+  _Fragment _played(Seq<MeasureColumn> measures, _Signs signs, int index) {
     final column = measures[index];
     final own = _fragmentOf(column);
     final from = <StaffId, MeasureColumn>{
       for (final (k, staff) in column.staves.indexed)
-        if (playedBar(measures, index, k) case final bar when bar != index)
+        if (signs.played(index, k) case final bar when bar != index)
           staff.staff: measures[bar],
     };
     if (from.isEmpty) {
@@ -113,6 +113,7 @@ final class PlaybackCompiler {
     int k,
     List<_Chord> heard,
     Seq<MeasureColumn> measures,
+    _Signs signs,
   ) {
     final TimedEvent(:onset, :duration, :voice, ref: EventRef(:staff)) =
         chord.timed;
@@ -145,7 +146,7 @@ final class PlaybackCompiler {
       return null;
     }
     return switch (graced(
-      _played(measures, windows[k + 1].index).chords,
+      _played(measures, signs, windows[k + 1].index).chords,
       Moment.zero,
     )) {
       final next? => (k + 1, next),
@@ -170,6 +171,7 @@ final class PlaybackCompiler {
   ]) {
     final measures = score.measures;
     final time = _Timeline(score);
+    final signs = _Signs(score, time);
     final tempo = _TempoMap(score, time);
     final (:channels, :sounds) = _soundSetup(score, options, time, tempo);
     final trills = _trillSpans(score, time);
@@ -197,7 +199,7 @@ final class PlaybackCompiler {
     var seconds = 0.0;
     for (final (k, (:index, :pass, :from, :to)) in windows.indexed) {
       final column = measures[index];
-      final fragment = _played(measures, index);
+      final fragment = _played(measures, signs, index);
       final clock = _Clock(
         tempo,
         Moment.zero + time.startOf(index),
@@ -229,7 +231,7 @@ final class PlaybackCompiler {
       timeline.add(bar);
       for (final (setup: _, :swell, :staves) in channels) {
         if (swell != null) {
-          swell.sample(bar, measures, index, staves, time);
+          swell.sample(bar, measures, signs, index, staves, time);
         }
       }
       (int, Moment) tiedOn(Moment end) =>
@@ -241,10 +243,7 @@ final class PlaybackCompiler {
         final written = time.of(chord.timed.ref.measure, onset);
         final levelAt =
             written == position ||
-                loudness.markedIn(
-                  _underSignsFrom(measures, index, staff, time),
-                  position,
-                )
+                loudness.markedIn(signs.runFrom(index, staff), position)
             ? position
             : written;
         final level = swells
@@ -285,7 +284,7 @@ final class PlaybackCompiler {
         final closing =
             (chord.event.ornament ?? (trilled ? Ornament.trill : null)) ==
                 Ornament.trill
-            ? _gracedAfter(chord, windows, k, bar.heard, measures)
+            ? _gracedAfter(chord, windows, k, bar.heard, measures, signs)
             : null;
         if (closing case (final at, final next)) {
           closed.add((at, next.timed.ref));
@@ -376,20 +375,48 @@ typedef _Sound = ({
 
 typedef _Heard = ({ChannelSetup setup, _Swell? swell, List<StaffId> staves});
 
-/// Where the run of bars under measure-repeat signs on [staff] that ends
-/// with bar [index] starts.
-Moment _underSignsFrom(
-  Seq<MeasureColumn> measures,
-  int index,
-  StaffId staff,
-  _Timeline time,
-) {
-  final k = measures[index].staves.indexWhere((s) => s.staff == staff);
-  var first = index;
-  while (first > 0 && measures[first - 1].staves[k].measureRepeat != null) {
-    first--;
+/// What the measure-repeat signs of a score play and where their runs
+/// start, read once per compile.
+final class _Signs {
+  _Signs(Score score, this._time)
+    : _measures = score.measures,
+      _played = [
+        for (final (k, _) in score.staves.indexed)
+          playedBars(score.measures, k),
+      ];
+
+  final Seq<MeasureColumn> _measures;
+  final _Timeline _time;
+
+  /// [playedBars] by staff index.
+  final List<List<int>> _played;
+
+  /// By staff index and bar, the first bar of its run of signs, or the bar
+  /// itself when it has no sign.
+  late final List<List<int>> _runStarts = [
+    for (var k = 0; k < _played.length; k++) _runStartsOn(k),
+  ];
+
+  /// The bar whose notes the staff at index [k] of bar [bar] plays.
+  int played(int bar, int k) => _played[k][bar];
+
+  /// Where the run of bars under measure-repeat signs on [staff] that ends
+  /// with bar [index] starts.
+  Moment runFrom(int index, StaffId staff) {
+    final k = _measures[index].staves.indexWhere((s) => s.staff == staff);
+    return Moment.zero + _time.startOf(_runStarts[k][index]);
   }
-  return Moment.zero + time.startOf(first);
+
+  List<int> _runStartsOn(int k) {
+    final starts = List<int>.filled(_measures.length, 0);
+    for (var bar = 1; bar < _measures.length; bar++) {
+      final inRun =
+          _measures[bar].staves[k].measureRepeat != null &&
+          _measures[bar - 1].staves[k].measureRepeat != null;
+      starts[bar] = inRun ? starts[bar - 1] : bar;
+    }
+    return starts;
+  }
 }
 
 typedef _Lane = (StaffId, VoiceSlot);
@@ -541,6 +568,7 @@ final class _Swell {
   void sample(
     _Bar bar,
     Seq<MeasureColumn> measures,
+    _Signs signs,
     int index,
     List<StaffId> staves,
     _Timeline time,
@@ -549,18 +577,14 @@ final class _Swell {
     final column = measures[index];
     final sources = {
       for (final staff in staves)
-        playedBar(
-          measures,
-          index,
-          column.staves.indexWhere((s) => s.staff == staff),
-        ),
+        signs.played(index, column.staves.indexWhere((s) => s.staff == staff)),
     };
     if (sources.length != 1 || sources.single == index) {
       _stretch(bar, own, bar.from, bar.to);
       return;
     }
     final takeover = _loudness.firstMarkIn(
-      _underSignsFrom(measures, index, staves.first, time),
+      signs.runFrom(index, staves.first),
       Moment.zero + own + column.length,
     );
     final cut = switch (takeover) {
