@@ -16,12 +16,12 @@
 ///
 /// A slur or trill line is written on the first note of the event at each
 /// end, and a glissando on the note each end names, in that note's voice. A
-/// slur that starts where its own voice is silent and stops in that voice
-/// has its start on another voice's note, with a placement and no
-/// orientation. A hairpin, octave line, pedal line or tempo line is a
-/// direction at its first point and a stop after the event its last point
-/// falls in. Numbers are reused once a spanner of the same element in the
-/// part has stopped.
+/// glissando from a note to a rest is left out. A slur that starts where its
+/// own voice is silent and stops in that voice has its start on another
+/// voice's event, with a placement and no orientation. A hairpin, octave
+/// line, pedal line or tempo line is a direction at its first point and a
+/// stop after the event its last point falls in. Numbers are reused once a
+/// spanner of the same element in the part has stopped.
 ///
 /// A string instrument's open strings are its staves' tunings.
 ///
@@ -128,8 +128,19 @@ final class _Export {
   late final List<MeasureView> views = [
     for (final column in written.measures) written.measureView(column.id),
   ];
+
+  /// Where each spanner the file holds is written. A glissando from a note
+  /// to a rest is left out. MuseScore 4 reads a glissando mark only on a
+  /// note, and a start it reads with no stop on a note takes the stop of the
+  /// next glissando of its number. A line that starts on a rest is written,
+  /// as MuseScore ignores its stop and this library reads it back.
   late final List<_Ends> ends = [
-    for (final spanner in score.spanners) _endsOf(spanner),
+    for (final spanner in score.spanners)
+      if (_endsOf(spanner) case final line
+          when spanner.kind is! Glissando ||
+              line.fromNote == null ||
+              line.toNote != null)
+        line,
   ];
 
   /// The notes a glissando end is written on.
@@ -142,7 +153,8 @@ final class _Export {
   /// where its own voice is silent, and stops on its own voice's. MuseScore
   /// 4 reads a slur in the voice of its start, so the start says the side
   /// the slur's voice curves on, with no orientation. MuseScore draws the
-  /// slur there, and this library reads it as a slur of its stop's voice.
+  /// slur there when it imports layout, and this library reads it as a slur
+  /// of its stop's voice.
   late final Map<SpannerId, String> silentStarts = {
     for (final spanner in score.spanners)
       if (spanner.kind is Slur)

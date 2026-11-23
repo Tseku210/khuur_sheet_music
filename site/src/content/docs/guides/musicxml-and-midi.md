@@ -87,7 +87,7 @@ A score that import returns always saves, because import saves and loads its own
 File('study.musicxml').writeAsStringSync(scoreToMusicXml(score));
 ```
 
-Pitches are written as the part reads them, so a transposing part carries `<transpose>`. A hidden part is kept, with its staves marked as not printed. A few values of the model have no place in MusicXML, and export leaves them out. They are an instrument's key, range and clef, a tempo line's factor, and `SignatureDisplay.noCourtesy`.
+Pitches are written as the part reads them, so a transposing part carries `<transpose>`. A hidden part is kept, with its staves marked as not printed. A few values of the model have no place in MusicXML, and export leaves them out. They are an instrument's key, range and clef, a tempo line's factor, and `SignatureDisplay.noCourtesy`. Export also leaves out a glissando from a note to a rest, because MuseScore 4 reads a glissando mark only on a note and would close that line on the next glissando.
 
 To write a compressed `.mxl` file, call `scoreToMxl`. It returns the bytes of a MusicXML 4.0 compressed file that holds the same document as `score.musicxml`.
 
