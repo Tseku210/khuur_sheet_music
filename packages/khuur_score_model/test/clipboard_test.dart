@@ -216,7 +216,7 @@ void main() {
   });
 
   group('Paste', () {
-    test('clears a let-ring tie that a pasted head of its tone would '
+    test('clears a tie to no note that a pasted head of its tone would '
         'end', () {
       final session = sessionWith([
         [
@@ -258,7 +258,7 @@ void main() {
       expect(staff.ties.map((tie) => tie.to), [null]);
     });
 
-    test('clears a let-ring tie in the bar before the paste', () {
+    test('clears a tie to no note in the bar before the paste', () {
       final session = sessionWith([
         [
           chordOf(1, 'G4', value: NoteValue.half),
