@@ -218,6 +218,66 @@ void main() {
     });
   });
 
+  group('A glissando that starts on a rest', () {
+    test('keeps its end on its own rest when another voice starts a chord '
+        'there, so typing over that chord keeps the line', () {
+      final score = fill(
+        fill(blankScore(), 0, [
+          rest(1, NoteValue.quarter),
+          rest(2, NoteValue.quarter),
+          chordOf(3, 'C5', value: NoteValue.half),
+        ]),
+        0,
+        [Gap(len(1, 4)), chordOf(5, 'E4'), Gap(len(1, 2))],
+        slot: VoiceSlot.two,
+      );
+      final line = added(score, Moment.zero, at(1, 4));
+
+      expect(notesOf(line), 'null null');
+
+      final typed = run(
+        line,
+        EnterNote(
+          at: VoicePoint(
+            staff: line.staves.first.id,
+            voice: VoiceSlot.two,
+            at: pointAt(line, 0, at(1, 4)),
+          ),
+          tone: Pitch.parse('E4'),
+          value: NoteValue.quarter,
+        ),
+      );
+
+      expect(typed.spanners, hasLength(1));
+    });
+
+    test('is refused with both points inside that rest', () {
+      final score = fill(
+        fill(blankScore(), 0, [
+          rest(1, NoteValue.half),
+          chordOf(3, 'C5', value: NoteValue.half),
+        ]),
+        0,
+        [Gap(len(1, 4)), chordOf(5, 'E4'), Gap(len(1, 2))],
+        slot: VoiceSlot.two,
+      );
+
+      expect(
+        refusal(
+          EditSession.start(score).run(
+            AddSpanner(
+              kind: const Glissando(),
+              staff: score.staves.first.id,
+              first: pointAt(score, 0, Moment.zero),
+              last: pointAt(score, 0, at(1, 4)),
+            ),
+          ),
+        ),
+        isA<InvalidValue>(),
+      );
+    });
+  });
+
   group("A glissando picks a chord's notes in staff line order", () {
     Score crossing(List<VoiceItem> items) => fill(blankScore(), 0, items);
 
