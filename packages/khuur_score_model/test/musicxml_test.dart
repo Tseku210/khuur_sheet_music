@@ -1502,6 +1502,120 @@ void main() {
       ]);
     });
 
+    test('writes the start of a glissando that ends on a voice written '
+        'before its own first', () {
+      var score = blankScore(bars: 1);
+      score = fill(score, 0, [
+        chordOf(1, 'C5', value: NoteValue.half),
+        chordOf(2, 'D5', value: NoteValue.half),
+      ]);
+      score = fill(score, 0, slot: VoiceSlot.two, [
+        chordOf(3, 'E4', value: NoteValue.half),
+        rest(4, NoteValue.quarter),
+        rest(5, NoteValue.quarter),
+      ]);
+      score = withSpanner(
+        score,
+        const Glissando(),
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(1, 2)),
+        voice: VoiceSlot.two,
+      );
+
+      final xml = scoreToMusicXml(score);
+      expect(placedAs(read(exported(score)).children, 'glissando'), [
+        'P1 m0 @0 <glissando type="start" number="1"/>',
+        'P1 m0 @1/2 <glissando type="stop" number="1"/>',
+      ]);
+      final back = scoreFromMusicXml(xml);
+      final notes = back.glissandoNotes(back.spanners.single);
+      expect('${notes.from?.tone}>${notes.to?.tone}', 'E4>D5');
+      expect(scoreToMusicXml(back), xml);
+    });
+
+    test('writes both starts first for two opposite glissandi in a bar', () {
+      var score = blankScore(bars: 1);
+      score = fill(score, 0, [
+        chordOf(1, 'C5'),
+        chordOf(2, 'D5'),
+        chordOf(3, 'E5'),
+        rest(4, NoteValue.quarter),
+      ]);
+      score = fill(score, 0, slot: VoiceSlot.two, [
+        chordOf(5, 'E4'),
+        rest(6, NoteValue.quarter),
+        rest(7, NoteValue.quarter),
+        chordOf(8, 'G4'),
+      ]);
+      score = withSpanner(
+        score,
+        const Glissando(),
+        pointAt(score, 0, Moment.zero),
+        pointAt(score, 0, at(1, 4)),
+        voice: VoiceSlot.two,
+      );
+      score = withSpanner(
+        score,
+        const Glissando(),
+        pointAt(score, 0, at(1, 2)),
+        pointAt(score, 0, at(3, 4)),
+        voice: VoiceSlot.one,
+      );
+
+      final xml = scoreToMusicXml(score);
+      expect(placedAs(read(exported(score)).children, 'glissando'), [
+        'P1 m0 @0 <glissando type="start" number="1"/>',
+        'P1 m0 @1/4 <glissando type="stop" number="1"/>',
+        'P1 m0 @1/2 <glissando type="start" number="2"/>',
+        'P1 m0 @3/4 <glissando type="stop" number="2"/>',
+      ]);
+      final back = scoreFromMusicXml(xml);
+      expect(
+        [
+          for (final line in back.spanners)
+            if (back.glissandoNotes(line) case (:final from?, :final to?))
+              '${from.tone}>${to.tone}',
+        ],
+        unorderedEquals(['E4>D5', 'E5>G4']),
+      );
+      expect(scoreToMusicXml(back), xml);
+    });
+
+    test('closes a glissando before the stop of a line from a rest that '
+        'shares its number', () {
+      var score = blankScore(bars: 1);
+      score = fill(score, 0, [
+        chordOf(1, 'C5'),
+        chordOf(2, 'D5'),
+        chordOf(3, 'E5', value: NoteValue.half),
+      ]);
+      score = fill(score, 0, slot: VoiceSlot.two, [
+        chordOf(4, 'E4'),
+        rest(5, NoteValue.quarter),
+        rest(6, NoteValue.quarter),
+        chordOf(7, 'G4'),
+      ]);
+      for (final (first, last) in [
+        (at(0, 4), at(1, 4)),
+        (at(1, 2), at(3, 4)),
+      ]) {
+        score = withSpanner(
+          score,
+          const Glissando(),
+          pointAt(score, 0, first),
+          pointAt(score, 0, last),
+          voice: VoiceSlot.two,
+        );
+      }
+
+      expect(placedAs(read(exported(score)).children, 'glissando'), [
+        'P1 m0 @0 <glissando type="start" number="1"/>',
+        'P1 m0 @1/4 <glissando type="stop" number="1"/>',
+        'P1 m0 @1/2 <glissando type="start" number="1"/>',
+        'P1 m0 @3/4 <glissando type="stop" number="1"/>',
+      ]);
+    });
+
     test('numbers a slur whose stop is written first apart from a slur '
         'written between its ends', () {
       var score = blankScore(bars: 1);
