@@ -164,7 +164,7 @@ void main() {
     test('exports one start and one stop, each on a note and the stop first, '
         'when it runs from voice two onto a chord of voice one over a rest '
         'of voice two', () {
-      final score = built(
+      final score = added(
         fill(
           fill(blankScore(), 0, [
             chordOf(1, 'C5'),
