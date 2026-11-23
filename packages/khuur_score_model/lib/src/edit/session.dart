@@ -122,6 +122,12 @@ final class EditSession {
 
   /// Applies [edit] as one undo step.
   ///
+  /// Each end of a slur or glissando that sits on a chord is stored where it
+  /// is before [edit] changes the score, as `AddSpanner` stores it, so that
+  /// the edit moves it only with its chord or note. So an edit can change
+  /// the stored ends of a line it does not touch, and the score's JSON with
+  /// them, while the line still ends where it did.
+  ///
   /// Returns [Applied] with the next session, or [Refused] with this session
   /// unchanged and the reason. An edit that leaves the score identical (an
   /// idempotent re-set) returns [Applied] without a history entry. The redo
@@ -169,8 +175,9 @@ final class EditSession {
   /// This session with [edit] applied to its score, cursor and selection,
   /// and its history untouched. Throws [_Refuse].
   EditSession _advance(Edit edit, _Ids ids) {
-    final result = _apply(score, edit, ids, this);
-    final next = identical(result.score, score)
+    final held = _withEndsHeld(score);
+    final result = _apply(held, edit, ids, this);
+    final next = identical(result.score, held) || identical(result.score, score)
         ? score
         : _withFittingSpanners(_withStandingMeasureRepeats(result.score));
     return EditSession._(
@@ -376,11 +383,11 @@ final class EditSession {
 /// length.
 ScorePoint? _normalize(Score score, ScorePoint point) {
   final index = score.indexOf(point.measure);
-  if (point.offset < _barEnd(score.measures[index])) {
+  if (point.offset < _barEnd(score.barAt(index))) {
     return point;
   }
-  return index + 1 < score.measures.length
-      ? ScorePoint(score.measures[index + 1].id, Moment.zero)
+  return index + 1 < score.barCount
+      ? ScorePoint(score.barAt(index + 1).id, Moment.zero)
       : null;
 }
 

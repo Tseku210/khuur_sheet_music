@@ -196,6 +196,11 @@ final class _Placing {
   ScorePoint _point(int bar, Moment offset) =>
       ScorePoint(document.measures[bar], offset);
 
+  /// MusicXML does not say which voice a line is of. A start mark in voice
+  /// one may be the start of a line of its stop's voice that has a gap there,
+  /// so the line is of that voice while that keeps its start on the marked
+  /// event. Otherwise it is of the voice of its start mark, which is how
+  /// MuseScore 4 reads a slur.
   _Placed? _onNotes(_Pair record, EventAnchor start, EventAnchor stop) {
     final staff = start.event.lane.staff;
     if (!record.kind.joinsNotes) {
@@ -209,7 +214,29 @@ final class _Placing {
       );
     }
     final slot = start.event.lane.slot;
-    final voice = slot == VoiceSlot.one ? stop.event.lane.slot : slot;
+    if (slot != VoiceSlot.one) {
+      return _inVoice(record, start, stop, slot);
+    }
+    final ofStop = _inVoice(record, start, stop, stop.event.lane.slot);
+    return ofStop != null && _startsOn(ofStop, start)
+        ? ofStop
+        : _inVoice(record, start, stop, VoiceSlot.one);
+  }
+
+  bool _startsOn(_Placed placed, EventAnchor start) {
+    final on = score.anchorOf(placed.spanner(const SpannerId(0)), last: false);
+    return on != null &&
+        on.voice == start.event.lane.slot &&
+        on.onset == start.event.onset;
+  }
+
+  _Placed? _inVoice(
+    _Pair record,
+    EventAnchor start,
+    EventAnchor stop,
+    VoiceSlot voice,
+  ) {
+    final staff = start.event.lane.staff;
     final first = _point(
       start.bar,
       _timeOn(start, staff, voice, from: Moment.zero),
@@ -232,18 +259,22 @@ final class _Placing {
     return _standing(_endingOn(placed, stop, staff));
   }
 
-  /// [placed] naming the voice of [stop], when it is a slur that would
-  /// end on another chord than the one its stop is written on. MuseScore 4
-  /// ends a slur on the chord that carries its stop, in any voice.
+  /// [placed] naming the voice of [stop], when it is a slur whose stop is
+  /// written on a chord that another voice than its own starts at its last
+  /// point, or that would end on another chord than the one its stop is
+  /// written on. MuseScore 4 ends a slur on the chord that carries its stop,
+  /// in any voice, and keeps it there.
   _Placed _endingOn(_Placed placed, EventAnchor stop, int staff) {
     final lane = stop.event.lane;
     if (placed.record.kind is! Slur || lane.staff != staff) {
       return placed;
     }
     final on = score.anchorOf(placed.spanner(const SpannerId(0)), last: true);
-    return on != null && on.voice == lane.slot && on.onset == stop.event.onset
-        ? placed
-        : placed.ending(lane.slot);
+    final onStop =
+        on != null && on.voice == lane.slot && on.onset == stop.event.onset;
+    final startsThere =
+        lane.slot != placed.voice && stop.event.onset == placed.last.offset;
+    return onStop && !startsThere ? placed : placed.ending(lane.slot);
   }
 
   /// The first time at which a spanner of [voice] on [staff] attaches to

@@ -297,7 +297,7 @@ final class _RangeFollower {
     if (_selection case RangeSelection(:final top, :final bottom)
         when cuts.isNotEmpty &&
             _reach(_before, top, bottom, staves.toSet()) != _Reach.none) {
-      final (_, end) = _sectionAround(_before.measures, bar);
+      final (_, end) = _sectionAround(_before, bar);
       (_cuts[staves.first] ??= []).addAll([
         for (final cut in cuts) (bar: bar, end: end, cut: cut),
       ]);
@@ -450,7 +450,7 @@ List<({List<StaffId> staves, int bar, List<_Cut> cuts})> _sectionCuts(
   for (final key in keys) {
     final (first, bar) = key;
     if (bar >= end) {
-      (start, end) = _sectionAround(measures, bar);
+      (start, end) = _sectionAround(score, bar);
     }
     final origin = measures[start].length * Fraction(bar - start);
     final cuts = sections[(first, start)] ??= [];

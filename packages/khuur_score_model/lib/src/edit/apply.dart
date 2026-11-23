@@ -397,18 +397,16 @@ List<VoiceItem> Function(Seq<VoiceItem> items) _replacing(Event replacement) =>
         item is Content ? _replaceEvent(item, replacement) : item,
     ];
 
-/// The bars of [score] while an edit writes several of them. The list of
-/// bars is copied once, at the first write.
+/// The bars of [score] while an edit writes several of them.
 final class _BarWrites {
   _BarWrites(this.score);
 
   final Score score;
-  List<MeasureColumn>? _written;
+  final _written = <int, MeasureColumn>{};
 
-  MeasureColumn operator [](int bar) => _written?[bar] ?? score.measures[bar];
+  MeasureColumn operator [](int bar) => _written[bar] ?? score.barAt(bar);
 
-  void operator []=(int bar, MeasureColumn column) =>
-      (_written ??= score.measures.toList())[bar] = column;
+  void operator []=(int bar, MeasureColumn column) => _written[bar] = column;
 
   /// Puts [replacement] in place of the event with its id in [timed]'s
   /// voice.
@@ -417,11 +415,10 @@ final class _BarWrites {
     this[bar] = _voiceRewritten(this[bar], timed, _replacing(replacement));
   }
 
-  bool get changed => _written != null;
+  bool get changed => _written.isNotEmpty;
 
   /// [score] with the bars written, or [score] itself when none was.
-  Score get written =>
-      changed ? score.copyWith(measures: Seq(_written!)) : score;
+  Score get written => changed ? score.withBars(_written) : score;
 }
 
 /// [head] and every head tied to it, in time order. A tie joins a head to
@@ -473,9 +470,9 @@ TimedEvent? _previous(Score score, TimedEvent timed) {
       return null;
     }
     index--;
-    end = _barEnd(score.measures[index]);
+    end = _barEnd(score.barAt(index));
   }
-  final column = score.measures[index];
+  final column = score.barAt(index);
   final voice = column.staff(timed.ref.staff).voice(timed.voice);
   if (voice == null) {
     return null;
@@ -573,7 +570,7 @@ Score _untieWhere(
 ) {
   final untied = _BarWrites(after);
   for (final (bar, staff) in lanes) {
-    final column = after.measures[bar];
+    final column = after.barAt(bar);
     for (final voice in column.staff(staff).voices) {
       for (final timed in timedEvents(
         voice,
