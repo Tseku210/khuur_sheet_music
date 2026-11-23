@@ -122,10 +122,35 @@ final class _Loudness {
 
   /// Whether a dynamic or a hairpin is written from [from] to [to], both
   /// included. The level a hairpin ending at [from] arrives at is not.
-  bool markedIn(Moment from, Moment to) =>
-      _strikes.keys.any((at) => from <= at && at <= to) ||
-      _written.any((level) => from <= level.$1 && level.$1 <= to) ||
-      _ramps.any((ramp) => ramp.from <= to && from < ramp.to);
+  bool markedIn(Moment from, Moment to) {
+    if (_markFrom(from) case final mark? when mark <= to) {
+      return true;
+    }
+    final started = _partition(_ramps.length, (i) => _ramps[i].from > to);
+    return started > 0 && from < _rampReach[started - 1];
+  }
+
+  /// Where a strike or a level dynamic is written, in order.
+  late final List<Moment> _markedAt = [
+    ..._strikes.keys,
+    for (final (at, _) in _written) at,
+  ]..sort((a, b) => a.compareTo(b));
+
+  /// For each of [_ramps], the latest end of it and the ramps before it.
+  late final List<Moment> _rampReach = () {
+    final reach = <Moment>[];
+    for (final ramp in _ramps) {
+      final last = reach.lastOrNull;
+      reach.add(last == null || last < ramp.to ? ramp.to : last);
+    }
+    return reach;
+  }();
+
+  /// The first of [_markedAt] at or after [from], or null.
+  Moment? _markFrom(Moment from) {
+    final at = _partition(_markedAt.length, (i) => _markedAt[i] >= from);
+    return at == _markedAt.length ? null : _markedAt[at];
+  }
 
   /// The velocity a chord starting at [position] strikes at, before its
   /// own marks. A strike there comes first, then the latest hairpin
@@ -147,23 +172,13 @@ final class _Loudness {
   /// a hairpin written there takes over, or null. [markedIn] is true from
   /// there on.
   Moment? firstMarkIn(Moment from, Moment to) {
-    Moment? first;
-    void take(Moment at) {
-      if (from <= at && at <= to && (first == null || at < first!)) {
-        first = at;
-      }
-    }
-
-    _strikes.keys.forEach(take);
-    for (final (at, _) in _written) {
-      take(at);
-    }
-    for (final ramp in _ramps) {
-      if (from < ramp.to) {
-        take(ramp.from < from ? from : ramp.from);
-      }
-    }
-    return first;
+    final started = _partition(_ramps.length, (i) => _ramps[i].from > from);
+    final ramp = started > 0 && from < _rampReach[started - 1]
+        ? from
+        : _ramps.skip(started).where((r) => from < r.to).firstOrNull?.from;
+    final mark = _markFrom(from);
+    final first = mark == null || ramp != null && ramp < mark ? ramp : mark;
+    return first != null && first <= to ? first : null;
   }
 
   /// The level a sounding note has at [position], held from each point of
