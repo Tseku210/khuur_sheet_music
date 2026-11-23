@@ -96,9 +96,25 @@ List<(double, int, int)> attacks(Score score) {
   ];
 }
 
+const _stopOnAnotherStaff = '''
+<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1">
+<part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+<part id="P1"><measure number="1">
+<attributes><divisions>1</divisions><key><fifths>0</fifths></key><time><beats>4</beats><beat-type>4</beat-type></time><staves>2</staves><clef number="1"><sign>G</sign><line>2</line></clef><clef number="2"><sign>F</sign><line>4</line></clef></attributes>
+<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff><notations><glissando type="start" number="1"/></notations></note>
+<note><rest/><duration>1</duration><voice>1</voice><type>quarter</type><staff>1</staff></note>
+<note><rest/><duration>2</duration><voice>1</voice><type>half</type><staff>1</staff></note>
+<backup><duration>3</duration></backup>
+<note><pitch><step>E</step><octave>4</octave></pitch><duration>1</duration><voice>2</voice><type>quarter</type><staff>1</staff></note>
+<backup><duration>2</duration></backup>
+<note><rest/><duration>1</duration><voice>5</voice><type>quarter</type><staff>2</staff></note>
+<note><pitch><step>G</step><octave>3</octave></pitch><duration>1</duration><voice>5</voice><type>quarter</type><staff>2</staff><notations><glissando type="stop" number="1"/></notations></note>
+<note><rest/><duration>2</duration><voice>5</voice><type>half</type><staff>2</staff></note>
+</measure></part></score-partwise>''';
+
 void main() {
-  group('A glissando that starts on a note, names no last note and would '
-      'end on a rest', () {
+  group('AddSpanner from a note whose last end would be on a rest', () {
     Score restUnderVoiceTwo() => fill(
       fill(blankScore(), 0, [
         chordOf(1, 'C4'),
@@ -111,7 +127,7 @@ void main() {
     );
 
     test('ends on the chord another voice starts there', () {
-      final score = built(restUnderVoiceTwo(), Moment.zero, at(1, 4));
+      final score = added(restUnderVoiceTwo(), Moment.zero, at(1, 4));
 
       expect(endOf(score), 'two E4');
       expect(notesOf(score), 'C4 E4');
@@ -124,19 +140,8 @@ void main() {
       expect(notesOf(reloaded(score)), 'C4 E4');
     });
 
-    test('keeps that end in a file that saves no end note', () {
-      final score = built(
-        restUnderVoiceTwo(),
-        Moment.zero,
-        at(1, 4),
-        voice: VoiceSlot.one,
-      );
-
-      expect(notesOf(reloaded(score)), 'C4 E4');
-    });
-
     test('glides toward that note', () {
-      expect(attacks(built(restUnderVoiceTwo(), Moment.zero, at(1, 4))), [
+      expect(attacks(added(restUnderVoiceTwo(), Moment.zero, at(1, 4))), [
         (0.0, 60, 1),
         (0.25, 61, 1),
         (0.5, 62, 1),
@@ -148,7 +153,7 @@ void main() {
 
     test('exports its stop on that note', () {
       expect(
-        glissandoMarks(built(restUnderVoiceTwo(), Moment.zero, at(1, 4))),
+        glissandoMarks(added(restUnderVoiceTwo(), Moment.zero, at(1, 4))),
         [
           'C4 start',
           'E4 stop',
@@ -194,7 +199,7 @@ void main() {
         Gap(len(1, 2)),
       ], slot: VoiceSlot.three);
 
-      final line = built(score, Moment.zero, at(1, 4), voice: VoiceSlot.three);
+      final line = added(score, Moment.zero, at(1, 4), voice: VoiceSlot.three);
 
       expect(endOf(line), 'one G4');
       expect(notesOf(line), 'C4 G4');
@@ -211,10 +216,99 @@ void main() {
         [chordOf(5, 'E4', value: NoteValue.half), Gap(len(1, 2))],
         slot: VoiceSlot.two,
       );
-      final score = built(held, Moment.zero, at(1, 4));
+      final score = added(held, Moment.zero, at(1, 4));
 
       expect(endOf(score), 'one rest');
       expect(notesOf(score), 'C4 null');
+    });
+  });
+
+  group('A glissando not made by AddSpanner keeps a last end on a rest', () {
+    Score typed(Score score, VoiceSlot voice, Moment point, String tone) => run(
+      score,
+      EnterNote(
+        at: VoicePoint(
+          staff: score.staves.first.id,
+          voice: voice,
+          at: pointAt(score, 0, point),
+        ),
+        tone: Pitch.parse(tone),
+        value: NoteValue.quarter,
+      ),
+    );
+
+    Score lineFromARest() => added(
+      fill(
+        fill(blankScore(), 0, [
+          rest(1, NoteValue.quarter),
+          rest(2, NoteValue.quarter),
+          chordOf(3, 'C5', value: NoteValue.half),
+        ]),
+        0,
+        [Gap(len(1, 4)), chordOf(5, 'E4'), Gap(len(1, 2))],
+        slot: VoiceSlot.two,
+      ),
+      Moment.zero,
+      at(1, 4),
+    );
+
+    test('in a MusicXML file whose stop is on another staff', () {
+      final score = scoreFromMusicXml(_stopOnAnotherStaff);
+
+      expect(
+        [for (final (_, key, _) in attacks(score)) key],
+        [60, 64, 55],
+      );
+      expect(notesOf(score), 'C4 null');
+    });
+
+    test('in a JSON file that saves no end note', () {
+      final score = built(
+        fill(
+          fill(blankScore(), 0, [
+            chordOf(1, 'C4'),
+            rest(2, NoteValue.quarter),
+            chordOf(3, 'C5', value: NoteValue.half),
+          ]),
+          0,
+          [Gap(len(1, 4)), chordOf(5, 'E4'), Gap(len(1, 2))],
+          slot: VoiceSlot.two,
+        ),
+        Moment.zero,
+        at(1, 4),
+        voice: VoiceSlot.one,
+      );
+
+      expect(notesOf(reloaded(score)), 'C4 null');
+    });
+
+    test('when its start rest becomes a note, and then ends on a note typed '
+        'in its own voice', () {
+      final started = typed(
+        lineFromARest(),
+        VoiceSlot.one,
+        Moment.zero,
+        'C4',
+      );
+
+      expect(
+        notesOf(typed(started, VoiceSlot.one, at(1, 4), 'G4')),
+        'C4 G4',
+      );
+    });
+
+    test('when its start rest becomes a note, so typing over the chord of '
+        'another voice there keeps the line', () {
+      final started = typed(
+        lineFromARest(),
+        VoiceSlot.one,
+        Moment.zero,
+        'C4',
+      );
+      final over = typed(started, VoiceSlot.two, at(1, 4), 'E4');
+
+      expect(over.spanners, hasLength(1));
+      expect(notesOf(over), 'C4 null');
     });
   });
 
