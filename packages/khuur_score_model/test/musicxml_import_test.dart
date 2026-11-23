@@ -1691,8 +1691,8 @@ void main() {
       expect(end(halved), 'four A4');
     });
 
-    test('keeps a slur of a second voice on the note of voice one its mark '
-        'is on, where a third voice starts a note as the second voice '
+    test('keeps a slur on the notes its marks are on, one of them a note of '
+        'voice one, where a third voice starts a note as the second voice '
         'stops', () {
       const start = '<notations><slur type="start"/></notations>';
       const stop = '<notations><slur type="stop"/></notations>';

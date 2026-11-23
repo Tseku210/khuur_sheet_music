@@ -129,10 +129,9 @@ final class _Export {
     for (final column in written.measures) written.measureView(column.id),
   ];
 
-  /// A glissando from a note to a rest is left out. MuseScore 4 reads a
-  /// glissando mark only on a note, and a start it reads with no stop on a
-  /// note takes the stop of the next glissando of its number. A line that
-  /// starts on a rest is written, as MuseScore ignores its stop.
+  /// MuseScore 4 reads a glissando mark only on a note, and a stop closes
+  /// whatever start is open under its number. A line from a note to a rest
+  /// would leave its start open for the next glissando's stop.
   late final List<_Ends> ends = [
     for (final spanner in score.spanners)
       if (_endsOf(spanner) case final line
