@@ -62,7 +62,11 @@ SpannerSegment _segment(Score score, MeasureColumn column, Spanner spanner) {
       ? score.anchorOf(spanner, last: true)
       : null;
   final notes = kind is Glissando
-      ? kind.notesOn(first?.event, last?.event)
+      ? kind.notesOn(
+          first?.event,
+          last?.event,
+          instrument: score.partOf(spanner.staff).instrument,
+        )
       : null;
   return SpannerSegment(
     spanner: spanner,
