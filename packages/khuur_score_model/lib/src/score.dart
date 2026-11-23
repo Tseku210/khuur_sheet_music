@@ -468,15 +468,19 @@ final class Score {
   /// that starts with its first, starting with that event counts too. A
   /// line that starts on the held note itself ends on voice one's event.
   ///
-  /// The last end of a [Glissando] that names no note and would fall on a
-  /// rest is on the chord that the first voice of the staff, voice one
-  /// included, starts there. It stays on the rest when no voice starts a
-  /// chord there. MuseScore 4 ends a new glissando that way, on the first
-  /// chord of the part in that segment.
+  /// The last end of a [Glissando] that starts on a note, names no last
+  /// note and would fall on a rest is on the first chord a voice of the
+  /// staff starts there, in voice order from voice one. It stays on the rest
+  /// when no voice starts a chord there. MuseScore 4 ends a new glissando
+  /// from a note on the first chord of the part there, on any of the part's
+  /// staves.
   TimedEvent? anchorOf(Spanner spanner, {required bool last}) {
     final anchor = _anchorOf(spanner, last: last);
     if (spanner.kind case Glissando(to: null)
-        when last && anchor != null && anchor.event is! ChordEvent) {
+        when last &&
+            anchor != null &&
+            anchor.event is! ChordEvent &&
+            _anchorOf(spanner, last: false)?.event is ChordEvent) {
       return _firstChordStartingAt(
             spanner.staff,
             spanner.last,
@@ -1295,8 +1299,9 @@ final class PedalLine extends SpannerKind {
 /// A file whose line names a note that does not sound at that end loads
 /// without the line. An end that names no note is on the event the
 /// spanner's voice has there. When that voice has none, it is on an event of
-/// another voice ([Score.anchorOf]). A last end that would fall on a rest is
-/// on the chord the first voice of the staff starts there, when one does.
+/// another voice ([Score.anchorOf]). The last end of a line that starts on a
+/// note and would fall on a rest is on the first chord a voice of the staff
+/// starts there, in voice order from voice one, when there is one.
 /// [notesOn] picks the note of that event.
 /// `AddSpanner`, and each edit before it changes the score, name the note
 /// of each end that is on a chord, so the line then goes with those notes,
