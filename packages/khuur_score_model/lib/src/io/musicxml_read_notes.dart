@@ -764,12 +764,17 @@ extension on _BarReader {
     if (kind == null) {
       return null;
     }
+    final placement =
+        part.writtenHere && line.getAttribute('orientation') == null
+        ? line.getAttribute('placement')
+        : null;
     return switch (line.getAttribute('type')) {
       'start' => (event) => part.start(
         name,
         number,
         kind,
         EventAnchor(bar, event, index, head),
+        above: kind is Slur && placement != null ? placement == 'above' : null,
       ),
       'stop' => (event) => part.stop(
         name,

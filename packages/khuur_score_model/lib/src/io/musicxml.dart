@@ -16,9 +16,14 @@
 ///
 /// A slur or trill line is written on the first note of the event at each
 /// end, and a glissando on the note each end names, in that note's voice. A
-/// hairpin, octave line, pedal line or tempo line is a direction at its
-/// first point and a stop after the event its last point falls in. Numbers
-/// are reused once a spanner of the same element in the part has stopped.
+/// glissando from a note to a rest is numbered above the part's glissandi
+/// of any other shape. It is left out when that passes MusicXML's limit of
+/// 16, or when its first note has a let-ring tie. A slur that starts where its own voice is silent and stops in that
+/// voice has its start on another voice's event, with a placement and no
+/// orientation. A hairpin, octave line, pedal line or tempo line is a
+/// direction at its first point and a stop after the event its last point
+/// falls in. Numbers are reused once a spanner of the same element in the
+/// part has stopped.
 ///
 /// A string instrument's open strings are its staves' tunings.
 ///
@@ -34,6 +39,8 @@
 /// [SignatureDisplay.noCourtesy]. An [AccidentalRequest.never] is kept. The
 /// file declares that it writes every accidental, and the note has none.
 library;
+
+import 'dart:math';
 
 import 'package:xml/xml.dart';
 
@@ -67,6 +74,17 @@ const _prologue =
     '<!DOCTYPE score-partwise PUBLIC '
     '"-//Recordare//DTD MusicXML 4.0 Partwise//EN" '
     '"http://www.musicxml.org/dtds/partwise.dtd">\n';
+
+/// The highest number MusicXML gives a spanner. MuseScore 4 indexes its open
+/// glissandi by number without a bounds check.
+const _highestNumber = 16;
+
+/// Whether [line] is a glissando from a note to a rest, whose stop MuseScore
+/// 4 does not read.
+bool _staysOpen(_Ends line) =>
+    line.spanner.kind is Glissando &&
+    line.fromNote != null &&
+    line.toNote == null;
 
 /// A spanner end: its bar, its time there, and the stream it is written in
 /// within the bar's part, staff by staff and voice by voice.
@@ -125,8 +143,31 @@ final class _Export {
   late final List<MeasureView> views = [
     for (final column in written.measures) written.measureView(column.id),
   ];
+
+  /// The notes written with a let-ring tie.
+  late final Set<NoteId> _letRing = {
+    for (final view in views)
+      for (final staff in view.staves)
+        for (final tie in staff.ties)
+          if (tie.to == null) tie.from,
+  };
+
+  /// The spanners that can be written. MuseScore 4 clears a glissando left
+  /// with no end after import, except on a note with a let-ring tie, and its
+  /// MIDI render reads the end of a portamento line without a check.
+  late final List<_Ends> _lines = [
+    for (final spanner in score.spanners)
+      if (_endsOf(spanner) case final line
+          when !_staysOpen(line) || !_letRing.contains(line.fromNote))
+        line,
+  ];
+
+  /// The spanners written. A line from a note to a rest that [numbers] puts
+  /// past [_highestNumber] is not.
   late final List<_Ends> ends = [
-    for (final spanner in score.spanners) _endsOf(spanner),
+    for (final line in _lines)
+      if (!_staysOpen(line) || numbers[line.spanner.id]! <= _highestNumber)
+        line,
   ];
 
   /// The notes a glissando end is written on.
@@ -134,6 +175,18 @@ final class _Export {
     for (final line in ends) ...[?line.fromNote, ?line.toNote],
   };
   late final Map<SpannerId, int> numbers = _numbers();
+
+  /// MuseScore 4 reads a slur in the voice of its start, so the start says
+  /// the side the slur's voice curves on. MuseScore draws the slur there
+  /// when it imports layout.
+  late final Map<SpannerId, String> silentStarts = {
+    for (final spanner in score.spanners)
+      if (spanner.kind is Slur)
+        if (spanner.voice case final voice? when voice != VoiceSlot.one)
+          if (written.anchorOf(spanner, last: false)?.voice != voice &&
+              written.anchorOf(spanner, last: true)?.voice == voice)
+            spanner.id: voice.stemsUp ? 'above' : 'below',
+  };
 
   /// Divisions of a quarter note that make every time and length a whole
   /// number.
@@ -752,6 +805,7 @@ final class _Export {
         'type': type,
         'number': number,
         'line-type': start && dashed ? 'dashed' : null,
+        'placement': start ? silentStarts[spanner.id] : null,
       }),
       Glissando() => _el('glissando', const [], {
         'type': type,
@@ -859,35 +913,63 @@ final class _Export {
   /// the marks of a number in document order meets one spanner at a time.
   /// A slur's stop can be written before its start, which is why its
   /// marks are compared and not only its ends.
+  ///
+  /// MuseScore 4 reads a glissando mark only on a note, so a line from a
+  /// note to a rest stays open there to the end of its part. It holds its
+  /// number, and any stop on a note under that number would close it. These
+  /// lines take numbers above the part's other glissandi. They can share
+  /// one, because MuseScore drops a start on a number still open.
   Map<SpannerId, int> _numbers() {
     final numbers = <SpannerId, int>{};
     final groups = <(PartId, Type), List<_Ends>>{};
-    for (final line in ends) {
+    final staysOpen = <PartId, List<_Ends>>{};
+    for (final line in _lines) {
       final part = score.partOf(line.spanner.staff).id;
-      (groups[(part, line.spanner.kind.runtimeType)] ??= []).add(line);
-    }
-    for (final group in groups.values) {
-      final open = <_Ends>[];
-      for (final line in stableSorted(
-        group,
-        (a, b) => _compare(a.start, b.start),
-      )) {
-        open.removeWhere((other) => other.stop.bar < line.start.bar);
-        final held = {
-          for (final other in open)
-            if (_compare(other.stop, line.start) >= 0 ||
-                !_writtenBefore(_lastWritten(other), _firstWritten(line)))
-              numbers[other.spanner.id],
-        };
-        var number = 1;
-        while (held.contains(number)) {
-          number++;
-        }
-        numbers[line.spanner.id] = number;
-        open.add(line);
+      if (_staysOpen(line)) {
+        (staysOpen[part] ??= []).add(line);
+      } else {
+        (groups[(part, line.spanner.kind.runtimeType)] ??= []).add(line);
       }
     }
+    for (final group in groups.values) {
+      _assignNumbers(group, numbers);
+    }
+    for (final MapEntry(key: part, value: group) in staysOpen.entries) {
+      var above = 0;
+      for (final line in groups[(part, Glissando)] ?? const <_Ends>[]) {
+        above = max(above, numbers[line.spanner.id]!);
+      }
+      _assignNumbers(group, numbers, above: above);
+    }
     return numbers;
+  }
+
+  /// Gives each line of [group] the lowest number over [above] that no line
+  /// of the group still holds when it starts.
+  void _assignNumbers(
+    List<_Ends> group,
+    Map<SpannerId, int> numbers, {
+    int above = 0,
+  }) {
+    final open = <_Ends>[];
+    for (final line in stableSorted(
+      group,
+      (a, b) => _compare(a.start, b.start),
+    )) {
+      open.removeWhere((other) => other.stop.bar < line.start.bar);
+      final held = {
+        for (final other in open)
+          if (_compare(other.stop, line.start) >= 0 ||
+              !_writtenBefore(_lastWritten(other), _firstWritten(line)))
+            numbers[other.spanner.id],
+      };
+      var number = above + 1;
+      while (held.contains(number)) {
+        number++;
+      }
+      numbers[line.spanner.id] = number;
+      open.add(line);
+    }
   }
 
   int _divisions() {

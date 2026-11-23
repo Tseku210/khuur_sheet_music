@@ -1691,8 +1691,8 @@ void main() {
       expect(end(halved), 'four A4');
     });
 
-    test('keeps a slur of a second voice on the note of voice one its mark '
-        'is on, where a third voice starts a note as the second voice '
+    test('keeps a slur on the notes its marks are on, one of them a note of '
+        'voice one, where a third voice starts a note as the second voice '
         'stops', () {
       const start = '<notations><slur type="start"/></notations>';
       const stop = '<notations><slur type="stop"/></notations>';
@@ -1741,14 +1741,119 @@ void main() {
 
       expect(spannersOf(ending), ['slur 0@1/4-0@1/2']);
       expect(tones(ending), 'F4 to D5');
-      expect(spannersOf(starting), ['slur 0@1/2-0@3/4']);
+      expect(spannersOf(starting), ['slur 0@0-0@3/4']);
       expect(tones(starting), 'C5 to F4');
+      expect(starting.spanners.single.voice, VoiceSlot.one);
       for (final score in [ending, starting]) {
         expect(
           spannersOf(scoreFromMusicXml(scoreToMusicXml(score))),
           spannersOf(score),
         );
       }
+    });
+
+    test('reads a slur in the voice of the note its start is on, where the '
+        'voice of its stop is silent there, as MuseScore 4 writes and reads '
+        'it', () {
+      const stop = '<notations><slur type="stop" number="1"/></notations>';
+      String read(String silence, [String side = '']) {
+        final start =
+            '<notations><slur type="start" number="1"$side/></notations>';
+        final score = imported(
+          flute([
+            [
+              opening(),
+              note('C5', 8, 'half', '<voice>1</voice>$start'),
+              note('D5', 8, 'half', '<voice>1</voice>'),
+              backup(16),
+              silence,
+              note('E4', 4, 'quarter', '<voice>2</voice>$stop'),
+              note('F4', 4, 'quarter', '<voice>2</voice>'),
+            ],
+          ]),
+        );
+        final slur = score.spanners.single;
+        String on({required bool last}) {
+          final timed = score.anchorOf(slur, last: last)!;
+          return '${timed.voice.name} '
+              '${(timed.event as ChordEvent).notes.single.tone}';
+        }
+
+        return '${slur.voice?.name} named '
+            '${(slur.kind as Slur).endVoice?.name}, '
+            '${on(last: false)} to ${on(last: true)}';
+      }
+
+      // MuseScore 4 writes the silence as a forward with no voice.
+      expect(read(forward(8)), 'one named two, one C5 to two E4');
+      expect(
+        read('<note><rest/><duration>8</duration><voice>2</voice></note>'),
+        'one named two, one C5 to two E4',
+      );
+      // MuseScore 4.2 and later write a slur's forced direction as both
+      // attributes.
+      expect(
+        read(forward(8), ' orientation="under" placement="below"'),
+        'one named two, one C5 to two E4',
+      );
+    });
+
+    test('trusts a slur start with only a placement in a file this library '
+        'wrote, as MuseScore 4.0 and 4.1 write one on every slur', () {
+      String read(String? encoding) {
+        final score = imported(
+          partwise(
+            '${encoding == null ? '' : '<identification><encoding>$encoding'
+                      '</encoding></identification>'}'
+            '<part-list>${scorePart('P1')}</part-list>'
+            '${part('P1', [
+              [
+                opening(),
+                note('C5', 8, 'half', '<voice>1</voice><notations>'
+                    '<slur type="start" placement="below" number="1"/>'
+                    '</notations>'),
+                note('D5', 8, 'half', '<voice>1</voice>'),
+                backup(16),
+                forward(8),
+                note('E4', 4, 'quarter', '<voice>2</voice><notations>'
+                    '<slur type="stop" number="1"/></notations>'),
+                note('F4', 4, 'quarter', '<voice>2</voice>'),
+              ],
+            ])}',
+          ),
+        );
+        final slur = score.spanners.single;
+        return '${slur.voice?.name} named '
+            '${(slur.kind as Slur).endVoice?.name}';
+      }
+
+      const ours = '<software>khuur_sheet_music</software>';
+      const theirs = '<software>MuseScore 4.1.1</software>';
+      expect(read(null), 'one named two');
+      expect(read(''), 'one named two');
+      expect(read(theirs), 'one named two');
+      expect(read('$ours$theirs'), 'one named two');
+      expect(read(ours), 'two named null');
+    });
+
+    test('reads a slur with only a placement, between notes of voice one, '
+        'in voice one', () {
+      final score = imported(
+        flute([
+          [
+            opening(),
+            note(
+              'C5',
+              8,
+              'half',
+              '<notations><slur type="start" placement="below"/></notations>',
+            ),
+            note('D5', 8, 'half', '<notations><slur type="stop"/></notations>'),
+          ],
+        ]),
+      );
+
+      expect(score.spanners.single.voice, VoiceSlot.one);
     });
 
     test('leaves out a slur of a second voice whose stop is on a note of '
@@ -1810,6 +1915,97 @@ void main() {
 
         expect(spannersOf(score), isEmpty, reason: element);
       }
+    });
+
+    test('keeps a slur that stops on another staff, on the chord that a '
+        'second voice of its own staff starts at the stop, where voice one '
+        'holds its first note past that time', () {
+      const start = '<notations><slur type="start"/></notations>';
+      const stop = '<notations><slur type="stop"/></notations>';
+      final score = imported(
+        keyboard([
+          [
+            grand,
+            note('C5', 16, 'whole', '<voice>1</voice><staff>1</staff>$start'),
+            backup(16),
+            forward(8),
+            note('E4', 4, 'quarter', '<voice>2</voice><staff>1</staff>'),
+            note('F4', 4, 'quarter', '<voice>2</voice><staff>1</staff>'),
+            backup(16),
+            note('C3', 16, 'whole', '<voice>5</voice><staff>2</staff>'),
+            backup(16),
+            forward(8),
+            note('G2', 4, 'quarter', '<voice>6</voice><staff>2</staff>$stop'),
+            note('A2', 4, 'quarter', '<voice>6</voice><staff>2</staff>'),
+          ],
+        ]),
+      );
+
+      expect(spannersOf(score), ['slur 0@0-0@1/2']);
+      final slur = score.spanners.single;
+      expect(slur.voice, VoiceSlot.two);
+      expect((slur.kind as Slur).endVoice, isNull);
+      Tone tone({required bool last}) =>
+          (score.anchorOf(slur, last: last)!.event as ChordEvent)
+              .notes
+              .single
+              .tone;
+      expect('${tone(last: false)}', 'C5');
+      expect('${tone(last: true)}', 'E4');
+    });
+
+    test('reads back a slur of voice one that ends on a note of a second '
+        'voice, and a slur of the second voice that starts where that voice '
+        'is silent, each in its own voice', () {
+      var bar = blankScore(bars: 1);
+      bar = fill(bar, 0, [
+        chordOf(1, 'C5', value: NoteValue.half),
+        chordOf(2, 'D5', value: NoteValue.half),
+      ]);
+      bar = fill(bar, 0, slot: VoiceSlot.two, [
+        Gap(len(1, 2)),
+        chordOf(3, 'E4'),
+        chordOf(4, 'F4'),
+      ]);
+      Score slurred(SpannerKind kind, VoiceSlot voice) => withSpanner(
+        bar,
+        kind,
+        pointAt(bar, 0, Moment.zero),
+        pointAt(bar, 0, at(1, 2)),
+        voice: voice,
+      );
+      String slurOf(Score score) {
+        final slur = score.spanners.single;
+        String on({required bool last}) {
+          final timed = score.anchorOf(slur, last: last)!;
+          return '${timed.voice.name} '
+              '${(timed.event as ChordEvent).notes.single.tone}';
+        }
+
+        final named = (slur.kind as Slur).endVoice?.name;
+        return '${slur.voice?.name} named $named, '
+            '${on(last: false)} to ${on(last: true)}';
+      }
+
+      final ofOne = slurred(const Slur(endVoice: VoiceSlot.two), VoiceSlot.one);
+      final ofTwo = slurred(const Slur(), VoiceSlot.two);
+
+      for (final score in [ofOne, ofTwo]) {
+        expect(
+          slurOf(scoreFromMusicXml(scoreToMusicXml(score))),
+          slurOf(score),
+        );
+      }
+      // MuseScore 4 reads a slur in the voice of its start. When it imports
+      // layout, it draws the second voice's slur below from its placement.
+      expect(
+        scoreToMusicXml(ofOne),
+        contains('<slur type="start" number="1"/>'),
+      );
+      expect(
+        scoreToMusicXml(ofTwo),
+        contains('<slur type="start" number="1" placement="below"/>'),
+      );
     });
 
     test('reads back two slurs of a second voice where the later one ends '

@@ -74,7 +74,14 @@ DocumentRecord readDocument(XmlElement root) {
       );
     }
     readers.add(
-      _header(scorePart, measures, ids: ids, printed: printed, joins: joins),
+      _header(
+        scorePart,
+        measures,
+        ids: ids,
+        printed: printed,
+        joins: joins,
+        writtenHere: writtenHere,
+      ),
     );
   }
   final measures = <MeasureId>[];
@@ -173,6 +180,7 @@ final class _PartReader {
     required this.ids,
     required this.printed,
     required this.joins,
+    required this.writtenHere,
     required this.measures,
     required this.id,
     required this.staves,
@@ -190,6 +198,7 @@ final class _PartReader {
   final Ids ids;
   final Map<NoteId, bool> printed;
   final Map<EventId, bool>? joins;
+  final bool writtenHere;
   final List<XmlElement> measures;
   final PartId id;
   final List<StaffId> staves;
@@ -215,10 +224,15 @@ final class _PartReader {
 
   /// A start of [element] and [number]. With no [kind] it opens nothing
   /// the model keeps.
-  void start(String element, String number, SpannerKind? kind, Anchor anchor) =>
-      marks
-          .putIfAbsent((element, number), () => [])
-          .add(LineMark.start(kind, anchor, _marks++));
+  void start(
+    String element,
+    String number,
+    SpannerKind? kind,
+    Anchor anchor, {
+    bool? above,
+  }) => marks
+      .putIfAbsent((element, number), () => [])
+      .add(LineMark.start(kind, anchor, _marks++, above: above));
 
   void stop(String element, String number, Anchor anchor) => marks
       .putIfAbsent((element, number), () => [])
@@ -247,6 +261,7 @@ _PartReader _header(
   required Ids ids,
   required Map<NoteId, bool> printed,
   required Map<EventId, bool>? joins,
+  required bool writtenHere,
 }) {
   final name =
       scorePart.getElement('part-name') ??
@@ -355,6 +370,7 @@ _PartReader _header(
     ids: ids,
     printed: printed,
     joins: joins,
+    writtenHere: writtenHere,
     measures: measures,
     id: PartId(ids.take()),
     staves: [for (var i = 0; i < staves; i++) StaffId(ids.take())],
