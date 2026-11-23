@@ -1576,7 +1576,7 @@ void main() {
       ]);
       score = withSpanner(
         score,
-        const Glissando(),
+        const Glissando(to: NoteId(20)),
         pointAt(score, 0, Moment.zero),
         pointAt(score, 0, at(1, 2)),
         voice: VoiceSlot.two,
@@ -1609,14 +1609,14 @@ void main() {
       ]);
       score = withSpanner(
         score,
-        const Glissando(),
+        const Glissando(to: NoteId(20)),
         pointAt(score, 0, Moment.zero),
         pointAt(score, 0, at(1, 4)),
         voice: VoiceSlot.two,
       );
       score = withSpanner(
         score,
-        const Glissando(),
+        const Glissando(to: NoteId(80)),
         pointAt(score, 0, at(1, 2)),
         pointAt(score, 0, at(3, 4)),
         voice: VoiceSlot.one,
@@ -1655,13 +1655,13 @@ void main() {
         rest(6, NoteValue.quarter),
         chordOf(7, 'G4'),
       ]);
-      for (final (first, last) in [
-        (at(0, 4), at(1, 4)),
-        (at(1, 2), at(3, 4)),
+      for (final (first, last, to) in [
+        (at(0, 4), at(1, 4), const NoteId(20)),
+        (at(1, 2), at(3, 4), null),
       ]) {
         score = withSpanner(
           score,
-          const Glissando(),
+          Glissando(to: to),
           pointAt(score, 0, first),
           pointAt(score, 0, last),
           voice: VoiceSlot.two,
