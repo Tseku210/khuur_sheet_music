@@ -156,6 +156,28 @@ void main() {
       );
     });
 
+    test('exports one start and one stop, each on a note, when it runs from '
+        'voice two onto a chord of voice one over a rest of voice two', () {
+      final score = built(
+        fill(
+          fill(blankScore(), 0, [
+            chordOf(1, 'C5'),
+            chordOf(2, 'D5'),
+            chordOf(3, 'E5', value: NoteValue.half),
+          ]),
+          0,
+          [chordOf(5, 'E4'), rest(6, NoteValue.quarter), Gap(len(1, 2))],
+          slot: VoiceSlot.two,
+        ),
+        Moment.zero,
+        at(1, 4),
+        voice: VoiceSlot.two,
+      );
+
+      expect(endOf(score), 'one D5');
+      expect(glissandoMarks(score), unorderedEquals(['E4 start', 'D5 stop']));
+    });
+
     test('goes when that note is removed, as MuseScore 4 removes a '
         'glissando with its note', () {
       final score = added(restUnderVoiceTwo(), Moment.zero, at(1, 4));
