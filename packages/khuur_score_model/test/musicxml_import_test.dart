@@ -1917,6 +1917,43 @@ void main() {
       }
     });
 
+    test('keeps a slur that stops on another staff, on the chord that a '
+        'second voice of its own staff starts at the stop, where voice one '
+        'holds its first note past that time', () {
+      const start = '<notations><slur type="start"/></notations>';
+      const stop = '<notations><slur type="stop"/></notations>';
+      final score = imported(
+        keyboard([
+          [
+            grand,
+            note('C5', 16, 'whole', '<voice>1</voice><staff>1</staff>$start'),
+            backup(16),
+            forward(8),
+            note('E4', 4, 'quarter', '<voice>2</voice><staff>1</staff>'),
+            note('F4', 4, 'quarter', '<voice>2</voice><staff>1</staff>'),
+            backup(16),
+            note('C3', 16, 'whole', '<voice>5</voice><staff>2</staff>'),
+            backup(16),
+            forward(8),
+            note('G2', 4, 'quarter', '<voice>6</voice><staff>2</staff>$stop'),
+            note('A2', 4, 'quarter', '<voice>6</voice><staff>2</staff>'),
+          ],
+        ]),
+      );
+
+      expect(spannersOf(score), ['slur 0@0-0@1/2']);
+      final slur = score.spanners.single;
+      expect(slur.voice, VoiceSlot.two);
+      expect((slur.kind as Slur).endVoice, isNull);
+      Tone tone({required bool last}) =>
+          (score.anchorOf(slur, last: last)!.event as ChordEvent)
+              .notes
+              .single
+              .tone;
+      expect('${tone(last: false)}', 'C5');
+      expect('${tone(last: true)}', 'E4');
+    });
+
     test('reads back a slur of voice one that ends on a note of a second '
         'voice, and a slur of the second voice that starts where that voice '
         'is silent, each in its own voice', () {
