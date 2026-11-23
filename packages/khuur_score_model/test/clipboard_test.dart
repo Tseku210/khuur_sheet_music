@@ -235,6 +235,29 @@ void main() {
       expect(bar(next.score, 0), ['F4/half', 'F4/half']);
     });
 
+    test('keeps a Note.letRing tie that a pasted head of its tone follows', () {
+      final session = sessionWith([
+        [
+          chordOf(1, 'F4', value: NoteValue.half, letRing: true),
+          chordOf(2, 'G4', value: NoteValue.half),
+        ],
+        [
+          chordOf(3, 'F4', value: NoteValue.half),
+          chordOf(4, 'A4', value: NoteValue.half),
+        ],
+      ]);
+      final clip = copyOf(session, (1, Moment.zero), (1, at(1, 2)));
+
+      final next = pasted(session, clip, 0, at(1, 2));
+
+      expect(bar(next.score, 0), ['F4/half~lv', 'F4/half']);
+      final staff = next.score
+          .measureView(next.score.measures.first.id)
+          .staves
+          .single;
+      expect(staff.ties.map((tie) => tie.to), [null]);
+    });
+
     test('clears a let-ring tie in the bar before the paste', () {
       final session = sessionWith([
         [
