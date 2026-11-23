@@ -124,7 +124,9 @@ final class EditSession {
   ///
   /// Each end of a slur or glissando that sits on a chord is stored where it
   /// is before [edit] changes the score, as `AddSpanner` stores it, so that
-  /// the edit moves it only with its chord or note.
+  /// the edit moves it only with its chord or note. So an edit can change
+  /// the stored ends of a line it does not touch, and the score's JSON with
+  /// them, while the line still ends where it did.
   ///
   /// Returns [Applied] with the next session, or [Refused] with this session
   /// unchanged and the reason. An edit that leaves the score identical (an
