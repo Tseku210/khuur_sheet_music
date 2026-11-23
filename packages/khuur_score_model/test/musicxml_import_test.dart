@@ -2627,6 +2627,107 @@ void main() {
       expect(items(score, 0), ['C5/half', 'D5/quarter', 'E5/quarter~']);
     });
 
+    group('a let-ring tie before a note of its pitch', () {
+      const letRing = '<notations><tied type="let-ring"/></notations>';
+
+      /// Voice two is A3, C4 that rings, D4 and C4, under four quarters.
+      final under = flute([
+        [
+          opening(divisions: 2),
+          note('E5', 2, 'quarter', '<voice>1</voice>'),
+          note('F5', 2, 'quarter', '<voice>1</voice>'),
+          note('G5', 2, 'quarter', '<voice>1</voice>'),
+          note('A5', 2, 'quarter', '<voice>1</voice>'),
+          backup(8),
+          note('A3', 3, 'quarter', '<dot/><voice>2</voice>'),
+          note('C4', 3, 'quarter', '<dot/><voice>2</voice>$letRing'),
+          note('D4', 1, 'eighth', '<voice>2</voice>'),
+          note('C4', 1, 'eighth', '<voice>2</voice>'),
+        ],
+      ]);
+
+      /// Where the tie from each note of the first bar ends, by pitch.
+      List<String> ties(Score score) {
+        final staff = score.measureView(score.measures.first.id).staves.first;
+        final pitches = {
+          for (final voice in staff.voices)
+            for (final timed in voice.events)
+              if (timed.event case ChordEvent(:final notes))
+                for (final note in notes) note.id: note.tone,
+        };
+        return [
+          for (final TieView(:from, :to) in staff.ties)
+            '${pitches[from]} -> ${to == null ? 'none' : pitches[to.note]}',
+        ];
+      }
+
+      /// How many notes of [key] the first bar plays.
+      int struck(Score score, int key) => PlaybackCompiler()
+          .compile(score)
+          .notesBetween(0, double.infinity)
+          .where((note) => note.key == key)
+          .length;
+
+      EventRef eventOf(Score score, String pitch) => [
+        for (final staff in score.measureView(score.measures.first.id).staves)
+          for (final voice in staff.voices)
+            for (final timed in voice.events)
+              if (timed.event case ChordEvent(:final notes)
+                  when '${notes.first.tone}' == pitch)
+                timed.ref,
+      ].first;
+
+      test('rings and does not tie to it', () {
+        final score = imported(
+          flute([
+            [
+              opening(),
+              note('C5', 8, 'half', letRing),
+              note('C5', 4, 'quarter'),
+              note('D5', 4, 'quarter'),
+            ],
+          ]),
+        );
+
+        expect(ties(score), ['C5 -> none']);
+        expect(struck(score, 72), 2);
+        expect(
+          XmlDocument.parse(
+            scoreToMusicXml(score),
+          ).findAllElements('tied').map((tied) => tied.getAttribute('type')),
+          ['let-ring'],
+        );
+      });
+
+      test('rings on after a rippled erase brings that note after it', () {
+        final score = imported(under);
+        expect(ties(score), ['C4 -> none']);
+
+        final erased = applied(
+          EditSession.start(score).run(
+            Erase(
+              ItemSelection(Seq([eventOf(score, 'F5'), eventOf(score, 'D4')])),
+              ripple: Ripple.part,
+            ),
+          ),
+        ).score;
+
+        expect(items(erased, 0, slot: VoiceSlot.two).take(3), [
+          'A3/quarter',
+          'C4/quarter',
+          'C4/eighth',
+        ]);
+        expect(ties(erased), ['C4 -> none']);
+        expect(struck(erased, 60), 2);
+        expect(
+          XmlDocument.parse(
+            scoreToMusicXml(erased),
+          ).findAllElements('tied').map((tied) => tied.getAttribute('type')),
+          ['let-ring'],
+        );
+      });
+    });
+
     test('ends a tie that no note stops on the same pitch in the next event '
         'of its voice', () {
       const start = '<tie type="start"/>';
