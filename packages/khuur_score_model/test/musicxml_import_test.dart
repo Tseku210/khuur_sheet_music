@@ -2746,20 +2746,23 @@ void main() {
       const marked =
           '<supports element="tied" attribute="type" type="yes" '
           'value="let-ring"/>';
+      const letRing = '<notations><tied type="let-ring"/></notations>';
+      const repeatEnd =
+          '<barline location="right"><repeat direction="backward"/>'
+          '</barline>';
+      final music = part('P1', [
+        [
+          opening(),
+          note('F4', 8, 'half'),
+          note('F4', 8, 'half', letRing),
+          repeatEnd,
+        ],
+      ]);
 
       Score read(String encoding) => imported(
         partwise(
           '<identification><encoding>$encoding</encoding></identification>'
-          '<part-list>${scorePart('P1')}</part-list>'
-          '${part('P1', [
-            [
-              opening(),
-              note('F4', 8, 'half'),
-              note('F4', 8, 'half', '<notations><tied type="let-ring"/></notations>'),
-              '<barline location="right"><repeat direction="backward"/>'
-                  '</barline>',
-            ],
-          ])}',
+          '<part-list>${scorePart('P1')}</part-list>$music',
         ),
       );
 
