@@ -663,9 +663,12 @@ final class Score {
   /// different object than before, or when a spanner covering it was added
   /// or removed. The event a slur, glissando or trill line of more than one
   /// bar ends on can depend on every bar from the one before its first
-  /// ([anchorOf]), so the bar it ends in is relaid out when any of those is.
-  /// Every bar is relaid out when the parts change or when bars that survive
-  /// change order. [meta] is not compared.
+  /// ([anchorOf]), so the bar it ends in is relaid out when any of those is
+  /// for one of the reasons above. A bar relaid out only because such a line
+  /// ends in it holds the same column between the same neighbours as before,
+  /// so it relays out no other line's last bar. Every bar is relaid out when
+  /// the parts change or when bars that survive change order. [meta] is not
+  /// compared.
   ScoreChanges changesSince(Score previous) {
     if (identical(previous, this)) {
       return ScoreChanges.none;
@@ -725,12 +728,13 @@ final class Score {
       }
     }
     if (relayout.isNotEmpty) {
+      final changed = {...relayout};
       for (final spanner in spanners) {
         final first = indexOf(spanner.first.measure);
         final last = indexOf(spanner.last.measure);
         if (spanner.kind.reach == SpannerReach.events && first < last) {
           for (var i = first > 0 ? first - 1 : 0; i < last; i++) {
-            if (relayout.contains(measures[i].id)) {
+            if (changed.contains(measures[i].id)) {
               relayout.add(measures[last].id);
               break;
             }

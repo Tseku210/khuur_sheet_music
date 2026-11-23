@@ -1,5 +1,5 @@
 // Gate 2 of the layout design. It measures what a first layout and an update
-// after one entered note cost on three fixtures, and judges them against the
+// after one entered note cost on each fixture, and judges them against the
 // budgets for the development host. It also reports what assembling every
 // system, and the systems an update rekeyed, costs on top, which the design
 // does not budget.

@@ -19,8 +19,8 @@ Score spannerScore() => _ensemble(bars: 2000);
 
 /// Gate 2's third fixture, [spannerScore] with a phrase slur on the sung
 /// staff from the third beat of every bar to the second beat of the next.
-/// Each slur ends in the bar the next one starts in, so the score has 4,499
-/// spanners.
+/// Each slur ends in the bar the next one starts in. That adds 1,999 slurs,
+/// for 4,499 spanners in all.
 Score slurredScore() => _ensemble(bars: 2000, phrased: true);
 
 /// The note gate 2 enters. It is a quarter at the start of bar [bar],
