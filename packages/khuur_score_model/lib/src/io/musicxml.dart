@@ -129,11 +129,10 @@ final class _Export {
     for (final column in written.measures) written.measureView(column.id),
   ];
 
-  /// Where each spanner the file holds is written. A glissando from a note
-  /// to a rest is left out. MuseScore 4 reads a glissando mark only on a
-  /// note, and a start it reads with no stop on a note takes the stop of the
-  /// next glissando of its number. A line that starts on a rest is written,
-  /// as MuseScore ignores its stop and this library reads it back.
+  /// A glissando from a note to a rest is left out. MuseScore 4 reads a
+  /// glissando mark only on a note, and a start it reads with no stop on a
+  /// note takes the stop of the next glissando of its number. A line that
+  /// starts on a rest is written, as MuseScore ignores its stop.
   late final List<_Ends> ends = [
     for (final spanner in score.spanners)
       if (_endsOf(spanner) case final line
@@ -149,12 +148,9 @@ final class _Export {
   };
   late final Map<SpannerId, int> numbers = _numbers();
 
-  /// The placement of each slur that starts on another voice's event,
-  /// where its own voice is silent, and stops on its own voice's. MuseScore
-  /// 4 reads a slur in the voice of its start, so the start says the side
-  /// the slur's voice curves on, with no orientation. MuseScore draws the
-  /// slur there when it imports layout, and this library reads it as a slur
-  /// of its stop's voice.
+  /// MuseScore 4 reads a slur in the voice of its start, so the start says
+  /// the side the slur's voice curves on. MuseScore draws the slur there
+  /// when it imports layout.
   late final Map<SpannerId, String> silentStarts = {
     for (final spanner in score.spanners)
       if (spanner.kind is Slur)

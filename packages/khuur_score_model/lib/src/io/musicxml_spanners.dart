@@ -197,13 +197,8 @@ final class _Placing {
   ScorePoint _point(int bar, Moment offset) =>
       ScorePoint(document.measures[bar], offset);
 
-  /// MusicXML does not say which voice a line is of. A start mark in voice
-  /// one may be the start of a line of its stop's voice that is silent
-  /// there, so the line is of that voice while that keeps its start on the
-  /// marked event. A slur is so only when its start has a placement alone on
-  /// the side its stop's voice curves on, which this library writes for
-  /// such a slur. Otherwise a line is of the voice of its start mark, which
-  /// is how MuseScore 4 reads a slur.
+  /// MusicXML does not say which voice a line is of. MuseScore 4 reads a slur
+  /// in the voice of its start mark.
   _Placed? _onNotes(_Pair record, EventAnchor start, EventAnchor stop) {
     final staff = start.event.lane.staff;
     if (!record.kind.joinsNotes) {

@@ -1790,7 +1790,8 @@ void main() {
         read('<note><rest/><duration>8</duration><voice>2</voice></note>'),
         'one named two, one C5 to two E4',
       );
-      // MuseScore 4 writes a slur's forced direction as both attributes.
+      // MuseScore 4.2 and later write a slur's forced direction as both
+      // attributes.
       expect(
         read(forward(8), ' orientation="under" placement="below"'),
         'one named two, one C5 to two E4',
@@ -1921,8 +1922,7 @@ void main() {
         );
       }
       // MuseScore 4 reads a slur in the voice of its start. When it imports
-      // layout, it draws the second voice's slur below from its placement, as
-      // this library draws it.
+      // layout, it draws the second voice's slur below from its placement.
       expect(
         scoreToMusicXml(ofOne),
         contains('<slur type="start" number="1"/>'),
