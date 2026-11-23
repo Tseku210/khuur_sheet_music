@@ -1289,7 +1289,9 @@ final class Glissando extends SpannerKind {
   /// on the note as far from the bottom of its chord as the start note is
   /// from the bottom of its own, or on the top note when the chord has fewer
   /// notes. MuseScore 4 picks the end of a new glissando that way. A line
-  /// that starts on a rest ends on the top note.
+  /// that starts on a rest ends on the top note. The end is picked again on
+  /// every read, so adding or removing a note of either chord can move it,
+  /// where MuseScore 4 keeps the note it picked when the line was made.
   ({Note? from, Note? to}) notesOn(Event? first, Event? last) {
     final start = first is ChordEvent ? first.notes : null;
     final end = last is ChordEvent ? last.notes : null;
