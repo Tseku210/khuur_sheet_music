@@ -2157,6 +2157,107 @@ void main() {
       });
     });
 
+    group('under a range selected to the bar line that ends a section', () {
+      EditSession ranged(List<VoiceItem> first, (int, Moment) to) {
+        final session = barsOf([first, quarters(5, 'C5 D5 E5 F5')]);
+        final score = changeBar(
+          session.score,
+          0,
+          (column) => column.copyWith(barline: Barline.doubleBar),
+        );
+        return EditSession.start(score).select(
+          RangeSelection(
+            from: pointAt(score, 0, at(1, 4)),
+            to: pointAt(score, to.$1, to.$2),
+            top: score.staves.first.id,
+            bottom: score.staves.first.id,
+          ),
+        );
+      }
+
+      final spellings = [(0, at(1, 1)), (1, Moment.zero)];
+
+      test('a longer value that adds a bar leaves the range on its music, '
+          'however its end was spelled', () {
+        for (final to in spellings) {
+          final next = applied(
+            revalue(ranged(quarters(1, 'F4 G4 A4 B4'), to), 1, NoteValue.half),
+          );
+
+          expect(bar(next.score, 1), [
+            'B4/quarter',
+            'rest/quarter',
+            'rest/half',
+          ]);
+          final range = next.selection as RangeSelection;
+          expect(range.from, pointAt(next.score, 0, at(1, 2)));
+          expect(range.to, pointAt(next.score, 1, at(1, 4)));
+        }
+      });
+
+      test('a shorter value leaves the range on its music, however its end '
+          'was spelled', () {
+        for (final to in spellings) {
+          final next = applied(
+            revalue(
+              ranged([
+                chordOf(1, 'F4'),
+                chordOf(2, 'G4'),
+                chordOf(3, 'A4', value: NoteValue.half),
+              ], to),
+              3,
+              NoteValue.quarter,
+            ),
+          );
+
+          final range = next.selection as RangeSelection;
+          expect(range.from, pointAt(next.score, 0, at(1, 4)));
+          expect(range.to, pointAt(next.score, 0, at(3, 4)));
+        }
+      });
+    });
+
+    test('a range that a ripple ends on a bar line ends at the end of the '
+        'bar before', () {
+      final session = barsOf([
+        quarters(1, 'F4 G4 A4 B4'),
+        quarters(5, 'C5 D5 E5 F5'),
+        [],
+      ]);
+      final score = session.score;
+      EditSession ranged(ScorePoint from, ScorePoint to) => session.select(
+        RangeSelection(
+          from: from,
+          to: to,
+          top: score.staves.first.id,
+          bottom: score.staves.first.id,
+        ),
+      );
+
+      final pushed = applied(
+        revalue(
+          ranged(pointAt(score, 0, at(1, 4)), pointAt(score, 1, at(3, 4))),
+          2,
+          NoteValue.half,
+        ),
+      );
+      final pulled = applied(
+        pull(
+          ranged(pointAt(score, 0, at(1, 2)), pointAt(score, 1, at(1, 4))),
+          [1],
+        ),
+      );
+
+      expect(
+        (pushed.selection as RangeSelection).to,
+        pointAt(pushed.score, 1, at(1, 1)),
+      );
+      expect(
+        (pulled.selection as RangeSelection).to,
+        pointAt(pulled.score, 0, at(1, 1)),
+      );
+    });
+
     test('the cursor follows the music it sat on', () {
       final session = barsOf([quarters(1, 'F4 G4 A4 B4'), []]);
       final placed = session.placeCursor(point(session.score, 0, at(3, 4)));
