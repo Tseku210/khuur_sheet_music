@@ -667,8 +667,11 @@ Spanner? _settled(Spanner spanner, _NoteStarts starts) {
 
   ScorePoint? end(NoteId? note, {required bool last}) {
     final at = last ? spanner.last : spanner.first;
+    if (note == null) {
+      return at;
+    }
     final sounding = score.anchorOf(spanner, last: last)?.event;
-    if (note == null || Glissando.noteIn(sounding, note)?.id == note) {
+    if (sounding is ChordEvent && sounding.notes.any((n) => n.id == note)) {
       return at;
     }
     return starts.of(spanner.staff, note);

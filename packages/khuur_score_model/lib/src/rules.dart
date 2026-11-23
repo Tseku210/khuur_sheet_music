@@ -166,10 +166,12 @@ _Ends _endsOf(Score score, Spanner spanner) {
   if (first == null || last == null) {
     return _Ends.allowed;
   }
-  if (kind case Glissando(:final from, :final to)
-      when (from != null && Glissando.noteIn(first.event, from)?.id != from) ||
-          (to != null && Glissando.noteIn(last.event, to)?.id != to)) {
-    return _Ends.allowed;
+  if (kind is Glissando) {
+    final notes = kind.notesOn(first.event, last.event);
+    if ((kind.from != null && notes.from?.id != kind.from) ||
+        (kind.to != null && notes.to?.id != kind.to)) {
+      return _Ends.allowed;
+    }
   }
   final bars =
       score.indexOf(last.ref.measure) - score.indexOf(first.ref.measure);
@@ -184,9 +186,9 @@ const _endsAfterStart = 'a slur or glissando ends after it starts';
 /// [spanner] naming the chord its last end is on, when it joins notes,
 /// names no last end and ends in [score] on a chord that a voice other than
 /// its own starts at its last point. A [Slur] names the voice and a
-/// [Glissando] the chord's top note. The same object otherwise. MuseScore 4
-/// keeps the chord a slur ends on and the note a glissando ends on from
-/// when the line is made.
+/// [Glissando] the note [Glissando.notesOn] picks there. The same object
+/// otherwise. MuseScore 4 keeps the chord a slur ends on and the
+/// note a glissando ends on from when the line is made.
 Spanner endNamed(Score score, Spanner spanner) {
   final on = switch (spanner.kind) {
     Slur(endVoice: null) ||
@@ -205,9 +207,12 @@ Spanner endNamed(Score score, Spanner spanner) {
       dashed: dashed,
       endVoice: on.voice,
     ),
-    (Glissando(:final from), final ChordEvent chord) => Glissando(
-      from: from,
-      to: Glissando.noteIn(chord, null)!.id,
+    (final Glissando line, final ChordEvent chord) => Glissando(
+      from: line.from,
+      to: line
+          .notesOn(score.anchorOf(spanner, last: false)?.event, chord)
+          .to!
+          .id,
     ),
     _ => null,
   };

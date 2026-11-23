@@ -266,6 +266,61 @@ void main() {
       }
     });
 
+    group('a glissando that names no end note', () {
+      Score joined(String first, String second, Glissando kind) {
+        final score = fill(blankScore(), 0, [
+          chordOf(1, first),
+          chordOf(2, second),
+          chordOf(3, 'C4', value: NoteValue.half),
+        ]);
+        return applied(
+          addSpanner(
+            score,
+            kind,
+            pointAt(score, 0, Moment.zero),
+            pointAt(score, 0, at(1, 4)),
+          ),
+        ).score;
+      }
+
+      String end(Score score) =>
+          '${score.glissandoNotes(score.spanners.single).to?.tone}';
+      String endOf(String first, String second, Glissando kind) =>
+          end(joined(first, second, kind));
+
+      test("ends on the note at its start note's place in the chord, counted "
+          'from the bottom', () {
+        const lower = Glissando(from: NoteId(10));
+        const upper = Glissando(from: NoteId(11));
+
+        expect(endOf('C4 G4', 'D4 F4 C5', lower), 'D4');
+        expect(endOf('C4 G4', 'D4 F4 C5', upper), 'F4');
+        expect(endOf('C4 G4', 'D4 F4 C5', const Glissando()), 'F4');
+        expect(endOf('C4', 'D4 F4 C5', const Glissando()), 'D4');
+      });
+
+      test('ends on the top note of a chord with fewer notes than that '
+          'place', () {
+        expect(endOf('C4 E4 G4', 'D4 F4', const Glissando()), 'F4');
+        expect(
+          endOf('C4 E4 G4', 'D4 F4', const Glissando(from: NoteId(11))),
+          'F4',
+        );
+        expect(
+          endOf('C4 E4 G4', 'D4 F4', const Glissando(from: NoteId(10))),
+          'D4',
+        );
+      });
+
+      test('keeps that end in a file that saves no end note', () {
+        const lower = Glissando(from: NoteId(10));
+        final score = joined('C4 G4', 'D4 F4 C5', lower);
+
+        expect(score.spanners.single.kind, lower);
+        expect(end(reloaded(score)), 'D4');
+      });
+    });
+
     group('a glissando between two voices', () {
       final score = fill(
         fill(
@@ -810,6 +865,28 @@ void main() {
         expect(ends(session.score), ['one E5']);
         expect(ends(edited), ['two A4']);
         expect(ends(scoreFromMusicXml(scoreToMusicXml(edited))), ['two A4']);
+      });
+
+      test('a glissando made the same way over a chord names the note at '
+          "its start note's place", () {
+        final score = under([
+          chordOf(1, 'C5', value: NoteValue.half),
+          chordOf(4, 'A4 C5 E5', value: NoteValue.half),
+        ]);
+        final session = applied(
+          addSpanner(
+            score,
+            const Glissando(),
+            pointAt(score, 0, at(1, 4)),
+            pointAt(score, 0, at(1, 2)),
+            voice: VoiceSlot.two,
+          ),
+        );
+
+        expect(
+          session.score.spanners.single.kind,
+          const Glissando(to: NoteId(40)),
+        );
       });
 
       test('a glissando made the same way names the note it ends on, and '
