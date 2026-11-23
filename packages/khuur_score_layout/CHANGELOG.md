@@ -5,7 +5,7 @@
 * `SpacingPolicy.ratio` defaults to 1.5, MuseScore 4's spacing ratio, where it was 1.41. A note twice as long gets 1.5 times the space, so a bar of sixteenths is about 3 staff spaces narrower and a half note 0.3 wider. Most layouts change. An app that wants the old spacing passes `SpacingPolicy(ratio: 1.41)`.
 * A glissando is drawn from the head it starts on to the head it ends on, in any voice of its staff, where it ran between the middles of the two chords. Two lines from one chord no longer draw on top of each other.
 * A slur, or a glissando that names no note there, whose last end lies in a gap of its voice, under an event that voice one has held through any ties and barlines since before its first event, is drawn to the chord another voice starts there, when there is one. A glissando is also drawn there when voice one's event starts with its first event. It ran back to voice one's event. A slur whose `Slur.endVoice` is set is drawn to that voice's chord when that voice has a chord there.
-* A glissando that starts on a note, names no end note and would end on a rest is drawn to the first chord a voice of its staff starts there, in voice order from voice one. A line into a chord is drawn to the note chosen by staff line.
+* A glissando that `AddSpanner` adds from a note and that would end on a rest is drawn to the first chord a voice of its staff starts there, in voice order from voice one, as `AddSpanner` names that note. A line into a chord is drawn to the note chosen by staff line.
 * Depends on `khuur_score_model` 0.5.0, whose `Transposition` and `Glissando` changed.
 
 ## 0.4.0

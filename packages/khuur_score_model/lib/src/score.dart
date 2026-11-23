@@ -468,28 +468,10 @@ final class Score {
   /// that starts with its first, starting with that event counts too. A
   /// line that starts on the held note itself ends on voice one's event.
   ///
-  /// The last end of a [Glissando] that starts on a note, names no last
-  /// note and would fall on a rest is on the first chord a voice of the
-  /// staff starts there, in voice order from voice one. It stays on the rest
-  /// when no voice starts a chord there.
+  /// A last end of a [Glissando] that names no note and falls on a rest stays
+  /// on that rest. Only `AddSpanner` moves the end of a new line from a note
+  /// to a chord there.
   TimedEvent? anchorOf(Spanner spanner, {required bool last}) {
-    final anchor = _anchorOf(spanner, last: last);
-    if (spanner.kind case Glissando(to: null)
-        when last &&
-            anchor != null &&
-            anchor.event is! ChordEvent &&
-            _anchorOf(spanner, last: false)?.event is ChordEvent) {
-      return _firstChordStartingAt(
-            spanner.staff,
-            spanner.last,
-            VoiceSlot.values,
-          ) ??
-          anchor;
-    }
-    return anchor;
-  }
-
-  TimedEvent? _anchorOf(Spanner spanner, {required bool last}) {
     final at = last ? spanner.last : spanner.first;
     TimedEvent? sounding(VoiceSlot voice) =>
         eventAt(VoicePoint(staff: spanner.staff, voice: voice, at: at));
@@ -527,24 +509,15 @@ final class Score {
         !_heldSince(one, start, orWith: spanner.kind is Glissando)) {
       return one;
     }
-    return _firstChordStartingAt(spanner.staff, at, VoiceSlot.values.skip(1)) ??
-        one;
-  }
-
-  TimedEvent? _firstChordStartingAt(
-    StaffId staff,
-    ScorePoint at,
-    Iterable<VoiceSlot> voices,
-  ) {
-    for (final voice in voices) {
-      final timed = eventAt(VoicePoint(staff: staff, voice: voice, at: at));
+    for (final slot in VoiceSlot.values.skip(1)) {
+      final timed = sounding(slot);
       if (timed != null &&
           timed.onset == at.offset &&
           timed.event is ChordEvent) {
         return timed;
       }
     }
-    return null;
+    return one;
   }
 
   bool _startsAfter(TimedEvent event, TimedEvent other) =>
@@ -1297,14 +1270,13 @@ final class PedalLine extends SpannerKind {
 /// A file whose line names a note that does not sound at that end loads
 /// without the line. An end that names no note is on the event the
 /// spanner's voice has there. When that voice has none, it is on an event of
-/// another voice ([Score.anchorOf]). The last end of a line that starts on a
-/// note, names no last note and would fall on a rest is on the first chord a
-/// voice of the staff starts there, in voice order from voice one, when there
-/// is one.
-/// [notesOn] picks the note of that event.
+/// another voice ([Score.anchorOf]). [notesOn] picks the note of that event.
 /// `AddSpanner`, and each edit before it changes the score, name the note
 /// of each end that is on a chord, so the line then goes with those notes,
-/// as MuseScore 4 keeps the notes a glissando joins.
+/// as MuseScore 4 keeps the notes a glissando joins. A new line from a note
+/// that would end on a rest ends instead on the first chord a voice of the
+/// staff starts there, in voice order from voice one. `AddSpanner` names that
+/// note, as MuseScore 4 picks a line's end only when it makes the line.
 ///
 /// The event a line ends on starts after the event it starts on, as in each
 /// line MuseScore 4's editor builds. So a line cannot end on an event of
