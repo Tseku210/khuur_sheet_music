@@ -2741,6 +2741,71 @@ void main() {
       });
     });
 
+    group('a lone let-ring mark at the end of a repeat', () {
+      const library = '<software>khuur_sheet_music</software>';
+      const marked =
+          '<supports element="tied" attribute="type" type="yes" '
+          'value="let-ring"/>';
+
+      Score read(String encoding) => imported(
+        partwise(
+          '<identification><encoding>$encoding</encoding></identification>'
+          '<part-list>${scorePart('P1')}</part-list>'
+          '${part('P1', [
+            [
+              opening(),
+              note('F4', 8, 'half'),
+              note('F4', 8, 'half', '<notations><tied type="let-ring"/></notations>'),
+              '<barline location="right"><repeat direction="backward"/>'
+                  '</barline>',
+            ],
+          ])}',
+        ),
+      );
+
+      Note last(Score score) {
+        final voice = score
+            .measureView(score.measures.single.id)
+            .staves
+            .single
+            .voices
+            .single;
+        return (voice.events.last.event as ChordEvent).notes.single;
+      }
+
+      int struck(Score score) => PlaybackCompiler()
+          .compile(score)
+          .notesBetween(0, double.infinity)
+          .length;
+
+      test('is a plain tie that joins the repeat in an older file of this '
+          'library', () {
+        final score = read(library);
+
+        expect(last(score).tie, isTrue);
+        expect(last(score).letRing, isFalse);
+        expect(struck(score), 3);
+      });
+
+      for (final (writer, encoding) in [
+        ('a file of this library that declares the mark', '$library$marked'),
+        ('a file of another program', '<software>MuseScore 4.7.7</software>'),
+        ('a file with no software', ''),
+        (
+          'a file that names a second program',
+          '$library<software>MuseScore 4.7.7</software>',
+        ),
+      ]) {
+        test('is a let-ring tie that joins nothing in $writer', () {
+          final score = read(encoding);
+
+          expect(last(score).tie, isFalse);
+          expect(last(score).letRing, isTrue);
+          expect(struck(score), 4);
+        });
+      }
+    });
+
     test('ends a tie that no note stops on the same pitch in the next event '
         'of its voice', () {
       const start = '<tie type="start"/>';
