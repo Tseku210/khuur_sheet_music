@@ -542,13 +542,7 @@ final class _Voices {
   }) {
     final notes = stableSorted([
       for (final record in records)
-        _note(
-          record,
-          tie:
-              !record.letRing &&
-              record.tieStart &&
-              tiesTo.any((to) => sameTone(to, record)),
-        ),
+        _note(record, lands: tiesTo.any((to) => sameTone(to, record))),
     ], (a, b) => a.tone.compareTo(b.tone));
     final kept = <Note>[];
     for (final note in notes) {
@@ -559,15 +553,14 @@ final class _Voices {
     return kept;
   }
 
-  Note _note(NoteRecord record, {required bool tie}) {
+  Note _note(NoteRecord record, {required bool lands}) {
+    // Export writes a plain tie to no note as a let-ring tie whose `<tie>`
+    // still starts, since MuseScore reads that pair as a let-ring tie.
+    final letRing = record.letRing && (lands || !record.tieSounds);
+    final tie = !letRing && (record.letRing || (record.tieStart && lands));
     switch (record) {
       case DrumRecord(:final id, :final drum):
-        return DrumNote(
-          id: id,
-          drum: drum,
-          tie: tie,
-          letRing: record.letRing,
-        );
+        return DrumNote(id: id, drum: drum, tie: tie, letRing: letRing);
       case PitchedRecord(:final id, :final written, :final source):
         final pitch = written.transpose(
           part.transposition,
@@ -580,7 +573,7 @@ final class _Voices {
           id: id,
           pitch: pitch,
           tie: tie,
-          letRing: record.letRing,
+          letRing: letRing,
           head: record.head,
           fingering: record.fingering,
           string: switch (record.string) {

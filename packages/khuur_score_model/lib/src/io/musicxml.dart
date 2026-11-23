@@ -677,8 +677,7 @@ final class _Export {
             _duration(timed.duration),
             if (tieStops.contains(note.id))
               _el('tie', const [], {'type': 'stop'}),
-            if (ties[note.id]?.to != null)
-              _el('tie', const [], {'type': 'start'}),
+            if (note.tie) _el('tie', const [], {'type': 'start'}),
             ?instrument(note),
             _text('voice', number),
             ..._type(chord.value),
