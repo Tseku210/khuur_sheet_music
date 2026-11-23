@@ -1,6 +1,8 @@
 /// The score root: parts, the global column list, and cross-bar spanners.
 library;
 
+import 'dart:math';
+
 import 'empty_bar.dart';
 import 'events.dart';
 import 'measure.dart';
@@ -469,9 +471,10 @@ final class Score {
   /// An end of a [Glissando] that names a note is on the chord that holds
   /// the note, in whichever voice sounds it at that end. The last end of a
   /// [Slur] that names a voice ([Slur.endVoice]) is on the chord that voice
-  /// sounds there. Every other end, and one whose note or voice sounds no
-  /// such chord there, is on the event of the spanner's voice, or of voice
-  /// one when that voice has none there.
+  /// sounds there, when that chord starts after the event the slur starts
+  /// on. Every other end, and one whose note or voice sounds no such chord
+  /// there, is on the event of the spanner's voice, or of voice one when
+  /// that voice has none there.
   ///
   /// A last end that falls to an event voice one has held since before the
   /// event the spanner starts on would run the line backward. It is on the
@@ -499,7 +502,10 @@ final class Score {
         }
       case Slur(:final endVoice?) when last:
         final timed = sounding(endVoice);
-        if (timed?.event is ChordEvent) {
+        final start = anchorOf(spanner, last: false);
+        if (timed != null &&
+            timed.event is ChordEvent &&
+            (start == null || _startsAfter(timed, start))) {
           return timed;
         }
       default:
@@ -527,6 +533,13 @@ final class Score {
     }
     return one;
   }
+
+  bool _startsAfter(TimedEvent event, TimedEvent other) =>
+      compare(
+        ScorePoint(event.ref.measure, event.onset),
+        ScorePoint(other.ref.measure, other.onset),
+      ) >
+      0;
 
   /// Whether [held], or an event it is tied from, starts before [start],
   /// or with it when [orWith]. Not when [start] is itself one of those
@@ -585,20 +598,18 @@ final class Score {
       anchorOf(spanner, last: false)?.event.id ==
           anchorOf(spanner, last: true)?.event.id;
 
-  /// The notes a glissando [spanner] starts and ends on, each by
-  /// [Glissando.noteIn] from the event [anchorOf] finds at that end, or
+  /// The notes a glissando [spanner] starts and ends on, by
+  /// [Glissando.notesOn] from the events [anchorOf] finds at its ends, or
   /// null where that end is on a rest. Both are null for a spanner that is
   /// not a glissando.
-  ({Note? from, Note? to}) glissandoNotes(Spanner spanner) {
-    final kind = spanner.kind;
-    if (kind is! Glissando) {
-      return (from: null, to: null);
-    }
-    return (
-      from: Glissando.noteIn(anchorOf(spanner, last: false)?.event, kind.from),
-      to: Glissando.noteIn(anchorOf(spanner, last: true)?.event, kind.to),
-    );
-  }
+  ({Note? from, Note? to}) glissandoNotes(Spanner spanner) =>
+      switch (spanner.kind) {
+        final Glissando kind => kind.notesOn(
+          anchorOf(spanner, last: false)?.event,
+          anchorOf(spanner, last: true)?.event,
+        ),
+        _ => (from: null, to: null),
+      };
 
   /// Everything in effect at a point on a staff.
   ScoreContext contextAt(StaffId staff, ScorePoint at) {
@@ -669,8 +680,8 @@ final class Score {
   /// printed changes and tie arrivals, and the next column for outgoing tie
   /// targets. For a slur, glissando or trill line that ends in the bar it
   /// may also read every bar from the one before the line's first, to find
-  /// the event the line ends on ([anchorOf]), at a cost proportional to the
-  /// ties it follows back. No other measure is touched.
+  /// the events the line starts and ends on ([anchorOf]), at a cost
+  /// proportional to the ties it follows back. No other measure is touched.
   MeasureView measureView(MeasureId id) => buildMeasureView(this, indexOf(id));
 
   /// Which measures' [MeasureView]s may differ from those of [previous].
@@ -682,7 +693,8 @@ final class Score {
   /// different object than before, or when a spanner covering it was added
   /// or removed. The event a slur, glissando or trill line of more than one
   /// bar ends on can depend on every bar from the one before its first
-  /// ([anchorOf]), so the bar it ends in is relaid out when any of those is.
+  /// ([anchorOf]), and the note a glissando ends on depends on the chord it
+  /// starts on, so the bar it ends in is relaid out when any of those is.
   /// Every bar is relaid out when the parts change or when bars that survive
   /// change order. [meta] is not compared.
   ScoreChanges changesSince(Score previous) {
@@ -1213,6 +1225,17 @@ sealed class SpannerKind {
 /// one. `AddSpanner` refuses a slur that ends on an event that starts
 /// before the one it starts on, an edit that leaves one removes it, and
 /// MusicXML import and a JSON file load without it.
+///
+/// `AddSpanner`, and each edit before it changes the score, store each end
+/// that is on a chord where it is, as MuseScore 4 stores the chords a slur
+/// joins. The first end, on a chord of the slur's voice, moves its point to
+/// the chord's onset. The last end, on a chord that starts after the
+/// slur's first point, moves its point to that chord's onset and names the
+/// chord's voice in [endVoice] when it is not the slur's own. A later edit
+/// of other notes then leaves the ends on their chords. An end on a rest,
+/// a first end on a chord of another voice, and a last end on a chord that
+/// starts no later than the first point are not stored and follow the rules
+/// above.
 final class Slur extends SpannerKind {
   /// A solid slur, or a dashed one when [dashed]. Its last end is on the
   /// chord of [endVoice] when that is given.
@@ -1221,13 +1244,19 @@ final class Slur extends SpannerKind {
   /// Draw the curve as a dashed line.
   final bool dashed;
 
-  /// The voice whose chord the slur ends on, where that is not the chord
-  /// its last end falls to without a name ([Score.anchorOf]). MusicXML
-  /// import sets it to the voice a stop is written in when the slur would
-  /// otherwise end on another chord, as MuseScore 4 ends the slur on the
-  /// chord that carries its stop. The name goes with the slur through every edit.
-  /// While that voice sounds no chord at the last end, the end is where it
-  /// falls without a name.
+  /// The voice whose chord the slur ends on. `AddSpanner` and each edit set
+  /// it when the slur ends on a chord of a voice other than its own that
+  /// starts after the slur's first point, and clear it when that chord is of
+  /// the slur's own voice, and MusicXML import sets it when the stop
+  /// is written on a chord a voice other than the slur's own starts there or
+  /// the slur would end on another chord than the one its stop is on, as
+  /// MuseScore 4 keeps a slur on the chord it ends on. The end is on the
+  /// chord that voice sounds at the last end, while that chord starts after
+  /// the event the slur starts on, so a note that another voice starts or
+  /// ties there does not take the end. While the voice sounds no such chord
+  /// there, the end is where it falls without a name ([Score.anchorOf]),
+  /// as it is for a slur without one, which a JSON file can hold. Each edit
+  /// then names the voice of the chord the end falls on in its place.
   final VoiceSlot? endVoice;
 
   @override
@@ -1337,9 +1366,12 @@ final class PedalLine extends SpannerKind {
 /// A shorter `SetValue`, or a ripple that removes part of a chord's time,
 /// removes each line that starts on that chord, as MuseScore 4 does.
 /// A file whose line names a note that does not sound at that end loads
-/// without the line. An end that names no note is on the top note of the
-/// event the spanner's voice has there. When that voice has none, it is on
-/// an event of another voice ([Score.anchorOf]).
+/// without the line. An end that names no note is on the event the
+/// spanner's voice has there. When that voice has none, it is on an event of
+/// another voice ([Score.anchorOf]). [notesOn] picks the note of that event.
+/// `AddSpanner`, and each edit before it changes the score, name the note
+/// of each end that is on a chord, so the line then goes with those notes,
+/// as MuseScore 4 keeps the notes a glissando joins.
 ///
 /// The event a line ends on starts after the event it starts on, as in each
 /// line MuseScore 4's editor builds. So a line cannot end on an event of
@@ -1355,24 +1387,47 @@ final class PedalLine extends SpannerKind {
 /// there instead, when there is one.
 final class Glissando extends SpannerKind {
   /// A line from note [from] of the chord it starts on to note [to] of the
-  /// chord it ends on, or between their top notes where an id is null.
+  /// chord it ends on. [notesOn] gives the note of an end whose id is null.
   const Glissando({this.from, this.to});
 
   /// The note the line starts on, or null for the top note of its chord.
   final NoteId? from;
 
-  /// The note the line ends on, or null for the top note of its chord.
+  /// The note the line ends on, or null for the note of its chord at the
+  /// start note's place ([notesOn]).
   final NoteId? to;
 
-  /// The note of [event] that an end naming [id] lies on, where [event] is
-  /// what [Score.anchorOf] finds at that end. It is the note with that id,
-  /// or the chord's top note when [id] is null or names no note of the
-  /// chord. Null when [event] is not a chord.
-  static Note? noteIn(Event? event, NoteId? id) => switch (event) {
-    ChordEvent(:final notes) =>
-      notes.where((note) => note.id == id).firstOrNull ?? notes.last,
-    _ => null,
-  };
+  /// The notes this line joins, where [first] and [last] are the events
+  /// [Score.anchorOf] finds at its ends. An end on a rest has no note.
+  ///
+  /// The start is on the note [from] names, or on the chord's top note when
+  /// [from] is null or names no note of the chord. The end is on the note
+  /// [to] names. When [to] is null or names no note of the chord, the end is
+  /// on the note as far from the bottom of its chord as the start note is
+  /// from the bottom of its own, or on the top note when the chord has fewer
+  /// notes. MuseScore 4 picks the end of a new glissando that way. A line
+  /// that starts on a rest ends on the top note. `AddSpanner` and each edit
+  /// name the notes picked, so adding or removing a note of either chord
+  /// later does not move an end.
+  ({Note? from, Note? to}) notesOn(Event? first, Event? last) {
+    final start = first is ChordEvent ? first.notes : null;
+    final end = last is ChordEvent ? last.notes : null;
+    final place = start == null
+        ? null
+        : _indexOf(start, from) ?? start.length - 1;
+    return (
+      from: place == null ? null : start![place],
+      to: end == null
+          ? null
+          : end[_indexOf(end, to) ??
+                min(place ?? end.length - 1, end.length - 1)],
+    );
+  }
+
+  static int? _indexOf(Seq<Note> notes, NoteId? id) {
+    final index = id == null ? -1 : notes.indexWhere((note) => note.id == id);
+    return index < 0 ? null : index;
+  }
 
   /// This line on copies of its notes, where [copies] maps the id of each
   /// copied note to its copy's. An end whose note was not copied names none.

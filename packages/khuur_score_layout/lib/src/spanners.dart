@@ -550,10 +550,6 @@ CurveDraw graceTie(
 
 double _middle(Box box) => (box.top + box.bottom) / 2;
 
-/// The head a glissando end naming [note] lies on in [plan].
-Box _glissandoHead(ChordPlan plan, NoteId? note) =>
-    plan.headBoxes[Glissando.noteIn(plan.chord, note)!.id]!;
-
 /// A tie from [from] to [to], outside its own anchors by at most [tieRise]
 /// at [scale].
 CurveDraw _tie(
@@ -857,7 +853,7 @@ SpannerPiece _piece(
               slice: startChord.slice,
               dx: startChord.plan.headsBox.right + _tieGap,
               staff: staff,
-              dy: _middle(_glissandoHead(startChord.plan, kind.from)),
+              dy: _middle(startChord.plan.headBoxes[segment.startNote]!),
             );
       final until = endChord == null
           ? (
@@ -870,7 +866,7 @@ SpannerPiece _piece(
               slice: endChord.slice,
               dx: endChord.plan.headsBox.left - _tieGap,
               staff: staff,
-              dy: _middle(_glissandoHead(endChord.plan, kind.to)),
+              dy: _middle(endChord.plan.headBoxes[segment.endNote]!),
             );
       return piece(from: from, until: until, clear: from.dy, limit: from.dy);
     case Hairpin() || OctaveLine() || PedalLine() || TrillLine() || TempoLine():
