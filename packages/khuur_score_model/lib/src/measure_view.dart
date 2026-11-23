@@ -52,17 +52,28 @@ MeasureView buildMeasureView(Score score, int index) {
 SpannerSegment _segment(Score score, MeasureColumn column, Spanner spanner) {
   final startsHere = spanner.first.measure == column.id;
   final endsHere = spanner.last.measure == column.id;
-  final onEvents = spanner.kind.reach == SpannerReach.events;
+  final kind = spanner.kind;
+  final onEvents = kind.reach == SpannerReach.events;
+  final endFollowsStart = endsHere && kind is Glissando;
+  final first = onEvents && (startsHere || endFollowsStart)
+      ? score.anchorOf(spanner, last: false)
+      : null;
+  final last = onEvents && endsHere
+      ? score.anchorOf(spanner, last: true)
+      : null;
+  final notes = kind is Glissando
+      ? kind.notesOn(first?.event, last?.event)
+      : null;
   return SpannerSegment(
     spanner: spanner,
     from: startsHere ? spanner.first.offset : Moment.zero,
     to: endsHere ? score.endOf(spanner) : Moment.zero + column.length,
     startsHere: startsHere,
     endsHere: endsHere,
-    startsOn: startsHere && onEvents
-        ? score.anchorOf(spanner, last: false)
-        : null,
-    endsOn: endsHere && onEvents ? score.anchorOf(spanner, last: true) : null,
+    startsOn: startsHere ? first : null,
+    endsOn: last,
+    startNote: startsHere ? notes?.from?.id : null,
+    endNote: notes?.to?.id,
   );
 }
 

@@ -815,19 +815,18 @@ final class _Export {
       case Slur() || Glissando() || TrillLine():
         final (from, fromStream) = anchor(last: false);
         final (to, toStream) = anchor(last: true);
-        final kind = spanner.kind;
+        final notes = switch (spanner.kind) {
+          final Glissando kind => kind.notesOn(from.event, to.event),
+          _ => (from: null, to: null),
+        };
         return (
           spanner: spanner,
           start: (bar: firstBar, stream: fromStream, at: from.onset),
           stop: (bar: lastBar, stream: toStream, at: to.onset),
           from: from.event.id,
           to: to.event.id,
-          fromNote: kind is Glissando
-              ? Glissando.noteIn(from.event, kind.from)?.id
-              : null,
-          toNote: kind is Glissando
-              ? Glissando.noteIn(to.event, kind.to)?.id
-              : null,
+          fromNote: notes.from?.id,
+          toNote: notes.to?.id,
         );
       case Hairpin() || OctaveLine() || PedalLine() || TempoLine():
         return (

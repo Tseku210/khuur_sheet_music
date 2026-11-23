@@ -1472,15 +1472,148 @@ void main() {
 
       expect(spannersOf(score), ['slur 0@1/4-0@1/2']);
       final slur = score.spanners.single;
-      expect(slur.kind, const Slur());
+      expect(slur.kind, const Slur(endVoice: VoiceSlot.three));
       final from = score.anchorOf(slur, last: false)!;
       final to = score.anchorOf(slur, last: true)!;
       expect((from.voice, from.onset), (VoiceSlot.two, at(1, 4)));
       expect((to.voice, to.onset), (VoiceSlot.three, at(1, 2)));
       expect('${(to.event as ChordEvent).notes.single.tone}', 'G4');
-      expect(spannersOf(scoreFromMusicXml(scoreToMusicXml(score))), [
-        'slur 0@1/4-0@1/2',
+      final back = scoreFromMusicXml(scoreToMusicXml(score));
+      expect(spannersOf(back), ['slur 0@1/4-0@1/2']);
+      expect(back.spanners.single.kind, slur.kind);
+    });
+
+    test('starts a slur on the note of voice one its start is on, where the '
+        'third voice its stop is in starts a note with that one', () {
+      const start = '<notations><slur type="start"/></notations>';
+      const stop = '<notations><slur type="stop"/></notations>';
+      final score = imported(
+        flute([
+          [
+            opening(),
+            note('C5', 4, 'quarter', '<voice>1</voice>$start'),
+            note('D5', 4, 'quarter', '<voice>1</voice>'),
+            note('E5', 8, 'half', '<voice>1</voice>'),
+            backup(16),
+            note('G4', 4, 'quarter', '<voice>3</voice>'),
+            forward(4, '<voice>3</voice>'),
+            note('A4', 4, 'quarter', '<voice>3</voice>$stop'),
+            forward(4, '<voice>3</voice>'),
+          ],
+        ]),
+      );
+
+      expect(spannersOf(score), ['slur 0@0-0@1/2']);
+      final slur = score.spanners.single;
+      final from = score.anchorOf(slur, last: false)!;
+      final to = score.anchorOf(slur, last: true)!;
+      expect('${(from.event as ChordEvent).notes.single.tone}', 'C5');
+      expect('${(to.event as ChordEvent).notes.single.tone}', 'A4');
+      expect(slur.kind, const Slur(endVoice: VoiceSlot.three));
+      final exported = scoreToMusicXml(score);
+      expect(scoreToMusicXml(scoreFromMusicXml(exported)), exported);
+    });
+
+    test('reads back a slur that starts on a note of voice one and is named '
+        'for the chord of a third voice, on the same two notes', () {
+      String tone(TimedEvent on) =>
+          '${on.voice.name} ${(on.event as ChordEvent).notes.single.tone}';
+      String ends(Score score, Spanner slur) =>
+          '${tone(score.anchorOf(slur, last: false)!)} to '
+          '${tone(score.anchorOf(slur, last: true)!)}, '
+          'named ${(slur.kind as Slur).endVoice?.name}';
+      List<String> slursOf(Score score) => [
+        for (final slur in score.spanners) ends(score, slur),
+      ];
+
+      var bar = blankScore(bars: 1);
+      bar = fill(bar, 0, [
+        chordOf(1, 'C5'),
+        chordOf(2, 'D5'),
+        chordOf(3, 'E5', value: NoteValue.half),
       ]);
+      bar = fill(bar, 0, slot: VoiceSlot.three, [
+        chordOf(4, 'G4'),
+        Gap(len(1, 4)),
+        chordOf(5, 'A4'),
+        Gap(len(1, 4)),
+      ]);
+      // Voice one holds its note under both notes of the third voice.
+      var held = blankScore(bars: 1);
+      held = fill(held, 0, [chordOf(1, 'C5', value: NoteValue.whole)]);
+      held = fill(held, 0, slot: VoiceSlot.three, [
+        chordOf(2, 'G4'),
+        chordOf(3, 'A4'),
+        Gap(len(1, 2)),
+      ]);
+      // The slur's own voice has a gap where it starts, and the third voice
+      // starts a note there.
+      var bars = blankScore();
+      bars = fill(bars, 0, [
+        chordOf(1, 'C5'),
+        chordOf(2, 'D5'),
+        chordOf(3, 'E5', value: NoteValue.half),
+      ]);
+      bars = fill(bars, 0, slot: VoiceSlot.two, [
+        chordOf(4, 'E4'),
+        Gap(len(3, 4)),
+      ]);
+      bars = fill(bars, 0, slot: VoiceSlot.three, [
+        Gap(len(1, 4)),
+        chordOf(5, 'G4'),
+        Gap(len(1, 2)),
+      ]);
+      bars = fill(bars, 1, [chordOf(6, 'F5', value: NoteValue.whole)]);
+      bars = fill(bars, 1, slot: VoiceSlot.three, [
+        Gap(len(1, 4)),
+        chordOf(7, 'A4'),
+        Gap(len(1, 2)),
+      ]);
+      const named = Slur(endVoice: VoiceSlot.three);
+      final cases = [
+        for (final voice in [VoiceSlot.one, VoiceSlot.two])
+          (
+            withSpanner(
+              bar,
+              named,
+              pointAt(bar, 0, Moment.zero),
+              pointAt(bar, 0, at(1, 2)),
+              voice: voice,
+            ),
+            'one C5 to three A4',
+          ),
+        (
+          withSpanner(
+            held,
+            named,
+            pointAt(held, 0, Moment.zero),
+            pointAt(held, 0, at(1, 4)),
+            voice: VoiceSlot.one,
+          ),
+          'one C5 to three A4',
+        ),
+        (
+          withSpanner(
+            bars,
+            named,
+            pointAt(bars, 0, at(1, 4)),
+            pointAt(bars, 1, at(1, 4)),
+            voice: VoiceSlot.two,
+          ),
+          'one D5 to three A4',
+        ),
+      ];
+
+      final made = [for (final (score, _) in cases) slursOf(score)];
+      final back = [
+        for (final (score, _) in cases)
+          slursOf(scoreFromMusicXml(scoreToMusicXml(score))),
+      ];
+
+      expect(made, [
+        for (final (_, on) in cases) ['$on, named three'],
+      ]);
+      expect(back, made);
     });
 
     test('ends a slur on the note its stop is on, in a fourth voice that '
@@ -1996,6 +2129,51 @@ void main() {
             joined(score),
           );
         });
+
+        test('reads back a line of a second voice that starts in a gap of '
+            'its voice over a rest of voice one and names a note of a third '
+            'voice, on that rest and that note', () {
+          String end(TimedEvent on) => switch (on.event) {
+            ChordEvent(:final notes) => '${on.voice.name} ${notes.single.tone}',
+            _ => '${on.voice.name} rest',
+          };
+          String ends(Score score) {
+            final line = score.spanners.single;
+            return '${spannersOf(score).single}, '
+                '${end(score.anchorOf(line, last: false)!)} to '
+                '${end(score.anchorOf(line, last: true)!)}, '
+                'to note ${score.glissandoNotes(line).to?.tone}';
+          }
+
+          var bar = blankScore(bars: 1);
+          bar = fill(bar, 0, [
+            chordOf(1, 'C5'),
+            rest(2, NoteValue.half),
+            chordOf(3, 'E5'),
+          ]);
+          bar = fill(bar, 0, slot: VoiceSlot.three, [
+            Gap(len(1, 4)),
+            chordOf(4, 'G4'),
+            chordOf(5, 'A4'),
+            Gap(len(1, 4)),
+          ]);
+          final score = withSpanner(
+            bar,
+            const Glissando(to: NoteId(50)),
+            pointAt(bar, 0, at(1, 4)),
+            pointAt(bar, 0, at(1, 2)),
+            voice: VoiceSlot.two,
+          );
+          final exported = scoreToMusicXml(score);
+          final back = scoreFromMusicXml(exported);
+
+          expect(
+            ends(score),
+            'glissando 0@1/4-0@1/2, one rest to three A4, to note A4',
+          );
+          expect(ends(back), ends(score));
+          expect(scoreToMusicXml(back), exported);
+        });
       });
 
       test('ends a line to a note of another staff on the top note of its '
@@ -2055,6 +2233,36 @@ void main() {
 
         expect(written(read), ['C4 start', 'D4 stop']);
         expect(written(score), ['G4 start', 'C5 stop']);
+      });
+
+      test('writes a line that names no end note on the note at its start '
+          "note's place in the chord it ends on", () {
+        final read = imported(
+          flute([
+            [
+              opening(),
+              chord([('C4', line('start')), ('G4', '')]),
+              chord([('D4', ''), ('F4', ''), ('C5', line('stop'))]),
+              note('rest', 8, 'half'),
+            ],
+          ]),
+        );
+        final spanner = read.spanners.single;
+        final score = read.copyWith(
+          spanners: Seq([
+            Spanner(
+              id: spanner.id,
+              kind: Glissando(from: (spanner.kind as Glissando).from),
+              staff: spanner.staff,
+              voice: spanner.voice,
+              first: spanner.first,
+              last: spanner.last,
+            ),
+          ]),
+        );
+
+        expect(written(read), ['C4 start', 'C5 stop']);
+        expect(written(score), ['C4 start', 'D4 stop']);
       });
     });
 
