@@ -1,5 +1,5 @@
 // Gate 2 of the layout design. It measures what a first layout and an update
-// after one entered note cost on two fixtures, and judges them against the
+// after one entered note cost on each fixture, and judges them against the
 // budgets for the development host. It also reports what assembling every
 // system, and the systems an update rekeyed, costs on top, which the design
 // does not budget.
@@ -50,13 +50,16 @@ typedef Fixture = ({
   String name,
   Score Function() build,
   int editedBar,
-  Duration firstLayoutBudget,
+  Duration? firstLayoutBudget,
   Duration? updateBudget,
 });
 
 /// The budgets. The second fixture has four times the bars and four times the
-/// first layout budget, and the design names no update budget for it. Bars are
-/// counted from 1.
+/// first layout budget, and the design names no update budget for it. The
+/// design names no budget for the third. Its update budget lies between an
+/// update of the few bars near the edit, about 2 ms, and one of every later
+/// bar, about 85 ms, so it fails when one edit under a chain of slurs lays out
+/// the rest of the score. Bars are counted from 1.
 const List<Fixture> fixtures = [
   (
     name: 'dense',
@@ -71,6 +74,13 @@ const List<Fixture> fixtures = [
     editedBar: 1000,
     firstLayoutBudget: Duration(milliseconds: 200),
     updateBudget: null,
+  ),
+  (
+    name: 'slurred',
+    build: slurredScore,
+    editedBar: 1000,
+    firstLayoutBudget: null,
+    updateBudget: Duration(milliseconds: 10),
   ),
 ];
 

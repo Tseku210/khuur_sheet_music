@@ -893,10 +893,70 @@ void main() {
         [for (final note in xml.findAllElements('note')) ties(note)],
         [
           'tie start, tied start',
-          'tie stop, tied stop, tied let-ring',
+          'tie stop, tie start, tied stop, tied let-ring',
           '',
         ],
       );
+    });
+
+    group('a tie with no target, written and read back', () {
+      Score endingARepeat({required bool letRing}) => changeBar(
+        sessionWith([
+          [
+            chordOf(1, 'F4', value: NoteValue.half),
+            chordOf(
+              2,
+              'F4',
+              value: NoteValue.half,
+              tie: !letRing,
+              letRing: letRing,
+            ),
+          ],
+        ]).score,
+        0,
+        (column) => column.copyWith(repeatEnd: () => const RepeatEnd()),
+      );
+
+      Note last(Score score) {
+        final voice = score
+            .measureView(score.measures.single.id)
+            .staves
+            .single
+            .voices
+            .single;
+        return (voice.events.last.event as ChordEvent).notes.single;
+      }
+
+      List<(double, double)> played(Score score) => [
+        for (final note
+            in PlaybackCompiler()
+                .compile(score)
+                .notesBetween(
+                  0,
+                  double.infinity,
+                ))
+          (note.start, note.duration),
+      ];
+
+      test('stays a plain tie that joins the tone played next', () {
+        final score = endingARepeat(letRing: false);
+        final back = scoreFromMusicXml(scoreToMusicXml(score));
+
+        expect(last(back).tie, isTrue);
+        expect(last(back).letRing, isFalse);
+        expect(played(score), hasLength(3));
+        expect(played(back), played(score));
+      });
+
+      test('stays a let-ring tie that joins nothing', () {
+        final score = endingARepeat(letRing: true);
+        final back = scoreFromMusicXml(scoreToMusicXml(score));
+
+        expect(last(back).tie, isFalse);
+        expect(last(back).letRing, isTrue);
+        expect(played(score), hasLength(4));
+        expect(played(back), played(score));
+      });
     });
 
     test('beams eighths and sixteenths with hooks', () {

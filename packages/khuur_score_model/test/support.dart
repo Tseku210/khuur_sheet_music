@@ -3,8 +3,9 @@ import 'dart:convert';
 import 'package:khuur_score_model/khuur_score_model.dart';
 import 'package:test/test.dart';
 
-/// One token per item: `F4/quarter`, `F4/quarter~` (tied), `rest/half`,
-/// `measure-rest`, `gap 1/4`, and `3:2[...]` for a tuplet's members.
+/// One token per item: `F4/quarter`, `F4/quarter~` (tied),
+/// `F4/quarter~lv` (let-ring), `rest/half`, `measure-rest`, `gap 1/4`, and
+/// `3:2[...]` for a tuplet's members.
 List<String> describe(Iterable<VoiceItem> items) => [
   for (final item in items) _token(item),
 ];
@@ -12,7 +13,8 @@ List<String> describe(Iterable<VoiceItem> items) => [
 String _token(VoiceItem item) => switch (item) {
   ChordEvent(:final notes, :final value) =>
     '${notes.map((n) => n.tone).join('+')}/$value'
-        '${notes.any((n) => n.tie) ? '~' : ''}',
+        '${notes.any((n) => n.tie) ? '~' : ''}'
+        '${notes.any((n) => n.letRing) ? '~lv' : ''}',
   RestEvent(:final value) => 'rest/$value',
   MeasureRest() => 'measure-rest',
   Gap(:final span) => 'gap ${span.wholeNotes}',
@@ -320,6 +322,7 @@ ChordEvent chordOf(
   String pitches, {
   NoteValue value = NoteValue.quarter,
   bool tie = false,
+  bool letRing = false,
   AccidentalRequest accidental = AccidentalRequest.auto,
   BeamMode beam = BeamMode.auto,
   List<GraceChord> graces = const [],
@@ -336,6 +339,7 @@ ChordEvent chordOf(
           id: NoteId(id * 10 + i),
           pitch: Pitch.parse(names[i]),
           tie: tie,
+          letRing: letRing,
           accidental: accidental,
         ),
     ]),

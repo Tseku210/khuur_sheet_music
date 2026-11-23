@@ -157,4 +157,28 @@ void main() {
       expect(scoreFromJson(scoreToJson(score)).spanners, hasLength(2500));
     });
   });
+
+  group('the slurred score', () {
+    late final Score score;
+
+    setUpAll(() => score = slurredScore());
+
+    test('chains a slur from every bar into the next on the sung staff, '
+        'over the spanner score', () {
+      final phrases = [
+        for (final spanner in score.spanners)
+          if (spanner.staff == score.staves.first.id) spanner,
+      ];
+      expect(score.spanners, hasLength(2500 + 1999));
+      expect(phrases, hasLength(1999));
+      for (final (bar, slur) in phrases.indexed) {
+        expect(slur.first.measure, score.measures[bar].id);
+        expect(slur.last.measure, score.measures[bar + 1].id);
+      }
+    });
+
+    test('is a score the model loads', () {
+      expect(scoreFromJson(scoreToJson(score)).spanners, hasLength(4499));
+    });
+  });
 }

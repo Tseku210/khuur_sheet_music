@@ -170,7 +170,8 @@ StaffView _staffView(
   );
 }
 
-bool _tied(ChordEvent chord) => chord.notes.any((note) => note.tie);
+bool _tied(ChordEvent chord) =>
+    chord.notes.any((note) => note.tie || note.letRing);
 
 /// Each tied note of [chord], with the note of the same tone in [target]
 /// that the tie lands on, or null when none matches.
@@ -186,7 +187,7 @@ List<(Note, NoteRef?)> _tieEnds(ChordEvent chord, TimedEvent? target) {
 
   return [
     for (final note in chord.notes)
-      if (note.tie) (note, landing(note)),
+      if (note.tie) (note, landing(note)) else if (note.letRing) (note, null),
   ];
 }
 

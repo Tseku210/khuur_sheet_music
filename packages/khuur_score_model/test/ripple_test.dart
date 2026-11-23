@@ -1930,7 +1930,8 @@ void main() {
       );
     });
 
-    test('keeps the tie into a note that two gaps shorten', () {
+    test('drops the tie into a note that loses its start to one of two '
+        'gaps', () {
       var score = fill(blankScore(bars: 1), 0, [
         chordOf(1, 'C4', tie: true),
         chordOf(2, 'C4', value: NoteValue.half),
@@ -1946,8 +1947,8 @@ void main() {
 
       final next = applied(pull(EditSession.start(score), [4, 6])).score;
 
-      expect(bar(next, 0).take(2), ['C4/quarter~', 'C4/sixteenth']);
-      expect(heard(next), hasLength(2));
+      expect(bar(next, 0).take(2), ['C4/quarter', 'C4/sixteenth']);
+      expect(heard(next), hasLength(3));
     });
 
     test('writes a note that two gaps leave with five 256ths', () {
@@ -2091,16 +2092,10 @@ void main() {
       expect(range.to, pointAt(next.score, 1, at(3, 4)));
     });
 
-    group('under a range that starts at the end of the section', () {
-      EditSession ranged() {
-        final session = barsOf([
-          [
-            chordOf(1, 'F4'),
-            rest(2, NoteValue.quarter),
-            rest(3, NoteValue.half),
-          ],
-          quarters(5, 'C5 D5 E5 F5'),
-        ]);
+    group('under a range selected from the end of a bar that ends its '
+        'section', () {
+      EditSession ranged(List<VoiceItem> first) {
+        final session = barsOf([first, quarters(5, 'C5 D5 E5 F5')]);
         final score = changeBar(
           session.score,
           0,
@@ -2116,23 +2111,292 @@ void main() {
         );
       }
 
-      test('a longer value pushes the music and the range stays', () {
-        final next = applied(revalue(ranged(), 1, NoteValue.half));
+      final sparse = [
+        chordOf(1, 'F4'),
+        rest(2, NoteValue.quarter),
+        rest(3, NoteValue.half),
+      ];
+
+      test('a longer value that adds a bar leaves the range on its '
+          'music', () {
+        final next = applied(
+          revalue(ranged(quarters(1, 'F4 G4 A4 B4')), 1, NoteValue.half),
+        );
+
+        expect(bar(next.score, 1), ['B4/quarter', 'rest/quarter', 'rest/half']);
+        final range = next.selection as RangeSelection;
+        expect(range.from, pointAt(next.score, 2, Moment.zero));
+        expect(range.to, pointAt(next.score, 2, at(1, 2)));
+      });
+
+      test('a longer value that fits the section leaves the range on its '
+          'music', () {
+        final next = applied(revalue(ranged(sparse), 1, NoteValue.half));
 
         expect(bar(next.score, 0), ['F4/half', 'rest/half']);
         final range = next.selection as RangeSelection;
-        expect(range.from, pointAt(next.score, 0, at(1, 1)));
+        expect(range.from, pointAt(next.score, 1, Moment.zero));
+        expect(range.to, pointAt(next.score, 1, at(1, 2)));
+      });
+
+      test('a shorter value leaves the range on its music', () {
+        final next = applied(revalue(ranged(sparse), 3, NoteValue.quarter));
+
+        final range = next.selection as RangeSelection;
+        expect(range.from, pointAt(next.score, 1, Moment.zero));
         expect(range.to, pointAt(next.score, 1, at(1, 2)));
       });
 
       test('a new note pushes the music', () {
-        final session = ranged();
+        final session = ranged(sparse);
 
         final next = applied(
           push(session, point(session.score, 0, Moment.zero)),
         );
 
         expect(bar(next.score, 0).take(2), ['C5/quarter', 'F4/quarter']);
+      });
+    });
+
+    group('under a range selected to the bar line that ends a section', () {
+      EditSession ranged(List<VoiceItem> first, (int, Moment) to) {
+        final session = barsOf([first, quarters(5, 'C5 D5 E5 F5')]);
+        final score = changeBar(
+          session.score,
+          0,
+          (column) => column.copyWith(barline: Barline.doubleBar),
+        );
+        return EditSession.start(score).select(
+          RangeSelection(
+            from: pointAt(score, 0, at(1, 4)),
+            to: pointAt(score, to.$1, to.$2),
+            top: score.staves.first.id,
+            bottom: score.staves.first.id,
+          ),
+        );
+      }
+
+      final spellings = [(0, at(1, 1)), (1, Moment.zero)];
+
+      test('a longer value that adds a bar leaves the range on its music, '
+          'however its end was spelled', () {
+        for (final to in spellings) {
+          final next = applied(
+            revalue(ranged(quarters(1, 'F4 G4 A4 B4'), to), 1, NoteValue.half),
+          );
+
+          expect(bar(next.score, 1), [
+            'B4/quarter',
+            'rest/quarter',
+            'rest/half',
+          ]);
+          final range = next.selection as RangeSelection;
+          expect(range.from, pointAt(next.score, 0, at(1, 2)));
+          expect(range.to, pointAt(next.score, 1, at(1, 4)));
+        }
+      });
+
+      test('a shorter value leaves the range on its music, however its end '
+          'was spelled', () {
+        for (final to in spellings) {
+          final next = applied(
+            revalue(
+              ranged([
+                chordOf(1, 'F4'),
+                chordOf(2, 'G4'),
+                chordOf(3, 'A4', value: NoteValue.half),
+              ], to),
+              3,
+              NoteValue.quarter,
+            ),
+          );
+
+          final range = next.selection as RangeSelection;
+          expect(range.from, pointAt(next.score, 0, at(1, 4)));
+          expect(range.to, pointAt(next.score, 0, at(3, 4)));
+        }
+      });
+    });
+
+    test('a range that a ripple ends on a bar line ends at the end of the '
+        'bar before', () {
+      final session = barsOf([
+        quarters(1, 'F4 G4 A4 B4'),
+        quarters(5, 'C5 D5 E5 F5'),
+        [],
+      ]);
+      final score = session.score;
+      EditSession ranged(ScorePoint from, ScorePoint to) => session.select(
+        RangeSelection(
+          from: from,
+          to: to,
+          top: score.staves.first.id,
+          bottom: score.staves.first.id,
+        ),
+      );
+
+      final pushed = applied(
+        revalue(
+          ranged(pointAt(score, 0, at(1, 4)), pointAt(score, 1, at(3, 4))),
+          2,
+          NoteValue.half,
+        ),
+      );
+      final pulled = applied(
+        pull(
+          ranged(pointAt(score, 0, at(1, 2)), pointAt(score, 1, at(1, 4))),
+          [1],
+        ),
+      );
+
+      expect(
+        (pushed.selection as RangeSelection).to,
+        pointAt(pushed.score, 1, at(1, 1)),
+      );
+      expect(
+        (pulled.selection as RangeSelection).to,
+        pointAt(pulled.score, 0, at(1, 1)),
+      );
+    });
+
+    group('under a range over two staves', () {
+      EditSession ranged(Score score, Moment from, Moment to) =>
+          EditSession.start(score).select(
+            RangeSelection(
+              from: pointAt(score, 0, from),
+              to: pointAt(score, 0, to),
+              top: score.staves.first.id,
+              bottom: score.staves.last.id,
+            ),
+          );
+      EditOutcome erase(EditSession session, List<int> ids, Ripple ripple) =>
+          session.run(
+            Erase(
+              ItemSelection(Seq([for (final id in ids) eventRef(session, id)])),
+              ripple: ripple,
+            ),
+          );
+      void expectRange(EditSession next, (int, Moment) from, (int, Moment) to) {
+        final range = next.selection as RangeSelection;
+        expect(range.from, pointAt(next.score, from.$1, from.$2));
+        expect(range.to, pointAt(next.score, to.$1, to.$2));
+      }
+
+      test('an erase that takes all its time from one staff leaves it on the '
+          'notes of the other', () {
+        final session = ranged(twoHands(), at(1, 2), at(1, 1));
+
+        final next = applied(erase(session, [3, 4], Ripple.staff));
+
+        expect(staffBar(next.score, 0, 1), staffBar(session.score, 0, 1));
+        expectRange(next, (0, at(1, 2)), (0, at(1, 1)));
+      });
+
+      test('an erase on one staff leaves its end after the last note of the '
+          'other', () {
+        final next = applied(
+          erase(ranged(twoHands(), at(1, 2), at(1, 1)), [3], Ripple.staff),
+        );
+
+        expectRange(next, (0, at(1, 2)), (0, at(1, 1)));
+      });
+
+      test('an erase before it on one staff starts it at the notes that are '
+          'pulled back', () {
+        final next = applied(
+          erase(ranged(twoHands(), at(1, 2), at(1, 1)), [1], Ripple.staff),
+        );
+
+        expect(staffBar(next.score, 0, 0).take(2), [
+          'F4/quarter',
+          'G4/quarter',
+        ]);
+        expectRange(next, (0, at(1, 4)), (0, at(1, 1)));
+      });
+
+      test('an erase on each staff moves it with the notes of both', () {
+        final next = applied(
+          erase(ranged(twoHands(), at(1, 2), at(1, 1)), [3, 14], Ripple.staff),
+        );
+
+        expect(staffBar(next.score, 0, 0).take(3).last, 'A4/quarter');
+        expect(staffBar(next.score, 0, 1).take(3).last, 'B2/quarter');
+        expectRange(next, (0, at(1, 2)), (0, at(3, 4)));
+      });
+
+      test('an erase in one part leaves it on the notes of the other', () {
+        final score = fill(
+          fill(
+            blankScore(parts: const [onePianoStaff, onePianoStaff]),
+            0,
+            quarters(1, trebleNotes),
+          ),
+          0,
+          quarters(11, bassNotes),
+          staff: 1,
+        );
+
+        final next = applied(
+          erase(ranged(score, at(3, 8), at(1, 1)), [3, 4], Ripple.part),
+        );
+
+        expectRange(next, (0, at(3, 8)), (0, at(1, 1)));
+      });
+
+      test('a shorter value on one staff leaves it on the note of the '
+          'other', () {
+        final score = fill(twoHands(), 0, [
+          chordOf(1, 'E4'),
+          chordOf(2, 'F4'),
+          chordOf(3, 'G4', value: NoteValue.half),
+        ]);
+        final session = ranged(score, at(3, 4), at(1, 1));
+
+        final next = applied(
+          session.run(
+            SetValue(
+              eventRef(session, 3),
+              NoteValue.quarter,
+              ripple: Ripple.staff,
+            ),
+          ),
+        );
+
+        expectRange(next, (0, at(3, 4)), (0, at(1, 1)));
+      });
+
+      test('a longer value on one staff widens it over the notes that are '
+          'pushed', () {
+        final session = ranged(twoHands(), at(1, 2), at(1, 1));
+
+        final next = applied(
+          session.run(
+            SetValue(
+              eventRef(session, 2),
+              NoteValue.half,
+              ripple: Ripple.staff,
+            ),
+          ),
+        );
+
+        expect(staffBar(next.score, 1, 0).first, 'A4/quarter');
+        expectRange(next, (0, at(1, 2)), (1, at(1, 4)));
+      });
+
+      test('an erase on one staff still drops one that holds no time', () {
+        final next = applied(
+          erase(ranged(twoHands(), at(1, 2), at(1, 2)), [3], Ripple.staff),
+        );
+
+        expect(next.selection, isA<NoSelection>());
+      });
+
+      test('an erase that moves both staves moves it with them', () {
+        final next = applied(
+          erase(ranged(twoHands(), at(1, 2), at(1, 1)), [3], Ripple.part),
+        );
+
+        expectRange(next, (0, at(1, 2)), (0, at(3, 4)));
       });
     });
 
@@ -2174,6 +2438,79 @@ void main() {
       );
       expect(bar(next.score, 2), ['F5/quarter', 'rest/quarter', 'rest/half']);
       expect(next.score.measures[3], same(session.score.measures[3]));
+    });
+  });
+
+  group('A rippled erase of rests in two sections', () {
+    test('changes nothing and is no undo step', () {
+      final score = changeBar(
+        blankScore(bars: 4),
+        1,
+        (column) => column.copyWith(barline: Barline.doubleBar),
+      );
+      final session = EditSession.start(score);
+
+      final next = applied(
+        session.run(
+          Erase(
+            RangeSelection(
+              from: pointAt(score, 0, Moment.zero),
+              to: pointAt(score, 3, Moment.zero),
+              top: score.staves.first.id,
+              bottom: score.staves.first.id,
+            ),
+            ripple: Ripple.part,
+          ),
+        ),
+      );
+
+      expect(next.score, same(session.score));
+      expect(next.canUndo, isFalse);
+    });
+  });
+
+  group('A rippled erase of chords in many sections', () {
+    const bars = 40;
+
+    Score sections() {
+      var score = blankScore(bars: bars);
+      for (var b = 0; b < bars; b++) {
+        score = fill(score, b, [
+          chordOf(1 + 4 * b, 'F4', tie: true),
+          ...quarters(2 + 4 * b, 'G4 F4 B4'),
+        ]);
+        if (b % 3 == 2) {
+          score = changeBar(
+            score,
+            b,
+            (column) => column.copyWith(barline: Barline.doubleBar),
+          );
+        }
+      }
+      return score;
+    }
+
+    List<int> seconds(int from, int to) => [
+      for (var b = from; b < min(to, bars); b++) 2 + 4 * b,
+    ];
+
+    test('leaves what an erase of each section on its own leaves', () {
+      final score = sections();
+
+      final once = applied(pull(EditSession.start(score), seconds(0, bars)));
+      var each = EditSession.start(score);
+      for (var b = 0; b < bars; b += 3) {
+        each = applied(pull(each, seconds(b, b + 3)));
+      }
+
+      expect(bar(once.score, 0), [
+        'F4/quarter',
+        'F4/quarter',
+        'B4/quarter',
+        'F4/quarter',
+      ]);
+      expect(tiesOf(once, 1).values, [false]);
+      expect(saved(once.score), saved(each.score));
     });
   });
 }

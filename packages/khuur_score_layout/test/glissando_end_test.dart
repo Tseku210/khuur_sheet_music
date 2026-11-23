@@ -18,13 +18,15 @@ EventRef eventRef(Score score, int bar, int event) => EventRef(
   id: EventId(event),
 );
 
-double lineEndY(SheetLayout sheet) => [
+double lineEndY(SheetLayout sheet, Score score) => [
   for (var i = 0; i < sheet.systemCount; i++)
     ...sheet
         .systemAt(i)
         .drawables
         .whereType<LineDraw>()
-        .where((line) => line.owner == const SpannerOwner(SpannerId(900))),
+        .where(
+          (line) => line.owner == SpannerOwner(score.spanners.single.id),
+        ),
 ].last.to.y;
 
 double headMiddleY(
@@ -63,9 +65,19 @@ Score bars(List<List<VoiceItem>> bars, {List<VoiceItem>? lastBarTwo}) {
       : fill(score, bars.length - 1, lastBarTwo, slot: VoiceSlot.two);
 }
 
+Score addedLine(Score score, ScorePoint first, ScorePoint last) => applied(
+  EditSession.start(score).run(
+    AddSpanner(
+      kind: const Glissando(),
+      staff: score.staves.first.id,
+      first: first,
+      last: last,
+    ),
+  ),
+).score;
+
 void main() {
-  group('A glissando that starts on a note, names no end note and would '
-      'end on a rest', () {
+  group('A glissando added from a note whose end would be on a rest', () {
     test('runs to the head of the chord voice two starts there', () {
       final plain = bars(
         [
@@ -77,16 +89,15 @@ void main() {
         ],
         lastBarTwo: [Gap(len(1, 4)), chordOf(5, 'G4'), Gap(len(1, 2))],
       );
-      final score = withSpanner(
+      final score = addedLine(
         plain,
-        const Glissando(),
         pointAt(plain, 0, Moment.zero),
         pointAt(plain, 0, at(1, 4)),
       );
       final sheet = sheetOf(score);
 
       expect(
-        lineEndY(sheet),
+        lineEndY(sheet, score),
         closeTo(headMiddleY(sheet, score, 0, 5, 50), 1e-9),
       );
     });
@@ -106,9 +117,8 @@ void main() {
           ],
           lastBarTwo: [chordOf(5, 'D4'), Gap(len(3, 4))],
         );
-        final score = withSpanner(
+        final score = addedLine(
           plain,
-          const Glissando(),
           pointAt(plain, 0, Moment.zero),
           pointAt(plain, 2, Moment.zero),
         );
@@ -122,7 +132,7 @@ void main() {
         final updated = layout.update(next);
 
         expect(
-          lineEndY(updated),
+          lineEndY(updated, next),
           closeTo(headMiddleY(updated, next, 2, 5, 50), 1e-9),
           reason: 'width $width',
         );
@@ -148,7 +158,10 @@ void main() {
     );
     final sheet = sheetOf(score);
 
-    expect(lineEndY(sheet), closeTo(headMiddleY(sheet, score, 0, 2, 21), 1e-9));
+    expect(
+      lineEndY(sheet, score),
+      closeTo(headMiddleY(sheet, score, 0, 2, 21), 1e-9),
+    );
   });
 
   test('a glissando into a crossing chord keeps the head of its lowest line '
@@ -175,7 +188,7 @@ void main() {
       final updated = layout.update(next);
 
       expect(
-        lineEndY(updated),
+        lineEndY(updated, next),
         closeTo(headMiddleY(updated, next, 2, 2, 21), 1e-9),
         reason: 'width $width',
       );

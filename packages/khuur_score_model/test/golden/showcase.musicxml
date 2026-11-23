@@ -12,6 +12,7 @@
       <software>khuur_sheet_music</software>
       <supports element="accidental" type="yes"/>
       <supports element="beam" type="yes"/>
+      <supports element="tied" attribute="type" type="yes" value="let-ring"/>
       <supports element="print" attribute="new-page" type="yes" value="yes"/>
       <supports element="print" attribute="new-system" type="yes" value="yes"/>
     </encoding>

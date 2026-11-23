@@ -164,7 +164,8 @@ _LaneWrite _overwrite(
   );
 }
 
-/// Enters [event] at [at] as new music. A tie into [at] keeps only the
+/// Enters [event] at [at] as new music. A chord that sounds across [at] is
+/// [_Loss.shortened]. A tie from a chord that ends at [at] keeps only the
 /// tones [event] starts with, [event] is selected, and the cursor moves
 /// past it. When [event] ends the score, the cursor moves into a new bar
 /// with [appendBar], and stays at [at] without it.
@@ -176,7 +177,16 @@ _Result _enter(
   Overfill overfill, {
   required bool appendBar,
 }) {
-  final write = _overwrite(score, at, [event], ids, overfill);
+  final across = score.eventAt(at);
+  final write = _overwrite(
+    across != null && across.onset < at.at.offset
+        ? _lose(score, across, _Loss.shortened)
+        : score,
+    at,
+    [event],
+    ids,
+    overfill,
+  );
   var entered = _untieInto(write.score, at, _tones(event));
   var end = write.end;
   final bar = entered.column(end.at.measure);
@@ -287,11 +297,11 @@ final class _Lane {
     final before = events(
       bar,
     ).where((e) => e.onset + e.duration == stop).firstOrNull?.event;
-    if (before is! ChordEvent ||
-        !before.notes.any((n) => n.tie && !kept.contains(n.tone))) {
+    bool clears(Note note) => note.tie && !kept.contains(note.tone);
+    if (before is! ChordEvent || !before.notes.any(clears)) {
       return;
     }
-    final untied = _untied(before, (note) => !kept.contains(note.tone));
+    final untied = _untied(before, clears);
     write(bar, [
       for (final item in items(bar))
         item is Content ? _replaceEvent(item, untied) : item,
@@ -504,11 +514,13 @@ Event _piece(
             head: head,
             string: string,
             tie: tied || n.tie,
+            letRing: !tied && n.letRing,
           ),
           DrumNote(:final drum) => DrumNote(
             id: ids.note(),
             drum: drum,
             tie: tied || n.tie,
+            letRing: !tied && n.letRing,
           ),
         },
     ]),
@@ -525,7 +537,7 @@ ChordEvent _untied(ChordEvent chord, bool Function(Note note) clears) =>
     chord.copyWith(
       notes: Seq([
         for (final note in chord.notes)
-          clears(note) ? note.copyWith(tie: false) : note,
+          clears(note) ? note.copyWith(tie: false, letRing: false) : note,
       ]),
     );
 

@@ -271,6 +271,9 @@ final broken = <Broken>[
     '$chord0.notes[1].pitch': 'F#4',
   }),
   bad('$chord0.notes[0].pitch', 'H4', 'expected a pitch such as "F#4"'),
+  badAt('$chord0.notes[1]', 'a note has a tie or a let-ring tie, not both', {
+    '$chord0.notes[1].letRing': true,
+  }),
   for (final pitch in ['G#9', 'C-2'])
     bad(
       '$chord0.notes[0].pitch',
@@ -360,6 +363,63 @@ void main() {
 
       expect(saved(loaded), golden.readAsStringSync());
       expect(views(loaded), views(showcase()));
+    });
+
+    group('a let-ring tie before a note of its tone', () {
+      Score before({required bool letRing}) => fill(blankScore(), 0, [
+        chordOf(
+          1,
+          'C4',
+          value: NoteValue.half,
+          tie: !letRing,
+          letRing: letRing,
+        ),
+        chordOf(2, letRing ? 'C4' : 'D4', value: NoteValue.half),
+      ]);
+
+      Object? savedNote(Score score) =>
+          const [
+            'measures',
+            0,
+            'staves',
+            0,
+            'voices',
+            0,
+            'items',
+            0,
+            'notes',
+            0,
+          ].fold<Object?>(
+            jsonDecode(jsonEncode(scoreToJson(score))),
+            (node, step) => step is String
+                ? (node! as Map)[step]
+                : (node! as List)[step as int],
+          );
+
+      List<String> ties(Score score) => [
+        for (final TieView(:from, :to)
+            in score.measureView(score.measures.first.id).staves.first.ties)
+          '${from.value} -> ${to?.note.value}',
+      ];
+
+      test('saves as letRing and loads back ringing', () {
+        final score = before(letRing: true);
+
+        expect(savedNote(score), {'id': 10, 'pitch': 'C4', 'letRing': true});
+        expect(ties(reloaded(score)), ['10 -> null']);
+        expect(bar(reloaded(score), 0), ['C4/half~lv', 'C4/half']);
+      });
+
+      test('in a file saved before letRing, a tie to no note loads as a tie '
+          'to no note', () {
+        final score = before(letRing: false);
+
+        final loaded = reloaded(score);
+
+        expect(savedNote(score), {'id': 10, 'pitch': 'C4', 'tie': true});
+        expect(ties(loaded), ['10 -> null']);
+        expect(bar(loaded, 0), ['C4/half~', 'D4/half']);
+      });
     });
 
     test('reads every spanner kind back equal to the one it was saved', () {

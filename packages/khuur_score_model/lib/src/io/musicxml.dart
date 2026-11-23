@@ -193,6 +193,12 @@ final class _Export {
             _text('software', softwareName),
             _el('supports', const [], {'element': 'accidental', 'type': 'yes'}),
             _el('supports', const [], {'element': 'beam', 'type': 'yes'}),
+            _el('supports', const [], {
+              'element': 'tied',
+              'attribute': 'type',
+              'type': 'yes',
+              'value': 'let-ring',
+            }),
             for (final attribute in ['new-page', 'new-system'])
               _el('supports', const [], {
                 'element': 'print',
@@ -701,8 +707,9 @@ final class _Export {
             _duration(timed.duration),
             if (tieStops.contains(note.id))
               _el('tie', const [], {'type': 'stop'}),
-            if (ties[note.id]?.to != null)
-              _el('tie', const [], {'type': 'start'}),
+            // Beside the let-ring `<tied>` of a tie to no note, this keeps
+            // the tie plain on import. MuseScore still reads a let-ring tie.
+            if (note.tie) _el('tie', const [], {'type': 'start'}),
             ?instrument(note),
             _text('voice', number),
             ..._type(chord.value),
