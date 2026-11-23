@@ -183,48 +183,58 @@ _Ends _endsOf(Score score, Spanner spanner) {
 
 const _endsAfterStart = 'a slur or glissando ends after it starts';
 
-/// [spanner] naming the chord its last end is on, when it joins notes,
-/// names no last end and ends in [score] on a chord that a voice other than
-/// its own starts at its last point. A [Slur] names the voice and a
-/// [Glissando] the note [Glissando.notesOn] picks there. The same object
-/// otherwise. MuseScore 4 keeps the chord a slur ends on and the
-/// note a glissando ends on from when the line is made.
-Spanner endNamed(Score score, Spanner spanner) {
-  final on = switch (spanner.kind) {
-    Slur(endVoice: null) ||
-    Glissando(to: null) => score.anchorOf(spanner, last: true),
-    _ => null,
-  };
-  if (on == null || on.voice == spanner.voice) {
+/// [spanner] with each end it has on a chord stored where it is in
+/// [score], as MuseScore 4 stores a slur's chords and a glissando's notes.
+/// A slur's first end on a chord of its own voice moves to that chord's
+/// onset. Its last end on a chord that starts after its first point moves
+/// to that chord's onset and names the chord's voice when it is not the
+/// slur's own ([Slur.endVoice]). A glissando names the note of each end
+/// that is on a chord. Each end resolves in [score] where it did before, and
+/// a later edit of other notes does not move it. The same object when
+/// nothing changes, and for a spanner that does not join notes.
+Spanner endsHeld(Score score, Spanner spanner) {
+  if (!spanner.kind.joinsNotes) {
     return spanner;
   }
-  final startsThere = on.onset == spanner.last.offset;
-  if (!startsThere) {
+  final first = score.anchorOf(spanner, last: false);
+  final last = score.anchorOf(spanner, last: true);
+  if (first == null || last == null || first.event.id == last.event.id) {
     return spanner;
   }
-  final named = switch ((spanner.kind, on.event)) {
-    (Slur(:final dashed), ChordEvent()) => Slur(
-      dashed: dashed,
-      endVoice: on.voice,
-    ),
-    (final Glissando line, final ChordEvent chord) => Glissando(
-      from: line.from,
-      to: line
-          .notesOn(score.anchorOf(spanner, last: false)?.event, chord)
-          .to!
-          .id,
-    ),
-    _ => null,
-  };
-  return named == null
+  var from = spanner.first;
+  var to = spanner.last;
+  var kind = spanner.kind;
+  switch (kind) {
+    case Slur(:final dashed):
+      final own = spanner.voice ?? VoiceSlot.one;
+      if (first.voice == own && first.event is ChordEvent) {
+        from = ScorePoint(from.measure, first.onset);
+      }
+      final onset = ScorePoint(last.ref.measure, last.onset);
+      if (last.event is ChordEvent && score.compare(from, onset) < 0) {
+        to = onset;
+        kind = Slur(
+          dashed: dashed,
+          endVoice: last.voice == own ? null : last.voice,
+        );
+      }
+    case final Glissando line:
+      final notes = line.notesOn(first.event, last.event);
+      kind = Glissando(
+        from: notes.from?.id ?? line.from,
+        to: notes.to?.id ?? line.to,
+      );
+    default:
+  }
+  return kind == spanner.kind && from == spanner.first && to == spanner.last
       ? spanner
       : Spanner(
           id: spanner.id,
-          kind: named,
+          kind: kind,
           staff: spanner.staff,
           voice: spanner.voice,
-          first: spanner.first,
-          last: spanner.last,
+          first: from,
+          last: to,
         );
 }
 

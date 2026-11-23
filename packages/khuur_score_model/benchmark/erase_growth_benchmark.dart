@@ -1,10 +1,10 @@
 // Checks how the cost of erasing a chord from every bar in one edit grows
 // with the length of the score. It erases the second chord of every bar of
-// a score with a glissando in every bar, then of a score four times as
-// long, and compares the two times. It does so once with no ripple, once
-// with `Ripple.part`, and once with `Ripple.part` on a score that a
-// rehearsal mark every eight bars cuts into sections, whose glissandi name
-// their notes.
+// a score with a glissando in every bar, the chord each glissando ends on,
+// so every line loses its end note and goes with it. It does the same on a
+// score four times as long and compares the two times. It does so once
+// with no ripple, once with `Ripple.part`, and once with `Ripple.part` on a
+// score that a rehearsal mark every eight bars cuts into sections.
 //
 // Run it compiled, from packages/khuur_score_model. A JIT run measures the
 // compiler as much as the code. The compiler does not create `build`, which
@@ -30,7 +30,7 @@ const double _mostGrowth = 8;
 /// The median time of [runs] erases of the second chord of every bar of
 /// [score] in one edit, after [warmUps] that do not count. Fails when the
 /// erase is refused, leaves another count of chords than three a bar, or
-/// leaves a glissando that named the note it ended on.
+/// leaves any glissando.
 Duration eraseTime(
   Score score,
   Ripple ripple, {
@@ -68,8 +68,10 @@ Duration eraseTime(
     if (chords != 3 * bars) {
       throw StateError('the erase left $chords chords in $bars bars');
     }
-    if (left.spanners.any((line) => line.kind != const Glissando())) {
-      throw StateError('the erase left a glissando without its note');
+    if (left.spanners.isNotEmpty) {
+      throw StateError(
+        'the erase left ${left.spanners.length} glissandi without their notes',
+      );
     }
     if (i >= warmUps) {
       times.add(watch.elapsed);

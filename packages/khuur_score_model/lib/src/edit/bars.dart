@@ -657,6 +657,18 @@ Score _withFittingSpanners(Score score) {
       : score.copyWith(spanners: Seq(settled.nonNulls));
 }
 
+/// [score] with the ends of each slur and glissando stored where they are
+/// ([endsHeld]), so that an edit of other notes does not move them. The
+/// same object when every end is stored already.
+Score _withEndsHeld(Score score) {
+  final held = [
+    for (final spanner in score.spanners) endsHeld(score, spanner),
+  ];
+  return score.spanners.indexed.every((at) => identical(at.$2, held[at.$1]))
+      ? score
+      : score.copyWith(spanners: Seq(held));
+}
+
 /// [spanner] as it can stand in the score of [starts] after an edit, or null
 /// when it cannot, as a slur whose notes a longer note has replaced. A
 /// glissando follows the notes it names. An end whose note no longer sounds

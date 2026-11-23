@@ -1121,6 +1121,17 @@ sealed class SpannerKind {
 /// one. `AddSpanner` refuses a slur that ends on an event that starts
 /// before the one it starts on, an edit that leaves one removes it, and
 /// MusicXML import and a JSON file load without it.
+///
+/// `AddSpanner`, and each edit before it changes the score, store each end
+/// that is on a chord where it is, as MuseScore 4 stores the chords a slur
+/// joins. The first end, on a chord of the slur's voice, moves its point to
+/// the chord's onset. The last end, on a chord that starts after the
+/// slur's first point, moves its point to that chord's onset and names the
+/// chord's voice in [endVoice] when it is not the slur's own. A later edit
+/// of other notes then leaves the ends on their chords. An end on a rest,
+/// a first end on a chord of another voice, and a last end on a chord that
+/// starts no later than the first point are not stored and follow the rules
+/// above.
 final class Slur extends SpannerKind {
   /// A solid slur, or a dashed one when [dashed]. Its last end is on the
   /// chord of [endVoice] when that is given.
@@ -1129,17 +1140,19 @@ final class Slur extends SpannerKind {
   /// Draw the curve as a dashed line.
   final bool dashed;
 
-  /// The voice whose chord the slur ends on. `AddSpanner` sets it when the
-  /// slur ends on a chord that a voice other than its own starts there, and
-  /// MusicXML import when the stop is written on such a chord or the slur
-  /// would end on another chord than the one its stop is on, as
+  /// The voice whose chord the slur ends on. `AddSpanner` and each edit set
+  /// it when the slur ends on a chord of a voice other than its own that
+  /// starts after the slur's first point, and clear it when that chord is of
+  /// the slur's own voice, and MusicXML import sets it when the stop
+  /// is written on a chord a voice other than the slur's own starts there or
+  /// the slur would end on another chord than the one its stop is on, as
   /// MuseScore 4 keeps a slur on the chord it ends on. The end is on the
   /// chord that voice sounds at the last end, while that chord starts after
   /// the event the slur starts on, so a note that another voice starts or
   /// ties there does not take the end. While the voice sounds no such chord
   /// there, the end is where it falls without a name ([Score.anchorOf]),
-  /// as it is for a slur without one, which a JSON file can hold. The name
-  /// goes with the slur through every edit.
+  /// as it is for a slur without one, which a JSON file can hold. Each edit
+  /// then names the voice of the chord the end falls on in its place.
   final VoiceSlot? endVoice;
 
   @override
@@ -1252,9 +1265,9 @@ final class PedalLine extends SpannerKind {
 /// without the line. An end that names no note is on the event the
 /// spanner's voice has there. When that voice has none, it is on an event of
 /// another voice ([Score.anchorOf]). [notesOn] picks the note of that event.
-/// `AddSpanner` names that note at a last end that is on a chord a voice
-/// other than the line's own starts there. The line then goes with that
-/// note.
+/// `AddSpanner`, and each edit before it changes the score, name the note
+/// of each end that is on a chord, so the line then goes with those notes,
+/// as MuseScore 4 keeps the notes a glissando joins.
 ///
 /// The event a line ends on starts after the event it starts on, as in each
 /// line MuseScore 4's editor builds. So a line cannot end on an event of
@@ -1289,9 +1302,9 @@ final class Glissando extends SpannerKind {
   /// on the note as far from the bottom of its chord as the start note is
   /// from the bottom of its own, or on the top note when the chord has fewer
   /// notes. MuseScore 4 picks the end of a new glissando that way. A line
-  /// that starts on a rest ends on the top note. The end is picked again on
-  /// every read, so adding or removing a note of either chord can move it,
-  /// where MuseScore 4 keeps the note it picked when the line was made.
+  /// that starts on a rest ends on the top note. `AddSpanner` and each edit
+  /// name the notes picked, so adding or removing a note of either chord
+  /// later does not move an end.
   ({Note? from, Note? to}) notesOn(Event? first, Event? last) {
     final start = first is ChordEvent ? first.notes : null;
     final end = last is ChordEvent ? last.notes : null;
