@@ -1930,7 +1930,8 @@ void main() {
       );
     });
 
-    test('keeps the tie into a note that two gaps shorten', () {
+    test('drops the tie into a note that loses its start to one of two '
+        'gaps', () {
       var score = fill(blankScore(bars: 1), 0, [
         chordOf(1, 'C4', tie: true),
         chordOf(2, 'C4', value: NoteValue.half),
@@ -1946,8 +1947,8 @@ void main() {
 
       final next = applied(pull(EditSession.start(score), [4, 6])).score;
 
-      expect(bar(next, 0).take(2), ['C4/quarter~', 'C4/sixteenth']);
-      expect(heard(next), hasLength(2));
+      expect(bar(next, 0).take(2), ['C4/quarter', 'C4/sixteenth']);
+      expect(heard(next), hasLength(3));
     });
 
     test('writes a note that two gaps leave with five 256ths', () {

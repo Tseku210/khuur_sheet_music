@@ -870,6 +870,10 @@ extension BarRuns on Score {
     null => _flat![index],
   };
 
+  /// The event [ref] names when the bar it names holds it, and null when
+  /// that bar does not hold it, where [lookup] goes on to read every bar.
+  TimedEvent? inItsBar(EventRef ref) => _find(ref);
+
   /// How many bars the score has, as `measures.length`.
   int get barCount => _runs?.length ?? _flat!.length;
 

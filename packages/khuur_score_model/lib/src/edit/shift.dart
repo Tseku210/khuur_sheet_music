@@ -21,7 +21,8 @@ sealed class _Shift {
   Length land(Length time);
 
   /// [items] after the shift. A chord that removed time makes shorter is
-  /// entered in [shortened].
+  /// entered in [shortened]. It loses its ties, as [_Loss.shortened], unless
+  /// it loses only its start.
   List<_Placed> voice(
     List<_Placed> items,
     VoiceSlot slot,
@@ -207,7 +208,8 @@ final class _Collapse extends _Shift {
   }
 
   /// [items] without the time of the cuts. Each item loses its overlap with
-  /// them, and an item inside one goes. Rests and gaps left at the end of
+  /// them, and an item inside one goes. A chord that loses its end or its
+  /// middle loses its ties. Rests and gaps left at the end of
   /// the voice go, so the time after the music is filled as a re-bar fills
   /// it. The ones before music that only the first cut removes stay, as
   /// closing that cut after the others leaves them.
@@ -232,6 +234,7 @@ final class _Collapse extends _Shift {
       }
       var overlap = Length.zero;
       var later = Length.zero;
+      var atStart = Length.zero;
       for (var i = first; i < cuts.length && cuts[i].from < time; i++) {
         final cut = cuts[i];
         final taken =
@@ -241,6 +244,9 @@ final class _Collapse extends _Shift {
         if (i > 0) {
           later += taken;
         }
+        if (cut.from <= start) {
+          atStart = taken;
+        }
       }
       if (!_elastic(item.item) && later < item.span) {
         tail = time;
@@ -248,17 +254,18 @@ final class _Collapse extends _Shift {
       if (!overlap.isPositive) {
         out.add(item);
       } else if (overlap < item.span) {
-        if (item.item case Tuplet(:final id)) {
-          throw _Refuse(WouldSplitTuplet(id, item.origin));
+        final VoiceItem left;
+        switch (item.item) {
+          case Tuplet(:final id):
+            throw _Refuse(WouldSplitTuplet(id, item.origin));
+          case final ChordEvent chord:
+            shortened.add(chord.id);
+            final lostOnlyItsStart = overlap == atStart;
+            left = lostOnlyItsStart ? chord : _untied(chord, (_) => true);
+          case final other:
+            left = other;
         }
-        if (item.item case ChordEvent(:final id)) {
-          shortened.add(id);
-        }
-        out.add((
-          item: item.item,
-          span: item.span - overlap,
-          origin: item.origin,
-        ));
+        out.add((item: left, span: item.span - overlap, origin: item.origin));
       } else {
         continue;
       }

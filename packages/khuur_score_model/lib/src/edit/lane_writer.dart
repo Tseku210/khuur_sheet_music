@@ -164,7 +164,8 @@ _LaneWrite _overwrite(
   );
 }
 
-/// Enters [event] at [at] as new music. A tie into [at] keeps only the
+/// Enters [event] at [at] as new music. A chord that sounds across [at] is
+/// [_Loss.shortened]. A tie from a chord that ends at [at] keeps only the
 /// tones [event] starts with, [event] is selected, and the cursor moves
 /// past it. When [event] ends the score, the cursor moves into a new bar
 /// with [appendBar], and stays at [at] without it.
@@ -176,7 +177,16 @@ _Result _enter(
   Overfill overfill, {
   required bool appendBar,
 }) {
-  final write = _overwrite(score, at, [event], ids, overfill);
+  final across = score.eventAt(at);
+  final write = _overwrite(
+    across != null && across.onset < at.at.offset
+        ? _lose(score, across, _Loss.shortened)
+        : score,
+    at,
+    [event],
+    ids,
+    overfill,
+  );
   var entered = _untieInto(write.score, at, _tones(event));
   var end = write.end;
   final bar = entered.column(end.at.measure);

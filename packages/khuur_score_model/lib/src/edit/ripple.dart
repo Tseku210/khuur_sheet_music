@@ -96,10 +96,11 @@ _Result _enterRippled(
     throw _Refuse(WouldCrossBarline(column.id, span - room));
   }
   final from = Moment.zero.until(offset);
+  final staves = _rippledStaves(score, at.staff, ripple);
   final rippled = _ripple(
-    score,
+    _rebuiltAcross(score, staves, bar, from + rests),
     ids,
-    staves: _rippledStaves(score, at.staff, ripple),
+    staves: staves,
     bar: bar,
     shift: _Grow(at: from + rests, by: span - rests),
     cursor: session.cursor,
@@ -134,6 +135,28 @@ _Result _enterRippled(
       EventRef(measure: at.at.measure, staff: at.staff, id: event.id),
     ),
   );
+}
+
+/// [score] with every chord of [staves] that sounds across [time], counted
+/// from the start of bar [bar], as [_Loss.acrossAddedTime].
+Score _rebuiltAcross(Score score, List<StaffId> staves, int bar, Length time) {
+  final (k, offset) = _barAt(time, score.barAt(bar).length);
+  if (bar + k >= score.barCount) {
+    return score;
+  }
+  final at = ScorePoint(score.barAt(bar + k).id, offset);
+  var now = score;
+  for (final staff in staves) {
+    for (final voice in VoiceSlot.values) {
+      final across = score.eventAt(
+        VoicePoint(staff: staff, voice: voice, at: at),
+      );
+      if (across != null && across.onset < offset) {
+        now = _lose(now, across, _Loss.acrossAddedTime);
+      }
+    }
+  }
+  return now;
 }
 
 /// Whether [tuplet], or the innermost tuplet in it that holds [at], has
@@ -202,8 +225,9 @@ _Result _setValueRippled(
   }
   final from = Moment.zero.until(timed.onset);
   final to = from + timed.duration;
+  final cut = by.isNegative ? _lose(score, timed, _Loss.shortened) : score;
   final rippled = _ripple(
-    score,
+    cut,
     ids,
     staves: _rippledStaves(score, timed.ref.staff, ripple),
     bar: score.indexOf(timed.ref.measure),
@@ -217,7 +241,9 @@ _Result _setValueRippled(
       slot: timed.voice,
       from: from,
       to: to,
-      music: [_piece(timed.event, value, ids, first: true, tied: false)],
+      music: [
+        _piece(_target(cut, ref).event, value, ids, first: true, tied: false),
+      ],
     ),
   );
   return _Result(
@@ -284,10 +310,11 @@ _Result _eraseRippled(
       }
       final first = score.indexOf(range.from.measure);
       final last = score.indexOf(range.to.measure);
+      final lines = _SectionLines(score);
       for (final scope in scopes.values) {
         var bar = first;
         while (bar <= last) {
-          final (_, end) = _sectionAround(now, bar);
+          final (start, end) = _sectionAround(now, bar);
           final length = now.barAt(bar).length;
           final from = bar == first
               ? Moment.zero.until(range.from.offset)
@@ -297,15 +324,19 @@ _Result _eraseRippled(
                     Moment.zero.until(range.to.offset)
               : length * Fraction(end - bar);
           if (to > from) {
-            final rippled = _ripple(
+            final rippled = lines.rippled(
               now,
-              ids,
-              staves: scope,
-              bar: bar,
-              shift: _Collapse([(from: from, to: to)]),
-              cursor: cursor,
-              selection: const Selection.none(),
-              inRuns: true,
+              [for (var i = start; i < end; i++) now.barAt(i).id],
+              (held) => _ripple(
+                held,
+                ids,
+                staves: scope,
+                bar: bar,
+                shift: _Collapse([(from: from, to: to)]),
+                cursor: cursor,
+                selection: const Selection.none(),
+                inRuns: true,
+              ),
             );
             now = rippled.score;
             cursor = rippled.cursor ?? cursor;
@@ -314,7 +345,7 @@ _Result _eraseRippled(
         }
       }
       return _Result(
-        now.flat,
+        lines.whole(now.flat),
         cursor: cursor,
         selection: const Selection.none(),
       );
@@ -566,6 +597,11 @@ _Rippled _ripple(
   if (!grown && _same(bars, old)) {
     return _Rippled(score, null, null, (at) => place(origin + at), next);
   }
+  final index = {for (final (i, column) in old.indexed) column.id: i};
+  Length? timeOf(ScorePoint point) => switch (index[point.measure]) {
+    final i? => length * Fraction(i) + Moment.zero.until(point.offset),
+    null => null,
+  };
   final rebuilt = _retied(
     score,
     grown
@@ -577,12 +613,14 @@ _Rippled _ripple(
     max(a - 1, 0),
     a + count,
     origins,
+    section: old,
+    lostItsStart: (was) => switch (timeOf(
+      ScorePoint(was.ref.measure, was.onset),
+    )) {
+      final start? => time is _Collapse && time.cutOver(start) != null,
+      null => false,
+    },
   );
-  final index = {for (final (i, column) in old.indexed) column.id: i};
-  Length? timeOf(ScorePoint point) => switch (index[point.measure]) {
-    final i? => length * Fraction(i) + Moment.zero.until(point.offset),
-    null => null,
-  };
   ScorePoint onItsNote(Spanner spanner, {required bool last}) {
     final point = last ? spanner.last : spanner.first;
     return index.containsKey(point.measure)
@@ -1090,20 +1128,25 @@ bool _sameBy<T>(Iterable<T> a, Iterable<T> b, bool Function(T, T) same) {
 }
 
 /// [after] without the ties on [staves], in bars [from] up to [to], that a
-/// ripple sent somewhere else. A tie stays while it ends on the event it
-/// ended on before, on the next piece of its own note, or on a new note of
-/// its tone, and while it ends on no head where it ended on none.
-/// [origins] names the event each new piece came from. [_retie] cannot
-/// do this, because it looks every event up in [before] by its id, and the
-/// pieces a ripple cuts have new ids.
+/// ripple of the bars [section] of [before] sent somewhere else. A tie
+/// stays while it ends on the event it ended on before, on the next piece
+/// of its own note, or on a new note of its tone, and while it ends on no
+/// head where it ended on none. A tie into another note goes when either
+/// note [lostItsStart], as it was in [before]. MuseScore 4 takes such a
+/// note out and writes it again, and only a tie that ends on no head comes
+/// back with it. [origins] names the event each new piece came from.
+/// [_retie] cannot do this, because it looks every event up in [before] by
+/// its id, and the pieces a ripple cuts have new ids.
 Score _retied(
   Score before,
   Score after,
   Set<StaffId> staves,
   int from,
   int to,
-  Map<EventId, EventId> origins,
-) {
+  Map<EventId, EventId> origins, {
+  required List<MeasureColumn> section,
+  required bool Function(TimedEvent was) lostItsStart,
+}) {
   EventId source(EventId id) {
     var at = id;
     for (var earlier = origins[at]; earlier != null; earlier = origins[at]) {
@@ -1112,13 +1155,33 @@ Score _retied(
     return at;
   }
 
-  TimedEvent? was(TimedEvent timed) => before.lookup(
-    EventRef(
-      measure: timed.ref.measure,
-      staff: timed.ref.staff,
-      id: source(timed.event.id),
-    ),
-  );
+  // A ripple moves an event to another bar of its section. Asked for an
+  // event in a bar that does not hold it, [Score.lookup] builds its index
+  // of every event of the score, once for each section of an erase.
+  late final barBefore = {
+    for (final column in section)
+      for (final staff in column.staves)
+        if (staves.contains(staff.staff))
+          for (final voice in staff.voices)
+            for (final timed in timedEvents(
+              voice,
+              measure: column.id,
+              staff: staff.staff,
+            ))
+              timed.event.id: column.id,
+  };
+
+  TimedEvent? was(TimedEvent timed) {
+    final id = source(timed.event.id);
+    EventRef inBar(MeasureId bar) =>
+        EventRef(measure: bar, staff: timed.ref.staff, id: id);
+    final stayed = inBar(timed.ref.measure);
+    return before.inItsBar(stayed) ??
+        before.lookup(switch (barBefore[id]) {
+          final bar? => inBar(bar),
+          null => stayed,
+        });
+  }
 
   bool moves(TimedEvent timed, ChordEvent chord, Note note) {
     final old = was(timed);
@@ -1131,9 +1194,15 @@ Score _retied(
       return behind != null;
     }
     final target = source(ahead.timed.event.id);
-    return target != old.event.id &&
-        target != behind?.timed.event.id &&
-        was(ahead.timed) != null;
+    if (target == old.event.id) {
+      return false;
+    }
+    if (lostItsStart(old)) {
+      return true;
+    }
+    final next = was(ahead.timed);
+    return next != null &&
+        (target != behind?.timed.event.id || lostItsStart(next));
   }
 
   return _untieWhere(after, [
