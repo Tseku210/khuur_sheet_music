@@ -43,6 +43,11 @@
 * **Breaking:** A note or rest entered with a ripple removes the ties into and out of each chord of the staves it moves that sounds across the point where it adds time, and each glissando that starts or ends on one. In 0.4.0 it kept them. MuseScore 4 takes the same from a chord that sounds across the point where it adds time. It adds the time at the cursor, and this library adds it after the rests the entry takes.
 * A longer rippled `SetValue` takes no tie or glissando from the chords it makes longer. `Paste` keeps the ties and glissandi of a chord it shortens.
 * A rippled `SetValue`, `EnterNote` or `EnterRest` no longer throws when the session's range starts at the end of a bar that ends its section. After a `SetValue` the range stays where it was, unless it is empty.
+* `Note.letRing` marks a let-ring (laissez vibrer) tie. It never lands on a note, and playback ends the note normally.
+* `scoreFromMusicXml` reads a `<tied type="let-ring"/>` as `Note.letRing`, so it no longer joins a following note of its pitch. A file written before 0.5.0 holds this mark on every tie to no note, so those ties now read as let-ring ties and no longer join the tone played next across a repeat.
+* `scoreToMusicXml` writes a plain tie to no note as `<tied type="let-ring"/>` with a `<tie type="start"/>`. `scoreFromMusicXml` reads that pair as a plain tie, or as `Note.letRing` when a note of its pitch follows.
+* A rippled `Erase` that takes only the start of a chord keeps its let-ring tie, even when a note of its tone then follows. A rippled edit that takes the end of the chord removes it. `Paste` keeps it on a note before the pasted music, and `SetTie` clears or replaces it.
+* JSON gains an optional `letRing` key. The schema stays 1, older files load the same, and an older reader loads such a note untied.
 
 ## 0.4.0
 * **Breaking:** the sealed `Edit` gains `SetMeasureRepeat`, so a `switch` over every edit adds a case for it.
