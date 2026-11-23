@@ -17,6 +17,12 @@ Score denseScore() => _ensemble(bars: 500);
 /// gives 2,000 slurs and 500 hairpins, which is 2,500 spanners.
 Score spannerScore() => _ensemble(bars: 2000);
 
+/// Gate 2's third fixture, [spannerScore] with a phrase slur on the sung
+/// staff from the third beat of every bar to the second beat of the next.
+/// Each slur ends in the bar the next one starts in, so the score has 4,499
+/// spanners.
+Score slurredScore() => _ensemble(bars: 2000, phrased: true);
+
 /// The note gate 2 enters. It is a quarter at the start of bar [bar],
 /// counted from 1, in voice one of the top staff.
 EnterNote noteInBar(Score score, int bar) => EnterNote(
@@ -106,7 +112,7 @@ const _solfege = ['do', 're', 'mi', 'fa', 'sol', 'la', 'ti'];
 
 const List<Dynamic> _dynamics = [Dynamic.p, Dynamic.mf, Dynamic.f, Dynamic.mp];
 
-Score _ensemble({required int bars}) {
+Score _ensemble({required int bars, bool phrased = false}) {
   final ids = _Ids();
   final measures = Seq([for (var bar = 0; bar < bars; bar++) _bar(bar, ids)]);
   return Score(
@@ -149,6 +155,15 @@ Score _ensemble({required int bars}) {
             staff: _violinStaff,
             first: ScorePoint(measures[bar].id, Moment(Fraction(1, 2))),
             last: ScorePoint(measures[bar + 1].id, Moment.zero),
+          ),
+        if (phrased && bar + 1 < bars)
+          Spanner(
+            id: SpannerId(ids.take()),
+            kind: const Slur(),
+            staff: _voiceStaff,
+            voice: VoiceSlot.one,
+            first: ScorePoint(measures[bar].id, Moment(Fraction(1, 2))),
+            last: ScorePoint(measures[bar + 1].id, Moment(Fraction(1, 4))),
           ),
       ],
     ]),
