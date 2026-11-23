@@ -196,6 +196,11 @@ final class _Placing {
   ScorePoint _point(int bar, Moment offset) =>
       ScorePoint(document.measures[bar], offset);
 
+  /// MusicXML does not say which voice a line is of. A start mark in voice
+  /// one may be the start of a line of its stop's voice that has a gap there,
+  /// so the line is of that voice while that keeps its start on the marked
+  /// event. Otherwise it is of the voice of its start mark, which is how
+  /// MuseScore 4 reads a slur.
   _Placed? _onNotes(_Pair record, EventAnchor start, EventAnchor stop) {
     final staff = start.event.lane.staff;
     if (!record.kind.joinsNotes) {
@@ -209,7 +214,29 @@ final class _Placing {
       );
     }
     final slot = start.event.lane.slot;
-    final voice = slot == VoiceSlot.one ? stop.event.lane.slot : slot;
+    if (slot != VoiceSlot.one) {
+      return _inVoice(record, start, stop, slot);
+    }
+    final ofStop = _inVoice(record, start, stop, stop.event.lane.slot);
+    return ofStop != null && _startsOn(ofStop, start)
+        ? ofStop
+        : _inVoice(record, start, stop, VoiceSlot.one);
+  }
+
+  bool _startsOn(_Placed placed, EventAnchor start) {
+    final on = score.anchorOf(placed.spanner(const SpannerId(0)), last: false);
+    return on != null &&
+        on.voice == start.event.lane.slot &&
+        on.onset == start.event.onset;
+  }
+
+  _Placed? _inVoice(
+    _Pair record,
+    EventAnchor start,
+    EventAnchor stop,
+    VoiceSlot voice,
+  ) {
+    final staff = start.event.lane.staff;
     final first = _point(
       start.bar,
       _timeOn(start, staff, voice, from: Moment.zero),
