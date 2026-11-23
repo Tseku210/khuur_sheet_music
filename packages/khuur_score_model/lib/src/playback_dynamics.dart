@@ -70,9 +70,10 @@ final class _Loudness {
     final ramps = <_Ramp>[];
     for (final (:from, :end, :crescendo) in hairpins) {
       final start = _levelAt(levels, from);
-      final arrival = written
-          .where((l) => from < l.$1 && l.$1 <= end)
-          .firstOrNull;
+      final after = _partition(written.length, (i) => written[i].$1 > from);
+      final arrival = after < written.length && written[after].$1 <= end
+          ? written[after]
+          : null;
       // As in MuseScore, a dynamic that lies against the hairpin is not
       // its target.
       final aimed =
@@ -160,7 +161,7 @@ final class _Loudness {
       return strike.velocity.toDouble();
     }
     final started = _partition(_ramps.length, (i) => _ramps[i].from > position);
-    for (var i = started - 1; i >= 0; i--) {
+    for (var i = started - 1; i >= 0 && position < _rampReach[i]; i--) {
       if (position < _ramps[i].to) {
         return _ramps[i].at(position);
       }
@@ -245,7 +246,7 @@ final class _Loudness {
         }
       }
       final started = _partition(ramps.length, (i) => ramps[i].from > position);
-      for (var i = started - 1; i >= 0; i--) {
+      for (var i = started - 1; i >= 0 && position < _rampReach[i]; i--) {
         if (position < ramps[i].to) {
           return ramps[i].stepAt(position);
         }
