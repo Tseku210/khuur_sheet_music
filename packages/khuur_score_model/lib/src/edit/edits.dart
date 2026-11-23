@@ -41,8 +41,10 @@ sealed class Edit {
 /// Overwrite policy: the span `[at, at + length)` of the voice is cleared
 /// and the note put there. A note or rest cut at the start keeps its head
 /// (re-spelled with `Meter.spell`); whatever remains after the end becomes
-/// rests, or a gap in voices two to four outside a tuplet. Nothing moves in
-/// time and no other voice or staff is touched.
+/// rests, or a gap in voices two to four outside a tuplet. A chord cut that
+/// way loses the ties out of it and each glissando that starts on it, as in
+/// MuseScore 4. Nothing moves in time and no other voice or staff is
+/// touched.
 ///
 /// Overfill policy (access pattern 9) is [overfill]. With the default,
 /// [Overfill.splitAndTie], a note longer than the room left in the bar is
@@ -79,6 +81,12 @@ sealed class Edit {
 /// Entered onto a rest at least as long as itself, it pushes nothing and
 /// the edit is the overwriting one. Entered inside a note, it splits that
 /// note: the head stays before the new note and the rest of it moves after.
+/// The time is added after the rests the new note takes, which is later
+/// than [at] when the note starts on a rest shorter than itself. Each note
+/// of the staves that move that sounds across that place, the split note
+/// among them, loses the ties into and out of it and each glissando that
+/// starts or ends on it. MuseScore 4 takes the same from a note that sounds
+/// across the place where it adds time, and it adds the time at the cursor.
 /// Inside a tuplet it only fills rests: the edit is refused with
 /// [WouldSplitTuplet] when the tuplet has music where the note would go.
 /// At the start of a tuplet that begins with music, the whole tuplet moves.
@@ -200,7 +208,15 @@ enum Overfill {
 ///   music of its staff back across its end.
 /// - Ties: a tie stays while it ends on the head it ended on before, on the
 ///   next piece of its own note, or on a new note of its tone, and while it
-///   ends on no head where it ended on none. Otherwise it is cleared.
+///   ends on no head where it ended on none. Otherwise it is cleared. A
+///   chord that loses its end or its middle to removed time loses the ties
+///   out of it and keeps the ties into it, as in MuseScore 4. A chord that
+///   loses its start loses the ties into it, and the ties out of it that
+///   end on a head. A tie out of it that ended on no head stays when the
+///   start is all the chord loses and no head of its tone follows it, as
+///   in MuseScore 4. A chord that sounds across the point where an entry
+///   adds time loses the ties into and out of it. A longer [SetValue] takes
+///   no tie from the chords it makes longer.
 /// - Marks: articulations, fingerings and lyrics travel on their notes.
 ///   The directions and clef changes of the staves that move, the ends of
 ///   their spanners, a cursor on one of them and a range selection over one
@@ -216,7 +232,8 @@ enum Overfill {
 ///   drops one that names the head. That holds when the note runs out of
 ///   the removed time and stays, shorter. A glissando is dropped too when
 ///   the chord it starts on loses its end or its middle. One that ends on
-///   a chord that loses its end or its middle stays.
+///   a chord that loses its end or its middle stays. An entry that adds
+///   time inside a chord drops each glissando that starts or ends on it.
 ///   Any other line ends where the time it covered ends, on the last event
 ///   that starts before then, and it is dropped when no time is left.
 ///   MuseScore 4 drops glissandi and moves the other ends the same way,
@@ -289,10 +306,10 @@ final class SetTone extends Edit {
 /// Shorter: the freed time becomes rests, or a gap in voices two to four.
 /// Longer: overwrites what follows, split and tied at a barline, with bars
 /// appended past the end of the score; inside a tuplet it must still end in
-/// the tuplet. A tie out of the event stays only while it ends on the head
-/// it ended on before, or on none. A chord made shorter loses each
-/// glissando that starts on it, as in MuseScore 4, with or without a
-/// ripple. The cursor and selection stay. Idempotent.
+/// the tuplet. A tie out of a chord made longer stays only while it ends on
+/// the head it ended on before, or on none. A chord made shorter loses the
+/// ties out of it and each glissando that starts on it, as in MuseScore 4,
+/// with or without a ripple. The cursor and selection stay. Idempotent.
 ///
 /// With [ripple] set to [Ripple.part] or [Ripple.staff], the music after
 /// the event moves by the change instead, in every staff of the part or in

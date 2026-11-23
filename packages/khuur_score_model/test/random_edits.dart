@@ -69,8 +69,9 @@ T pick<T>(Random random, List<T> options) =>
 /// before. Throws when the edit removes a glissando that names both its
 /// notes while both are still on its staff and the chord it ends on still
 /// starts after the chord it starts on, unless the edit picked the line,
-/// made the chord it starts on shorter, or removed with a ripple the time
-/// that the chord it ends on started in.
+/// made the chord it starts on shorter, removed with a ripple the time
+/// that the chord it ends on started in, or entered a note or rest inside
+/// the chord it starts on or, with a ripple, the chord it ends on.
 /// Throws too when a rippled edit changes the dynamic in force after the bars
 /// it changed, or the clef a note starts in while the note keeps its length.
 Score edited(Score score, Edit edit) {
@@ -174,8 +175,10 @@ bool _picks(Score score, Edit edit, Spanner spanner) => switch (edit) {
 };
 
 /// Whether [edit] took time from the chord of [from], as a ripple that
-/// removes time or a shorter [SetValue] does, or removed with a ripple the
-/// time that the chord of [to] starts in.
+/// removes time, a shorter [SetValue] or a note or rest entered inside the
+/// chord does, or removed with a ripple the time that the chord of [to]
+/// starts in, or entered with a ripple a note or rest inside the chord of
+/// [to].
 bool _lostANote(
   Score score,
   Score next,
@@ -197,6 +200,12 @@ bool _lostANote(
     if (chord == null) {
       return false;
     }
+    if (edit
+        case EnterNote(:final at, :final value, :final ripple) ||
+            EnterRest(:final at, :final value, :final ripple)) {
+      return _entersInside(score, chord, staff, at, value, ripple) &&
+          (wholeChord || ripple != Ripple.none);
+    }
     if (edit case SetValue(ripple: Ripple.none, :final event, :final value)) {
       return wholeChord &&
           event.id == chord.event.id &&
@@ -213,6 +222,36 @@ bool _lostANote(
   }
 
   return cut(from, wholeChord: true) || cut(to, wholeChord: false);
+}
+
+/// Whether a note or rest of [value] entered at [at] starts inside [chord]
+/// on [staff] in its own voice, or with a [ripple] has time of its own
+/// inside [chord] in any voice of the staves the ripple moves.
+bool _entersInside(
+  Score score,
+  TimedEvent chord,
+  StaffId staff,
+  VoicePoint at,
+  NoteValue value,
+  Ripple ripple,
+) {
+  if (chord.ref.measure != at.at.measure) {
+    return false;
+  }
+  final end = chord.onset + chord.duration;
+  return switch (ripple) {
+    Ripple.none =>
+      staff == at.staff &&
+          chord.voice == at.voice &&
+          chord.onset < at.at.offset &&
+          at.at.offset < end,
+    Ripple.staff || Ripple.part =>
+      (staff == at.staff ||
+              (ripple == Ripple.part &&
+                  score.partOf(at.staff).staves.any((s) => s.id == staff))) &&
+          chord.onset < at.at.offset + value.length &&
+          at.at.offset < end,
+  };
 }
 
 /// The time [edit] removed from [score] with a ripple.
