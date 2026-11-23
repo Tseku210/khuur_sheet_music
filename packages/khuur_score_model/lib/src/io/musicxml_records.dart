@@ -63,6 +63,7 @@ final class DocumentRecord {
     required this.measures,
     required this.printed,
     required this.supportsAccidentals,
+    required this.writtenBeforeLetRing,
     required this.joins,
     required this.ids,
   });
@@ -82,6 +83,10 @@ final class DocumentRecord {
 
   /// The encoding declares that every accidental is written out.
   final bool supportsAccidentals;
+
+  /// This library wrote the file before it declared the let-ring mark. Such a
+  /// file holds the mark alone on each plain tie to no note.
+  final bool writtenBeforeLetRing;
 
   /// Whether each chord's beam joins the chord before, or null when the
   /// file leaves beams to the meter.

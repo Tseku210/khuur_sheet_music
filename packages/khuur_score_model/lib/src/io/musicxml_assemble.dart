@@ -535,8 +535,7 @@ final class _Voices {
   }
 
   /// [records] as notes in the order the model keeps a chord's, each tone
-  /// once. A tie that starts is kept when one of [tiesTo] has its tone. A
-  /// let-ring tie with a `<tie>` that starts is a plain tie when none has.
+  /// once. A tie that starts is kept when one of [tiesTo] has its tone.
   List<Note> _notes(
     List<NoteRecord> records, {
     required List<NoteRecord> tiesTo,
@@ -562,7 +561,9 @@ final class _Voices {
     const letRingTie = (tie: false, letRing: true);
     const untied = (tie: false, letRing: false);
     if (record.letRing) {
-      return record.tieElementStart && !lands ? plainTie : letRingTie;
+      final plainForm =
+          record.tieElementStart || assembly.document.writtenBeforeLetRing;
+      return plainForm && !lands ? plainTie : letRingTie;
     }
     return record.tieStart && lands ? plainTie : untied;
   }
