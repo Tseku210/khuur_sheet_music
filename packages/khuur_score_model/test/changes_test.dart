@@ -205,6 +205,24 @@ void main() {
       expect(after.changesSince(before).relayout, bars(after, [0, 1, 2]));
     });
 
+    test('relays out only the lines near an edit under a chain of slurs, '
+        'each ending in the bar the next starts in', () {
+      var chained = blankScore(bars: 12);
+      for (var bar = 0; bar < 11; bar++) {
+        chained = withSlur(
+          chained,
+          pointAt(chained, bar, Moment.zero),
+          pointAt(chained, bar + 1, Moment.zero),
+        );
+      }
+      final after = enterAt(EditSession.start(chained), 5, Moment.zero).score;
+
+      expect(
+        after.changesSince(chained).relayout,
+        bars(after, [4, 5, 6, 7, 8]),
+      );
+    });
+
     test('leaves out bars a removed spanner covered that are gone', () {
       final plain = blankScore(bars: 6);
       final slurred = withSlur(

@@ -906,7 +906,7 @@ void main() {
       expect(bar(next.score, 0), bar(session.score, 0));
       expect(
         (next.selection as RangeSelection).to,
-        pointAt(next.score, 1, Moment.zero),
+        pointAt(next.score, 0, at(1, 1)),
       );
     });
 

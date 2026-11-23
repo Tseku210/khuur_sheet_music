@@ -245,13 +245,19 @@ class ComposerController {
 
   void slurSelection() {
     if (selection case RangeSelection(:final from, :final to, :final top)) {
+      final events = score.laneBetween(top, inputVoice, from, to).toList();
+      if (events.length < 2) {
+        return;
+      }
+      ScorePoint startOf(TimedEvent timed) =>
+          ScorePoint(timed.ref.measure, timed.onset);
       _run(
         AddSpanner(
           kind: const Slur(),
           staff: top,
           voice: inputVoice,
-          first: from,
-          last: to,
+          first: startOf(events.first),
+          last: startOf(events.last),
         ),
       );
     }
