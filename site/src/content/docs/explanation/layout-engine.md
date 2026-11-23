@@ -137,13 +137,14 @@ Clefs, key signatures, time signatures and tempo marks own no drawable, so `hitT
 
 ## The benchmark holds layout to a cost budget
 
-Layout runs synchronously on the UI isolate, so an edit and its picture arrive in the same frame, and a user feels layout cost. `benchmark/layout_benchmark.dart` gates it on two fixtures. `denseScore` has 500 bars of four staves, with beamed eighths and sixteenths, a second voice, a lyric under every sung note, a dynamic and a slur in every bar, and a hairpin over every fourth barline. `spannerScore` has the same music for 2,000 bars, with 2,500 spanners. They are dense because a score of whole-bar rests would meet any budget.
+Layout runs synchronously on the UI isolate, so an edit and its picture arrive in the same frame, and a user feels layout cost. `benchmark/layout_benchmark.dart` gates it on three fixtures. `denseScore` has 500 bars of four staves, with beamed eighths and sixteenths, a second voice, a lyric under every sung note, a dynamic and a slur in every bar, and a hairpin over every fourth barline. `spannerScore` has the same music for 2,000 bars, with 2,500 spanners. `slurredScore` is the spanner score with a phrase slur from every bar into the next on the sung staff, 4,499 spanners in all. Its update shows how many bars one edit under a chain of lines relays out. They are dense because a score of whole-bar rests would meet any budget.
 
 | Measurement | Budget |
 |---|---|
 | First layout of the dense score | 50 ms, which is 100 µs per bar of four staves |
 | Update after one entered note in the dense score | 1 ms |
 | First layout of the spanner score | 200 ms |
+| Update after one entered note in the slurred score | 10 ms |
 
 The budgets assume a mid-range phone is four times slower than the development machine. That gives 200 ms once, when a large score opens, and 4 ms per edit, inside a 16 ms frame. The spanner score exists because `Score.measureView` reads the spanners that touch a bar, and a cost that grows with bars times spanners shows there first.
 

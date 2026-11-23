@@ -38,7 +38,7 @@
 * A bar under a measure-repeat sign loses the sign when a ripple pulls music of its staff back across its end.
 * `Slur.endVoice` names the voice whose chord a slur ends on. MusicXML import sets it when the stop is written on a chord of the same staff that the slur would not otherwise end on. JSON writes it as an optional `endVoice` key, and a file without the key ends its slurs by the rules above. A reader before 0.5.0 ignores the key, so it ends such a slur on another chord and drops the key when it saves the file again.
 * `SpannerSegment.startsOn` and `endsOn` give the events a slur, glissando or trill line starts and ends on in that bar.
-* `Score.changesSince` also names the last bar of a slur, glissando or trill line over several bars when a bar from the one before its first bar to its last changes, so a layout update draws that end again.
+* `Score.changesSince` also names the last bar of a slur, glissando or trill line over several bars when a bar from the one before its first bar to its last changes, so a layout update draws that end again. A bar named only because such a line ends in it names no other line's last bar, so an edit under a chain of lines names a handful of bars.
 * A shorter `SetValue` removes each glissando that starts on its chord, with or without a ripple, as MuseScore 4 does. Undo brings it back.
 * A rippled `SetValue`, `EnterNote` or `EnterRest` no longer throws when the session's range starts at the end of a bar that ends its section. After a `SetValue` the range stays where it was, unless it is empty.
 
