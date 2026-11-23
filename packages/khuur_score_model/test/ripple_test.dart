@@ -2091,16 +2091,10 @@ void main() {
       expect(range.to, pointAt(next.score, 1, at(3, 4)));
     });
 
-    group('under a range that starts at the end of the section', () {
-      EditSession ranged() {
-        final session = barsOf([
-          [
-            chordOf(1, 'F4'),
-            rest(2, NoteValue.quarter),
-            rest(3, NoteValue.half),
-          ],
-          quarters(5, 'C5 D5 E5 F5'),
-        ]);
+    group('under a range selected from the end of a bar that ends its '
+        'section', () {
+      EditSession ranged(List<VoiceItem> first) {
+        final session = barsOf([first, quarters(5, 'C5 D5 E5 F5')]);
         final score = changeBar(
           session.score,
           0,
@@ -2116,17 +2110,44 @@ void main() {
         );
       }
 
-      test('a longer value pushes the music and the range stays', () {
-        final next = applied(revalue(ranged(), 1, NoteValue.half));
+      final sparse = [
+        chordOf(1, 'F4'),
+        rest(2, NoteValue.quarter),
+        rest(3, NoteValue.half),
+      ];
+
+      test('a longer value that adds a bar leaves the range on its '
+          'music', () {
+        final next = applied(
+          revalue(ranged(quarters(1, 'F4 G4 A4 B4')), 1, NoteValue.half),
+        );
+
+        expect(bar(next.score, 1), ['B4/quarter', 'rest/quarter', 'rest/half']);
+        final range = next.selection as RangeSelection;
+        expect(range.from, pointAt(next.score, 2, Moment.zero));
+        expect(range.to, pointAt(next.score, 2, at(1, 2)));
+      });
+
+      test('a longer value that fits the section leaves the range on its '
+          'music', () {
+        final next = applied(revalue(ranged(sparse), 1, NoteValue.half));
 
         expect(bar(next.score, 0), ['F4/half', 'rest/half']);
         final range = next.selection as RangeSelection;
-        expect(range.from, pointAt(next.score, 0, at(1, 1)));
+        expect(range.from, pointAt(next.score, 1, Moment.zero));
+        expect(range.to, pointAt(next.score, 1, at(1, 2)));
+      });
+
+      test('a shorter value leaves the range on its music', () {
+        final next = applied(revalue(ranged(sparse), 3, NoteValue.quarter));
+
+        final range = next.selection as RangeSelection;
+        expect(range.from, pointAt(next.score, 1, Moment.zero));
         expect(range.to, pointAt(next.score, 1, at(1, 2)));
       });
 
       test('a new note pushes the music', () {
-        final session = ranged();
+        final session = ranged(sparse);
 
         final next = applied(
           push(session, point(session.score, 0, Moment.zero)),
@@ -2174,6 +2195,79 @@ void main() {
       );
       expect(bar(next.score, 2), ['F5/quarter', 'rest/quarter', 'rest/half']);
       expect(next.score.measures[3], same(session.score.measures[3]));
+    });
+  });
+
+  group('A rippled erase of rests in two sections', () {
+    test('changes nothing and is no undo step', () {
+      final score = changeBar(
+        blankScore(bars: 4),
+        1,
+        (column) => column.copyWith(barline: Barline.doubleBar),
+      );
+      final session = EditSession.start(score);
+
+      final next = applied(
+        session.run(
+          Erase(
+            RangeSelection(
+              from: pointAt(score, 0, Moment.zero),
+              to: pointAt(score, 3, Moment.zero),
+              top: score.staves.first.id,
+              bottom: score.staves.first.id,
+            ),
+            ripple: Ripple.part,
+          ),
+        ),
+      );
+
+      expect(next.score, same(session.score));
+      expect(next.canUndo, isFalse);
+    });
+  });
+
+  group('A rippled erase of chords in many sections', () {
+    const bars = 40;
+
+    Score sections() {
+      var score = blankScore(bars: bars);
+      for (var b = 0; b < bars; b++) {
+        score = fill(score, b, [
+          chordOf(1 + 4 * b, 'F4', tie: true),
+          ...quarters(2 + 4 * b, 'G4 F4 B4'),
+        ]);
+        if (b % 3 == 2) {
+          score = changeBar(
+            score,
+            b,
+            (column) => column.copyWith(barline: Barline.doubleBar),
+          );
+        }
+      }
+      return score;
+    }
+
+    List<int> seconds(int from, int to) => [
+      for (var b = from; b < min(to, bars); b++) 2 + 4 * b,
+    ];
+
+    test('leaves what an erase of each section on its own leaves', () {
+      final score = sections();
+
+      final once = applied(pull(EditSession.start(score), seconds(0, bars)));
+      var each = EditSession.start(score);
+      for (var b = 0; b < bars; b += 3) {
+        each = applied(pull(each, seconds(b, b + 3)));
+      }
+
+      expect(bar(once.score, 0), [
+        'F4/quarter',
+        'F4/quarter',
+        'B4/quarter',
+        'F4/quarter',
+      ]);
+      expect(tiesOf(once, 1).values, [false]);
+      expect(saved(once.score), saved(each.score));
     });
   });
 }

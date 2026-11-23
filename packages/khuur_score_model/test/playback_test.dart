@@ -3553,6 +3553,27 @@ void main() {
       }
     });
 
+    test('a line that names no end note glides to the note at its start '
+        "note's place in the chord it ends on", () {
+      final script = compiled(
+        glided(
+          [
+            [chordOf(1, 'C4 E4'), chordOf(2, 'D4 G4 B4'), halves(3, 'C4')],
+          ],
+          (0, 0),
+          (0, 1),
+          lines: const [Glissando(from: NoteId(10))],
+        ),
+      );
+
+      expect(attacks(script).take(4), [
+        (0.0, 60, 1),
+        (0.0, 64, 1),
+        (0.5, 61, 1),
+        (1.0, 62, 2),
+      ]);
+    });
+
     test('two crossed lines from one chord glide each note along its own', () {
       final script = compiled(
         glided(

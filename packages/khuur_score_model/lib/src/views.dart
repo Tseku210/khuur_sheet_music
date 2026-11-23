@@ -370,6 +370,8 @@ final class SpannerSegment {
     required this.endsHere,
     this.startsOn,
     this.endsOn,
+    this.startNote,
+    this.endNote,
   });
 
   /// The whole spanner this segment is a piece of.
@@ -396,6 +398,15 @@ final class SpannerSegment {
   /// The event of this bar the spanner ends on ([Score.anchorOf]). Null
   /// unless it [endsHere] and is of [SpannerReach.events].
   final TimedEvent? endsOn;
+
+  /// The note of [startsOn] a [Glissando] starts on
+  /// ([Score.glissandoNotes]). Null for another kind, and where [startsOn]
+  /// is null or a rest.
+  final NoteId? startNote;
+
+  /// The note of [endsOn] a [Glissando] ends on ([Score.glissandoNotes]).
+  /// Null for another kind, and where [endsOn] is null or a rest.
+  final NoteId? endNote;
 }
 
 /// What changed between two score values, for incremental layout.
