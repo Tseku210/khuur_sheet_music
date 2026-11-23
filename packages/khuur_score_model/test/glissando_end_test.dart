@@ -161,9 +161,9 @@ void main() {
       );
     });
 
-    test('exports one start and one stop, each on a note and the stop first, '
-        'when it runs from voice two onto a chord of voice one over a rest '
-        'of voice two', () {
+    test('exports one start and one stop, each on a note and the start '
+        'first, when it runs from voice two onto a chord of voice one over a '
+        'rest of voice two', () {
       final score = added(
         fill(
           fill(blankScore(), 0, [
@@ -181,7 +181,7 @@ void main() {
       );
 
       expect(endOf(score), 'one D5');
-      expect(glissandoMarks(score), ['D5 stop', 'E4 start']);
+      expect(glissandoMarks(score), ['E4 start', 'D5 stop']);
     });
 
     test('goes when that note is removed, as MuseScore 4 removes a '

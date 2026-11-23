@@ -4,7 +4,9 @@
 /// voice by voice, with `<backup>` to the bar start before each voice and a
 /// secondary voice's [Gap]s as `<forward>`. Directions, chord symbols and
 /// mid-bar clef changes go in voice one's stream at their times, reached
-/// with `<forward>` and `<backup>` when they fall inside a note.
+/// with `<forward>` and `<backup>` when they fall inside a note. A staff
+/// whose bar holds a glissando that this order would stop before it starts
+/// is written in time order instead, event by event.
 ///
 /// Pitches are written as the part reads them, so a transposing part
 /// carries `<transpose>`. Accidentals, ties, beams and tuplet brackets come
@@ -93,17 +95,17 @@ typedef _At = ({int bar, int stream, Moment at});
 int _compare(_At a, _At b) =>
     a.bar != b.bar ? a.bar - b.bar : a.at.compareTo(b.at);
 
-bool _writtenBefore(_At a, _At b) => a.bar != b.bar
+bool _beforeByVoice(_At a, _At b) => a.bar != b.bar
     ? a.bar < b.bar
     : a.stream != b.stream
     ? a.stream < b.stream
     : a.at < b.at;
 
-_At _firstWritten(_Ends line) =>
-    _writtenBefore(line.stop, line.start) ? line.stop : line.start;
+_At _firstByVoice(_Ends line) =>
+    _beforeByVoice(line.stop, line.start) ? line.stop : line.start;
 
-_At _lastWritten(_Ends line) =>
-    _writtenBefore(line.stop, line.start) ? line.start : line.stop;
+_At _lastByVoice(_Ends line) =>
+    _beforeByVoice(line.stop, line.start) ? line.start : line.stop;
 
 /// Where a spanner's ends are written. A spanner written on notes has the
 /// events that carry its ends in `from` and `to`; a direction spanner has
@@ -175,6 +177,17 @@ final class _Export {
     for (final line in ends) ...[?line.fromNote, ?line.toNote],
   };
   late final Map<SpannerId, int> numbers = _numbers();
+
+  /// The bars and staves written in time order, because MuseScore 4 ignores
+  /// a glissando stop with nothing open.
+  late final Set<(int, StaffId)> inTimeOrder = {
+    for (final line in ends)
+      if (line.fromNote != null &&
+          line.toNote != null &&
+          line.start.at < line.stop.at &&
+          _beforeByVoice(line.stop, line.start))
+        (line.start.bar, line.spanner.staff),
+  };
 
   /// MuseScore 4 reads a slur in the voice of its start, so the start says
   /// the side the slur's voice curves on. MuseScore draws the slur there
@@ -437,7 +450,7 @@ final class _Export {
   }
 
   /// The staves of one bar of part [p], in time order per voice, with each
-  /// staff's directions woven into voice one.
+  /// staff's directions woven in at their times.
   List<XmlNode> _music(
     int p,
     int bar,
@@ -457,6 +470,14 @@ final class _Export {
 
     for (final (k, staff) in staves.indexed) {
       final items = _staffItems(p, bar, view, staff, k);
+      if (inTimeOrder.contains((bar, staff.source.staff))) {
+        for (final entry in _inTimeOrder(p, bar, staff, k, items)) {
+          moveTo(entry.at);
+          nodes.addAll(entry.nodes);
+          cursor = entry.end;
+        }
+        continue;
+      }
       var next = 0;
       void flush(Moment until) {
         for (; next < items.length && items[next].$1 <= until; next++) {
@@ -488,6 +509,27 @@ final class _Export {
     }
     return nodes;
   }
+
+  List<_Timed> _inTimeOrder(
+    int p,
+    int bar,
+    StaffView staff,
+    int k,
+    List<(Moment, XmlElement)> items,
+  ) => stableSorted<_Timed>(
+    [
+      for (final (at, item) in items) (at: at, end: at, nodes: [item]),
+      for (final voice in staff.voices)
+        if (_writer(p, bar, staff, k, voice) case final write)
+          for (final timed in voice.events)
+            (
+              at: timed.onset,
+              end: timed.onset + timed.duration,
+              nodes: write(timed),
+            ),
+    ],
+    (a, b) => a.at.compareTo(b.at),
+  );
 
   static int _voice(int staffIndex, VoiceView voice) =>
       voiceNumber(staffIndex, voice.slot);
@@ -960,7 +1002,7 @@ final class _Export {
       final held = {
         for (final other in open)
           if (_compare(other.stop, line.start) >= 0 ||
-              !_writtenBefore(_lastWritten(other), _firstWritten(line)))
+              !_beforeByVoice(_lastByVoice(other), _firstByVoice(line)))
             numbers[other.spanner.id],
       };
       var number = above + 1;
@@ -1011,6 +1053,8 @@ final class _Export {
     return _text('duration', '${quarters.numerator}');
   }
 }
+
+typedef _Timed = ({Moment at, Moment end, List<XmlElement> nodes});
 
 /// A slur, glissando or trill line end on an event: the spanner, and
 /// whether it starts there.

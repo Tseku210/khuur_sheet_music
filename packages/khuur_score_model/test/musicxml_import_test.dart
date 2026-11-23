@@ -2264,7 +2264,7 @@ void main() {
             ]);
 
             expect(joined(score), [('E4', 'D5')], reason: '$own');
-            expect(written(score), ['D5 stop', 'E4 start'], reason: '$own');
+            expect(written(score), ['E4 start', 'D5 stop'], reason: '$own');
             expect(
               joined(scoreFromMusicXml(scoreToMusicXml(score))),
               joined(score),

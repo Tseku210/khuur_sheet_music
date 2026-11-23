@@ -38,11 +38,11 @@ final class _Pair {
 /// written. A start opens a spanner, replacing one still open under its
 /// element and number, and a stop closes the open one.
 ///
-/// A stop can also come before its start. The exporter writes voice one
-/// first, so a slur that starts in another voice and ends in a gap of it,
-/// on the event of voice one that sounds there, has its stop written
-/// first. A stop with nothing open is kept for a start in its bar that its
-/// event sounds past.
+/// A stop can also come before its start. The exporter writes most bars
+/// voice one first, so a slur that starts in another voice and ends in a
+/// gap of it, on the event of voice one that sounds there, has its stop
+/// written first. A stop with nothing open is kept for a start in its bar
+/// that its event sounds past.
 ///
 /// [unclosed] takes each start that no stop closes.
 List<_Pair> _pairs(PartRecord part, {void Function(LineMark)? unclosed}) {
