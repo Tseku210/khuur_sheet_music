@@ -1798,6 +1798,44 @@ void main() {
       );
     });
 
+    test('trusts a slur start with only a placement in a file this library '
+        'wrote, as MuseScore 4.0 and 4.1 write one on every slur', () {
+      String read(String? encoding) {
+        final score = imported(
+          partwise(
+            '${encoding == null ? '' : '<identification><encoding>$encoding'
+                      '</encoding></identification>'}'
+            '<part-list>${scorePart('P1')}</part-list>'
+            '${part('P1', [
+              [
+                opening(),
+                note('C5', 8, 'half', '<voice>1</voice><notations>'
+                    '<slur type="start" placement="below" number="1"/>'
+                    '</notations>'),
+                note('D5', 8, 'half', '<voice>1</voice>'),
+                backup(16),
+                forward(8),
+                note('E4', 4, 'quarter', '<voice>2</voice><notations>'
+                    '<slur type="stop" number="1"/></notations>'),
+                note('F4', 4, 'quarter', '<voice>2</voice>'),
+              ],
+            ])}',
+          ),
+        );
+        final slur = score.spanners.single;
+        return '${slur.voice?.name} named '
+            '${(slur.kind as Slur).endVoice?.name}';
+      }
+
+      const ours = '<software>khuur_sheet_music</software>';
+      const theirs = '<software>MuseScore 4.1.1</software>';
+      expect(read(null), 'one named two');
+      expect(read(''), 'one named two');
+      expect(read(theirs), 'one named two');
+      expect(read('$ours$theirs'), 'one named two');
+      expect(read(ours), 'two named null');
+    });
+
     test('reads a slur with only a placement, between notes of voice one, '
         'in voice one', () {
       final score = imported(
