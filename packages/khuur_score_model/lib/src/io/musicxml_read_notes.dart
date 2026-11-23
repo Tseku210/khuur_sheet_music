@@ -762,7 +762,8 @@ extension on _BarReader {
     if (kind == null) {
       return null;
     }
-    final placement = line.getAttribute('orientation') == null
+    final placement =
+        part.writtenHere && line.getAttribute('orientation') == null
         ? line.getAttribute('placement')
         : null;
     return switch (line.getAttribute('type')) {

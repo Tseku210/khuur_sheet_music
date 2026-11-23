@@ -14,6 +14,10 @@ import '../refs.dart';
 import '../score.dart';
 import '../time.dart';
 
+/// MuseScore 4.0 and 4.1 write a placement alone on every slur, so import
+/// trusts a lone slur placement only in a file whose one `<software>` is this.
+const softwareName = 'khuur_sheet_music';
+
 /// The `<voice>` export gives [slot] on the staff at index [staff] of its
 /// part. Import takes a note without one as the first voice of its staff.
 int voiceNumber(int staff, VoiceSlot slot) => staff * 4 + slot.index + 1;

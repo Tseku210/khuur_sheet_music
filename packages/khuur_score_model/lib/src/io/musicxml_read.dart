@@ -36,6 +36,13 @@ DocumentRecord readDocument(XmlElement root) {
                 supports.getAttribute('type') == 'yes',
           ) ??
       false;
+  final writtenHere =
+      identification
+          ?.getElement('encoding')
+          ?.findElements('software')
+          .singleOrNull
+          ?.innerText ==
+      softwareName;
   final declared = <String?, XmlElement>{};
   for (final scorePart
       in root.getElement('part-list')?.findElements('score-part') ??
@@ -67,7 +74,14 @@ DocumentRecord readDocument(XmlElement root) {
       );
     }
     readers.add(
-      _header(scorePart, measures, ids: ids, printed: printed, joins: joins),
+      _header(
+        scorePart,
+        measures,
+        ids: ids,
+        printed: printed,
+        joins: joins,
+        writtenHere: writtenHere,
+      ),
     );
   }
   final measures = <MeasureId>[];
@@ -153,6 +167,7 @@ final class _PartReader {
     required this.ids,
     required this.printed,
     required this.joins,
+    required this.writtenHere,
     required this.measures,
     required this.id,
     required this.staves,
@@ -170,6 +185,7 @@ final class _PartReader {
   final Ids ids;
   final Map<NoteId, bool> printed;
   final Map<EventId, bool>? joins;
+  final bool writtenHere;
   final List<XmlElement> measures;
   final PartId id;
   final List<StaffId> staves;
@@ -232,6 +248,7 @@ _PartReader _header(
   required Ids ids,
   required Map<NoteId, bool> printed,
   required Map<EventId, bool>? joins,
+  required bool writtenHere,
 }) {
   final name =
       scorePart.getElement('part-name') ??
@@ -340,6 +357,7 @@ _PartReader _header(
     ids: ids,
     printed: printed,
     joins: joins,
+    writtenHere: writtenHere,
     measures: measures,
     id: PartId(ids.take()),
     staves: [for (var i = 0; i < staves; i++) StaffId(ids.take())],

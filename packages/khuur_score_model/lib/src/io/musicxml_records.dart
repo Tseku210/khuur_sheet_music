@@ -570,10 +570,9 @@ final class LineMark {
   /// Where it comes among its part's marks.
   final int index;
 
-  /// For a slur start with a placement and no orientation, whether the
-  /// placement is above. Export writes a placement alone to mark a slur of
-  /// its stop's voice. MuseScore 4.2 and later write the two together or not
-  /// at all, and 4.0 and 4.1 write a placement alone on every slur.
+  /// For a slur start with a placement and no orientation in a file this
+  /// library wrote, whether the placement is above. Export writes a placement
+  /// alone to mark a slur of its stop's voice.
   final bool? above;
 }
 
