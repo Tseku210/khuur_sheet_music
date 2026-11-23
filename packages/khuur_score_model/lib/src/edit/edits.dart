@@ -204,7 +204,9 @@ enum Overfill {
 /// - Marks: articulations, fingerings and lyrics travel on their notes.
 ///   The directions and clef changes of the staves that move, the ends of
 ///   their spanners, a cursor on one of them and a range selection over one
-///   keep their place in the music. A direction in removed time is
+///   keep their place in the music. A range that also covers a staff that
+///   holds still keeps its own time there too, so it runs from the earliest
+///   start to the latest end. A direction in removed time is
 ///   dropped, as [DeleteMeasures] drops it. A clef change there moves to
 ///   where the time was removed, so the clef that follows is kept. A
 ///   spanner start there moves to the music after it. The end of a slur
