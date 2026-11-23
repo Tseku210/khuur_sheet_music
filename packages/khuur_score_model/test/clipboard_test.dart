@@ -129,16 +129,18 @@ void main() {
       }
     });
 
-    test('is null for a range that starts at the end of its bar, which '
-        'Erase refuses', () {
+    test('takes a range selected from the end of a bar from the start of '
+        'the next bar', () {
       final session = sessionWith([
         [chordOf(1, 'F4'), chordOf(2, 'G4'), rest(3, NoteValue.half)],
-        [chordOf(4, 'A4', value: NoteValue.whole)],
+        [chordOf(4, 'A4', value: NoteValue.half), rest(5, NoteValue.half)],
       ]);
       final selection = range(session.score, (0, at(1, 1)), (1, at(1, 2)));
 
-      expect(refusal(session.run(Erase(selection))), isA<OutsideMeasure>());
-      expect(session.select(selection).copy(), isNull);
+      final clip = session.select(selection).copy()!;
+
+      final pasted = applied(paste(blank(), clip, 0, Moment.zero));
+      expect(bar(pasted.score, 0), ['A4/half', 'rest/half']);
     });
 
     test('covers the whole tuplet of a picked member', () {

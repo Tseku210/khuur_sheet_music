@@ -2091,16 +2091,10 @@ void main() {
       expect(range.to, pointAt(next.score, 1, at(3, 4)));
     });
 
-    group('under a range that starts at the end of the section', () {
-      EditSession ranged() {
-        final session = barsOf([
-          [
-            chordOf(1, 'F4'),
-            rest(2, NoteValue.quarter),
-            rest(3, NoteValue.half),
-          ],
-          quarters(5, 'C5 D5 E5 F5'),
-        ]);
+    group('under a range selected from the end of a bar that ends its '
+        'section', () {
+      EditSession ranged(List<VoiceItem> first) {
+        final session = barsOf([first, quarters(5, 'C5 D5 E5 F5')]);
         final score = changeBar(
           session.score,
           0,
@@ -2116,17 +2110,44 @@ void main() {
         );
       }
 
-      test('a longer value pushes the music and the range stays', () {
-        final next = applied(revalue(ranged(), 1, NoteValue.half));
+      final sparse = [
+        chordOf(1, 'F4'),
+        rest(2, NoteValue.quarter),
+        rest(3, NoteValue.half),
+      ];
+
+      test('a longer value that adds a bar leaves the range on its '
+          'music', () {
+        final next = applied(
+          revalue(ranged(quarters(1, 'F4 G4 A4 B4')), 1, NoteValue.half),
+        );
+
+        expect(bar(next.score, 1), ['B4/quarter', 'rest/quarter', 'rest/half']);
+        final range = next.selection as RangeSelection;
+        expect(range.from, pointAt(next.score, 2, Moment.zero));
+        expect(range.to, pointAt(next.score, 2, at(1, 2)));
+      });
+
+      test('a longer value that fits the section leaves the range on its '
+          'music', () {
+        final next = applied(revalue(ranged(sparse), 1, NoteValue.half));
 
         expect(bar(next.score, 0), ['F4/half', 'rest/half']);
         final range = next.selection as RangeSelection;
-        expect(range.from, pointAt(next.score, 0, at(1, 1)));
+        expect(range.from, pointAt(next.score, 1, Moment.zero));
+        expect(range.to, pointAt(next.score, 1, at(1, 2)));
+      });
+
+      test('a shorter value leaves the range on its music', () {
+        final next = applied(revalue(ranged(sparse), 3, NoteValue.quarter));
+
+        final range = next.selection as RangeSelection;
+        expect(range.from, pointAt(next.score, 1, Moment.zero));
         expect(range.to, pointAt(next.score, 1, at(1, 2)));
       });
 
       test('a new note pushes the music', () {
-        final session = ranged();
+        final session = ranged(sparse);
 
         final next = applied(
           push(session, point(session.score, 0, Moment.zero)),
