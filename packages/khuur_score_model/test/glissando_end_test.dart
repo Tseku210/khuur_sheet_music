@@ -218,4 +218,135 @@ void main() {
       expect(notesOf(score), 'C4 null');
     });
   });
+
+  group("A glissando picks a chord's notes in staff line order", () {
+    /// B sharp 3 sounds above C flat 4 but sits a line below it.
+    Score crossing(List<VoiceItem> items) => fill(blankScore(), 0, items);
+
+    test('ends at the index of its start note counted by staff line', () {
+      final score = crossing([
+        chordOf(1, 'Cb4 B#3'),
+        chordOf(2, 'D4 F4'),
+        chordOf(3, 'C5', value: NoteValue.half),
+      ]);
+
+      expect(
+        notesOf(
+          built(
+            score,
+            Moment.zero,
+            at(1, 4),
+            kind: const Glissando(from: NoteId(10)),
+          ),
+        ),
+        'Cb4 F4',
+      );
+      expect(
+        notesOf(
+          built(
+            score,
+            Moment.zero,
+            at(1, 4),
+            kind: const Glissando(from: NoteId(11)),
+          ),
+        ),
+        'B#3 D4',
+      );
+    });
+
+    test('ends on the lowest line of a crossing it runs into', () {
+      final score = built(
+        crossing([
+          chordOf(1, 'C4'),
+          chordOf(2, 'Cb4 B#3'),
+          chordOf(3, 'C5', value: NoteValue.half),
+        ]),
+        Moment.zero,
+        at(1, 4),
+      );
+
+      expect(notesOf(score), 'C4 B#3');
+    });
+
+    test('starts on the top line of a crossing when it names no start', () {
+      final score = built(
+        crossing([
+          chordOf(1, 'Cb4 B#3'),
+          chordOf(2, 'D4 F4 A4'),
+          chordOf(3, 'C5', value: NoteValue.half),
+        ]),
+        Moment.zero,
+        at(1, 4),
+      );
+
+      expect(notesOf(score), 'Cb4 F4');
+    });
+
+    test('is stored that way by AddSpanner and played that way', () {
+      final score = added(
+        crossing([
+          chordOf(1, 'Cb4 B#3'),
+          chordOf(2, 'D4 F4'),
+          chordOf(3, 'C5', value: NoteValue.half),
+        ]),
+        Moment.zero,
+        at(1, 4),
+        kind: const Glissando(from: NoteId(10)),
+      );
+
+      expect(namesOf(score), '10 21');
+      expect(exported(score), ['Cb4 start', 'F4 stop']);
+      expect(
+        [
+          for (final (start, key, source) in attacks(score))
+            if (source == 1 && start > 0) key,
+        ],
+        [60, 61, 62, 63, 64],
+      );
+    });
+
+    test('orders drums by the line their sound prints on, then by key', () {
+      const kit = PartTemplate(
+        name: 'Kit',
+        instrument: Instrument(
+          key: 'kit',
+          program: 0,
+          bank: 128,
+          clef: Clef.percussion,
+          drums: [
+            DrumSound(name: 'Crash', position: Pitch(Step.a, 5), midiKey: 49),
+            DrumSound(
+              name: 'Floor tom',
+              position: Pitch(Step.a, 4),
+              midiKey: 41,
+            ),
+            DrumSound(name: 'Hi-hat', position: Pitch(Step.g, 5), midiKey: 42),
+            DrumSound(name: 'Kick', position: Pitch(Step.f, 4), midiKey: 36),
+          ],
+        ),
+      );
+      const crash = Drum('Crash');
+      const floorTom = Drum('Floor tom');
+      const hiHat = Drum('Hi-hat');
+      const kick = Drum('Kick');
+      final score = fill(blankScore(parts: const [kit]), 0, [
+        hit(1, [crash, kick]),
+        hit(2, [floorTom, hiHat, kick]),
+        hit(3, [crash], value: NoteValue.half),
+      ]);
+
+      expect(
+        notesOf(
+          built(
+            score,
+            Moment.zero,
+            at(1, 4),
+            kind: const Glissando(from: NoteId(11)),
+          ),
+        ),
+        'Kick Kick',
+      );
+      expect(notesOf(built(score, Moment.zero, at(1, 4))), 'Crash Floor tom');
+    });
+  });
 }
