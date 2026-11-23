@@ -1525,8 +1525,8 @@ void main() {
       ]);
     });
 
-    test('leaves out a glissando from a note to a rest, whose start '
-        'MuseScore 4 would close on the next glissando', () {
+    test('numbers a glissando from a note to a rest above the glissandi of '
+        'any other shape in its part', () {
       var score = sessionWith([
         [
           chordOf(1, 'C5'),
@@ -1553,6 +1553,8 @@ void main() {
       }
 
       expect(placedAs(read(exported(score)).children, 'glissando'), [
+        'P1 m0 @0 <glissando type="start" number="2"/>',
+        'P1 m0 @1/4 <glissando type="stop" number="2"/>',
         'P1 m0 @1/2 <glissando type="start" number="1"/>',
         'P1 m0 @3/4 <glissando type="stop" number="1"/>',
         'P1 m1 @0 <glissando type="start" number="1"/>',
