@@ -535,7 +535,8 @@ final class _Voices {
   }
 
   /// [records] as notes in the order the model keeps a chord's, each tone
-  /// once. A tie that starts is kept when one of [tiesTo] has its tone.
+  /// once. A tie that starts is kept when one of [tiesTo] has its tone. A
+  /// let-ring tie with a `<tie>` that starts is a plain tie when none has.
   List<Note> _notes(
     List<NoteRecord> records, {
     required List<NoteRecord> tiesTo,
@@ -553,11 +554,21 @@ final class _Voices {
     return kept;
   }
 
+  ({bool tie, bool letRing}) _tieMarks(
+    NoteRecord record, {
+    required bool lands,
+  }) {
+    const plainTie = (tie: true, letRing: false);
+    const letRingTie = (tie: false, letRing: true);
+    const untied = (tie: false, letRing: false);
+    if (record.letRing) {
+      return record.tieElementStart && !lands ? plainTie : letRingTie;
+    }
+    return record.tieStart && lands ? plainTie : untied;
+  }
+
   Note _note(NoteRecord record, {required bool lands}) {
-    // Export writes a plain tie to no note as a let-ring tie whose `<tie>`
-    // still starts, since MuseScore reads that pair as a let-ring tie.
-    final letRing = record.letRing && (lands || !record.tieSounds);
-    final tie = !letRing && (record.letRing || (record.tieStart && lands));
+    final (:tie, :letRing) = _tieMarks(record, lands: lands);
     switch (record) {
       case DrumRecord(:final id, :final drum):
         return DrumNote(id: id, drum: drum, tie: tie, letRing: letRing);

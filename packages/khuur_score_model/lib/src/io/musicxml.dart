@@ -677,6 +677,8 @@ final class _Export {
             _duration(timed.duration),
             if (tieStops.contains(note.id))
               _el('tie', const [], {'type': 'stop'}),
+            // Beside the let-ring `<tied>` of a tie to no note, this keeps
+            // the tie plain on import. MuseScore still reads a let-ring tie.
             if (note.tie) _el('tie', const [], {'type': 'start'}),
             ?instrument(note),
             _text('voice', number),
