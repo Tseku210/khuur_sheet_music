@@ -484,6 +484,10 @@ final class _Decoder {
   Note _note(_In json, Instrument instrument) {
     final id = NoteId(_claim(_notes, json['id']));
     final tie = json.maybe('tie')?.flag ?? false;
+    final letRing = json.maybe('letRing')?.flag ?? false;
+    if (tie && letRing) {
+      json.fail('a note has a tie or a let-ring tie, not both');
+    }
     if (instrument.isPercussion) {
       final drum =
           json.maybe('drum') ??
@@ -492,7 +496,7 @@ final class _Decoder {
         Drum(drum.string),
         (tone) => toneProblem(instrument, tone),
       );
-      return DrumNote(id: id, drum: tone, tie: tie);
+      return DrumNote(id: id, drum: tone, tie: tie, letRing: letRing);
     }
     return PitchedNote(
       id: id,
@@ -501,6 +505,7 @@ final class _Decoder {
                   json.fail(toneKindProblem(instrument, isDrum: true)!))
               .pitch,
       tie: tie,
+      letRing: letRing,
       accidental:
           json.maybe('accidental')?.name(AccidentalRequest.values) ??
           AccidentalRequest.auto,

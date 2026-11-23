@@ -178,7 +178,9 @@ Score showcase() => Score(
                 id: const EventId(21),
                 kind: GraceKind.acciaccatura,
                 value: NoteValue.sixteenth,
-                notes: Seq([const DrumNote(id: NoteId(22), drum: snare)]),
+                notes: Seq([
+                  const DrumNote(id: NoteId(22), drum: snare, letRing: true),
+                ]),
               ),
             ],
           ),

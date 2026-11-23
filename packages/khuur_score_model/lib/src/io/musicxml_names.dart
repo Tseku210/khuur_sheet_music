@@ -14,6 +14,9 @@ import '../refs.dart';
 import '../score.dart';
 import '../time.dart';
 
+/// The `<software>` export writes.
+const softwareName = 'khuur_sheet_music';
+
 /// The `<voice>` export gives [slot] on the staff at index [staff] of its
 /// part. Import takes a note without one as the first voice of its staff.
 int voiceNumber(int staff, VoiceSlot slot) => staff * 4 + slot.index + 1;

@@ -220,6 +220,7 @@ Map<String, Object?> _note(Note note) => switch (note) {
     'id': note.id.value,
     'pitch': _pitch(note.pitch),
     if (note.tie) 'tie': true,
+    if (note.letRing) 'letRing': true,
     if (note.accidental != AccidentalRequest.auto)
       'accidental': note.accidental.name,
     if (note.head != NoteHead.normal) 'head': note.head.name,
@@ -230,6 +231,7 @@ Map<String, Object?> _note(Note note) => switch (note) {
     'id': note.id.value,
     'drum': note.drum.name,
     if (note.tie) 'tie': true,
+    if (note.letRing) 'letRing': true,
   },
 };
 
