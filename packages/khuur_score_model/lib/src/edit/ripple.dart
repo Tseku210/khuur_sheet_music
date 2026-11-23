@@ -437,10 +437,11 @@ final class _SectionLines {
 /// [score] with the music of [staves] moved by [shift], counted from bar
 /// [bar], through the section that holds the bar, and the edited voice
 /// changed by [splice]. The section grows by whole bars when the music no
-/// longer fits it, and every other staff rests in the new bars. The cursor,
-/// a range selection and spanner ends on [staves] follow the music. With
-/// [inRuns], a section that does not grow is written into a score that
-/// holds its bars in runs.
+/// longer fits it, and every other staff rests in the new bars. The cursor
+/// and spanner ends on [staves] follow the music. A range selection follows
+/// it too, and still holds its own time when one of its staves is not among
+/// [staves]. With [inRuns], a section that does not grow is written into a
+/// score that holds its bars in runs.
 _Rippled _ripple(
   Score score,
   _Ids ids, {
@@ -721,14 +722,14 @@ _Rippled _ripple(
     onset: follow,
     close: follow,
     movesCursor: moving.contains(cursor.staff),
-    movesRange: switch (selection) {
-      RangeSelection(:final top, :final bottom) => _reaches(
+    moves: switch (selection) {
+      RangeSelection(:final top, :final bottom) => _reach(
         score,
         top,
         bottom,
         moving,
       ),
-      _ => false,
+      _ => _Reach.none,
     },
   );
   return _Rippled(
@@ -872,10 +873,12 @@ List<MeasureColumn> _rippledBars(
 }
 
 /// [cursor] and [selection] after the music under them moved: each start
-/// goes through [onset], a range's end through [close], and a range that
-/// is left empty becomes no selection. Null for what does not move: a
-/// cursor when [movesCursor] is false or [onset] gives null, and any
-/// selection that is not a range or whose range [movesRange] holds still.
+/// goes through [onset] and a range's end through [close]. When only some
+/// of a range's staves moved ([moves]), [_rangeOver] joins the moved span
+/// with the range's own. A range that is left no time becomes no selection.
+/// Null for what does not move: a cursor when [movesCursor] is false or
+/// [onset] gives null, and any selection that is not a range or that has
+/// no staff among the moved ones.
 ({VoicePoint? cursor, Selection? selection}) _follow(
   Score moved,
   VoicePoint cursor,
@@ -883,7 +886,7 @@ List<MeasureColumn> _rippledBars(
   required ScorePoint? Function(ScorePoint) onset,
   required ScorePoint Function(ScorePoint) close,
   bool movesCursor = true,
-  bool movesRange = true,
+  _Reach moves = _Reach.all,
 }) {
   final at = movesCursor ? onset(cursor.at) : null;
   return (
@@ -891,22 +894,15 @@ List<MeasureColumn> _rippledBars(
         ? null
         : VoicePoint(staff: cursor.staff, voice: cursor.voice, at: at),
     selection: switch (selection) {
-      RangeSelection(:final from, :final to, :final top, :final bottom)
-          when movesRange =>
-        switch ((onset(from), close(to))) {
-          (final start?, final stop) when moved.compare(start, stop) < 0 =>
-            RangeSelection(from: start, to: stop, top: top, bottom: bottom),
-          _ => const Selection.none(),
-        },
+      RangeSelection(:final from, :final to) when moves != _Reach.none =>
+        _rangeOver(moved, selection, [
+          if (moves == _Reach.some) (from, to),
+          if (onset(from) case final start?) (start, close(to)),
+        ]),
       _ => null,
     },
   );
 }
-
-/// Whether the staves from [top] to [bottom], in system order, include one
-/// of [staves].
-bool _reaches(Score score, StaffId top, StaffId bottom, Set<StaffId> staves) =>
-    score.stavesBetween(top, bottom)?.any(staves.contains) ?? false;
 
 /// [items] with [music] in place of the time from [from] to [to]. An item
 /// cut at [from] keeps its head before [music], and an item cut at [to]

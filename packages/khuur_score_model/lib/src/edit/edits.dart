@@ -220,7 +220,9 @@ enum Overfill {
 /// - Marks: articulations, fingerings and lyrics travel on their notes.
 ///   The directions and clef changes of the staves that move, the ends of
 ///   their spanners, a cursor on one of them and a range selection over one
-///   keep their place in the music. A direction in removed time is
+///   keep their place in the music. A range that also covers a staff that
+///   holds still keeps its own time there too, so it runs from the earliest
+///   start to the latest end. A direction in removed time is
 ///   dropped, as [DeleteMeasures] drops it. A clef change there moves to
 ///   where the time was removed, so the clef that follows is kept. A
 ///   spanner start there moves to the music after it. The end of a slur
@@ -317,7 +319,9 @@ final class SetTone extends Edit {
 /// and a shorter one pulls it back, so nothing after the event is written
 /// over or turned into rests. An event in a tuplet cannot change its length
 /// this way, and the edit is refused with [WouldSplitTuplet]. The cursor
-/// and a range selection on the staves that move follow the music.
+/// and a range selection on the staves that move follow the music. A range
+/// that also covers a staff that holds still keeps its own time too, so it
+/// runs from the earlier start to the later end.
 final class SetValue extends Edit {
   /// Changes [event]'s written value to [value].
   const SetValue(this.event, this.value, {this.ripple = Ripple.none});
