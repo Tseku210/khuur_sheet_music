@@ -1,9 +1,10 @@
-// Checks that a glissando costs an edit no more for naming its notes. It
-// builds a score with a glissando in every bar that names both its notes,
-// and erases every chord a glissando ends on in one edit. Each line then
-// looks for the note it has lost. It times the same erase on the same score
-// with glissandi that name no notes, which have nothing to look for, and
-// compares the two times, at one length and at four times that length.
+// Checks that a glissando costs an edit little for losing the note it
+// names. It builds a score with a glissando in every bar that names both its
+// notes, and erases every chord a glissando ends on in one edit. Each line
+// then looks for the note it has lost, and goes with it. It times an erase
+// of the chord after each of those on the same score, where no line loses a
+// note or looks for one, and compares the two times, at one length and at
+// four times that length.
 //
 // Run it compiled, from packages/khuur_score_model. A JIT run measures the
 // compiler as much as the code. The compiler does not create `build`, which
@@ -12,9 +13,9 @@
 //   mkdir -p build && dart compile exe benchmark/erase_benchmark.dart -o build/erase_benchmark
 //   build/erase_benchmark
 //
-// It prints one line per score and exits with 1 when the erase under named
-// lines costs more than [_mostCost] times the erase under unnamed ones on
-// the longer score.
+// It prints one line per score and exits with 1 when the erase of the
+// chords the lines end on costs more than [_mostCost] times the other erase
+// on the longer score.
 
 import 'dart:io';
 
@@ -82,46 +83,54 @@ Score glided(int bars, {required bool named}) {
   );
 }
 
-/// The median times of [runs] erases of every chord a glissando ends on,
-/// in one edit, on [scores] in turn, after [warmUps] rounds that do not
-/// count. Fails when an erase is refused, or leaves a glissando that named
-/// the note it ended on.
-List<Duration> eraseTimes(
-  List<Score> scores, {
+Erase _eraseBeat(Score score, int beat) => Erase(
+  ItemSelection(
+    Seq([
+      for (var bar = 0; bar < score.measures.length; bar++)
+        score.locate(EventId(4 * bar + beat))!,
+    ]),
+  ),
+);
+
+/// The median times of [runs] erases of every chord a glissando of [score]
+/// ends on, and of the chord after each of those, which no glissando starts
+/// or ends on, each in one edit, after [warmUps] rounds that do not count.
+/// Fails when an erase is refused, when the first leaves a glissando, or
+/// when the second leaves fewer glissandi than bars.
+({Duration lost, Duration kept}) eraseTimes(
+  Score score, {
   int warmUps = 3,
   int runs = 11,
 }) {
+  final bars = score.measures.length;
   final watch = Stopwatch();
-  final times = [for (final _ in scores) <Duration>[]];
+  final lost = <Duration>[];
+  final kept = <Duration>[];
   for (var i = 0; i < warmUps + runs; i++) {
-    for (final (at, score) in scores.indexed) {
+    for (final (beat, times, left) in [(1, lost, 0), (2, kept, bars)]) {
       final session = EditSession.start(score);
-      final erase = Erase(
-        ItemSelection(
-          Seq([
-            for (var bar = 0; bar < score.measures.length; bar++)
-              score.locate(EventId(4 * bar + 1))!,
-          ]),
-        ),
-      );
+      final erase = _eraseBeat(score, beat);
       watch
         ..reset()
         ..start();
       final outcome = session.run(erase);
       watch.stop();
-      final left = switch (outcome) {
-        Applied(:final session) => session.score.spanners,
+      final lines = switch (outcome) {
+        Applied(:final session) => session.score.spanners.length,
         _ => throw StateError('the erase was refused'),
       };
-      if (left.any((line) => line.kind != const Glissando())) {
-        throw StateError('the erase left a glissando without its note');
+      if (lines != left) {
+        throw StateError(
+          'the erase of beat $beat left $lines glissandi in $bars bars',
+        );
       }
       if (i >= warmUps) {
-        times[at].add(watch.elapsed);
+        times.add(watch.elapsed);
       }
     }
   }
-  return [for (final each in times) (each..sort())[each.length ~/ 2]];
+  Duration median(List<Duration> times) => (times..sort())[times.length ~/ 2];
+  return (lost: median(lost), kept: median(kept));
 }
 
 String _ms(Duration time) => (time.inMicroseconds / 1000).toStringAsFixed(3);
@@ -129,21 +138,18 @@ String _ms(Duration time) => (time.inMicroseconds / 1000).toStringAsFixed(3);
 void main() {
   var cost = 0.0;
   for (final bars in [_bars, 4 * _bars]) {
-    final [named, unnamed] = eraseTimes([
-      glided(bars, named: true),
-      glided(bars, named: false),
-    ]);
-    cost = named.inMicroseconds / unnamed.inMicroseconds;
+    final (:lost, :kept) = eraseTimes(glided(bars, named: true));
+    cost = lost.inMicroseconds / kept.inMicroseconds;
     stdout.writeln(
-      'erase of glissando ends: $bars bars, median ${_ms(named)} ms under '
-      'named lines, ${_ms(unnamed)} ms under unnamed, '
+      'erase of glissando ends: $bars bars, median ${_ms(lost)} ms where '
+      'every line loses its end note, ${_ms(kept)} ms where none does, '
       '${cost.toStringAsFixed(2)} times',
     );
   }
   final over = cost > _mostCost;
   stdout.writeln(
-    'named lines cost ${cost.toStringAsFixed(2)} times as much on the longer '
-    'score, bound $_mostCost${over ? ', FAILED' : ''}',
+    'lost end notes cost ${cost.toStringAsFixed(2)} times as much on the '
+    'longer score, bound $_mostCost${over ? ', FAILED' : ''}',
   );
   exitCode = over ? 1 : 0;
 }
