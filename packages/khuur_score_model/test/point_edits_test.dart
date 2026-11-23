@@ -217,6 +217,33 @@ void main() {
         isTrue,
       );
     });
+
+    test('clears a let-ring tie, and a set replaces it with a tie', () {
+      final session = sessionWith([
+        [
+          chordOf(20, 'C4', value: NoteValue.half, letRing: true),
+          chordOf(21, 'C4', value: NoteValue.half),
+        ],
+      ]);
+
+      final cleared = applied(
+        session.run(SetTie(head(session, 20), tied: false)),
+      );
+      final tied = applied(session.run(SetTie(head(session, 20), tied: true)));
+
+      expect(bar(cleared.score, 0), ['C4/half', 'C4/half']);
+      expect(bar(tied.score, 0), ['C4/half~', 'C4/half']);
+      expect(
+        tied.score.measureView(tied.score.measures.first.id).staves.first.ties,
+        [
+          isA<TieView>().having(
+            (tie) => tie.to?.note,
+            'to',
+            const NoteId(210),
+          ),
+        ],
+      );
+    });
   });
 
   group('AddGrace', () {

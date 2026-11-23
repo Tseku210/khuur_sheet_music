@@ -560,7 +560,7 @@ List<VoiceItem> _resize(
 /// [score] with the ties of bar [index] cleared that would end on a
 /// different head once its music from [from] on is followed by the opening
 /// of [next], or by rests when [next] is null. A tie that ends on no head,
-/// and still won't, stays for let-ring.
+/// and still won't, stays, and so does a [Note.letRing] tie.
 Score _untieAt(Score score, int index, Moment from, MeasureColumn? next) {
   final column = score.measures[index];
   var untied = column;

@@ -2624,13 +2624,12 @@ void main() {
         ]),
       );
 
-      expect(items(score, 0), ['C5/half', 'D5/quarter', 'E5/quarter~']);
+      expect(items(score, 0), ['C5/half', 'D5/quarter', 'E5/quarter~lv']);
     });
 
     group('a let-ring tie before a note of its pitch', () {
       const letRing = '<notations><tied type="let-ring"/></notations>';
 
-      /// Voice two is A3, C4 that rings, D4 and C4, under four quarters.
       final under = flute([
         [
           opening(divisions: 2),
@@ -2646,7 +2645,6 @@ void main() {
         ],
       ]);
 
-      /// Where the tie from each note of the first bar ends, by pitch.
       List<String> ties(Score score) {
         final staff = score.measureView(score.measures.first.id).staves.first;
         final pitches = {
@@ -2661,7 +2659,6 @@ void main() {
         ];
       }
 
-      /// How many notes of [key] the first bar plays.
       int struck(Score score, int key) => PlaybackCompiler()
           .compile(score)
           .notesBetween(0, double.infinity)
@@ -2714,7 +2711,7 @@ void main() {
 
         expect(items(erased, 0, slot: VoiceSlot.two).take(3), [
           'A3/quarter',
-          'C4/quarter',
+          'C4/quarter~lv',
           'C4/eighth',
         ]);
         expect(ties(erased), ['C4 -> none']);

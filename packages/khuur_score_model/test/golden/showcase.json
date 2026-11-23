@@ -241,7 +241,8 @@
                       "notes": [
                         {
                           "id": 22,
-                          "drum": "Snare"
+                          "drum": "Snare",
+                          "letRing": true
                         }
                       ]
                     }

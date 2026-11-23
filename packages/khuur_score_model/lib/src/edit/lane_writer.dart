@@ -297,11 +297,11 @@ final class _Lane {
     final before = events(
       bar,
     ).where((e) => e.onset + e.duration == stop).firstOrNull?.event;
-    if (before is! ChordEvent ||
-        !before.notes.any((n) => n.tie && !kept.contains(n.tone))) {
+    bool clears(Note note) => note.tie && !kept.contains(note.tone);
+    if (before is! ChordEvent || !before.notes.any(clears)) {
       return;
     }
-    final untied = _untied(before, (note) => !kept.contains(note.tone));
+    final untied = _untied(before, clears);
     write(bar, [
       for (final item in items(bar))
         item is Content ? _replaceEvent(item, untied) : item,
@@ -514,11 +514,13 @@ Event _piece(
             head: head,
             string: string,
             tie: tied || n.tie,
+            letRing: !tied && n.letRing,
           ),
           DrumNote(:final drum) => DrumNote(
             id: ids.note(),
             drum: drum,
             tie: tied || n.tie,
+            letRing: !tied && n.letRing,
           ),
         },
     ]),
@@ -535,7 +537,7 @@ ChordEvent _untied(ChordEvent chord, bool Function(Note note) clears) =>
     chord.copyWith(
       notes: Seq([
         for (final note in chord.notes)
-          clears(note) ? note.copyWith(tie: false) : note,
+          clears(note) ? note.copyWith(tie: false, letRing: false) : note,
       ]),
     );
 

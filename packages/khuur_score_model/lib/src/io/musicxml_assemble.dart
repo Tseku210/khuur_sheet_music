@@ -545,8 +545,9 @@ final class _Voices {
         _note(
           record,
           tie:
-              record.letRing ||
-              (record.tieStart && tiesTo.any((to) => sameTone(to, record))),
+              !record.letRing &&
+              record.tieStart &&
+              tiesTo.any((to) => sameTone(to, record)),
         ),
     ], (a, b) => a.tone.compareTo(b.tone));
     final kept = <Note>[];
@@ -561,7 +562,12 @@ final class _Voices {
   Note _note(NoteRecord record, {required bool tie}) {
     switch (record) {
       case DrumRecord(:final id, :final drum):
-        return DrumNote(id: id, drum: drum, tie: tie);
+        return DrumNote(
+          id: id,
+          drum: drum,
+          tie: tie,
+          letRing: record.letRing,
+        );
       case PitchedRecord(:final id, :final written, :final source):
         final pitch = written.transpose(
           part.transposition,
@@ -574,6 +580,7 @@ final class _Voices {
           id: id,
           pitch: pitch,
           tie: tie,
+          letRing: record.letRing,
           head: record.head,
           fingering: record.fingering,
           string: switch (record.string) {

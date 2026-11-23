@@ -410,8 +410,8 @@ Set<Tone>? _ringingPastCut(Score score, VoicePoint at) {
 }
 
 /// [timed]'s chord without the ties that lead into or out of the music
-/// [inside] holds and onto a head, or null when it keeps its ties. A
-/// let-ring tie before pasted music would otherwise end on a pasted head.
+/// [inside] holds and onto a head, or null when it keeps its ties. A tie
+/// to no head before pasted music would otherwise end on a pasted head.
 ChordEvent? _crossingTies(
   Score score,
   TimedEvent timed,

@@ -503,6 +503,73 @@ void main() {
       ]);
     });
 
+    test('keeps a let-ring tie out of a note that loses only its start, '
+        'when a note of its tone then follows it', () {
+      final session = under([
+        chordOf(5, 'A3', value: NoteValue.quarter.dotted),
+        chordOf(6, 'C4', value: NoteValue.quarter.dotted, letRing: true),
+        chordOf(7, 'D4', value: NoteValue.eighth),
+        chordOf(8, 'C4', value: NoteValue.eighth),
+      ]);
+
+      final next = erasedAll(session, [2, 7]);
+
+      expect(bar(next.score, 0, slot: VoiceSlot.two), [
+        'A3/quarter',
+        'C4/quarter~lv',
+        'C4/eighth',
+        'gap 3/8',
+      ]);
+      expect(bar(next.undo().score, 0, slot: VoiceSlot.two), [
+        'A3/quarter.',
+        'C4/quarter.~lv',
+        'D4/eighth',
+        'C4/eighth',
+      ]);
+    });
+
+    test('keeps a let-ring tie on the last piece of a note that loses only '
+        'its start, and ties the pieces', () {
+      var score = fill(blankScore(), 0, [
+        chordOf(1, 'E5', value: NoteValue.half.dotted),
+        chordOf(4, 'A5'),
+      ]);
+      score = fill(score, 0, [
+        chordOf(5, 'A3', value: NoteValue.whole),
+      ], slot: VoiceSlot.two);
+      score = fill(score, 1, [
+        chordOf(11, 'E5', value: NoteValue.eighth),
+        chordOf(12, 'F5', value: NoteValue.eighth),
+        chordOf(13, 'G5'),
+        chordOf(14, 'A5', value: NoteValue.half),
+      ]);
+      score = fill(score, 1, [
+        chordOf(7, 'C4', value: NoteValue.half.dotted, letRing: true),
+        chordOf(8, 'C4'),
+      ], slot: VoiceSlot.two);
+
+      final next = erased(EditSession.start(score), 11);
+
+      expect(bar(next.score, 1, slot: VoiceSlot.two), [
+        'C4/half~',
+        'C4/eighth~lv',
+        'C4/quarter',
+        'gap 1/8',
+      ]);
+    });
+
+    test('drops a let-ring tie from a note that loses its end', () {
+      final session = under([
+        chordOf(5, 'C4', value: NoteValue.quarter.dotted, letRing: true),
+        chordOf(6, 'D4', value: NoteValue.quarter.dotted),
+        chordOf(7, 'E4'),
+      ]);
+
+      final next = erased(session, 2);
+
+      expect(bar(next.score, 0, slot: VoiceSlot.two).first, 'C4/quarter');
+    });
+
     test('drops a tie that ends on no note from a note that loses its '
         'end', () {
       final session = under([
