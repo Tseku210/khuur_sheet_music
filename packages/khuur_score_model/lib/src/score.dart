@@ -477,7 +477,11 @@ final class Score {
     final anchor = _anchorOf(spanner, last: last);
     if (spanner.kind case Glissando(to: null)
         when last && anchor != null && anchor.event is! ChordEvent) {
-      return _chordStartingAt(spanner.staff, spanner.last, VoiceSlot.values) ??
+      return _firstChordStartingAt(
+            spanner.staff,
+            spanner.last,
+            VoiceSlot.values,
+          ) ??
           anchor;
     }
     return anchor;
@@ -521,11 +525,11 @@ final class Score {
         !_heldSince(one, start, orWith: spanner.kind is Glissando)) {
       return one;
     }
-    return _chordStartingAt(spanner.staff, at, VoiceSlot.values.skip(1)) ?? one;
+    return _firstChordStartingAt(spanner.staff, at, VoiceSlot.values.skip(1)) ??
+        one;
   }
 
-  /// The chord the first of [voices] starts at [at] on [staff], if any.
-  TimedEvent? _chordStartingAt(
+  TimedEvent? _firstChordStartingAt(
     StaffId staff,
     ScorePoint at,
     Iterable<VoiceSlot> voices,

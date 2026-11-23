@@ -55,9 +55,7 @@ String endOf(Score score) {
   };
 }
 
-/// The glissando marks MusicXML export writes, each as the note it is on
-/// and its type.
-List<String> exported(Score score) => [
+List<String> glissandoMarks(Score score) => [
   for (final note in RegExp(
     '<note>((?:(?!</note>).)*)</note>',
     dotAll: true,
@@ -101,9 +99,7 @@ List<(double, int, int)> attacks(Score score) {
 void main() {
   group('A glissando whose last end names no note and falls on a rest of '
       'its own voice', () {
-    /// Voice one plays C4, rests, then plays C5. Voice two plays E4 at the
-    /// rest's onset.
-    Score shape() => fill(
+    Score restUnderVoiceTwo() => fill(
       fill(blankScore(), 0, [
         chordOf(1, 'C4'),
         rest(2, NoteValue.quarter),
@@ -115,14 +111,14 @@ void main() {
     );
 
     test('ends on the chord another voice starts there', () {
-      final score = built(shape(), Moment.zero, at(1, 4));
+      final score = built(restUnderVoiceTwo(), Moment.zero, at(1, 4));
 
       expect(endOf(score), 'two E4');
       expect(notesOf(score), 'C4 E4');
     });
 
     test('is stored on that note by AddSpanner, and keeps it in a file', () {
-      final score = added(shape(), Moment.zero, at(1, 4));
+      final score = added(restUnderVoiceTwo(), Moment.zero, at(1, 4));
 
       expect(namesOf(score), '10 50');
       expect(notesOf(reloaded(score)), 'C4 E4');
@@ -130,7 +126,7 @@ void main() {
 
     test('keeps that end in a file that saves no end note', () {
       final score = built(
-        shape(),
+        restUnderVoiceTwo(),
         Moment.zero,
         at(1, 4),
         voice: VoiceSlot.one,
@@ -140,7 +136,7 @@ void main() {
     });
 
     test('glides toward that note', () {
-      expect(attacks(built(shape(), Moment.zero, at(1, 4))), [
+      expect(attacks(built(restUnderVoiceTwo(), Moment.zero, at(1, 4))), [
         (0.0, 60, 1),
         (0.25, 61, 1),
         (0.5, 62, 1),
@@ -151,15 +147,18 @@ void main() {
     });
 
     test('exports its stop on that note', () {
-      expect(exported(built(shape(), Moment.zero, at(1, 4))), [
-        'C4 start',
-        'E4 stop',
-      ]);
+      expect(
+        glissandoMarks(built(restUnderVoiceTwo(), Moment.zero, at(1, 4))),
+        [
+          'C4 start',
+          'E4 stop',
+        ],
+      );
     });
 
     test('goes when that note is removed, as MuseScore 4 removes a '
         'glissando with its note', () {
-      final score = added(shape(), Moment.zero, at(1, 4));
+      final score = added(restUnderVoiceTwo(), Moment.zero, at(1, 4));
       final removed = run(
         score,
         RemoveNote(
@@ -220,7 +219,6 @@ void main() {
   });
 
   group("A glissando picks a chord's notes in staff line order", () {
-    /// B sharp 3 sounds above C flat 4 but sits a line below it.
     Score crossing(List<VoiceItem> items) => fill(blankScore(), 0, items);
 
     test('ends at the index of its start note counted by staff line', () {
@@ -295,7 +293,7 @@ void main() {
       );
 
       expect(namesOf(score), '10 21');
-      expect(exported(score), ['Cb4 start', 'F4 stop']);
+      expect(glissandoMarks(score), ['Cb4 start', 'F4 stop']);
       expect(
         [
           for (final (start, key, source) in attacks(score))

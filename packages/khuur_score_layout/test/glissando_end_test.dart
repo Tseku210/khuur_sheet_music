@@ -18,8 +18,7 @@ EventRef eventRef(Score score, int bar, int event) => EventRef(
   id: EventId(event),
 );
 
-/// Where the glissando's line ends, as the middle y of its last piece.
-double endOf(SheetLayout sheet) => [
+double lineEndY(SheetLayout sheet) => [
   for (var i = 0; i < sheet.systemCount; i++)
     ...sheet
         .systemAt(i)
@@ -28,8 +27,13 @@ double endOf(SheetLayout sheet) => [
         .where((line) => line.owner == const SpannerOwner(SpannerId(900))),
 ].last.to.y;
 
-/// The middle y of the head of note [note] of event [event] in bar [bar].
-double headOf(SheetLayout sheet, Score score, int bar, int event, int note) {
+double headMiddleY(
+  SheetLayout sheet,
+  Score score,
+  int bar,
+  int event,
+  int note,
+) {
   final head = [
     for (var i = 0; i < sheet.systemCount; i++)
       ...sheet
@@ -81,7 +85,10 @@ void main() {
       );
       final sheet = sheetOf(score);
 
-      expect(endOf(sheet), closeTo(headOf(sheet, score, 0, 5, 50), 1e-9));
+      expect(
+        lineEndY(sheet),
+        closeTo(headMiddleY(sheet, score, 0, 5, 50), 1e-9),
+      );
     });
 
     test('keeps that end in an update after an edit two bars before it, as '
@@ -115,8 +122,8 @@ void main() {
         final updated = layout.update(next);
 
         expect(
-          endOf(updated),
-          closeTo(headOf(updated, next, 2, 5, 50), 1e-9),
+          lineEndY(updated),
+          closeTo(headMiddleY(updated, next, 2, 5, 50), 1e-9),
           reason: 'width $width',
         );
         expectSameSheet(updated, sheetOf(next, width: width));
@@ -141,7 +148,7 @@ void main() {
     );
     final sheet = sheetOf(score);
 
-    expect(endOf(sheet), closeTo(headOf(sheet, score, 0, 2, 21), 1e-9));
+    expect(lineEndY(sheet), closeTo(headMiddleY(sheet, score, 0, 2, 21), 1e-9));
   });
 
   test('a glissando into a crossing chord keeps the head of its lowest line '
@@ -168,8 +175,8 @@ void main() {
       final updated = layout.update(next);
 
       expect(
-        endOf(updated),
-        closeTo(headOf(updated, next, 2, 2, 21), 1e-9),
+        lineEndY(updated),
+        closeTo(headMiddleY(updated, next, 2, 2, 21), 1e-9),
         reason: 'width $width',
       );
       expectSameSheet(updated, sheetOf(next, width: width));
