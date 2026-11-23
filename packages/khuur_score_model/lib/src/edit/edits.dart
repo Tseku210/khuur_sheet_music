@@ -394,7 +394,8 @@ final class AddGrace extends Edit {
 }
 
 /// Sets or clears the tie from [note] to the same tone in the next event.
-/// Idempotent.
+/// Clearing also removes a let-ring tie ([Note.letRing]), and setting
+/// replaces one. Idempotent.
 final class SetTie extends Edit {
   /// Sets the tie from [note] when [tied] is true and clears it when false.
   const SetTie(this.note, {required this.tied});

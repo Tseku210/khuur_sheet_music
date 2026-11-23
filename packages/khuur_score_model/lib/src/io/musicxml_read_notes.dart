@@ -651,6 +651,8 @@ extension on _BarReader {
       switch (tie.getAttribute('type')) {
         case 'start':
           record.tieStart = true;
+          record.tieElementStart =
+              record.tieElementStart || tie.name.local == 'tie';
         case 'let-ring':
           record.letRing = true;
       }

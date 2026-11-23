@@ -335,8 +335,9 @@ final class TieView {
   /// The tied head, in this bar.
   final NoteId from;
 
-  /// Where the tie lands, possibly in the next bar. Null when no matching
-  /// note follows: draw a short let-ring tie.
+  /// Where the tie lands, possibly in the next bar. Null when the head lets
+  /// ring ([Note.letRing]) or no matching note follows. Either way, draw a
+  /// short let-ring tie.
   final NoteRef? to;
 
   /// The tie lands on a head in the next bar. False for a let-ring tie,

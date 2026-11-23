@@ -99,7 +99,7 @@ Score _lose(Score score, TimedEvent timed, _Loss loss) {
   }
   final bothSides = loss == _Loss.acrossAddedTime;
   var now = score;
-  if (chord.notes.any((note) => note.tie)) {
+  if (chord.notes.any((note) => note.tie || note.letRing)) {
     now = _replace(now, timed, _untied(chord, (_) => true));
   }
   if (bothSides) {

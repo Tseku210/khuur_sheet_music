@@ -263,6 +263,27 @@ void main() {
         reason: 'the tie clears both heads by the same gap',
       );
     });
+    test('a let-ring grace note rings before a principal of its tone', () {
+      final score = scoreOf([
+        [
+          chordOf(1, 'C5', graces: [graceOf(90, 'C5', letRing: true)]),
+          ...quartersOf(2, 'C5').take(3),
+        ],
+      ]);
+      final system = sheetOf(score).systemAt(0);
+      final tie = curvesOf(system).single;
+      final graceHead = glyphsOf(
+        system,
+        owner: ElementOwner(eventRef(score, 0, 1)),
+      ).where((glyph) => glyph.glyph == Glyph.noteheadBlack).single;
+
+      expect(tie.start.x, greaterThanOrEqualTo(graceHead.bounds.right));
+      expect(
+        tie.end.x - tie.start.x,
+        closeTo(letRingLength * style.graceScale, 1e-9),
+      );
+    });
+
     test('a tied grace note joins the head of its tone in the next grace '
         'chord', () {
       final score = scoreOf([

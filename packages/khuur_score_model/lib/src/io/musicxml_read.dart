@@ -36,6 +36,13 @@ DocumentRecord readDocument(XmlElement root) {
                 supports.getAttribute('type') == 'yes',
           ) ??
       false;
+  final writtenHere =
+      identification
+          ?.getElement('encoding')
+          ?.findElements('software')
+          .singleOrNull
+          ?.innerText ==
+      softwareName;
   final declared = <String?, XmlElement>{};
   for (final scorePart
       in root.getElement('part-list')?.findElements('score-part') ??
@@ -81,12 +88,25 @@ DocumentRecord readDocument(XmlElement root) {
   }
   final parts = [for (final reader in readers) reader.record()]
     ..forEach(keepSignsOfUnclosedTrills);
+  final declaresLetRing =
+      identification
+          ?.getElement('encoding')
+          ?.findElements('supports')
+          .any(
+            (supports) =>
+                supports.getAttribute('element') == 'tied' &&
+                supports.getAttribute('attribute') == 'type' &&
+                supports.getAttribute('type') == 'yes' &&
+                supports.getAttribute('value') == 'let-ring',
+          ) ??
+      false;
   return DocumentRecord(
     meta: _meta(root),
     parts: parts,
     measures: measures,
     printed: printed,
     supportsAccidentals: supports('accidental'),
+    writtenBeforeLetRing: writtenHere && !declaresLetRing,
     joins: joins,
     ids: ids,
   );

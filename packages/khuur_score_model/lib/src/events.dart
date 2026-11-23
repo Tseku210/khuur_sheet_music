@@ -288,7 +288,8 @@ enum TupletBracket {
 
 /// One note head.
 sealed class Note {
-  const Note({required this.id, this.tie = false});
+  const Note({required this.id, this.tie = false, this.letRing = false})
+    : assert(!(tie && letRing), 'a head has a tie or a let-ring tie');
 
   /// Identity of this head, unique within the score.
   final NoteId id;
@@ -300,11 +301,17 @@ sealed class Note {
   /// note normally.
   final bool tie;
 
+  /// A let-ring (laissez vibrer) tie, a short tie after the head that never
+  /// lands on a note, whatever follows. Playback ends the note normally.
+  /// Never true with [tie].
+  final bool letRing;
+
   /// What it plays. A chord never holds one tone twice.
   Tone get tone;
 
-  /// A copy with [id] or [tie] replaced.
-  Note copyWith({NoteId? id, bool? tie});
+  /// A copy with [id], [tie] or [letRing] replaced. Setting [tie] or
+  /// [letRing] to true clears the other.
+  Note copyWith({NoteId? id, bool? tie, bool? letRing});
 }
 
 /// A head on a pitched staff.
@@ -314,6 +321,7 @@ final class PitchedNote extends Note {
     required super.id,
     required this.pitch,
     super.tie,
+    super.letRing,
     this.accidental = AccidentalRequest.auto,
     this.head = NoteHead.normal,
     this.fingering,
@@ -344,6 +352,7 @@ final class PitchedNote extends Note {
   PitchedNote copyWith({
     NoteId? id,
     bool? tie,
+    bool? letRing,
     Pitch? pitch,
     AccidentalRequest? accidental,
     NoteHead? head,
@@ -352,7 +361,8 @@ final class PitchedNote extends Note {
   }) => PitchedNote(
     id: id ?? this.id,
     pitch: pitch ?? this.pitch,
-    tie: tie ?? this.tie,
+    tie: tie ?? (letRing != true && this.tie),
+    letRing: letRing ?? (tie != true && this.letRing),
     accidental: accidental ?? this.accidental,
     head: head ?? this.head,
     fingering: fingering == null ? this.fingering : fingering(),
@@ -364,7 +374,12 @@ final class PitchedNote extends Note {
 /// [drum], with the kit's head.
 final class DrumNote extends Note {
   /// A head that plays [drum].
-  const DrumNote({required super.id, required this.drum, super.tie});
+  const DrumNote({
+    required super.id,
+    required this.drum,
+    super.tie,
+    super.letRing,
+  });
 
   /// The drum it plays.
   final Drum drum;
@@ -373,11 +388,13 @@ final class DrumNote extends Note {
   Drum get tone => drum;
 
   @override
-  DrumNote copyWith({NoteId? id, bool? tie, Drum? drum}) => DrumNote(
-    id: id ?? this.id,
-    drum: drum ?? this.drum,
-    tie: tie ?? this.tie,
-  );
+  DrumNote copyWith({NoteId? id, bool? tie, bool? letRing, Drum? drum}) =>
+      DrumNote(
+        id: id ?? this.id,
+        drum: drum ?? this.drum,
+        tie: tie ?? (letRing != true && this.tie),
+        letRing: letRing ?? (tie != true && this.letRing),
+      );
 }
 
 /// Grace notes attached before a principal chord. Zero duration in the
