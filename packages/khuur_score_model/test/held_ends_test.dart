@@ -56,9 +56,6 @@ EnterNote enter(
 
 void main() {
   group('A slur end that sits on a note voice one started after the slur', () {
-    // Voice one plays C5, a half D5 from the second beat, and E5. Voice two
-    // plays E4 and rests from the second beat, so a slur of voice two from
-    // E4 to the third beat ends on the D5 voice one is holding there.
     Score held() {
       final score = fill(blankScore(bars: 1), 0, [
         chordOf(1, 'C5'),
@@ -157,6 +154,33 @@ void main() {
 
       expect(session.undo().score.spanners, score.spanners);
     });
+  });
+
+  test('A slur that starts inside a rest of its voice and ends on a note '
+      'voice one starts there still stands after an edit', () {
+    final notes = fill(blankScore(bars: 1), 0, [
+      chordOf(1, 'C5'),
+      chordOf(2, 'D5', value: NoteValue.half),
+      chordOf(3, 'E5'),
+    ]);
+    final score = withSpanner(
+      fill(notes, 0, [
+        rest(5, NoteValue.half),
+        Gap(len(1, 2)),
+      ], slot: VoiceSlot.two),
+      const Slur(),
+      pointAt(notes, 0, at(1, 4)),
+      pointAt(notes, 0, at(5, 8)),
+      voice: VoiceSlot.two,
+    );
+
+    final edited = run(
+      score,
+      enter(score, VoiceSlot.one, at(3, 4), 'G5', NoteValue.quarter),
+    );
+
+    expect(endOf(score), 'one D5');
+    expect(endOf(edited), 'one D5');
   });
 
   group('A glissando that names no note', () {

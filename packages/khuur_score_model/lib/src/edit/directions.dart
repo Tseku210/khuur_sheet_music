@@ -38,7 +38,7 @@ _Result _addSpanner(
     throw _Refuse(StaleReference(note));
   }
   return _Result(
-    score.copyWith(spanners: score.spanners.append(endNamed(score, spanner))),
+    score.copyWith(spanners: score.spanners.append(endsHeld(score, spanner))),
   );
 }
 

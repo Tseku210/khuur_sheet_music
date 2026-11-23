@@ -312,12 +312,20 @@ void main() {
         );
       });
 
-      test('keeps that end in a file that saves no end note', () {
+      test('names that end, and keeps it in a file that saves no end '
+          'note', () {
         const lower = Glissando(from: NoteId(10));
         final score = joined('C4 G4', 'D4 F4 C5', lower);
+        final json = scoreToJson(score);
+        final spanners = json['spanners']! as List<Object?>;
+        (spanners.single! as Map<String, Object?>).remove('toNote');
 
-        expect(score.spanners.single.kind, lower);
-        expect(end(reloaded(score)), 'D4');
+        expect(
+          score.spanners.single.kind,
+          const Glissando(from: NoteId(10), to: NoteId(20)),
+        );
+        expect(scoreFromJson(json).spanners.single.kind, lower);
+        expect(end(scoreFromJson(json)), 'D4');
       });
     });
 
@@ -885,7 +893,7 @@ void main() {
 
         expect(
           session.score.spanners.single.kind,
-          const Glissando(to: NoteId(40)),
+          const Glissando(from: NoteId(30), to: NoteId(40)),
         );
       });
 
@@ -937,16 +945,16 @@ void main() {
         expect(ends(tied.score), ['one C5']);
         expect(
           onThree.score.spanners.single.kind,
-          const Glissando(to: NoteId(60)),
+          const Glissando(from: NoteId(30), to: NoteId(60)),
         );
         expect(
           onOne.score.spanners.single.kind,
-          const Glissando(to: NoteId(40)),
+          const Glissando(from: NoteId(30), to: NoteId(40)),
         );
       });
 
-      test('stores the kind AddSpanner is given, with only the end voice '
-          'added where AddSpanner names the end', () {
+      test('stores the kind AddSpanner is given, with the end voice of the '
+          'chord it ends on', () {
         final score = under([chordOf(1, 'C5', value: NoteValue.whole)]);
         Spanner made(SpannerKind kind, Moment first, Moment last) => applied(
           addSpanner(
@@ -968,7 +976,7 @@ void main() {
         );
         expect(
           made(const Slur(endVoice: VoiceSlot.four), at(1, 4), at(1, 2)).kind,
-          const Slur(endVoice: VoiceSlot.four),
+          const Slur(endVoice: VoiceSlot.three),
         );
       });
 
@@ -1578,15 +1586,12 @@ void main() {
       expect(gone, greaterThan(100), reason: 'by the other edits');
     });
 
-    test('stays on the top note when it names none', () {
+    test('goes with the top note it starts on when it names none', () {
       final session = glided(kind: const Glissando(to: NoteId(20)));
 
       final next = applied(session.run(RemoveNote(head(session, 11))));
 
-      expect(
-        next.score.glissandoNotes(next.score.spanners.single).from!.id,
-        const NoteId(10),
-      );
+      expect(next.score.spanners, isEmpty);
     });
   });
 
@@ -1637,7 +1642,13 @@ void main() {
         ).score;
 
         expect(bar(next, 0).take(2), ['C4+G4/half', 'D4+C5/quarter']);
-        expect(next.spanners, session.score.spanners);
+        String notes(Score score) => switch (score.glissandoNotes(
+          score.spanners.single,
+        )) {
+          (:final from, :final to) => '${from?.id.value} ${to?.id.value}',
+        };
+
+        expect(notes(next), named ? '11 20' : '11 21');
       });
     }
   });

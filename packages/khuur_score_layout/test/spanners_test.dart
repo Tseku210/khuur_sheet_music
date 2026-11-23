@@ -801,8 +801,8 @@ void main() {
       );
     });
 
-    test('a glissando that names no end note moves its end to the next head '
-        'up when a note is added under its start note two bars before', () {
+    test('a glissando that names no end note keeps its end on its head when '
+        'a note is added under its start note two bars before', () {
       final plain = scoreOf([
         [chordOf(1, 'G4', value: NoteValue.whole)],
         [],
@@ -841,7 +841,7 @@ void main() {
       final updated = layout.update(next);
 
       expect(endOf(layout), closeTo(middle(layout, 20), 1e-9));
-      expect(endOf(updated), closeTo(middle(updated, 21), 1e-9));
+      expect(endOf(updated), closeTo(middle(updated, 20), 1e-9));
       expectSameSheet(updated, sheetOf(next));
     });
 
