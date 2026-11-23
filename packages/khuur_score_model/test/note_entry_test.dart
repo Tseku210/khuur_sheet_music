@@ -183,6 +183,76 @@ void main() {
         expect(session.select(selection).selection, same(selection));
       }
     });
+
+    test('moves a range end at the start of a bar to the end of the bar '
+        'before', () {
+      final session = twoBars();
+      final pickup = changeBar(
+        session.score,
+        0,
+        (column) => column.copyWith(
+          irregularLength: () => len(1, 4),
+          staves: Seq([
+            column.staves.first.withVoice(
+              Voice(slot: VoiceSlot.one, items: Seq([chordOf(1, 'F4')])),
+            ),
+          ]),
+        ),
+      );
+
+      for (final (score, end) in [
+        (session.score, at(1, 1)),
+        (pickup, at(1, 4)),
+      ]) {
+        final selected =
+            EditSession.start(score)
+                    .select(
+                      range(
+                        score,
+                        pointAt(score, 0, Moment.zero),
+                        pointAt(score, 1, Moment.zero),
+                      ),
+                    )
+                    .selection
+                as RangeSelection;
+
+        expect(selected.from, pointAt(score, 0, Moment.zero));
+        expect(selected.to, pointAt(score, 0, end));
+      }
+    });
+
+    test('selects nothing for a range to the start of a bar that holds no '
+        'time', () {
+      final session = twoBars();
+      final score = session.score;
+
+      for (final (from, to) in [
+        (pointAt(score, 0, Moment.zero), pointAt(score, 0, Moment.zero)),
+        (pointAt(score, 1, Moment.zero), pointAt(score, 1, Moment.zero)),
+        (pointAt(score, 1, at(1, 2)), pointAt(score, 1, Moment.zero)),
+      ]) {
+        expect(
+          session.select(range(score, from, to)).selection,
+          isA<NoSelection>(),
+        );
+      }
+    });
+
+    test('keeps a range that ends inside its bar, at its end, or in a bar '
+        'the score does not have', () {
+      final session = twoBars();
+      final score = session.score;
+
+      for (final to in [
+        pointAt(score, 1, at(1, 2)),
+        pointAt(score, 1, at(1, 1)),
+        const ScorePoint(MeasureId(999), Moment.zero),
+      ]) {
+        final selection = range(score, pointAt(score, 0, at(1, 2)), to);
+
+        expect(session.select(selection).selection, same(selection));
+      }
+    });
   });
 
   group('entering a note', () {
