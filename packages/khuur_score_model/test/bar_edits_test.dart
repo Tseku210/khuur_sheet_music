@@ -565,6 +565,41 @@ void main() {
       expect(next.copy(), isNotNull);
     });
 
+    test('a range selected to the start of a bar ends with the bar before '
+        'it', () {
+      final session = sessionWith([
+        [for (var i = 0; i < 4; i++) chordOf(20 + i, 'F4')],
+        [for (var i = 0; i < 4; i++) chordOf(30 + i, 'A4')],
+        [for (var i = 0; i < 4; i++) chordOf(40 + i, 'C5')],
+      ]);
+      final staff = session.score.staves.first.id;
+      final selected = session.select(
+        RangeSelection(
+          from: pointAt(session.score, 0, at(1, 4)),
+          to: pointAt(session.score, 2, Moment.zero),
+          top: staff,
+          bottom: staff,
+        ),
+      );
+      final second = idOf(session, 1);
+      final third = idOf(session, 2);
+
+      final shortened = applied(selected.run(SetBarLength(second, len(3, 4))));
+      final inserted = applied(selected.run(InsertMeasures(before: third)));
+      final deleted = applied(selected.run(DeleteMeasures(third, third)));
+
+      expect(
+        (shortened.selection as RangeSelection).to,
+        ScorePoint(second, at(3, 4)),
+      );
+      for (final next in [inserted, deleted]) {
+        expect(
+          (next.selection as RangeSelection).to,
+          ScorePoint(second, at(1, 1)),
+        );
+      }
+    });
+
     test('drops a range selection the shortened bar cuts off', () {
       final session = sessionWith([
         [for (var i = 0; i < 4; i++) chordOf(20 + i, 'F4')],

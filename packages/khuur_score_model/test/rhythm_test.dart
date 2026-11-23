@@ -132,7 +132,7 @@ void main() {
       expect(tiesOf(next, 1), {'F4': false});
     });
 
-    test('keeps a tie that rang on into a rest', () {
+    test('drops a tie that rang on into a rest', () {
       final session = sessionWith([
         [
           chordOf(1, 'F4', tie: true),
@@ -142,7 +142,7 @@ void main() {
 
       final next = valueSet(session, 1, NoteValue.eighth);
 
-      expect(tiesOf(next, 1), {'F4': true});
+      expect(tiesOf(next, 1), {'F4': false});
     });
   });
 

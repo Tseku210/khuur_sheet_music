@@ -375,11 +375,13 @@ List<BarItem> graceItems(
     }
     final next = plan.graces.elementAtOrNull(index + 1);
     for (final note in grace.source.notes) {
-      if (!note.tie) {
+      if (!note.tie && !note.letRing) {
         continue;
       }
       final from = grace.headBoxes[note.id]!.shift(grace.x, 0);
-      final to = next == null
+      final to = note.letRing
+          ? null
+          : next == null
           ? _headOfTone(plan.chord.notes, plan.headBoxes, note.tone)
           : _headOfTone(
               next.source.notes,

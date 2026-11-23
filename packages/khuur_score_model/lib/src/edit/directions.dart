@@ -16,13 +16,16 @@ _Result _addSpanner(
   for (final end in [first, last]) {
     _inside(score.measures[_barIndex(score, end.measure)], end);
   }
-  final spanner = Spanner(
-    id: ids.spanner(),
-    kind: kind,
-    staff: staff,
-    voice: kind.joinsNotes ? voice ?? VoiceSlot.one : null,
-    first: first,
-    last: last,
+  final spanner = _withChosenEnd(
+    score,
+    Spanner(
+      id: ids.spanner(),
+      kind: kind,
+      staff: staff,
+      voice: kind.joinsNotes ? voice ?? VoiceSlot.one : null,
+      first: first,
+      last: last,
+    ),
   );
   if (spannerProblem(score, spanner) != null) {
     final name = _spannerName(kind);
@@ -40,6 +43,46 @@ _Result _addSpanner(
   return _Result(
     score.copyWith(spanners: score.spanners.append(endsHeld(score, spanner))),
   );
+}
+
+/// [spanner] with the last end of a new glissando chosen. A line from a note
+/// that names no last note and would end on a rest names a note of the first
+/// chord a voice of its staff starts there, in voice order from voice one.
+Spanner _withChosenEnd(Score score, Spanner spanner) {
+  final line = spanner.kind;
+  if (line is! Glissando || line.to != null) {
+    return spanner;
+  }
+  final start = score.anchorOf(spanner, last: false)?.event;
+  final end = score.anchorOf(spanner, last: true)?.event;
+  if (start is! ChordEvent || end == null || end is ChordEvent) {
+    return spanner;
+  }
+  for (final voice in VoiceSlot.values) {
+    final timed = score.eventAt(
+      VoicePoint(staff: spanner.staff, voice: voice, at: spanner.last),
+    );
+    if (timed != null &&
+        timed.onset == spanner.last.offset &&
+        timed.event is ChordEvent) {
+      final to = line
+          .notesOn(
+            start,
+            timed.event,
+            instrument: score.partOf(spanner.staff).instrument,
+          )
+          .to;
+      return Spanner(
+        id: spanner.id,
+        kind: Glissando(from: line.from, to: to?.id),
+        staff: spanner.staff,
+        voice: spanner.voice,
+        first: spanner.first,
+        last: spanner.last,
+      );
+    }
+  }
+  return spanner;
 }
 
 /// [kind] as a refusal names it. A class name read at run time is mangled

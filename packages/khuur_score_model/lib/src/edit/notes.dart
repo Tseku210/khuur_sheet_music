@@ -23,7 +23,9 @@ _Result _setTie(Score score, NoteRef note, bool tied) {
   return _changeNote(
     score,
     head,
-    head.note.tie == tied ? head.note : head.note.copyWith(tie: tied),
+    head.note.tie == tied && !head.note.letRing
+        ? head.note
+        : head.note.copyWith(tie: tied, letRing: false),
   );
 }
 

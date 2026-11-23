@@ -183,7 +183,10 @@ final class EditSession {
     return EditSession._(
       next,
       result.cursor ?? _revalidateCursor(cursor, score, next),
-      result.selection ?? _revalidateSelection(selection, score, next),
+      _spelled(
+        next,
+        result.selection ?? _revalidateSelection(selection, score, next),
+      ),
       _past,
       _future,
       _nextId,
@@ -337,10 +340,16 @@ final class EditSession {
   /// that still resolve. Removed items and spanners drop out, and a range
   /// that loses one of its bars or staves becomes no selection. A range end
   /// that a shortened bar no longer holds moves back to the bar's new end.
+  ///
+  /// A range that starts at the end of a bar is taken from the start of the
+  /// next bar, and one that ends at the start of a bar is taken to the end
+  /// of the bar before. When that leaves the range no time, or no bar is
+  /// there to take it, nothing is selected. The selection an edit leaves is
+  /// spelled the same way.
   EditSession select(Selection selection) => EditSession._(
     score,
     cursor,
-    selection,
+    _spelled(score, selection),
     _past,
     _future,
     _nextId,
@@ -374,12 +383,48 @@ final class EditSession {
 /// length.
 ScorePoint? _normalize(Score score, ScorePoint point) {
   final index = score.indexOf(point.measure);
-  if (point.offset < _barEnd(score.measures[index])) {
+  if (point.offset < _barEnd(score.barAt(index))) {
     return point;
   }
-  return index + 1 < score.measures.length
-      ? ScorePoint(score.measures[index + 1].id, Moment.zero)
+  return index + 1 < score.barCount
+      ? ScorePoint(score.barAt(index + 1).id, Moment.zero)
       : null;
+}
+
+/// [selection] with each end of a range that lies on a bar line spelled
+/// the one way a session holds it: a start at the end of its bar as offset 0
+/// of the next bar, and an end at offset 0 of a bar as the end of the bar
+/// before. No selection when that leaves the range no time, or no bar is
+/// there to take the end. A range with a bar that [score] does not have is
+/// left as it is.
+Selection _spelled(Score score, Selection selection) {
+  if (selection is! RangeSelection) {
+    return selection;
+  }
+  final RangeSelection(:from, :to, :top, :bottom) = selection;
+  if (!score.contains(from.measure) || !score.contains(to.measure)) {
+    return selection;
+  }
+  final start = from.offset == _barEnd(score.column(from.measure))
+      ? _normalize(score, from)
+      : from;
+  final stop = to.offset.isZero ? _endOfBarBefore(score, to.measure) : to;
+  if (identical(start, from) && identical(stop, to)) {
+    return selection;
+  }
+  return start != null && stop != null && score.compare(start, stop) < 0
+      ? RangeSelection(from: start, to: stop, top: top, bottom: bottom)
+      : const Selection.none();
+}
+
+/// The end of the bar before [measure], or null for the first bar.
+ScorePoint? _endOfBarBefore(Score score, MeasureId measure) {
+  final index = score.indexOf(measure);
+  if (index == 0) {
+    return null;
+  }
+  final before = score.measures[index - 1];
+  return ScorePoint(before.id, _barEnd(before));
 }
 
 /// Keeps [cursor] while its bar and staff exist, moving it to the bar start
@@ -614,8 +659,13 @@ final class ItemSelection extends Selection {
 
 /// A time range across a contiguous block of staves: every voice of staves
 /// [top]..[bottom] (system order) from [from] (inclusive) to [to]
-/// (exclusive). [to] may sit at the very end of its bar (offset equal to
-/// the bar length) so a range can end at the end of the score.
+/// (exclusive). [from] must lie before the end of its bar.
+/// [EditSession.select] moves one at the end of a bar to the start of the
+/// next bar, and an edit that takes a range refuses it with
+/// [OutsideMeasure]. [to] may sit at the very end of its bar (offset equal
+/// to the bar length), which is the same instant as offset 0 of the next
+/// bar. [EditSession.select] moves an end at offset 0 of a bar to the end
+/// of the bar before.
 final class RangeSelection extends Selection {
   /// Selects from [from] to [to] on the staves from [top] to [bottom].
   const RangeSelection({

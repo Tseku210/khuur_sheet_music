@@ -542,12 +542,7 @@ final class _Voices {
   }) {
     final notes = stableSorted([
       for (final record in records)
-        _note(
-          record,
-          tie:
-              record.letRing ||
-              (record.tieStart && tiesTo.any((to) => sameTone(to, record))),
-        ),
+        _note(record, lands: tiesTo.any((to) => sameTone(to, record))),
     ], (a, b) => a.tone.compareTo(b.tone));
     final kept = <Note>[];
     for (final note in notes) {
@@ -558,10 +553,26 @@ final class _Voices {
     return kept;
   }
 
-  Note _note(NoteRecord record, {required bool tie}) {
+  ({bool tie, bool letRing}) _tieMarks(
+    NoteRecord record, {
+    required bool lands,
+  }) {
+    const plainTie = (tie: true, letRing: false);
+    const letRingTie = (tie: false, letRing: true);
+    const untied = (tie: false, letRing: false);
+    if (record.letRing) {
+      final plainForm =
+          record.tieElementStart || assembly.document.writtenBeforeLetRing;
+      return plainForm && !lands ? plainTie : letRingTie;
+    }
+    return record.tieStart && lands ? plainTie : untied;
+  }
+
+  Note _note(NoteRecord record, {required bool lands}) {
+    final (:tie, :letRing) = _tieMarks(record, lands: lands);
     switch (record) {
       case DrumRecord(:final id, :final drum):
-        return DrumNote(id: id, drum: drum, tie: tie);
+        return DrumNote(id: id, drum: drum, tie: tie, letRing: letRing);
       case PitchedRecord(:final id, :final written, :final source):
         final pitch = written.transpose(
           part.transposition,
@@ -574,6 +585,7 @@ final class _Voices {
           id: id,
           pitch: pitch,
           tie: tie,
+          letRing: letRing,
           head: record.head,
           fingering: record.fingering,
           string: switch (record.string) {
