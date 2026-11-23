@@ -195,10 +195,15 @@ final class _PartReader {
 
   /// A start of [element] and [number]. With no [kind] it opens nothing
   /// the model keeps.
-  void start(String element, String number, SpannerKind? kind, Anchor anchor) =>
-      marks
-          .putIfAbsent((element, number), () => [])
-          .add(LineMark.start(kind, anchor, _marks++));
+  void start(
+    String element,
+    String number,
+    SpannerKind? kind,
+    Anchor anchor, {
+    bool? above,
+  }) => marks
+      .putIfAbsent((element, number), () => [])
+      .add(LineMark.start(kind, anchor, _marks++, above: above));
 
   void stop(String element, String number, Anchor anchor) => marks
       .putIfAbsent((element, number), () => [])

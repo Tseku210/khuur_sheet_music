@@ -548,10 +548,14 @@ final class TimeAnchor extends Anchor {
 final class LineMark {
   /// A start of [kind] at [anchor]. [index] is its place among its part's
   /// marks.
-  LineMark.start(this.kind, this.anchor, this.index) : starts = true;
+  LineMark.start(this.kind, this.anchor, this.index, {this.above})
+    : starts = true;
 
   /// A stop at [anchor]. [index] is its place among its part's marks.
-  LineMark.stop(this.anchor, this.index) : starts = false, kind = null;
+  LineMark.stop(this.anchor, this.index)
+    : starts = false,
+      kind = null,
+      above = null;
 
   /// Whether it starts a spanner rather than stops one.
   final bool starts;
@@ -565,6 +569,12 @@ final class LineMark {
 
   /// Where it comes among its part's marks.
   final int index;
+
+  /// For a slur start with a placement and no orientation, whether the
+  /// placement is above. This library writes a placement alone on a slur
+  /// of a voice that starts where that voice is silent. MuseScore 4 writes
+  /// both or neither.
+  final bool? above;
 }
 
 const _limit = 1000000000;

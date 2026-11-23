@@ -16,9 +16,12 @@
 ///
 /// A slur or trill line is written on the first note of the event at each
 /// end, and a glissando on the note each end names, in that note's voice. A
-/// hairpin, octave line, pedal line or tempo line is a direction at its
-/// first point and a stop after the event its last point falls in. Numbers
-/// are reused once a spanner of the same element in the part has stopped.
+/// slur that starts where its own voice is silent and stops in that voice
+/// has its start on another voice's note, with a placement and no
+/// orientation. A hairpin, octave line, pedal line or tempo line is a
+/// direction at its first point and a stop after the event its last point
+/// falls in. Numbers are reused once a spanner of the same element in the
+/// part has stopped.
 ///
 /// A string instrument's open strings are its staves' tunings.
 ///
@@ -134,6 +137,20 @@ final class _Export {
     for (final line in ends) ...[?line.fromNote, ?line.toNote],
   };
   late final Map<SpannerId, int> numbers = _numbers();
+
+  /// The placement of each slur that starts on another voice's event,
+  /// where its own voice is silent, and stops on its own voice's. MuseScore
+  /// 4 reads a slur in the voice of its start, so the start says the side
+  /// the slur's voice curves on, with no orientation. MuseScore draws the
+  /// slur there, and this library reads it as a slur of its stop's voice.
+  late final Map<SpannerId, String> silentStarts = {
+    for (final spanner in score.spanners)
+      if (spanner.kind is Slur)
+        if (spanner.voice case final voice? when voice != VoiceSlot.one)
+          if (written.anchorOf(spanner, last: false)?.voice != voice &&
+              written.anchorOf(spanner, last: true)?.voice == voice)
+            spanner.id: voice.stemsUp ? 'above' : 'below',
+  };
 
   /// Divisions of a quarter note that make every time and length a whole
   /// number.
@@ -745,6 +762,7 @@ final class _Export {
         'type': type,
         'number': number,
         'line-type': start && dashed ? 'dashed' : null,
+        'placement': start ? silentStarts[spanner.id] : null,
       }),
       Glissando() => _el('glissando', const [], {
         'type': type,
