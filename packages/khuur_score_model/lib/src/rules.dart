@@ -181,6 +181,48 @@ _Ends _endsOf(Score score, Spanner spanner) {
 
 const _endsAfterStart = 'a slur or glissando ends after it starts';
 
+/// [spanner] naming the chord its last end is on, when it joins notes,
+/// names no last end and ends in [score] on a chord that a voice other than
+/// its own starts at its last point. A [Slur] names the voice and a
+/// [Glissando] the chord's top note. The same object otherwise. MuseScore 4
+/// keeps the chord a slur ends on and the note a glissando ends on from
+/// when the line is made.
+Spanner endNamed(Score score, Spanner spanner) {
+  final on = switch (spanner.kind) {
+    Slur(endVoice: null) ||
+    Glissando(to: null) => score.anchorOf(spanner, last: true),
+    _ => null,
+  };
+  if (on == null || on.voice == spanner.voice) {
+    return spanner;
+  }
+  final startsThere = on.onset == spanner.last.offset;
+  if (!startsThere) {
+    return spanner;
+  }
+  final named = switch ((spanner.kind, on.event)) {
+    (Slur(:final dashed), ChordEvent()) => Slur(
+      dashed: dashed,
+      endVoice: on.voice,
+    ),
+    (Glissando(:final from), final ChordEvent chord) => Glissando(
+      from: from,
+      to: Glissando.noteIn(chord, null)!.id,
+    ),
+    _ => null,
+  };
+  return named == null
+      ? spanner
+      : Spanner(
+          id: spanner.id,
+          kind: named,
+          staff: spanner.staff,
+          voice: spanner.voice,
+          first: spanner.first,
+          last: spanner.last,
+        );
+}
+
 /// The note a glissando [spanner] names that no voice of its staff sounds
 /// at that end of it in [score], or null when each note it names is there.
 NoteId? lostGlissandoNote(Score score, Spanner spanner) {

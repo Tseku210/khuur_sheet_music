@@ -581,14 +581,18 @@ final class SetDirections extends Edit {
 
 /// Adds a spanner from [first] to [last] on [staff], with a new id, at the
 /// end of `Score.spanners`. A slur or glissando belongs to [voice], voice
-/// one when it names none, and must end after it starts. A line or hairpin
-/// belongs to the staff, so [voice] is ignored, and may start and end on
-/// one event. Refused with [StaleReference] for a bar or staff that is
-/// gone or a [Glissando] note that no voice of the staff sounds at its end,
-/// [OutsideMeasure] for an end outside its bar, and [InvalidValue] for ends
-/// out of order, for a [Glissando] that ends on an event that starts no
-/// later than the event it starts on, or for a [Slur] that ends on one that
-/// starts before the event it starts on.
+/// one when it names none, and must end after it starts. One that names no
+/// last end and ends on a chord a voice other than its own starts there is
+/// stored with that end named, a slur with [Slur.endVoice] and a glissando
+/// with [Glissando.to]. While that chord stays, a note that another voice
+/// later starts or ties there does not take the end.
+/// A line or hairpin belongs to the staff, so [voice] is ignored, and may
+/// start and end on one event. Refused with [StaleReference] for a bar or
+/// staff that is gone or a [Glissando] note that no voice of the staff
+/// sounds at its end, [OutsideMeasure] for an end outside its bar, and
+/// [InvalidValue] for ends out of order, for a [Glissando] that ends on an
+/// event that starts no later than the event it starts on, or for a [Slur]
+/// that ends on one that starts before the event it starts on.
 final class AddSpanner extends Edit {
   /// Adds a spanner of [kind] from [first] to [last] on [staff].
   const AddSpanner({

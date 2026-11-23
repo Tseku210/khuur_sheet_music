@@ -1472,15 +1472,15 @@ void main() {
 
       expect(spannersOf(score), ['slur 0@1/4-0@1/2']);
       final slur = score.spanners.single;
-      expect(slur.kind, const Slur());
+      expect(slur.kind, const Slur(endVoice: VoiceSlot.three));
       final from = score.anchorOf(slur, last: false)!;
       final to = score.anchorOf(slur, last: true)!;
       expect((from.voice, from.onset), (VoiceSlot.two, at(1, 4)));
       expect((to.voice, to.onset), (VoiceSlot.three, at(1, 2)));
       expect('${(to.event as ChordEvent).notes.single.tone}', 'G4');
-      expect(spannersOf(scoreFromMusicXml(scoreToMusicXml(score))), [
-        'slur 0@1/4-0@1/2',
-      ]);
+      final back = scoreFromMusicXml(scoreToMusicXml(score));
+      expect(spannersOf(back), ['slur 0@1/4-0@1/2']);
+      expect(back.spanners.single.kind, slur.kind);
     });
 
     test('ends a slur on the note its stop is on, in a fourth voice that '
