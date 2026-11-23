@@ -2696,6 +2696,22 @@ void main() {
         );
       });
 
+      test('rings and does not tie to it under a sounding tie', () {
+        final score = imported(
+          flute([
+            [
+              opening(),
+              note('C5', 8, 'half', '<tie type="start"/>$letRing'),
+              note('C5', 4, 'quarter'),
+              note('D5', 4, 'quarter'),
+            ],
+          ]),
+        );
+
+        expect(ties(score), ['C5 -> none']);
+        expect(struck(score, 72), 2);
+      });
+
       test('rings on after a rippled erase brings that note after it', () {
         final score = imported(under);
         expect(ties(score), ['C4 -> none']);
