@@ -167,13 +167,19 @@ GraceChord graceOf(
   GraceKind kind = GraceKind.acciaccatura,
   NoteValue value = NoteValue.eighth,
   bool tie = false,
+  bool letRing = false,
 }) => GraceChord(
   id: EventId(id),
   kind: kind,
   value: value,
   notes: Seq([
     for (final (i, name) in pitches.split(' ').indexed)
-      PitchedNote(id: NoteId(id * 10 + i), pitch: Pitch.parse(name), tie: tie),
+      PitchedNote(
+        id: NoteId(id * 10 + i),
+        pitch: Pitch.parse(name),
+        tie: tie,
+        letRing: letRing,
+      ),
   ]),
 );
 

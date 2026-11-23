@@ -38,7 +38,7 @@ The source files follow notation, not stages. `chords.dart`, `beams.dart`, `mark
 
 `BarLayout` is the unit of the cache, one per `MeasureId`. It is a function of three inputs, the bar's `MeasureView`, the `EngravingStyle` and the `TextMeasurer`. `layoutBar` takes no `Score`, and a `BarLayout` holds no bar number, no x on a line and nothing about its neighbours.
 
-That invariant makes the cache correct. `Score.changesSince` names the bars whose views may differ, which are the edited bars and their neighbours. It also names the last bar of a slur, glissando or trill line over several bars when any bar from the one before its first bar to the one before its last is relaid out, because the event the line ends on can depend on those bars. Every other `BarLayout` stays valid, and `update` reuses it by reference.
+That invariant makes the cache correct. `Score.changesSince` names the bars whose views may differ, which are the edited bars and their neighbours. It also names the last bar of a slur, glissando or trill line over several bars when any bar from the one before its first bar to the one before its last is named for one of those reasons, or is covered by a line that was added or removed, because the event the line ends on can depend on those bars. A bar named only because such a line ends in it names no further line's last bar, so one edit under a chain of lines names a handful of bars. Every other `BarLayout` stays valid, and `update` reuses it by reference.
 
 A bar cannot know which system it lands on, so it stores every choice that depends on that. `BarHeads` holds an `inline` head for a bar in the middle of a system, a `system` head for a bar that starts one, and a `courtesy` head that the system before draws at its end. `BarWidths` holds the matching numbers, `inlineHead`, `systemHead`, `courtesy`, `body` and `minBody`. A system from bar i to bar j is this wide at natural spacing, plus its indent:
 
@@ -137,13 +137,14 @@ Clefs, key signatures, time signatures and tempo marks own no drawable, so `hitT
 
 ## The benchmark holds layout to a cost budget
 
-Layout runs synchronously on the UI isolate, so an edit and its picture arrive in the same frame, and a user feels layout cost. `benchmark/layout_benchmark.dart` gates it on two fixtures. `denseScore` has 500 bars of four staves, with beamed eighths and sixteenths, a second voice, a lyric under every sung note, a dynamic and a slur in every bar, and a hairpin over every fourth barline. `spannerScore` has the same music for 2,000 bars, with 2,500 spanners. They are dense because a score of whole-bar rests would meet any budget.
+Layout runs synchronously on the UI isolate, so an edit and its picture arrive in the same frame, and a user feels layout cost. `benchmark/layout_benchmark.dart` gates it on three fixtures. `denseScore` has 500 bars of four staves, with beamed eighths and sixteenths, a second voice, a lyric under every sung note, a dynamic and a slur in every bar, and a hairpin over every fourth barline. `spannerScore` has the same music for 2,000 bars, with 2,500 spanners. `slurredScore` is the spanner score with a phrase slur from every bar into the next on the sung staff, 4,499 spanners in all. Its update shows how many bars one edit under a chain of lines relays out. They are dense because a score of whole-bar rests would meet any budget.
 
 | Measurement | Budget |
 |---|---|
 | First layout of the dense score | 50 ms, which is 100 µs per bar of four staves |
 | Update after one entered note in the dense score | 1 ms |
 | First layout of the spanner score | 200 ms |
+| Update after one entered note in the slurred score | 10 ms |
 
 The budgets assume a mid-range phone is four times slower than the development machine. That gives 200 ms once, when a large score opens, and 4 ms per edit, inside a 16 ms frame. The spanner score exists because `Score.measureView` reads the spanners that touch a bar, and a cost that grows with bars times spanners shows there first.
 

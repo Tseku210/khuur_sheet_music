@@ -21,7 +21,8 @@ sealed class _Shift {
   Length land(Length time);
 
   /// [items] after the shift. A chord that removed time makes shorter is
-  /// entered in [shortened].
+  /// entered in [shortened]. It loses its ties, as [_Loss.shortened], unless
+  /// it loses only its start.
   List<_Placed> voice(
     List<_Placed> items,
     VoiceSlot slot,
@@ -207,7 +208,8 @@ final class _Collapse extends _Shift {
   }
 
   /// [items] without the time of the cuts. Each item loses its overlap with
-  /// them, and an item inside one goes. Rests and gaps left at the end of
+  /// them, and an item inside one goes. A chord that loses its end or its
+  /// middle loses its ties. Rests and gaps left at the end of
   /// the voice go, so the time after the music is filled as a re-bar fills
   /// it. The ones before music that only the first cut removes stay, as
   /// closing that cut after the others leaves them.
@@ -232,6 +234,7 @@ final class _Collapse extends _Shift {
       }
       var overlap = Length.zero;
       var later = Length.zero;
+      var atStart = Length.zero;
       for (var i = first; i < cuts.length && cuts[i].from < time; i++) {
         final cut = cuts[i];
         final taken =
@@ -241,6 +244,9 @@ final class _Collapse extends _Shift {
         if (i > 0) {
           later += taken;
         }
+        if (cut.from <= start) {
+          atStart = taken;
+        }
       }
       if (!_elastic(item.item) && later < item.span) {
         tail = time;
@@ -248,17 +254,18 @@ final class _Collapse extends _Shift {
       if (!overlap.isPositive) {
         out.add(item);
       } else if (overlap < item.span) {
-        if (item.item case Tuplet(:final id)) {
-          throw _Refuse(WouldSplitTuplet(id, item.origin));
+        final VoiceItem left;
+        switch (item.item) {
+          case Tuplet(:final id):
+            throw _Refuse(WouldSplitTuplet(id, item.origin));
+          case final ChordEvent chord:
+            shortened.add(chord.id);
+            final lostOnlyItsStart = overlap == atStart;
+            left = lostOnlyItsStart ? chord : _untied(chord, (_) => true);
+          case final other:
+            left = other;
         }
-        if (item.item case ChordEvent(:final id)) {
-          shortened.add(id);
-        }
-        out.add((
-          item: item.item,
-          span: item.span - overlap,
-          origin: item.origin,
-        ));
+        out.add((item: left, span: item.span - overlap, origin: item.origin));
       } else {
         continue;
       }
@@ -274,24 +281,34 @@ final class _Collapse extends _Shift {
   }
 }
 
+/// A cut an erase closed in one section, counted from bar `bar`, its first.
+/// `end` is the bar after the section.
+typedef _SectionCut = ({int bar, int end, _Cut cut});
+
 /// A range selection through an erase of items that closes cuts on several
-/// groups of staves. Its ends follow the music of every group the range
-/// reaches.
+/// groups of staves. The range follows each group it reaches through that
+/// group's cuts, and [_rangeOver] joins the spans this leaves.
 final class _RangeFollower {
   _RangeFollower(this._before, this._selection);
 
   final Score _before;
   final Selection _selection;
-  final _cuts = <({int bar, int end, _Cut cut})>[];
+
+  /// The cuts of each group of staves, under the group's first staff.
+  final _cuts = <StaffId, List<_SectionCut>>{};
+  final _moved = <StaffId>{};
 
   /// Takes the cuts that [staves] closed, counted from bar [bar], the first
   /// of their section.
   void close(List<StaffId> staves, int bar, List<_Cut> cuts) {
     if (_selection case RangeSelection(:final top, :final bottom)
         when cuts.isNotEmpty &&
-            _reaches(_before, top, bottom, staves.toSet())) {
-      final (_, end) = _sectionAround(_before.measures, bar);
-      _cuts.addAll([for (final cut in cuts) (bar: bar, end: end, cut: cut)]);
+            _reach(_before, top, bottom, staves.toSet()) != _Reach.none) {
+      final (_, end) = _sectionAround(_before, bar);
+      (_cuts[staves.first] ??= []).addAll([
+        for (final cut in cuts) (bar: bar, end: end, cut: cut),
+      ]);
+      _moved.addAll(staves);
     }
   }
 
@@ -301,16 +318,31 @@ final class _RangeFollower {
     if (selection is! RangeSelection || _cuts.isEmpty) {
       return null;
     }
-    _cuts.sort(
+    final RangeSelection(:from, :to, :top, :bottom) = selection;
+    final held = !_before.stavesBetween(top, bottom)!.every(_moved.contains);
+    return _rangeOver(after, selection, [
+      if (held) (from, to),
+      for (final cuts in _cuts.values) ?_pulled(after, selection, cuts),
+    ]);
+  }
+
+  /// [range] in [after] once [cuts], those of one group of staves, are
+  /// closed. Null when they leave it no time.
+  (ScorePoint, ScorePoint)? _pulled(
+    Score after,
+    RangeSelection range,
+    List<_SectionCut> cuts,
+  ) {
+    cuts.sort(
       (x, y) =>
           x.bar != y.bar ? y.bar - x.bar : y.cut.from.compareTo(x.cut.from),
     );
     final measures = _before.measures;
     (int, Length) at(ScorePoint point) =>
         (_before.indexOf(point.measure), Moment.zero.until(point.offset));
-    var (fromBar, from) = at(selection.from);
-    var (toBar, to) = at(selection.to);
-    for (final (:bar, :end, :cut) in _cuts) {
+    var (fromBar, from) = at(range.from);
+    var (toBar, to) = at(range.to);
+    for (final (:bar, :end, :cut) in cuts) {
       final length = measures[bar].length;
       (int, Length) pulled((int, Length) point) {
         final (index, offset) = point;
@@ -332,16 +364,63 @@ final class _RangeFollower {
       (fromBar, from) = pulled((fromBar, from));
       (toBar, to) = pulled((toBar, to));
       if (fromBar > toBar || (fromBar == toBar && from >= to)) {
-        return const Selection.none();
+        return null;
       }
     }
-    return RangeSelection(
-      from: ScorePoint(after.measures[fromBar].id, Moment.zero + from),
-      to: ScorePoint(after.measures[toBar].id, Moment.zero + to),
-      top: selection.top,
-      bottom: selection.bottom,
+    return (
+      ScorePoint(after.measures[fromBar].id, Moment.zero + from),
+      ScorePoint(after.measures[toBar].id, Moment.zero + to),
     );
   }
+}
+
+/// How much of a range a ripple moves: none of its staves, some of them
+/// while the others hold still, or all of them.
+enum _Reach { none, some, all }
+
+/// How many of the staves from [top] to [bottom], in system order, are
+/// among [staves].
+_Reach _reach(Score score, StaffId top, StaffId bottom, Set<StaffId> staves) {
+  final range = score.stavesBetween(top, bottom);
+  if (range == null || !range.any(staves.contains)) {
+    return _Reach.none;
+  }
+  return range.every(staves.contains) ? _Reach.all : _Reach.some;
+}
+
+/// [range] in [score] after a ripple left it [spans]: one span for each
+/// group of its staves that moved together, and its own span when one of
+/// its staves held still. The range runs from the earliest start to the
+/// latest end of the spans that hold time, so it keeps every event that
+/// stayed in place and takes in the music that moved. No selection when
+/// no span holds time.
+Selection _rangeOver(
+  Score score,
+  RangeSelection range,
+  List<(ScorePoint, ScorePoint)> spans,
+) {
+  final timed = [
+    for (final span in spans)
+      if (score.compare(span.$1, span.$2) < 0) span,
+  ];
+  if (timed.isEmpty) {
+    return const Selection.none();
+  }
+  var (from, to) = timed.first;
+  for (final (start, stop) in timed.skip(1)) {
+    if (score.compare(start, from) < 0) {
+      from = start;
+    }
+    if (score.compare(stop, to) > 0) {
+      to = stop;
+    }
+  }
+  return RangeSelection(
+    from: from,
+    to: to,
+    top: range.top,
+    bottom: range.bottom,
+  );
 }
 
 /// The time [events] take in the staves that [ripple] moves with each, as
@@ -378,7 +457,7 @@ List<({List<StaffId> staves, int bar, List<_Cut> cuts})> _sectionCuts(
   for (final key in keys) {
     final (first, bar) = key;
     if (bar >= end) {
-      (start, end) = _sectionAround(measures, bar);
+      (start, end) = _sectionAround(score, bar);
     }
     final origin = measures[start].length * Fraction(bar - start);
     final cuts = sections[(first, start)] ??= [];
