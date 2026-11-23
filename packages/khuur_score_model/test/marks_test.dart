@@ -266,6 +266,69 @@ void main() {
       }
     });
 
+    group('a glissando that names no end note', () {
+      Score joined(String first, String second, Glissando kind) {
+        final score = fill(blankScore(), 0, [
+          chordOf(1, first),
+          chordOf(2, second),
+          chordOf(3, 'C4', value: NoteValue.half),
+        ]);
+        return applied(
+          addSpanner(
+            score,
+            kind,
+            pointAt(score, 0, Moment.zero),
+            pointAt(score, 0, at(1, 4)),
+          ),
+        ).score;
+      }
+
+      String end(Score score) =>
+          '${score.glissandoNotes(score.spanners.single).to?.tone}';
+      String endOf(String first, String second, Glissando kind) =>
+          end(joined(first, second, kind));
+
+      test("ends on the note at its start note's place in the chord, counted "
+          'from the bottom', () {
+        const lower = Glissando(from: NoteId(10));
+        const upper = Glissando(from: NoteId(11));
+
+        expect(endOf('C4 G4', 'D4 F4 C5', lower), 'D4');
+        expect(endOf('C4 G4', 'D4 F4 C5', upper), 'F4');
+        expect(endOf('C4 G4', 'D4 F4 C5', const Glissando()), 'F4');
+        expect(endOf('C4', 'D4 F4 C5', const Glissando()), 'D4');
+      });
+
+      test('ends on the top note of a chord with fewer notes than that '
+          'place', () {
+        expect(endOf('C4 E4 G4', 'D4 F4', const Glissando()), 'F4');
+        expect(
+          endOf('C4 E4 G4', 'D4 F4', const Glissando(from: NoteId(11))),
+          'F4',
+        );
+        expect(
+          endOf('C4 E4 G4', 'D4 F4', const Glissando(from: NoteId(10))),
+          'D4',
+        );
+      });
+
+      test('names that end, and keeps it in a file that saves no end '
+          'note', () {
+        const lower = Glissando(from: NoteId(10));
+        final score = joined('C4 G4', 'D4 F4 C5', lower);
+        final json = scoreToJson(score);
+        final spanners = json['spanners']! as List<Object?>;
+        (spanners.single! as Map<String, Object?>).remove('toNote');
+
+        expect(
+          score.spanners.single.kind,
+          const Glissando(from: NoteId(10), to: NoteId(20)),
+        );
+        expect(scoreFromJson(json).spanners.single.kind, lower);
+        expect(end(scoreFromJson(json)), 'D4');
+      });
+    });
+
     group('a glissando between two voices', () {
       final score = fill(
         fill(
@@ -639,8 +702,8 @@ void main() {
         for (final slur in score.spanners) end(score, slur),
       ];
 
-      Score under(List<VoiceItem> one) {
-        var score = fill(blankScore(), 0, one);
+      Score under(List<VoiceItem> one, {int bars = 2}) {
+        var score = fill(blankScore(bars: bars), 0, one);
         score = fill(score, 0, [
           chordOf(2, 'E4'),
           chordOf(3, 'F4'),
@@ -703,6 +766,291 @@ void main() {
             reason: '${edit.runtimeType}',
           );
         }
+      });
+
+      test('names the voice of that note when AddSpanner makes it, and stays '
+          'on the note when voice one starts a note under it', () {
+        final score = under([
+          chordOf(1, 'C5', value: NoteValue.whole),
+        ], bars: 1);
+        final session = slurred(
+          score,
+          pointAt(score, 0, at(1, 4)),
+          pointAt(score, 0, at(1, 2)),
+        );
+        final split = applied(
+          session.run(
+            EnterNote(
+              at: VoicePoint(
+                staff: score.staves.first.id,
+                voice: VoiceSlot.one,
+                at: pointAt(score, 0, at(1, 2)),
+              ),
+              tone: Pitch.parse('B4'),
+              value: NoteValue.half,
+              appendBar: false,
+            ),
+          ),
+        );
+
+        expect(ends(session.score), ['three G4']);
+        expect(ends(split.score), ['three G4']);
+        expect(ends(reloaded(split.score)), ['three G4']);
+        expect(
+          session.score.spanners.single.kind,
+          const Slur(endVoice: VoiceSlot.three),
+        );
+      });
+
+      test('names voice one when AddSpanner makes it over a note voice one '
+          'starts there, and stays on that note when a tie makes it a part '
+          'of a note held since before the slur', () {
+        final score = under([
+          chordOf(1, 'C5', value: NoteValue.half),
+          chordOf(4, 'C5', value: NoteValue.half),
+        ]);
+        final session = slurred(
+          score,
+          pointAt(score, 0, at(1, 4)),
+          pointAt(score, 0, at(1, 2)),
+        );
+        final tied = applied(
+          session.run(
+            SetTie(
+              NoteRef(eventRef(session, 1), const NoteId(10)),
+              tied: true,
+            ),
+          ),
+        );
+
+        expect(ends(session.score), ['one C5']);
+        expect(ends(tied.score), ['one C5']);
+        expect(
+          session.score.spanners.single.kind,
+          const Slur(endVoice: VoiceSlot.one),
+        );
+      });
+
+      test('named for voice one, leaves a note that voice one then starts '
+          'with its first note for the note its own voice starts at its end, '
+          'and goes through MusicXML and back', () {
+        var score = fill(blankScore(bars: 1), 0, [
+          chordOf(1, 'C5'),
+          chordOf(4, 'D5'),
+          chordOf(5, 'E5', value: NoteValue.half),
+        ]);
+        score = fill(score, 0, [
+          chordOf(2, 'E4'),
+          chordOf(3, 'F4'),
+          Gap(len(1, 2)),
+        ], slot: VoiceSlot.two);
+        final session = slurred(
+          score,
+          pointAt(score, 0, at(1, 4)),
+          pointAt(score, 0, at(1, 2)),
+        );
+        EnterNote enter(VoiceSlot voice, Moment offset, NoteValue value) =>
+            EnterNote(
+              at: VoicePoint(
+                staff: score.staves.first.id,
+                voice: voice,
+                at: pointAt(score, 0, offset),
+              ),
+              tone: Pitch.parse(voice == VoiceSlot.one ? 'B4' : 'A4'),
+              value: value,
+              appendBar: false,
+            );
+        final edited = applied(
+          applied(
+            session.run(enter(VoiceSlot.one, at(1, 4), NoteValue.half)),
+          ).run(enter(VoiceSlot.two, at(1, 2), NoteValue.quarter)),
+        ).score;
+
+        expect(
+          session.score.spanners.single.kind,
+          const Slur(endVoice: VoiceSlot.one),
+        );
+        expect(ends(session.score), ['one E5']);
+        expect(ends(edited), ['two A4']);
+        expect(ends(scoreFromMusicXml(scoreToMusicXml(edited))), ['two A4']);
+      });
+
+      test('a glissando made the same way over a chord names the note at '
+          "its start note's place", () {
+        final score = under([
+          chordOf(1, 'C5', value: NoteValue.half),
+          chordOf(4, 'A4 C5 E5', value: NoteValue.half),
+        ]);
+        final session = applied(
+          addSpanner(
+            score,
+            const Glissando(),
+            pointAt(score, 0, at(1, 4)),
+            pointAt(score, 0, at(1, 2)),
+            voice: VoiceSlot.two,
+          ),
+        );
+
+        expect(
+          session.score.spanners.single.kind,
+          const Glissando(from: NoteId(30), to: NoteId(40)),
+        );
+      });
+
+      test('a glissando made the same way names the note it ends on, and '
+          'stays on it when voice one starts a note or ties one under it', () {
+        EditSession made(Score score) => applied(
+          addSpanner(
+            score,
+            const Glissando(),
+            pointAt(score, 0, at(1, 4)),
+            pointAt(score, 0, at(1, 2)),
+            voice: VoiceSlot.two,
+          ),
+        );
+        final held = under([chordOf(1, 'C5', value: NoteValue.whole)]);
+        final onThree = made(held);
+        final split = applied(
+          onThree.run(
+            EnterNote(
+              at: VoicePoint(
+                staff: held.staves.first.id,
+                voice: VoiceSlot.one,
+                at: pointAt(held, 0, at(1, 2)),
+              ),
+              tone: Pitch.parse('B4'),
+              value: NoteValue.half,
+              appendBar: false,
+            ),
+          ),
+        );
+        final onOne = made(
+          under([
+            chordOf(1, 'C5', value: NoteValue.half),
+            chordOf(4, 'C5', value: NoteValue.half),
+          ]),
+        );
+        final tied = applied(
+          onOne.run(
+            SetTie(
+              NoteRef(eventRef(onOne, 1), const NoteId(10)),
+              tied: true,
+            ),
+          ),
+        );
+
+        expect(ends(onThree.score), ['three G4']);
+        expect(ends(split.score), ['three G4']);
+        expect(ends(onOne.score), ['one C5']);
+        expect(ends(tied.score), ['one C5']);
+        expect(
+          onThree.score.spanners.single.kind,
+          const Glissando(from: NoteId(30), to: NoteId(60)),
+        );
+        expect(
+          onOne.score.spanners.single.kind,
+          const Glissando(from: NoteId(30), to: NoteId(40)),
+        );
+      });
+
+      test('stores the kind AddSpanner is given, with the end voice of the '
+          'chord it ends on', () {
+        final score = under([chordOf(1, 'C5', value: NoteValue.whole)]);
+        Spanner made(SpannerKind kind, Moment first, Moment last) => applied(
+          addSpanner(
+            score,
+            kind,
+            pointAt(score, 0, first),
+            pointAt(score, 0, last),
+            voice: VoiceSlot.two,
+          ),
+        ).score.spanners.single;
+
+        expect(
+          made(const Slur(dashed: true), Moment.zero, at(1, 4)).kind,
+          const Slur(dashed: true),
+        );
+        expect(
+          made(const Slur(dashed: true), at(1, 4), at(1, 2)).kind,
+          const Slur(dashed: true, endVoice: VoiceSlot.three),
+        );
+        expect(
+          made(const Slur(endVoice: VoiceSlot.four), at(1, 4), at(1, 2)).kind,
+          const Slur(endVoice: VoiceSlot.three),
+        );
+      });
+
+      test('names no voice when AddSpanner makes it over a note voice one '
+          'has held since its start, and goes through MusicXML and back '
+          'when its own voice later starts a note at its end', () {
+        final score = under([
+          chordOf(1, 'C5'),
+          chordOf(4, 'D5', value: NoteValue.half),
+          chordOf(5, 'E5'),
+        ], bars: 1);
+        final session = slurred(
+          score,
+          pointAt(score, 0, at(1, 4)),
+          pointAt(score, 0, at(1, 2)),
+        );
+        final filled = applied(
+          session.run(
+            EnterNote(
+              at: VoicePoint(
+                staff: score.staves.first.id,
+                voice: VoiceSlot.two,
+                at: pointAt(score, 0, at(1, 2)),
+              ),
+              tone: Pitch.parse('A4'),
+              value: NoteValue.quarter,
+              appendBar: false,
+            ),
+          ),
+        );
+
+        expect(ends(session.score), ['one D5']);
+        expect(ends(filled.score), ['two A4']);
+        expect(ends(scoreFromMusicXml(scoreToMusicXml(filled.score))), [
+          'two A4',
+        ]);
+        expect(session.score.spanners.single.kind, const Slur());
+      });
+
+      test('goes through MusicXML and back with the voice AddSpanner named, '
+          'on the same note', () {
+        final score = under([
+          chordOf(1, 'C5', value: NoteValue.whole),
+        ], bars: 1);
+        final made = slurred(
+          score,
+          pointAt(score, 0, at(1, 4)),
+          pointAt(score, 0, at(1, 2)),
+        ).score;
+        final back = scoreFromMusicXml(scoreToMusicXml(made));
+
+        expect(back.spanners.single.kind, made.spanners.single.kind);
+        expect(ends(back), ['three G4']);
+      });
+
+      test('ends where the rule puts it, and names no voice, when it comes '
+          'from a file that names none', () {
+        final score = under([
+          chordOf(1, 'C5', value: NoteValue.whole),
+        ], bars: 1);
+        final json = scoreToJson(
+          slurred(
+            score,
+            pointAt(score, 0, at(1, 4)),
+            pointAt(score, 0, at(1, 2)),
+          ).score,
+        );
+        final spanners = json['spanners']! as List<Object?>;
+        (spanners.single! as Map<String, Object?>).remove('endVoice');
+        final loaded = scoreFromJson(json);
+
+        expect(loaded.spanners.single.kind, const Slur());
+        expect(ends(loaded), ['three G4']);
+        expect(scoreToJson(loaded), json);
       });
 
       test('ends on that note in the bar after its first, not on the part of '
@@ -1238,15 +1586,12 @@ void main() {
       expect(gone, greaterThan(100), reason: 'by the other edits');
     });
 
-    test('stays on the top note when it names none', () {
+    test('goes with the top note it starts on when it names none', () {
       final session = glided(kind: const Glissando(to: NoteId(20)));
 
       final next = applied(session.run(RemoveNote(head(session, 11))));
 
-      expect(
-        next.score.glissandoNotes(next.score.spanners.single).from!.id,
-        const NoteId(10),
-      );
+      expect(next.score.spanners, isEmpty);
     });
   });
 
@@ -1297,7 +1642,13 @@ void main() {
         ).score;
 
         expect(bar(next, 0).take(2), ['C4+G4/half', 'D4+C5/quarter']);
-        expect(next.spanners, session.score.spanners);
+        String notes(Score score) => switch (score.glissandoNotes(
+          score.spanners.single,
+        )) {
+          (:final from, :final to) => '${from?.id.value} ${to?.id.value}',
+        };
+
+        expect(notes(next), named ? '11 20' : '11 21');
       });
     }
   });

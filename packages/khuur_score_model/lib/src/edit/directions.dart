@@ -37,7 +37,9 @@ _Result _addSpanner(
   if (lostGlissandoNote(score, spanner) case final note?) {
     throw _Refuse(StaleReference(note));
   }
-  return _Result(score.copyWith(spanners: score.spanners.append(spanner)));
+  return _Result(
+    score.copyWith(spanners: score.spanners.append(endsHeld(score, spanner))),
+  );
 }
 
 /// [kind] as a refusal names it. A class name read at run time is mangled

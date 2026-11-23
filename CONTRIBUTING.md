@@ -64,7 +64,7 @@ dart compile exe benchmark/playback_benchmark.dart -o build/playback_benchmark
 build/playback_benchmark
 ```
 
-After a change to how an edit settles the spanners, also run the erase benchmark. It exits with code 1 when erasing the chords that glissandi end on costs more than three times as much under glissandi that name their notes as under ones that name none.
+After a change to how an edit settles the spanners, also run the erase benchmark. It exits with code 1 when erasing the chords that glissandi end on, so that every line loses its note, costs more than three times as much as erasing the chords after them, where no line does.
 
 ```bash
 cd packages/khuur_score_model

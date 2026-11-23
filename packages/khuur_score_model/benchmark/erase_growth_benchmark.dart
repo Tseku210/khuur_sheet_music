@@ -1,11 +1,12 @@
 // Checks how the cost of one erase grows with the length of the score. It
 // erases the second chord of every bar of a score with a glissando in every
-// bar, then of a score four times as long, and compares the two times. It
-// does so once with no ripple, once with `Ripple.part`, and once with
-// `Ripple.part` on a score that a rehearsal mark every eight bars cuts into
-// sections, whose glissandi name their notes. In sections it also erases
-// the same chords of a score whose first note of every bar is tied, and a
-// range that takes all but the last three chords of the score.
+// bar, the chord each glissando ends on, so every line loses its end note
+// and goes with it. It does the same on a score four times as long and
+// compares the two times. It does so once with no ripple, once with
+// `Ripple.part`, and once with `Ripple.part` on a score that a rehearsal
+// mark every eight bars cuts into sections. In sections it also erases the
+// same chords of a score whose first note of every bar is tied, and a range
+// that takes all but the last three chords of the score.
 //
 // Run it compiled, from packages/khuur_score_model. A JIT run measures the
 // compiler as much as the code. The compiler does not create `build`, which
@@ -74,8 +75,8 @@ Erase allButThreeChords(Score score) {
 
 /// The median time of [runs] runs of [erase] on [score], after [warmUps]
 /// that do not count. Fails when the erase is refused, leaves another count
-/// of chords than [chordsLeft], leaves a tied note, or leaves a glissando
-/// that named a note.
+/// of chords than [chordsLeft], leaves a tied note, or leaves any
+/// glissando.
 Duration eraseTime(
   Score score,
   Erase erase, {
@@ -109,8 +110,10 @@ Duration eraseTime(
     if (kept.any((chord) => chord.notes.any((note) => note.tie))) {
       throw StateError('the erase left a tie into another note');
     }
-    if (left.spanners.any((line) => line.kind != const Glissando())) {
-      throw StateError('the erase left a glissando without its note');
+    if (left.spanners.isNotEmpty) {
+      throw StateError(
+        'the erase left ${left.spanners.length} glissandi without their notes',
+      );
     }
     if (i >= warmUps) {
       times.add(watch.elapsed);
