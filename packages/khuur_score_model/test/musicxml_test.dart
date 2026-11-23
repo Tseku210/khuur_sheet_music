@@ -1465,6 +1465,43 @@ void main() {
       ]);
     });
 
+    test('leaves out a glissando from a note to a rest, whose start '
+        'MuseScore 4 would close on the next glissando', () {
+      var score = sessionWith([
+        [
+          chordOf(1, 'C5'),
+          rest(2, NoteValue.quarter),
+          chordOf(3, 'E5'),
+          chordOf(4, 'G5'),
+        ],
+        [
+          rest(5, NoteValue.quarter),
+          chordOf(6, 'D5'),
+          rest(7, NoteValue.quarter),
+          rest(8, NoteValue.quarter),
+        ],
+      ]).score;
+      ScorePoint beat(int bar, int quarter) =>
+          pointAt(score, bar, at(quarter, 4));
+      for (final (first, last) in [
+        (beat(0, 0), beat(0, 1)),
+        (beat(0, 2), beat(0, 3)),
+        (beat(1, 0), beat(1, 1)),
+        (beat(1, 2), beat(1, 3)),
+      ]) {
+        score = withSpanner(score, const Glissando(), first, last);
+      }
+
+      expect(placedAs(read(exported(score)).children, 'glissando'), [
+        'P1 m0 @1/2 <glissando type="start" number="1"/>',
+        'P1 m0 @3/4 <glissando type="stop" number="1"/>',
+        'P1 m1 @0 <glissando type="start" number="1"/>',
+        'P1 m1 @1/4 <glissando type="stop" number="1"/>',
+        'P1 m1 @1/2 <glissando type="start" number="1"/>',
+        'P1 m1 @3/4 <glissando type="stop" number="1"/>',
+      ]);
+    });
+
     test('numbers a slur whose stop is written first apart from a slur '
         'written between its ends', () {
       var score = blankScore(bars: 1);

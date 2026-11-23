@@ -1920,8 +1920,9 @@ void main() {
           slurOf(score),
         );
       }
-      // MuseScore 4 reads a slur in the voice of its start, and draws the
-      // second voice's slur below, as this library does, from its placement.
+      // MuseScore 4 reads a slur in the voice of its start. When it imports
+      // layout, it draws the second voice's slur below from its placement, as
+      // this library draws it.
       expect(
         scoreToMusicXml(ofOne),
         contains('<slur type="start" number="1"/>'),
