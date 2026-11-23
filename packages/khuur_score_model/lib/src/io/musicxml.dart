@@ -17,8 +17,8 @@
 /// A slur or trill line is written on the first note of the event at each
 /// end, and a glissando on the note each end names, in that note's voice. A
 /// glissando from a note to a rest is numbered above the part's glissandi
-/// of any other shape, and is left out when that passes MusicXML's limit of
-/// 16. A slur that starts where its own voice is silent and stops in that
+/// of any other shape. It is left out when that passes MusicXML's limit of
+/// 16, or when its first note has a let-ring tie. A slur that starts where its own voice is silent and stops in that
 /// voice has its start on another voice's event, with a placement and no
 /// orientation. A hairpin, octave line, pedal line or tempo line is a
 /// direction at its first point and a stop after the event its last point
@@ -144,8 +144,22 @@ final class _Export {
     for (final column in written.measures) written.measureView(column.id),
   ];
 
+  /// The notes written with a let-ring tie.
+  late final Set<NoteId> _letRing = {
+    for (final view in views)
+      for (final staff in view.staves)
+        for (final tie in staff.ties)
+          if (tie.to == null) tie.from,
+  };
+
+  /// The spanners that can be written. MuseScore 4 clears a glissando left
+  /// with no end after import, except on a note with a let-ring tie, and its
+  /// MIDI render reads the end of a portamento line without a check.
   late final List<_Ends> _lines = [
-    for (final spanner in score.spanners) _endsOf(spanner),
+    for (final spanner in score.spanners)
+      if (_endsOf(spanner) case final line
+          when !_staysOpen(line) || !_letRing.contains(line.fromNote))
+        line,
   ];
 
   /// The spanners written. A line from a note to a rest that [numbers] puts

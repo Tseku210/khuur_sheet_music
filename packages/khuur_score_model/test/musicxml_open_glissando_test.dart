@@ -17,7 +17,7 @@ final capturedBefore = File('test/golden/glissando_to_rest_captured.musicxml');
 /// on a rest is not read. Slots are per part, element and number. A start on
 /// a held slot is dropped, and any stop on a note closes the slot's line. A
 /// pair on one tick is a fall and a line of four whole notes or more is
-/// dropped. A start still open at the end of its part builds no line.
+/// dropped. A start still open at the end of its part draws no line.
 List<String> museScoreGlissandi(String xml) {
   final lines = <String>[];
   for (final part in XmlDocument.parse(xml).findAllElements('part')) {
@@ -216,6 +216,22 @@ void main() {
 
       expect(linesOf(roundTrip(score)), linesOf(score));
       expect(museScoreGlissandi(scoreToMusicXml(score)), hasLength(bars));
+    });
+
+    test('is left out when its first note has a let-ring tie', () {
+      final score = scoreFromMusicXml(
+        crossStaff.replaceFirst(
+          '<notations><glissando type="start" number="1"/>',
+          '<notations><tied type="let-ring"/>'
+              '<glissando type="start" number="1"/>',
+        ),
+      );
+      expect(linesOf(score), contains('0+0 C4>null'));
+
+      final exported = scoreToMusicXml(score);
+
+      expect(linesOf(scoreFromMusicXml(exported)), ['0+1/2 E4>G4']);
+      expect(museScoreGlissandi(exported), ['E4@2.0 G4@3.0']);
     });
 
     test('is left out when the part has no number free for it', () {
