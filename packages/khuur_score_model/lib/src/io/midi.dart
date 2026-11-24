@@ -8,7 +8,10 @@
 /// with its bank and program.
 ///
 /// Ticks count notated time along the play order, so every played bar
-/// starts on a barline in another program. The tempo is written where it
+/// starts on a barline in another program. A file states no tempo under
+/// 3.58 quarters a minute, so a slower stretch takes as many more ticks as
+/// its time needs, and the bars from there on start that much later. The
+/// tempo is written where it
 /// changes: once where it holds, and every sixteenth where a tempo line
 /// moves it, at the mean tempo of that sixteenth. A note starts and ends at
 /// its script times in those tempos, so it lands within a tick of when the
@@ -29,6 +32,7 @@
 /// left to the channel.
 library;
 
+import 'dart:collection';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
@@ -52,7 +56,7 @@ Uint8List scoreToMidi(Score score) {
   _TimeSignature? meter;
   KeySignature? key;
   for (final clock in barClocks(script)) {
-    final downbeat = _ticks(played);
+    final downbeat = tempo.tickOf(_ticks(played));
     final column = score.column(clock.played.measure);
     final signature = _TimeSignature.of(column.meter, clock.length);
     if (signature != null && signature != meter) {
@@ -136,8 +140,8 @@ Uint8List scoreToMidi(Score score) {
       ..add(off, _Rank.off, [0x80 | channel, note.key, 0]);
   }
 
-  final end = _ticks(played);
   final chunks = [conductor, ...tracks.values];
+  final end = _inReach(chunks, tempo.tickOf(_ticks(played)));
   final bytes = <int>[
     ...ascii.encode('MThd'),
     ..._u32(6),
@@ -171,27 +175,49 @@ Iterable<Length> _sixteenthsBetween(Length from, Length to) sync* {
 
 /// The tempo of the file, as microseconds a quarter from each tick where it
 /// changes, with the seconds that tick falls at in those tempos.
+///
+/// A file's tempo stops at [_slowest], 3.58 quarters a minute. A stretch of
+/// the score that is slower takes more ticks than its notes count, as many
+/// as its seconds last at that tempo, and everything after it comes that
+/// many ticks later. So the tempo after a slow stretch starts when the
+/// stretch ends, and a long wait is counted in the longest ticks a file
+/// has, which is the fewest.
 final class _TempoMap {
   final List<({int tick, int micros, double seconds})> changes = [];
 
-  /// Makes `[from, to)` in ticks last from [start] to [end] in seconds.
+  /// How many more ticks the stretches held so far take than their notes
+  /// count.
+  int _stretched = 0;
+
+  /// The file's tick of [notated], a tick of notated time at or after the
+  /// last stretch held.
+  int tickOf(int notated) => notated + _stretched;
+
+  /// Makes `[from, to)` in ticks of notated time last from [start] to [end]
+  /// in seconds.
   void hold(int from, int to, double start, double end) {
     if (to <= from) {
       return;
     }
-    final micros = ((end - start) * 1e6 * _ticksPerQuarter / (to - from))
-        .round()
-        .clamp(1, 0xFFFFFF);
+    final quarterMicros = (end - start) * 1e6 * _ticksPerQuarter;
+    final ticks = max(
+      to - from,
+      _whole((quarterMicros / _slowest).ceilToDouble()),
+    );
+    final at = tickOf(from);
+    _stretched = min(_stretched + ticks - (to - from), _farthest);
+    final exact = quarterMicros / ticks;
+    final micros = exact < _slowest ? max(1, exact.round()) : _slowest;
     final last = changes.lastOrNull;
     if (last?.micros == micros) {
       return;
     }
     changes.add((
-      tick: from,
+      tick: at,
       micros: micros,
       seconds: last == null
           ? 0
-          : last.seconds + _seconds(from - last.tick, last.micros),
+          : last.seconds + _seconds(at - last.tick, last.micros),
     ));
   }
 
@@ -213,9 +239,25 @@ final class _TempoMap {
     }
     final at = changes[low - 1];
     return at.tick +
-        ((seconds - at.seconds) * 1e6 * _ticksPerQuarter / at.micros).round();
+        _whole(
+          ((seconds - at.seconds) * 1e6 * _ticksPerQuarter / at.micros)
+              .roundToDouble(),
+        );
   }
 }
+
+/// The most microseconds a quarter a file's tempo states.
+const int _slowest = 0xFFFFFF;
+
+/// The most ticks a stretch or a time is counted as, which is 1.3 billion
+/// years at the slowest tempo. A tempo may be any number above 0, so a
+/// score can ask for more, and its ticks stop here, where they still add up
+/// without leaving the integers.
+const int _farthest = 1 << 61;
+
+/// [ticks] as an integer, held to [_farthest]. A tempo near none asks for
+/// more ticks than an integer counts, or for no number at all.
+int _whole(double ticks) => ticks < _farthest ? ticks.toInt() : _farthest;
 
 double _seconds(int ticks, int micros) =>
     ticks * micros / _ticksPerQuarter / 1e6;
@@ -287,6 +329,16 @@ final class _Track {
     }
   }
 
+  /// The tick of each event.
+  Iterable<int> get ticks => _events.map((event) => event.tick);
+
+  /// Moves each event to the tick [moved] gives its own.
+  void move(int Function(int tick) moved) {
+    for (final (i, (:tick, :rank, :bytes)) in _events.indexed) {
+      _events[i] = (tick: moved(tick), rank: rank, bytes: bytes);
+    }
+  }
+
   /// The track chunk, ending at [end] or at its last event.
   List<int> chunk(int end) {
     final body = <int>[];
@@ -301,7 +353,7 @@ final class _Track {
         ..addAll(bytes);
       tick = at;
     }
-    body.addAll([..._wait(end - tick), 0xFF, 0x2F, 0]);
+    body.addAll([..._wait(max(end - tick, 0)), 0xFF, 0x2F, 0]);
     return [...ascii.encode('MTrk'), ..._u32(body.length), ...body];
   }
 }
@@ -313,14 +365,46 @@ const _longestDelta = 0x0FFFFFFF;
 /// file states, 16.8 seconds a quarter, they last 38 years.
 const _mostDeltas = 256;
 
+/// The most ticks one wait is written as.
+const int _longestWait = _mostDeltas * _longestDelta;
+
+/// Cuts every silence of [tracks] that is longer than a wait is written
+/// as, and answers where [end] is then.
+///
+/// A file counts time in ticks and has no slower tempo than [_slowest], so
+/// a silence takes eight bytes for every 54 days it lasts, and a tempo may
+/// be any number above 0. So no file of a bounded size keeps every time. A
+/// stretch in which no track has an event for more than [_longestWait]
+/// ticks is cut to that in every track alike. The tracks stay in step, and
+/// what follows a silence of more than 38 years comes that much early. A
+/// track that is silent while another plays waits for as long as the other
+/// plays, in at most [_mostDeltas] delta times for each event of the
+/// other.
+int _inReach(List<_Track> tracks, int end) {
+  final all = [0, end, for (final track in tracks) ...track.ticks];
+  if (all.reduce(max) <= _longestWait) {
+    return end;
+  }
+  final ticks = SplayTreeSet.of(all);
+  final moved = <int, int>{};
+  var before = 0;
+  var cut = 0;
+  for (final tick in ticks) {
+    cut += max(tick - before - _longestWait, 0);
+    moved[tick] = tick - cut;
+    before = tick;
+  }
+  for (final track in tracks) {
+    track.move((tick) => moved[tick]!);
+  }
+  return moved[end]!;
+}
+
 /// The delta time before an event [ticks] after the one before it. A wait
 /// longer than [_longestDelta] is several delta times with an empty text
-/// event after each but the last, so the event keeps its time. The file's
-/// tempo stops at 3.58 quarters a minute and a slower score takes more
-/// ticks instead, so a tempo near none can ask for any wait. One past
-/// [_mostDeltas] delta times is cut to that, and what follows comes early.
+/// event after each but the last, so the event keeps its time.
 List<int> _wait(int ticks) {
-  var left = ticks.clamp(0, _mostDeltas * _longestDelta);
+  var left = ticks;
   final bytes = <int>[];
   for (; left > _longestDelta; left -= _longestDelta) {
     bytes.addAll([..._vlq(_longestDelta), 0xFF, 0x01, 0]);
