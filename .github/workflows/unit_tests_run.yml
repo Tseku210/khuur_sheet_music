@@ -117,6 +117,14 @@ jobs:
           dart compile exe benchmark/musicxml_export_benchmark.dart -o build/musicxml_export_benchmark
           build/musicxml_export_benchmark
 
+      - name: Edit growth benchmark
+        if: ${{ !cancelled() }}
+        working-directory: packages/khuur_score_model
+        run: |
+          mkdir -p build
+          dart compile exe benchmark/edit_growth_benchmark.dart -o build/edit_growth_benchmark
+          build/edit_growth_benchmark
+
       # Every order of up to 5 steps on ScorePlayer. A local run without the
       # define checks every order of up to 7.
       - name: Player orders

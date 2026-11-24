@@ -91,6 +91,15 @@ dart compile exe benchmark/musicxml_export_benchmark.dart -o build/musicxml_expo
 build/musicxml_export_benchmark
 ```
 
+After a change to an edit or to the edit session, also run the edit benchmark. It enters one note in scores of two lengths, overwriting and rippling. It exits with code 1 when a score four times as long costs more than eight times as much.
+
+```bash
+cd packages/khuur_score_model
+mkdir -p build
+dart compile exe benchmark/edit_growth_benchmark.dart -o build/edit_growth_benchmark
+build/edit_growth_benchmark
+```
+
 The glyph table `packages/khuur_score_layout/lib/src/bravura.g.dart` is generated. Do not edit it by hand. Change `tool/bravura_metadata.json` or the generator, then run `dart run tool/generate_bravura.dart` in `packages/khuur_score_layout`.
 
 The pictures of sheets on the docs site and in the README are generated too. After a change to what the sheet draws, or to the sample code on a page with a picture, draw them again and commit the files that change.
