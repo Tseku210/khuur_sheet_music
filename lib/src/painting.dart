@@ -802,13 +802,35 @@ final class OverlayPainter extends CustomPainter {
 
   late final SystemLayout _system = layout.systemAt(index);
 
+  // The system's drawables under each ref or spanner id that owns them, in
+  // the order the system draws them, as `SystemLayout.drawablesOf` answers
+  // for each: a head is under its note and under its note's event, and the
+  // rest of an event under the event. One walk of the system finds them
+  // all, where asking the system for each tint walked it once a tint. A ref
+  // is equal by its event's id and never by its measure, which a change of
+  // meter leaves stale.
+  late final Map<Object, List<Drawable>> _owned = () {
+    final owned = <Object, List<Drawable>>{};
+    for (final drawable in _system.drawables) {
+      switch (drawable.owner) {
+        case ElementOwner(:final ref):
+          (owned[ref] ??= []).add(drawable);
+          if (ref is NoteRef) {
+            (owned[ref.event] ??= []).add(drawable);
+          }
+        case SpannerOwner(:final id):
+          (owned[id] ??= []).add(drawable);
+        case null:
+      }
+    }
+    return owned;
+  }();
+
   // A ref with no drawables here (a hidden staff, another system) draws
   // nothing, so neither the tints nor the playing events need a filter.
-  // The system is asked by the event's id and never by the ref's measure,
-  // which a change of meter leaves stale.
   late final List<(Drawable, Color)> _tinted = [
     for (final MapEntry(key: ref, value: color) in tints.entries)
-      for (final drawable in _system.drawablesOf(ElementOwner(ref)))
+      for (final drawable in _owned[ref] ?? const <Drawable>[])
         (drawable, color),
   ];
 
@@ -817,8 +839,8 @@ final class OverlayPainter extends CustomPainter {
     ItemSelection(:final items, :final spanners)
         when palette.selection.ink != null =>
       [
-        for (final ref in items) ..._system.drawablesOf(ElementOwner(ref)),
-        for (final id in spanners) ..._system.drawablesOf(SpannerOwner(id)),
+        for (final ref in items) ...?_owned[ref],
+        for (final id in spanners) ...?_owned[id],
       ],
     _ => const [],
   };

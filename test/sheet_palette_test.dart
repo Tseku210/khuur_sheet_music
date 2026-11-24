@@ -712,6 +712,47 @@ void main() {
     expect(heard.at(middle), green);
   });
 
+  test('where a tint of an event and a tint of its note meet on the head, '
+      'the later of the two in the map shows', () async {
+    final score = tune(bars: 4);
+    final layout = layoutOf(score);
+    final note = headOf(score, 0, 1);
+    final event = note.event;
+    final head = scale.rectOf(
+      layout.systemAt(0).boundsOf(ElementOwner(note))!,
+    );
+    final whole = scale.rectOf(
+      layout.systemAt(0).boundsOf(ElementOwner(event))!,
+    );
+    bool offTheHead(Offset at) => !head.inflate(1).contains(at);
+
+    final noteLast = await marksOf(
+      layout,
+      quiet,
+      tints: {event: blue, note: red},
+    );
+    expect(noteLast.at(head.center), red);
+    final stem = noteLast.painted.where(offTheHead).toList();
+    expect(stem, isNotEmpty, reason: 'the event owns ink off its head');
+    expect(
+      stem.map(noteLast.at).every((color) => color.r == 0 && color.b > 0),
+      isTrue,
+      reason: 'the ink off the head is the event\'s blue, at any cover',
+    );
+    expect(stem.every(whole.inflate(1).contains), isTrue);
+
+    final eventLast = await marksOf(
+      layout,
+      quiet,
+      tints: {note: red, event: blue},
+    );
+    expect(eventLast.at(head.center), blue);
+
+    final noteAlone = await marksOf(layout, quiet, tints: {note: red});
+    expect(noteAlone.at(head.center), red);
+    expect(noteAlone.painted.where(offTheHead), isEmpty);
+  });
+
   test('a box lies behind the ink it comes with', () async {
     final score = tune(bars: 4);
     final layout = layoutOf(score);
