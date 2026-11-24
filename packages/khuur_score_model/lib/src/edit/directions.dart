@@ -37,7 +37,7 @@ _Result _addSpanner(
       ),
     );
   }
-  if (lostGlissandoNote(score, spanner) case final note?) {
+  if (score.spannerEnds(spanner).lostNote case final note?) {
     throw _Refuse(StaleReference(note));
   }
   return _Result(

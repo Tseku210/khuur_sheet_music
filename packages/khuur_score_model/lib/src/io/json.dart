@@ -21,6 +21,7 @@ import '../refs.dart';
 import '../rules.dart';
 import '../score.dart';
 import '../seq.dart';
+import '../spanner_ends.dart';
 import '../time.dart';
 
 part 'json_read.dart';
