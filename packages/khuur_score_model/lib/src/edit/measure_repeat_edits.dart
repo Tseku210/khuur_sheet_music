@@ -156,7 +156,12 @@ Score _writtenOut(
       final inside = start <= first && covered.last < end;
       if (touched && !(keep && inside)) {
         for (final i in covered) {
-          if (playedVoices(measures, i, k, () => ids.next++) case final copy?) {
+          final source = playedBar(measures, i, k);
+          if (source == i) {
+            continue;
+          }
+          if (copiedVoices(measures, source, k, () => ids.next++)
+              case final copy?) {
             copies[(i, measures[i].staves[k].staff)] = copy;
           }
         }

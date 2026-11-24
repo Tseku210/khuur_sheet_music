@@ -73,6 +73,18 @@ int playedBar(Seq<MeasureColumn> measures, int bar, int staff) {
   return source;
 }
 
+/// [playedBar] of every bar of staff [staff].
+List<int> playedBars(Seq<MeasureColumn> measures, int staff) {
+  final played = List<int>.filled(measures.length, 0);
+  for (var bar = 0; bar < measures.length; bar++) {
+    final sign = measures[bar].staves[staff].measureRepeat;
+    played[bar] = sign != null && measureRepeatStands(measures, bar, staff)
+        ? played[bar - sign.bars]
+        : bar;
+  }
+  return played;
+}
+
 /// A copy of the voices a bar under a measure-repeat sign plays: the bar it
 /// copies, the voices, and the id of each copied event, chord and grace,
 /// and of each copied note, by the id it has in the bar it copies.
@@ -83,19 +95,17 @@ typedef PlayedCopy = ({
   Map<NoteId, NoteId> notes,
 });
 
-/// The voices staff [staff] of bar [bar] plays, written out: a copy of the
-/// voices of its [playedBar], with new ids from [mint] and no lyrics. Null
-/// when the bar plays its own voices or a whole-bar rest.
-PlayedCopy? playedVoices(
+/// A copy of the voices of staff [staff] of bar [source], with new ids from
+/// [mint] and no lyrics, for a bar that plays [source]. Null when they are a
+/// whole-bar rest.
+PlayedCopy? copiedVoices(
   Seq<MeasureColumn> measures,
-  int bar,
+  int source,
   int staff,
   int Function() mint,
 ) {
-  final source = playedBar(measures, bar, staff);
   final voices = measures[source].staves[staff].voices;
-  if (source == bar ||
-      voices.length == 1 && voices.first.items.singleOrNull is MeasureRest) {
+  if (voices.length == 1 && voices.first.items.singleOrNull is MeasureRest) {
     return null;
   }
   final ids = <EventId, EventId>{};

@@ -178,6 +178,42 @@ final class _Export {
   };
   late final Map<SpannerId, int> numbers = _numbers();
 
+  /// The ends of [ends] written on notes, by the event that carries them, in
+  /// the order of [ends] with each spanner's start before its stop.
+  late final Map<EventId, List<(_Ends, bool)>> _endsOnEvents = () {
+    final byEvent = <EventId, List<(_Ends, bool)>>{};
+    for (final line in ends) {
+      if (line.from case final from?) {
+        (byEvent[from] ??= []).add((line, true));
+      }
+      if (line.to case final to?) {
+        (byEvent[to] ??= []).add((line, false));
+      }
+    }
+    return byEvent;
+  }();
+
+  /// The lines of [ends] written as directions, by the bar and staff of
+  /// their stop, in the order of [ends].
+  late final Map<(int, StaffId), List<_Ends>> _stopsIn = _directionLines(
+    (line) => line.stop.bar,
+  );
+
+  /// The same lines by the bar and staff of their start.
+  late final Map<(int, StaffId), List<_Ends>> _startsIn = _directionLines(
+    (line) => line.start.bar,
+  );
+
+  Map<(int, StaffId), List<_Ends>> _directionLines(int Function(_Ends) barOf) {
+    final byPlace = <(int, StaffId), List<_Ends>>{};
+    for (final line in ends) {
+      if (line.from == null) {
+        (byPlace[(barOf(line), line.spanner.staff)] ??= []).add(line);
+      }
+    }
+    return byPlace;
+  }
+
   /// The bars and staves written in time order, because MuseScore 4 ignores
   /// a glissando stop with nothing open.
   late final Set<(int, StaffId)> inTimeOrder = {
@@ -324,11 +360,17 @@ final class _Export {
     var next = largestId(score);
     int mint() => ++next;
     final copies = <(int, StaffId), PlayedCopy>{};
-    var columns = measures;
+    final played = [
+      for (var k = 0; k < shown.staves.length; k++) playedBars(measures, k),
+    ];
+    List<MeasureColumn>? columns;
     for (final (bar, column) in measures.indexed) {
       var copied = column;
       for (final (k, slice) in column.staves.indexed) {
-        final copy = playedVoices(measures, bar, k, mint);
+        final source = played[k][bar];
+        final copy = source == bar
+            ? null
+            : copiedVoices(measures, source, k, mint);
         if (copy == null) {
           continue;
         }
@@ -338,10 +380,13 @@ final class _Export {
         );
       }
       if (!identical(copied, column)) {
-        columns = columns.replaceAt(bar, copied);
+        (columns ??= measures.toList())[bar] = copied;
       }
     }
-    return (score: shown.copyWith(measures: columns), copies: copies);
+    return (
+      score: columns == null ? shown : shown.copyWith(measures: Seq(columns)),
+      copies: copies,
+    );
   }
 
   XmlElement _measure(int p, int bar) {
@@ -549,14 +594,10 @@ final class _Export {
   ) {
     final column = view.column;
     final marks = k == 0 && score.parts[p].id == marksPart;
-    final lines = [
-      for (final line in ends)
-        if (line.from == null && line.spanner.staff == staff.source.staff) line,
-    ];
+    final place = (bar, staff.source.staff);
     final items = [
-      for (final line in lines)
-        if (line.stop.bar == bar)
-          (line.stop.at, _line(line, start: false, staff: _staff(staff, k))),
+      for (final line in _stopsIn[place] ?? const <_Ends>[])
+        (line.stop.at, _line(line, start: false, staff: _staff(staff, k))),
       for (final change in staff.source.clefChanges)
         (
           change.offset,
@@ -582,9 +623,8 @@ final class _Export {
       ],
       for (final direction in staff.source.directions)
         (direction.offset, _staffDirection(direction, _staff(staff, k))),
-      for (final line in lines)
-        if (line.start.bar == bar)
-          (line.start.at, _line(line, start: true, staff: _staff(staff, k))),
+      for (final line in _startsIn[place] ?? const <_Ends>[])
+        (line.start.at, _line(line, start: true, staff: _staff(staff, k))),
       if (marks)
         for (final mark in column.navigation)
           if (!mark.atBarStart)
@@ -829,14 +869,10 @@ final class _Export {
   /// each spanner's start before its stop. [first] is whether that is the
   /// event's first note or a rest.
   List<_Mark> _onNote(EventId event, NoteId? note, {required bool first}) => [
-    for (final line in ends) ...[
-      if (line.from == event &&
-          (line.fromNote == null ? first : line.fromNote == note))
-        (line.spanner, true),
-      if (line.to == event &&
-          (line.toNote == null ? first : line.toNote == note))
-        (line.spanner, false),
-    ],
+    for (final (line, start) in _endsOnEvents[event] ?? const <(_Ends, bool)>[])
+      if (start ? line.fromNote : line.toNote case final named
+          when named == null ? first : named == note)
+        (line.spanner, start),
   ];
 
   XmlElement _spannerMark(Spanner spanner, {required bool start}) {
