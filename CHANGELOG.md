@@ -1,3 +1,9 @@
+## 0.6.0
+* **Breaking:** `Edit` gains `SetTremolo` and `RemoveGraces`, so an app that switches over every edit adds cases for them, from `khuur_score_model` 0.6.0.
+* `SetTremolo(event, strokes)` sets the tremolo strokes through a chord's stem, and `RemoveGraces(event)` takes the grace notes off a chord, from `khuur_score_model` 0.6.0.
+* `SheetView` prints "×3" over an end repeat that plays three times, and so on for more, from `khuur_score_layout` 0.6.0.
+* Depends on `khuur_score_model` 0.6.0 and `khuur_score_layout` 0.6.0.
+
 ## 0.5.0
 * **Breaking:** `Transposition.apply` takes an `Alterations` in place of a `KeySignature`, and `Transposition.diatonic` steps a note onto the accidental in force at its new line, so seven steps no longer keep an accidental, from `khuur_score_model` 0.5.0.
 * `Transpose(selection, by, keys: true)` moves the key signatures of a transposed range with its notes.

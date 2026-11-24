@@ -77,6 +77,8 @@ The edits that build most scores are these:
 - `SetMeasureRepeat(measure, bars: 1)` puts a repeat sign in a bar, so it plays the bar before it again. `bars: 2` repeats the two bars before it over this bar and the next, and `bars: null` clears the sign. Writing a note into the bar clears it too.
 - `AddSpanner` adds a slur, a hairpin, a pedal line or another line.
 - `SetTie` ties a note to the same tone in the next event. `SetLetRing(note, letRing: true)` gives a note a let-ring tie, which never lands on a note, and `letRing: false` clears it. A note with a plain tie keeps it.
+- `AddGrace` puts a grace note before a chord, and `RemoveGraces` takes every grace off it.
+- `SetTremolo(event, 3)` draws three tremolo strokes through a chord's stem, and `0` clears them.
 - `Batch` runs a list of edits as one undo step. If one of them is refused, the batch is refused and the score does not change.
 
 The ids of bars and staves come from the score.

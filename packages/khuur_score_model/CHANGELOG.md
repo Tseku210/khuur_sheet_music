@@ -1,3 +1,8 @@
+## 0.6.0
+* **Breaking:** `Edit` gains `SetTremolo` and `RemoveGraces`, so an app that switches over every edit adds cases for them.
+* `SetTremolo(event, strokes)` sets the single-note tremolo strokes through a chord's stem, 1 to 4, and 0 clears them. Strokes on a rest, or a count past 0 to 4, are refused with `InvalidValue`.
+* `RemoveGraces(event)` takes every grace chord off a chord. A chord with none, or a rest, changes nothing.
+
 ## 0.5.0
 * **Breaking:** `Transposition.apply` takes an `Alterations`, the key plus the accidentals read so far in the bar, in place of a `KeySignature`. A caller that passed a key writes `apply(pitch, Alterations(key))`.
 * **Breaking:** `Transposition.diatonic` moves a note by staff positions onto the accidental in force at its new position, as MuseScore 4 does. That is the key's, or the one an earlier note of the bar left there, read as the edit leaves it. In F major the bar F♯4 B4 A4 E4 steps up to G4 C5 B♭4 F4, where it went to G♯4 C♯5 B♭4 F4. `diatonic(7)` and `diatonic(-7)` no longer keep an accidental, so an octave move uses `Transposition.interval(Interval.octave)`.
