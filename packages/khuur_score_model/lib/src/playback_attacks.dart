@@ -253,17 +253,27 @@ const _slowTrillNote = 0.125;
 /// Seconds a trill note lasts at the least, a 32nd at 200 quarters a minute.
 const _quickTrillNote = 0.0375;
 
+/// The most notes one chord's trill plays. At [_trillNote] each they fill
+/// 77 seconds, longer than any chord lasts at a tempo music is played at.
+/// A chord that lasts longer, as at a tempo near none, plays this many
+/// slower notes, so no tempo makes a trill cost without bound.
+const _mostTrillNotes = 1024;
+
 /// How many notes a trill plays in [seconds]: an odd count when it ends
 /// [onMain], on its main note, and an even one to end on the note above. It
 /// is the most that last [_trillNote] each, or two more when those would
-/// last [_slowTrillNote]. A chord too short for that plays the fewest that
-/// alternate, or its one note when they would be shorter than
-/// [_quickTrillNote].
+/// last [_slowTrillNote], and never more than [_mostTrillNotes]. A chord too
+/// short for that plays the fewest that alternate, or its one note when
+/// they would be shorter than [_quickTrillNote].
 int _trillNotes(double seconds, {required bool onMain}) {
   final least = onMain ? 3 : 2;
   final time = seconds + _sameInstant;
   if (time / least < _quickTrillNote) {
     return 1;
+  }
+  final most = onMain ? _mostTrillNotes - 1 : _mostTrillNotes;
+  if (time / _trillNote >= most) {
+    return most;
   }
   final fit = least + 2 * ((time / _trillNote - least) / 2).floor();
   if (fit < least) {
