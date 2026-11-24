@@ -606,6 +606,73 @@ final class SystemPainter extends CustomPainter {
       oldDelegate.scale != scale;
 }
 
+/// Tells a tile's painter of a playback tick only when the tick changes
+/// what the tile shows, so a tick paints the tiles it moves something on
+/// and no other. A tile shows the playing events that are drawn on it and,
+/// for the painter that draws one, the playhead.
+///
+/// It listens to the playback only while a tile listens to it. It takes
+/// what the tile shows as the playback's value when the first listener
+/// comes, which is what the painter before it showed or was told to paint.
+final class _TileTicks {
+  _TileTicks(this._playback, {required this._plays, this._playheadAt});
+
+  final ValueListenable<PlaybackPosition?>? _playback;
+
+  /// Whether the tile draws any of the events.
+  final bool Function(List<EventRef> playing) _plays;
+
+  /// Where the tile draws the playhead, or null where it draws none.
+  final double? Function(PlaybackPoint point)? _playheadAt;
+
+  final List<VoidCallback> _listeners = [];
+  List<EventRef> _playing = const [];
+  bool _played = false;
+  double? _playhead;
+
+  void addListener(VoidCallback listener) {
+    if (_listeners.isEmpty) {
+      _playback?.addListener(_tick);
+      _read();
+    }
+    _listeners.add(listener);
+  }
+
+  void removeListener(VoidCallback listener) {
+    if (_listeners.remove(listener) && _listeners.isEmpty) {
+      _playback?.removeListener(_tick);
+    }
+  }
+
+  void _tick() {
+    if (_read()) {
+      for (final listener in [..._listeners]) {
+        listener();
+      }
+    }
+  }
+
+  /// Takes the playback's value, and says whether the tile shows something
+  /// else for it. The playing events are asked about only when they are
+  /// other events, since a tick mostly leaves them as they were.
+  bool _read() {
+    final position = _playback?.value;
+    final playing = position?.playing ?? const <EventRef>[];
+    final playhead = position == null
+        ? null
+        : _playheadAt?.call(position.point);
+    var changed = playhead != _playhead;
+    _playhead = playhead;
+    if (!listEquals(playing, _playing)) {
+      final plays = _plays(playing);
+      changed = changed || plays || _played;
+      _playing = playing;
+      _played = plays;
+    }
+    return changed;
+  }
+}
+
 /// Paints the boxes of the selection and the column of the playing events
 /// under one system, so that a fill lies behind the notes and the staff
 /// lines. The column lies over the box of a selected item.
@@ -614,7 +681,8 @@ final class SystemPainter extends CustomPainter {
 /// once, on the first paint.
 final class HighlightPainter extends CustomPainter {
   /// A painter for the boxes under system [index] of [layout]. It repaints
-  /// when [playback] changes, with no build.
+  /// with no build when [playback] plays other events and the system
+  /// shows some of them, now or before.
   HighlightPainter({
     required this.layout,
     required this.index,
@@ -622,7 +690,7 @@ final class HighlightPainter extends CustomPainter {
     required this.playback,
     required this.palette,
     required this.scale,
-  }) : super(repaint: playback);
+  });
 
   /// The sheet the system and its boxes come from. Compared by identity.
   final SheetLayout layout;
@@ -649,6 +717,18 @@ final class HighlightPainter extends CustomPainter {
     layout.selectionIn(index, selection),
     palette.selection,
   );
+
+  late final _TileTicks _ticks = _TileTicks(
+    playback,
+    plays: (playing) =>
+        _drawsBox(palette.playback) && layout.playingIn(index, playing) != null,
+  );
+
+  @override
+  void addListener(VoidCallback listener) => _ticks.addListener(listener);
+
+  @override
+  void removeListener(VoidCallback listener) => _ticks.removeListener(listener);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -758,8 +838,9 @@ final class HighlightPainter extends CustomPainter {
 /// The cursor, the selection and the tints are values of this painter, so
 /// a new one repaints through [shouldRepaint] when the view rebuilds.
 /// Playback is a listenable the painter listens to directly, so a tick
-/// repaints without a build and without touching the view's state. The
-/// painter reads geometry from the layout it was given and lays nothing
+/// repaints without a build and without touching the view's state, and
+/// only when it plays other events on this system or moves a playhead
+/// that is drawn on it. The painter reads geometry from the layout it was given and lays nothing
 /// out. The system it reads is the one its tile already shows, so the read
 /// assembles nothing new.
 ///
@@ -768,7 +849,7 @@ final class HighlightPainter extends CustomPainter {
 /// tick costs the playing events and the playhead.
 final class OverlayPainter extends CustomPainter {
   /// A painter for what lies over system [index] of [layout]. It repaints
-  /// when [playback] changes, with no build.
+  /// with no build when [playback] changes what the system shows.
   OverlayPainter({
     required this.layout,
     required this.index,
@@ -780,7 +861,7 @@ final class OverlayPainter extends CustomPainter {
     required this.palette,
     required this.scale,
     this.preview,
-  }) : super(repaint: playback);
+  });
 
   /// The sheet the system and its geometry come from. Compared by identity.
   final SheetLayout layout;
@@ -861,6 +942,22 @@ final class OverlayPainter extends CustomPainter {
       ],
     _ => const [],
   };
+
+  late final _TileTicks _ticks = _TileTicks(
+    playback,
+    plays: (playing) =>
+        palette.playback.ink != null && playing.any(_owned.containsKey),
+    // A playhead of no width is not drawn.
+    playheadAt: palette.playhead.width > 0
+        ? (point) => layout.playheadIn(index, point)
+        : null,
+  );
+
+  @override
+  void addListener(VoidCallback listener) => _ticks.addListener(listener);
+
+  @override
+  void removeListener(VoidCallback listener) => _ticks.removeListener(listener);
 
   @override
   void paint(Canvas canvas, Size size) {

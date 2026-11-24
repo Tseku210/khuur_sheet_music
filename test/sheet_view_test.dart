@@ -3091,6 +3091,74 @@ void main() {
     },
   );
 
+  for (final (name, palette) in const <(String, SheetPalette?)>[
+    ('a box under the playing notes', null),
+    ('the playing notes inked and a playhead', inked),
+  ]) {
+    testWidgets('a playback tick paints only the tiles where it shows '
+        'something new, with $name', (tester) async {
+      final score = tune();
+      final playback = ValueNotifier<PlaybackPosition?>(null);
+      addTearDown(playback.dispose);
+      await tester.pumpWidget(
+        host(SheetView(score: score, playback: playback, palette: palette)),
+      );
+      final layout = shown(tester);
+      int tileOfBar(int bar) => layout.systemOf(score.measures[bar].id)!;
+      final first = tileOfBar(0);
+      final next = score.measures.indexed
+          .firstWhere((bar) => layout.systemOf(bar.$2.id) == first + 1)
+          .$1;
+      var overlays = overlaysOf(tester);
+      expect(overlays.keys, containsAll([first, first + 1, first + 2]));
+
+      Future<void> expectPainted(
+        Set<int> tiles,
+        PlaybackPosition? position, {
+        required String at,
+      }) async {
+        playback.value = position;
+        await tester.pump();
+        final now = overlaysOf(tester);
+        expect(
+          {
+            for (final MapEntry(key: tile, value: picture) in now.entries)
+              if (!identical(picture, overlays[tile])) tile,
+          },
+          tiles,
+          reason: at,
+        );
+        overlays = now;
+      }
+
+      // A playhead with a width moves on every tick, and one without is
+      // not drawn.
+      final moving = {if (palette != null) first};
+      await expectPainted(
+        {first},
+        positionIn(score, 0, through: 0.05),
+        at: 'the first note of a bar',
+      );
+      await expectPainted(
+        moving,
+        positionIn(score, 0, through: 0.15),
+        at: 'later in that note',
+      );
+      await expectPainted(
+        {first},
+        positionIn(score, 0, through: 0.3),
+        at: 'the next note',
+      );
+      await expectPainted(
+        {first, first + 1},
+        positionIn(score, next, through: 0.05),
+        at: 'a note of the next system',
+      );
+      await expectPainted({first + 1}, null, at: 'the end');
+      await expectPainted({}, null, at: 'the end again');
+    });
+  }
+
   testWidgets('a new style lays the whole sheet out again', (tester) async {
     final score = tune();
     Iterable<TextDraw> labels() =>
