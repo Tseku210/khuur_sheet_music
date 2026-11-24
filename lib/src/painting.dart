@@ -249,9 +249,10 @@ ui.Paragraph _line(
 /// vertically, and the painter leaves that alone, so a glyph sits up to a
 /// device pixel from the staff line it belongs on.
 ///
-/// A painter is replaced, not cleared, when its paragraphs can no longer
-/// be trusted (a new style, a font that loaded late). The system painters
-/// compare it by identity, so a new one repaints them.
+/// A painter is replaced when its paragraphs can no longer be trusted (a
+/// new style, a font that loaded late). The system painters compare it by
+/// identity, so a new one repaints them. The view calls [dispose] on the one
+/// it replaces, which frees its paragraphs.
 final class GlyphPainter {
   /// A painter for the glyphs of [font], with no paragraph built yet.
   GlyphPainter(this.font);
@@ -274,6 +275,22 @@ final class GlyphPainter {
   final Map<(String, TextSpec, double, Color), ui.Paragraph> _texts = {};
 
   static const int _capacity = 1024;
+
+  /// How many paragraphs the painter keeps.
+  @visibleForTesting
+  int get kept => _paragraphs.length + _texts.length;
+
+  /// Frees every paragraph the painter keeps, for the view to call on a
+  /// painter it replaces or leaves. A picture keeps what was painted in
+  /// it, so a tile that still shows one stays whole. A painter that paints
+  /// after this builds its paragraphs again.
+  void dispose() {
+    for (final paragraph in _paragraphs.values.followedBy(_texts.values)) {
+      paragraph.dispose();
+    }
+    _paragraphs.clear();
+    _texts.clear();
+  }
 
   static ui.Paragraph _kept<K>(
     Map<K, ui.Paragraph> cache,

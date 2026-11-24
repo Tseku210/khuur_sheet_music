@@ -3098,6 +3098,34 @@ void main() {
   });
 
   testWidgets(
+    'a new style and a view that goes each free the paragraphs of the '
+    'glyph painter they leave',
+    (tester) async {
+      final score = tune();
+      GlyphPainter glyphs() => paintersOf<SystemPainter>(tester).first.glyphs;
+      await tester.pumpWidget(host(SheetView(score: score)));
+      final first = glyphs();
+      expect(first.kept, greaterThan(0));
+
+      await tester.pumpWidget(
+        host(
+          SheetView(
+            score: score,
+            style: const EngravingStyle(barNumbers: false),
+          ),
+        ),
+      );
+      final second = glyphs();
+      expect(second, isNot(same(first)));
+      expect(first.kept, 0);
+      expect(second.kept, greaterThan(0));
+
+      await tester.pumpWidget(const SizedBox());
+      expect(second.kept, 0);
+    },
+  );
+
+  testWidgets(
     'a text font that loads after the first layout replaces the layout '
     'once',
     (tester) async {
