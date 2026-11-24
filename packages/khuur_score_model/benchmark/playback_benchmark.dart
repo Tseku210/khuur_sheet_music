@@ -1,6 +1,7 @@
 // Checks that a playback compile costs in step with the size of the score. It
-// compiles a score with a slur and a trill line in every bar, then one four
-// times as long, and compares the two times.
+// compiles each of three scores, then one four times as long, and compares
+// the two times: a slur and a trill line in every bar, one long run of
+// measure-repeat signs, and short runs of signs among dynamics and hairpins.
 //
 // Run it compiled, from packages/khuur_score_model. A JIT run measures the
 // compiler as much as the code. The compiler does not create `build`, which
@@ -9,14 +10,13 @@
 //   mkdir -p build && dart compile exe benchmark/playback_benchmark.dart -o build/playback_benchmark
 //   build/playback_benchmark
 //
-// It prints one line per score and exits with 1 when the longer score costs
-// more than [_mostGrowth] times the shorter.
+// It prints the time of each score and the growth of each pair, and exits
+// with 1 when a longer score costs more than [_mostGrowth] times its shorter
+// one.
 
 import 'dart:io';
 
 import 'package:khuur_score_model/khuur_score_model.dart';
-
-const int _bars = 1000;
 
 /// Four times the bars cost four times the time when the compile is linear
 /// and sixteen times when it is quadratic. The bound sits between, clear of
@@ -82,6 +82,74 @@ Score lined(int bars) {
   );
 }
 
+/// [lined] with no spanners and the bars that [covered] picks under one-bar
+/// measure-repeat signs.
+Score _underSigns(int bars, bool Function(int bar) covered) {
+  final score = lined(bars);
+  return score.copyWith(
+    spanners: const Seq.empty(),
+    measures: Seq([
+      for (final (bar, column) in score.measures.indexed)
+        if (covered(bar))
+          column.withStaff(
+            column.staves.first.copyWith(
+              voices: Seq([
+                Voice(
+                  slot: VoiceSlot.one,
+                  items: Seq([
+                    MeasureRest(
+                      id: EventId(4 * bars + bar),
+                      span: column.length,
+                    ),
+                  ]),
+                ),
+              ]),
+              measureRepeat: () => MeasureRepeat.oneBar,
+            ),
+          )
+        else
+          column,
+    ]),
+  );
+}
+
+/// A score of [bars] bars in one run of signs after the first bar.
+Score repeated(int bars) => _underSigns(bars, (bar) => bar > 0);
+
+/// A score of [bars] bars where every second bar is under a sign and every
+/// other bar has a dynamic and a hairpin.
+Score markedRepeats(int bars) {
+  final score = _underSigns(bars, (bar) => bar.isOdd);
+  final staff = score.staves.first.id;
+  final last = Moment.zero + NoteValue.quarter.length * Fraction(3);
+  return score.copyWith(
+    measures: Seq([
+      for (final (bar, column) in score.measures.indexed)
+        if (bar.isOdd)
+          column
+        else
+          column.withStaff(
+            column.staves.first.copyWith(
+              directions: Seq([
+                DynamicMark(Moment.zero, bar % 4 == 0 ? Dynamic.p : Dynamic.f),
+              ]),
+            ),
+          ),
+    ]),
+    spanners: Seq([
+      for (final (bar, column) in score.measures.indexed)
+        if (bar.isEven)
+          Spanner(
+            id: SpannerId(bar),
+            kind: Hairpin(crescendo: bar % 4 == 0),
+            staff: staff,
+            first: ScorePoint(column.id, Moment.zero),
+            last: ScorePoint(column.id, last),
+          ),
+    ]),
+  );
+}
+
 /// The median time of [runs] compiles of [score], each by a new compiler,
 /// after [warmUps] that do not count. Fails when a compile plays a number of
 /// notes other than [notes].
@@ -115,21 +183,31 @@ void main() {
   // Each bar plays two slurred quarters and two trilled ones, which play
   // eight notes each at the unmarked tempo.
   const notesPerBar = 2 + 2 * 8;
-  final times = [
-    for (final bars in [_bars, 4 * _bars])
-      (bars, compileTime(lined(bars), notes: bars * notesPerBar)),
+  const repeatNotesPerBar = 4;
+  final kinds = <(String, Score Function(int), int, int)>[
+    ('lines', lined, 1000, notesPerBar),
+    ('repeats', repeated, 2000, repeatNotesPerBar),
+    ('marked repeats', markedRepeats, 2000, repeatNotesPerBar),
   ];
-  for (final (bars, time) in times) {
+  var failed = false;
+  for (final (name, build, shorter, perBar) in kinds) {
+    final times = [
+      for (final bars in [shorter, 4 * shorter])
+        (bars, compileTime(build(bars), notes: bars * perBar)),
+    ];
+    for (final (bars, time) in times) {
+      stdout.writeln(
+        'playback compile of $name: $bars bars, median '
+        '${(time.inMicroseconds / 1000).toStringAsFixed(3)} ms',
+      );
+    }
+    final growth = times.last.$2.inMicroseconds / times.first.$2.inMicroseconds;
+    final over = growth > _mostGrowth;
+    failed = failed || over;
     stdout.writeln(
-      'playback compile: $bars bars, median '
-      '${(time.inMicroseconds / 1000).toStringAsFixed(3)} ms',
+      'four times the bars of $name cost ${growth.toStringAsFixed(2)} times '
+      'as much, bound $_mostGrowth${over ? ', FAILED' : ''}',
     );
   }
-  final growth = times.last.$2.inMicroseconds / times.first.$2.inMicroseconds;
-  final over = growth > _mostGrowth;
-  stdout.writeln(
-    'four times the bars cost ${growth.toStringAsFixed(2)} times as much, '
-    'bound $_mostGrowth${over ? ', FAILED' : ''}',
-  );
-  exitCode = over ? 1 : 0;
+  exitCode = failed ? 1 : 0;
 }
