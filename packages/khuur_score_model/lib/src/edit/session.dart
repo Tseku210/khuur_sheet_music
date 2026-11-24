@@ -387,11 +387,11 @@ final class EditSession {
 /// length.
 ScorePoint? _normalize(Score score, ScorePoint point) {
   final index = score.indexOf(point.measure);
-  if (point.offset < _barEnd(score.barAt(index))) {
+  if (point.offset < _barEnd(score.measures[index])) {
     return point;
   }
-  return index + 1 < score.barCount
-      ? ScorePoint(score.barAt(index + 1).id, Moment.zero)
+  return index + 1 < score.measures.length
+      ? ScorePoint(score.measures[index + 1].id, Moment.zero)
       : null;
 }
 

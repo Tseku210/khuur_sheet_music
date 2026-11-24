@@ -140,11 +140,11 @@ _Result _enterRippled(
 /// [score] with every chord of [staves] that sounds across [time], counted
 /// from the start of bar [bar], as [_Loss.acrossAddedTime].
 Score _rebuiltAcross(Score score, List<StaffId> staves, int bar, Length time) {
-  final (k, offset) = _barAt(time, score.barAt(bar).length);
-  if (bar + k >= score.barCount) {
+  final (k, offset) = _barAt(time, score.measures[bar].length);
+  if (bar + k >= score.measures.length) {
     return score;
   }
-  final at = ScorePoint(score.barAt(bar + k).id, offset);
+  final at = ScorePoint(score.measures[bar + k].id, offset);
   var now = score;
   for (final staff in staves) {
     for (final voice in VoiceSlot.values) {
@@ -281,7 +281,7 @@ _Result _eraseRippled(
         final (a, b) = _sectionAround(now, bar);
         final rippled = lines.rippled(
           now,
-          [for (var i = a; i < b; i++) now.barAt(i).id],
+          [for (var i = a; i < b; i++) now.measures[i].id],
           (held) => _ripple(
             held,
             ids,
@@ -315,7 +315,7 @@ _Result _eraseRippled(
         var bar = first;
         while (bar <= last) {
           final (start, end) = _sectionAround(now, bar);
-          final length = now.barAt(bar).length;
+          final length = now.measures[bar].length;
           final from = bar == first
               ? Moment.zero.until(range.from.offset)
               : Length.zero;
@@ -326,7 +326,7 @@ _Result _eraseRippled(
           if (to > from) {
             final rippled = lines.rippled(
               now,
-              [for (var i = start; i < end; i++) now.barAt(i).id],
+              [for (var i = start; i < end; i++) now.measures[i].id],
               (held) => _ripple(
                 held,
                 ids,
@@ -421,14 +421,14 @@ final class _SectionLines {
 /// also ended where the meter changes.
 (int, int) _sectionAround(Score score, int index) {
   bool ends(int i) =>
-      _splits(score.barAt(i - 1), score.barAt(i)) ||
-      score.barAt(i - 1).meter != score.barAt(i).meter;
+      _splits(score.measures[i - 1], score.measures[i]) ||
+      score.measures[i - 1].meter != score.measures[i].meter;
   var start = index;
   while (start > 0 && !ends(start)) {
     start--;
   }
   var end = index + 1;
-  while (end < score.barCount && !ends(end)) {
+  while (end < score.measures.length && !ends(end)) {
     end++;
   }
   return (start, end);
@@ -454,16 +454,16 @@ _Rippled _ripple(
   bool inRuns = false,
 }) {
   final (a, b) = _sectionAround(score, bar);
-  final old = [for (var i = a; i < b; i++) score.barAt(i)];
+  final old = [for (var i = a; i < b; i++) score.measures[i]];
   final first = old.first;
   final closing = old.last;
   final length = first.length;
   final origin = length * Fraction(bar - a);
-  final next = b < score.barCount ? score.barAt(b) : null;
+  final next = b < score.measures.length ? score.measures[b] : null;
   final moving = staves.toSet();
   final origins = <EventId, EventId>{};
   final shortened = <EventId>{};
-  final edited = score.barAt(bar).id;
+  final edited = score.measures[bar].id;
   ScorePoint? unmoved(Length time) {
     final (k, offset) = _barAt(origin + time, length);
     return k < old.length ? ScorePoint(old[k].id, offset) : null;
@@ -628,7 +628,7 @@ _Rippled _ripple(
         : point;
   }
 
-  final last = rebuilt.barAt(a + count - 1);
+  final last = rebuilt.measures[a + count - 1];
   final sectionEnd = ScorePoint(last.id, _barEnd(last));
 
   ScorePoint placeOrEnd(Length time) => place(time) ?? sectionEnd;
@@ -1207,7 +1207,7 @@ Score _retied(
 
   return _untieWhere(after, [
     for (var bar = from; bar < to; bar++)
-      for (final staff in after.barAt(bar).staves)
+      for (final staff in after.measures[bar].staves)
         if (staves.contains(staff.staff)) (bar, staff.staff),
   ], moves);
 }
@@ -1217,7 +1217,7 @@ Score _retied(
 ScorePoint? _onsetBefore(Score score, Spanner spanner, ScorePoint point) {
   final bar = score.indexOf(point.measure);
   for (var i = bar; i >= 0; i--) {
-    final column = score.barAt(i);
+    final column = score.measures[i];
     final staff = column.staff(spanner.staff);
     final voice =
         staff.voice(spanner.voice ?? VoiceSlot.one) ?? staff.voices.first;

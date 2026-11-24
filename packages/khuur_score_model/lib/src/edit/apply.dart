@@ -415,7 +415,7 @@ final class _BarWrites {
   final Score score;
   final _written = <int, MeasureColumn>{};
 
-  MeasureColumn operator [](int bar) => _written[bar] ?? score.barAt(bar);
+  MeasureColumn operator [](int bar) => _written[bar] ?? score.measures[bar];
 
   void operator []=(int bar, MeasureColumn column) => _written[bar] = column;
 
@@ -481,9 +481,9 @@ TimedEvent? _previous(Score score, TimedEvent timed) {
       return null;
     }
     index--;
-    end = _barEnd(score.barAt(index));
+    end = _barEnd(score.measures[index]);
   }
-  final column = score.barAt(index);
+  final column = score.measures[index];
   final voice = column.staff(timed.ref.staff).voice(timed.voice);
   if (voice == null) {
     return null;
@@ -581,7 +581,7 @@ Score _untieWhere(
 ) {
   final untied = _BarWrites(after);
   for (final (bar, staff) in lanes) {
-    final column = after.barAt(bar);
+    final column = after.measures[bar];
     for (final voice in column.staff(staff).voices) {
       for (final timed in timedEvents(
         voice,

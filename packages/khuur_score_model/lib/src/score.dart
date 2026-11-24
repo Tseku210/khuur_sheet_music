@@ -207,7 +207,7 @@ final class Score {
   final _Places _places;
 
   Map<MeasureId, int> get _indexById => _places.byId ??= {
-    for (var i = 0; i < barCount; i++) barAt(i).id: i,
+    for (var i = 0; i < measures.length; i++) measures[i].id: i,
   };
 
   /// Position of [id] in [measures]. Throws if [id] is not in this score.
@@ -222,12 +222,12 @@ final class Score {
   /// than its meter is a pickup and is numbered 0, so the bar after it is 1.
   /// Throws if [id] is not in this score.
   int barNumberOf(MeasureId id) {
-    final first = barAt(0);
+    final first = measures[0];
     return indexOf(id) + (first.length < first.meter.length ? 0 : 1);
   }
 
   /// Bar [id]. Throws if [id] is not in this score.
-  MeasureColumn column(MeasureId id) => barAt(indexOf(id));
+  MeasureColumn column(MeasureId id) => measures[indexOf(id)];
 
   /// The part that holds [staff]. Throws if no part does.
   Part partOf(StaffId staff) {
@@ -281,7 +281,7 @@ final class Score {
     if (index == null) {
       return null;
     }
-    return barAt(index).staves.where((s) => s.staff == staff).firstOrNull;
+    return measures[index].staves.where((s) => s.staff == staff).firstOrNull;
   }
 
   /// Where [id] lives in this score, or null when it does not exist.
@@ -293,12 +293,12 @@ final class Score {
   EventRef? locate(EventId id) => _refById[id];
 
   late final Map<EventId, EventRef> _refById = {
-    for (var bar = 0; bar < barCount; bar++)
-      for (final staff in barAt(bar).staves)
+    for (var bar = 0; bar < measures.length; bar++)
+      for (final staff in measures[bar].staves)
         for (final voice in staff.voices)
           for (final timed in timedEvents(
             voice,
-            measure: barAt(bar).id,
+            measure: measures[bar].id,
             staff: staff.staff,
           ))
             timed.event.id: timed.ref,
@@ -324,8 +324,8 @@ final class Score {
   /// building a [measureView] per bar. Throws if [staff] is not in this
   /// score.
   Iterable<TimedEvent> laneOf(StaffId staff, VoiceSlot voice) sync* {
-    for (var bar = 0; bar < barCount; bar++) {
-      final column = barAt(bar);
+    for (var bar = 0; bar < measures.length; bar++) {
+      final column = measures[bar];
       if (column.staff(staff).voice(voice) case final lane?) {
         yield* timedEvents(lane, measure: column.id, staff: staff);
       }
@@ -366,10 +366,10 @@ final class Score {
   /// The events of the voice and staff of [like] in the bar at index [bar],
   /// or nothing where this score has no such bar or the bar no such voice.
   Iterable<TimedEvent> _voiceEvents(int bar, TimedEvent like) sync* {
-    if (bar < 0 || bar >= barCount) {
+    if (bar < 0 || bar >= measures.length) {
       return;
     }
-    final column = barAt(bar);
+    final column = measures[bar];
     if (column.staff(like.ref.staff).voice(like.voice) case final lane?) {
       yield* timedEvents(lane, measure: column.id, staff: like.ref.staff);
     }
@@ -396,7 +396,7 @@ final class Score {
     ScorePoint to,
   ) sync* {
     for (var bar = indexOf(from.measure); bar <= indexOf(to.measure); bar++) {
-      final column = barAt(bar);
+      final column = measures[bar];
       if (column.staff(staff).voice(voice) case final lane?) {
         for (final timed in timedEvents(
           lane,
@@ -485,7 +485,7 @@ final class Score {
   /// Everything in effect at a point on a staff.
   ScoreContext contextAt(StaffId staff, ScorePoint at) {
     final index = indexOf(at.measure);
-    final column = barAt(index);
+    final column = measures[index];
     final octaveLine = spannersTouching(at.measure)
         .where(
           (s) =>
@@ -509,7 +509,7 @@ final class Score {
 
   Tempo _tempoAt(int index, Moment offset) {
     for (var i = index; i >= 0; i--) {
-      final mark = barAt(i).tempos
+      final mark = measures[i].tempos
           .where((mark) => i < index || mark.offset <= offset)
           .lastOrNull;
       if (mark != null) {
@@ -647,7 +647,7 @@ final class Score {
   }
 
   MeasureColumn? _columnAt(int index) =>
-      index >= 0 && index < barCount ? barAt(index) : null;
+      index >= 0 && index < measures.length ? measures[index] : null;
 
   List<MeasureId> _covered(Spanner spanner) => [
     for (
@@ -655,14 +655,14 @@ final class Score {
       i <= indexOf(spanner.last.measure);
       i++
     )
-      barAt(i).id,
+      measures[i].id,
   ];
 
   /// The spanners touching each bar, by the bar's index, in the order of
   /// [spanners]. Null for a bar that none touches. Built on first use, so a
   /// score pays for it once, however many bars are then viewed.
   late final List<List<Spanner>?> _spannersByBar = () {
-    final byBar = List<List<Spanner>?>.filled(barCount, null);
+    final byBar = List<List<Spanner>?>.filled(measures.length, null);
     for (final spanner in spanners) {
       final last = indexOf(spanner.last.measure);
       for (var i = indexOf(spanner.first.measure); i <= last; i++) {
@@ -687,12 +687,6 @@ final class _Places {
 /// How the edit engine reads and replaces the bars of a score. The library
 /// does not export this.
 extension BarRuns on Score {
-  /// The bar at [index], as `measures[index]`.
-  MeasureColumn barAt(int index) => measures[index];
-
-  /// How many bars the score has, as `measures.length`.
-  int get barCount => measures.length;
-
   /// The event [ref] names when the bar it names holds it, and null when
   /// that bar does not hold it, where [lookup] goes on to read every bar.
   TimedEvent? inItsBar(EventRef ref) => _find(ref);
