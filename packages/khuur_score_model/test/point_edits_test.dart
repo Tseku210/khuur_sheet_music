@@ -301,6 +301,67 @@ void main() {
     });
   });
 
+  group('RemoveGraces', () {
+    test('takes every grace off the chord, and again changes nothing', () {
+      final session = sessionWith([
+        [chordOf(20, 'F4', value: NoteValue.whole)],
+      ]);
+      final ref = eventRef(session, 20);
+      final graced = applied(
+        applied(
+          session.run(AddGrace(event: ref, tone: g4)),
+        ).run(AddGrace(event: ref, tone: a4)),
+      );
+      expect(chordIn(graced, 20).graces, hasLength(2));
+
+      final plain = applied(graced.run(RemoveGraces(ref)));
+
+      expect(chordIn(plain, 20).graces, isEmpty);
+      expect(changesNothing(plain, RemoveGraces(ref)), isTrue);
+    });
+
+    test('changes nothing on a rest', () {
+      final session = sessionWith([
+        [rest(20, NoteValue.whole)],
+      ]);
+
+      expect(
+        changesNothing(session, RemoveGraces(eventRef(session, 20))),
+        isTrue,
+      );
+    });
+  });
+
+  group('SetTremolo', () {
+    test('sets and clears the strokes, and a re-set changes nothing', () {
+      final session = sessionWith([
+        [chordOf(20, 'F4', value: NoteValue.whole)],
+      ]);
+      final ref = eventRef(session, 20);
+
+      final three = applied(session.run(SetTremolo(ref, 3)));
+      final none = applied(three.run(SetTremolo(ref, 0)));
+
+      expect(chordIn(three, 20).tremolo, 3);
+      expect(chordIn(none, 20).tremolo, 0);
+      expect(changesNothing(three, SetTremolo(ref, 3)), isTrue);
+    });
+
+    test('refuses strokes on a rest and counts past 0 to 4, and clearing '
+        'a rest changes nothing', () {
+      final session = sessionWith([
+        [chordOf(20, 'F4', value: NoteValue.half), rest(21, NoteValue.half)],
+      ]);
+      final chord = eventRef(session, 20);
+      final rested = eventRef(session, 21);
+
+      expect(refusal(session.run(SetTremolo(rested, 1))), isA<InvalidValue>());
+      expect(refusal(session.run(SetTremolo(chord, 5))), isA<InvalidValue>());
+      expect(refusal(session.run(SetTremolo(chord, -1))), isA<InvalidValue>());
+      expect(changesNothing(session, SetTremolo(rested, 0)), isTrue);
+    });
+  });
+
   group('SetArticulation', () {
     test('adds and removes in one bar, and a re-set changes nothing', () {
       final session = sessionWith([

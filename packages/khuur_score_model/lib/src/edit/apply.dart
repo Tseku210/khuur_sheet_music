@@ -174,6 +174,12 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
       event,
       ornament,
     ),
+    SetTremolo(:final event, :final strokes) => _setTremolo(
+      score,
+      event,
+      strokes,
+    ),
+    RemoveGraces(:final event) => _removeGraces(score, event),
     SetBowing(:final event, :final bowing) => _setBowing(score, event, bowing),
     SetBeam(:final event, :final mode) => _setBeam(score, event, mode),
     SetFingering(:final note, :final finger) => _setFingering(

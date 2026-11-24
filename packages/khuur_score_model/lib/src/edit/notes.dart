@@ -155,6 +155,38 @@ _Result _setOrnament(Score score, EventRef event, Ornament? ornament) {
   );
 }
 
+_Result _setTremolo(Score score, EventRef event, int strokes) {
+  if (strokes < 0 || strokes > 4) {
+    throw const _Refuse(InvalidValue('tremolo strokes are 0 to 4'));
+  }
+  final timed = _target(score, event);
+  return _changeEvent(
+    score,
+    timed,
+    _chordOnly(
+      timed.event,
+      clears: strokes == 0,
+      change: (chord) =>
+          chord.tremolo == strokes ? chord : chord.copyWith(tremolo: strokes),
+    ),
+  );
+}
+
+_Result _removeGraces(Score score, EventRef event) {
+  final timed = _target(score, event);
+  return _changeEvent(
+    score,
+    timed,
+    _chordOnly(
+      timed.event,
+      clears: true,
+      change: (chord) => chord.graces.isEmpty
+          ? chord
+          : chord.copyWith(graces: const Seq<GraceChord>.empty()),
+    ),
+  );
+}
+
 _Result _setBowing(Score score, EventRef event, Bowing? bowing) {
   final timed = _target(score, event);
   return _changeEvent(
