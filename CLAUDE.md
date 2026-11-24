@@ -6,6 +6,9 @@ Flutter package that renders sheet music on a `Canvas` and plays it back over MI
 
 ```bash
 flutter pub get          # also resolves example/
+tool/check.sh            # format, analyze, the four test suites and the player orders below, each from its own directory; exits 1 when one failed
+tool/check.sh --full     # also the six benchmarks and the web tests
+dart format --output=none --set-exit-if-changed .   # must change nothing
 flutter analyze          # library, tests, and example; must report no issues
 flutter test             # the view's, the painter's and the player's tests in test/
 cd packages/khuur_score_model && dart test   # score model tests (not run by flutter test)
@@ -19,6 +22,7 @@ cd packages/khuur_score_model && mkdir -p build && dart compile exe benchmark/ed
 cd packages/khuur_score_layout && dart run tool/generate_bravura.dart   # rewrites lib/src/bravura.g.dart from tool/bravura_metadata.json
 cd example && flutter test   # the example app's tests (not run by the root's flutter test)
 flutter test verification/score_player/orders_test.dart   # every order of up to 7 steps on ScorePlayer, checked against its promises (not run by flutter test)
+flutter test --platform chrome test/web   # the web tests, in Chrome (not run by flutter test)
 cd example && flutter run            # the example app, Android or iOS
 ```
 
