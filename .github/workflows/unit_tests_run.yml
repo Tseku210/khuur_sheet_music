@@ -161,6 +161,35 @@ jobs:
           flutter build web
           flutter build web --wasm
 
+  # SynthOutput plays through khuur_synth's FluidSynth, which builds for
+  # Android and iOS only. No test compiles that native code, so this job
+  # builds the example app for Android, with the plugin's Gradle build.
+  android:
+    name: Android build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v7
+
+      # The example's Gradle and Android Gradle plugin need JDK 17 or later.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build the example's debug APK
+        if: ${{ !cancelled() }}
+        working-directory: example
+        run: flutter build apk --debug
+
   packages:
     name: Package checks
     runs-on: ubuntu-latest
