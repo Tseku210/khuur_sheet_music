@@ -3587,6 +3587,35 @@ void main() {
           );
         });
       }
+
+      test('a score of more than 200000 bars over all its staves, and reads '
+          'one of that many', () {
+        // A small file can state 99 staves and thousands of empty bars,
+        // and every staff holds a bar for each.
+        String wide(int bars) => flute([
+          [
+            '<attributes><divisions>1</divisions><staves>99</staves></attributes>',
+          ],
+          for (var bar = 1; bar < bars; bar++) [],
+        ]);
+
+        expect(scoreFromMusicXml(wide(2020)).measures, hasLength(2020));
+        final watch = Stopwatch()..start();
+        expect(
+          () => scoreFromMusicXml(wide(2021)),
+          throwsA(
+            isA<ScoreFormatException>()
+                .having((e) => e.path, 'path', '/score-partwise')
+                .having(
+                  (e) => e.message,
+                  'message',
+                  'a score has at most 200000 bars over all its staves, '
+                      'not 200079',
+                ),
+          ),
+        );
+        expect(watch.elapsed, lessThan(const Duration(seconds: 1)));
+      });
     });
   });
 }
