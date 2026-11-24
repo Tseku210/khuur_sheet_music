@@ -3,8 +3,12 @@
 ///
 /// Run it with
 /// `flutter test verification/score_player/orders_test.dart`, and
-/// `--dart-define=PLAYER_ORDERS_DEPTH=n` for another bound. The project
-/// skill `.claude/skills/score-player-orders/SKILL.md` says what it covers.
+/// `--dart-define=PLAYER_ORDERS_DEPTH=n` for another bound. The steps are
+/// the `Step`s of `world.dart`: the app's calls, time passing or stalling,
+/// loads and programs that finish or fail, and listeners that call back in.
+/// After each step it checks that no call threw, and checks the output's
+/// calls, held keys, note timers, frames, expression and position. It
+/// fails too when the search does not reach every case in `mustReach`.
 library;
 
 import 'package:flutter_test/flutter_test.dart';
