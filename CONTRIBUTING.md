@@ -134,7 +134,7 @@ The types are `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf` and `ci
 The maintainer releases each package on its own. A pushed tag publishes it to pub.dev through `.github/workflows/publish.yml`.
 
 1. In a pull request, raise the `version` in the package's `pubspec.yaml` and add its entry to the package's `CHANGELOG.md`. If the package needs a new version of another package of this repository, release that one first and raise the dependency.
-2. In the same pull request, update the site in `site/src/content/docs/` for every change in the CHANGELOG entry that a user of the package would notice, such as a new or changed edit, widget or option, or a change in how a score sounds or is drawn. For a new minor version, raise the `khuur_sheet_music` version that the tutorial installs. CI checks that each CHANGELOG and the tutorial name the pubspec's version, with `.github/scripts/check_release_docs.sh`.
+2. In the same pull request, update the site in `site/src/content/docs/` for every change in the CHANGELOG entry that a user of the package would notice, such as a new or changed edit, widget or option, or a change in how a score sounds or is drawn. For a new minor version, raise the `khuur_sheet_music` version that the tutorial installs. Raise the versions on the Packages and Platforms and limits pages under `reference/` too. CI checks that each CHANGELOG, the tutorial and those two pages name the pubspec's version, with `.github/scripts/check_release_docs.sh`.
 3. Merge the pull request.
 4. Tag the merge commit on `main` and push the tag. The tag names the package and the new version.
 
