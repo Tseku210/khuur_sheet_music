@@ -41,7 +41,7 @@ Score _eraseItems(Score score, Seq<ElementRef> items, _Ids ids) {
         (item, _, _) => item is Event && whole.contains(item.id),
     ids,
   );
-  return _retie(score, cleared, lanes);
+  return cleared;
 }
 
 /// The events [items] picks, the ones it picks whole, and [score] without
@@ -126,11 +126,7 @@ Score _eraseRange(
       if (!staves.contains(s.staff) || !inRange(s.first) || !inRange(s.last)) s,
   ];
   final unchanged = !bars.changed && spanners.length == score.spanners.length;
-  return _retie(
-    score,
-    unchanged ? cleared : bars.written.copyWith(spanners: Seq(spanners)),
-    lanes,
-  );
+  return unchanged ? cleared : bars.written.copyWith(spanners: Seq(spanners));
 }
 
 /// Whether an erase takes [item], which sounds from [onset] for

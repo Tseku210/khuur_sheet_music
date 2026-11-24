@@ -42,6 +42,7 @@ part 'rebar.dart';
 part 'ripple.dart';
 part 'rhythm.dart';
 part 'shift.dart';
+part 'ties.dart';
 part 'transpose.dart';
 
 /// An immutable editing session: the current score, where the cursor is,
@@ -183,7 +184,11 @@ final class EditSession {
     final result = _apply(held, edit, ids, this);
     final next = identical(result.score, held) || identical(result.score, score)
         ? score
-        : _withFittingSpanners(_withStandingMeasureRepeats(result.score));
+        : _withFittingSpanners(
+            _withStandingMeasureRepeats(
+              _withTiesSettled(held, result.score),
+            ),
+          );
     return EditSession._(
       next,
       result.cursor ?? _revalidateCursor(cursor, score, next),

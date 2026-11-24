@@ -263,16 +263,21 @@ _Result _paste(
   }
 
   // The lane writer puts an item that starts in a tuplet into it, so the
-  // erase must not dissolve that tuplet first.
-  var pasted = _eraseRange(
+  // erase must not dissolve that tuplet first. A tie into the erased music
+  // ends with it, even where the paste writes a head of its tone.
+  var pasted = _retie(
     padded,
-    range,
-    ids,
-    keep: {
-      for (final lane in clip._lanes)
-        if (lane.staff < staves.length)
-          for (final (:offset, item: _) in lane.items) ?holding(lane, offset),
-    },
+    _eraseRange(
+      padded,
+      range,
+      ids,
+      keep: {
+        for (final lane in clip._lanes)
+          if (lane.staff < staves.length)
+            for (final (:offset, item: _) in lane.items) ?holding(lane, offset),
+      },
+    ),
+    _covers(padded, range).lanes,
   );
   final written = <EventId>{};
   final heads = <NoteId, NoteId>{};
