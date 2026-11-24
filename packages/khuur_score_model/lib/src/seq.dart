@@ -1,3 +1,6 @@
+import 'dart:collection';
+import 'dart:math';
+
 /// An immutable ordered sequence with non-destructive updates.
 ///
 /// Every container in the score tree holds its children in a [Seq]. An update
@@ -21,6 +24,10 @@ final class Seq<T> extends Iterable<T> {
   /// The empty sequence.
   const Seq.empty() : _items = const <Never>[];
 
+  Seq._(this._items);
+
+  /// The items, in one list or, for a sequence [SeqRuns.inRuns] made, in
+  /// runs.
   final List<T> _items;
 
   @override
@@ -43,6 +50,9 @@ final class Seq<T> extends Iterable<T> {
 
   /// A copy with [value] in place of the element at [index].
   Seq<T> replaceAt(int index, T value) {
+    if (_items case final _Runs<T> runs) {
+      return Seq._(runs.replacing({index: value}));
+    }
     final copy = List<T>.of(_items);
     copy[index] = value;
     return Seq(copy);
@@ -65,4 +75,83 @@ final class Seq<T> extends Iterable<T> {
 
   /// A copy with [value] added at the end.
   Seq<T> append(T value) => Seq(List<T>.of(_items)..add(value));
+}
+
+/// How the edit engine holds a long sequence in runs, so that replacing a
+/// few elements copies only the runs that hold them. A sequence in runs
+/// reads and compares as any other. The library does not export this.
+extension SeqRuns<T> on Seq<T> {
+  /// This sequence with its items in runs about as long as the list of
+  /// runs, or this sequence when it already is.
+  Seq<T> get inRuns => _items is _Runs<T> ? this : Seq._(_Runs.of(_items));
+
+  /// This sequence with its items in one list, or this sequence when it
+  /// already is.
+  Seq<T> get flat => _items is _Runs<T> ? Seq(_items) : this;
+
+  /// A copy with each value of [values] in place of the element at its
+  /// index. A sequence in runs stays in runs and copies only the runs it
+  /// writes; any other copies its list once.
+  Seq<T> replacingEach(Map<int, T> values) {
+    if (_items case final _Runs<T> runs) {
+      return Seq._(runs.replacing(values));
+    }
+    final copy = List<T>.of(_items);
+    values.forEach((index, value) => copy[index] = value);
+    return Seq(copy);
+  }
+}
+
+/// Items in runs of one length, the last run shorter when the items do not
+/// fill it. Nothing writes to it once it is made.
+final class _Runs<T> extends ListBase<T> {
+  _Runs._(this._runs, this._shift, this.length);
+
+  /// [items] in runs about as long as the list of runs.
+  factory _Runs.of(List<T> items) {
+    final shift = items.length.bitLength ~/ 2;
+    final size = 1 << shift;
+    return _Runs._(
+      [
+        for (var start = 0; start < items.length; start += size)
+          items.sublist(start, min(start + size, items.length)),
+      ],
+      shift,
+      items.length,
+    );
+  }
+
+  final List<List<T>> _runs;
+  final int _shift;
+
+  @override
+  final int length;
+
+  @override
+  set length(int length) => throw UnsupportedError('a Seq cannot change');
+
+  @override
+  T operator [](int index) {
+    RangeError.checkValidIndex(index, this);
+    return _runs[index >> _shift][index & ((1 << _shift) - 1)];
+  }
+
+  @override
+  void operator []=(int index, T value) =>
+      throw UnsupportedError('a Seq cannot change');
+
+  /// The runs with each value of [values] in place of the item at its
+  /// index.
+  _Runs<T> replacing(Map<int, T> values) {
+    final runs = List.of(_runs);
+    for (final MapEntry(key: index, :value) in values.entries) {
+      RangeError.checkValidIndex(index, this);
+      final run = index >> _shift;
+      if (identical(runs[run], _runs[run])) {
+        runs[run] = List.of(_runs[run]);
+      }
+      runs[run][index & ((1 << _shift) - 1)] = value;
+    }
+    return _Runs._(runs, _shift, length);
+  }
 }

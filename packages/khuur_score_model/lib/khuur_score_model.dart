@@ -43,6 +43,6 @@ export 'src/playback.dart'
         PlayedBar;
 export 'src/refs.dart';
 export 'src/score.dart' hide BarRuns;
-export 'src/seq.dart';
+export 'src/seq.dart' hide SeqRuns;
 export 'src/time.dart';
 export 'src/views.dart';
