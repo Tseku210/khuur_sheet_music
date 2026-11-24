@@ -512,10 +512,13 @@ final class HeaderPainter extends CustomPainter {
 
   /// In sheet space.
   final List<Drawable> header;
+
   /// Draws the glyphs and the text. Compared by identity.
   final GlyphPainter glyphs;
+
   /// Gives each drawable the colour of its [InkRole].
   final SheetPalette palette;
+
   /// Maps sheet space to the painter's pixels.
   final SheetScale scale;
 
@@ -561,10 +564,13 @@ final class SystemPainter extends CustomPainter {
 
   /// The bar number at the start of the system, in system space.
   final TextDraw? label;
+
   /// Draws the glyphs and the text. Compared by identity.
   final GlyphPainter glyphs;
+
   /// Gives each drawable the colour of its [InkRole].
   final SheetPalette palette;
+
   /// Maps system space to the tile's pixels.
   final SheetScale scale;
 
@@ -606,15 +612,19 @@ final class HighlightPainter extends CustomPainter {
 
   /// Which system of [layout] this tile shows.
   final int index;
+
   /// What is selected, boxed in the palette's selection style. Compared by
   /// identity.
   final Selection selection;
+
   /// Where playback is. Its playing events get the column. Null draws no
   /// column.
   final ValueListenable<PlaybackPosition?>? playback;
+
   /// Gives the style of the selection and of playback. Its other parts are
   /// not read.
   final SheetPalette palette;
+
   /// Maps system space to the tile's pixels.
   final SheetScale scale;
 
@@ -760,25 +770,33 @@ final class OverlayPainter extends CustomPainter {
 
   /// Which system of [layout] this tile shows.
   final int index;
+
   /// The edit cursor, drawn as a caret in the palette's cursor style. Null
   /// draws no caret.
   final VoicePoint? cursor;
+
   /// A note that is not in the score, as `SheetView.preview` describes.
   /// Null draws none.
   final NotePreview? preview;
+
   /// What is selected. Its items and spanners are drawn again in the
   /// selection's ink, when the palette gives one. Compared by identity.
   final Selection selection;
+
   /// A colour each note or event is drawn again in. Compared by identity.
   final Map<ElementRef, Color> tints;
+
   /// Where playback is. Its playing events take playback's ink, and its
   /// point places the playhead. Null draws neither.
   final ValueListenable<PlaybackPosition?>? playback;
+
   /// Draws the glyphs and the text. Compared by identity.
   final GlyphPainter glyphs;
+
   /// Gives the inks of the selection and of playback, the caret, the
   /// playhead and the preview's colour.
   final SheetPalette palette;
+
   /// Maps system space to the tile's pixels.
   final SheetScale scale;
 

@@ -851,14 +851,20 @@ void main() {
       final second = moved(up);
       final third = moved(const Transposition.interval(Interval.minorThird));
 
-      expect((second.ornamentAbove, second.ornamentBelow), (
-        Alter.flat,
-        Alter.sharp,
-      ));
-      expect((third.ornamentAbove, third.ornamentBelow), (
-        Alter.flat,
-        Alter.natural,
-      ));
+      expect(
+        (second.ornamentAbove, second.ornamentBelow),
+        (
+          Alter.flat,
+          Alter.sharp,
+        ),
+      );
+      expect(
+        (third.ornamentAbove, third.ornamentBelow),
+        (
+          Alter.flat,
+          Alter.natural,
+        ),
+      );
     });
 
     test('moves the chord symbols in a range', () {

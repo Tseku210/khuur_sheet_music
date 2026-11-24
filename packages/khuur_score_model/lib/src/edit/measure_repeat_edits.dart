@@ -195,8 +195,10 @@ Score _writtenOut(
     }
     for (final spanner in score.spanners) {
       if (spanner.staff == staff && _lieOnNotes(spanner.kind)) {
-        if (_copiedInto(score, columns, spanner, bar, source, length)
-            case (final first, final last)) {
+        if (_copiedInto(score, columns, spanner, bar, source, length) case (
+          final first,
+          final last,
+        )) {
           spanners.add(
             Spanner(
               id: ids.spanner(),

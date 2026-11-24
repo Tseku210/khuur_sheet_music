@@ -114,8 +114,10 @@ final class EnterNote extends Edit {
   /// A pitch on a pitched staff, or a drum of the part's kit on a
   /// percussion staff. Anything else is refused with [InvalidValue].
   final Tone tone;
+
   /// The written value. Inside a tuplet it is read in the tuplet's time.
   final NoteValue value;
+
   /// What happens when the note runs past the barline. See [EnterNote].
   final Overfill overfill;
 
@@ -148,14 +150,18 @@ final class EnterRest extends Edit {
 
   /// Where the rest starts: the staff, the voice and the point in the bar.
   final VoicePoint at;
+
   /// The written value. Inside a tuplet it is read in the tuplet's time.
   final NoteValue value;
+
   /// What happens when the rest runs past the barline, as for
   /// [EnterNote.overfill].
   final Overfill overfill;
+
   /// Whether a rest that ends the score gets an empty bar after it, as for
   /// [EnterNote.appendBar].
   final bool appendBar;
+
   /// Whether the music after the rest moves to make room for it. See [Ripple].
   final Ripple ripple;
 
@@ -267,6 +273,7 @@ final class AddToChord extends Edit {
 
   /// The chord or rest that gets the new head.
   final EventRef event;
+
   /// What the new head plays.
   final Tone tone;
 
@@ -296,6 +303,7 @@ final class SetTone extends Edit {
 
   /// The head to change. The tie chain through it changes with it.
   final NoteRef note;
+
   /// The new pitch or drum.
   final Tone tone;
 
@@ -328,9 +336,11 @@ final class SetValue extends Edit {
 
   /// The chord, rest or measure rest to change.
   final EventRef event;
+
   /// The new written value. It must last a whole number of 128th notes, or the
   /// edit is refused with [InvalidValue].
   final NoteValue value;
+
   /// Whether the music after the event moves by the change. See [Ripple].
   final Ripple ripple;
 
@@ -354,10 +364,12 @@ final class EnterTuplet extends Edit {
 
   /// Where the tuplet starts: the staff, the voice and the point in the bar.
   final VoicePoint at;
+
   /// How many notes the tuplet holds in the time of how many.
   /// [TupletRatio.triplet] is 3 in the time of 2. A term of 0 or less is
   /// refused with [InvalidValue].
   final TupletRatio ratio;
+
   /// The written value of each rest, and the value the ratio counts in. The
   /// tuplet holds `ratio.actual` rests of it and lasts `ratio.normal` of it.
   final NoteValue unit;
@@ -380,11 +392,14 @@ final class AddGrace extends Edit {
   /// The principal chord the grace leads into. A rest is refused with
   /// [InvalidValue].
   final EventRef event;
+
   /// What the grace plays.
   final Tone tone;
+
   /// An acciaccatura, the default, or an appoggiatura. Playback times the two
   /// differently. See [GraceChord].
   final GraceKind kind;
+
   /// The grace's written value, an eighth by default. It must last a whole
   /// number of 128th notes, or the edit is refused with [InvalidValue].
   final NoteValue value;
@@ -415,6 +430,7 @@ final class SetTie extends Edit {
 
   /// The head the tie starts on.
   final NoteRef note;
+
   /// Whether the tie is there after the edit.
   final bool tied;
 
@@ -433,6 +449,7 @@ final class SetLetRing extends Edit {
 
   /// The head the let-ring tie starts on.
   final NoteRef note;
+
   /// Whether the let-ring tie is there after the edit, unless [note] has a
   /// plain tie.
   final bool letRing;
@@ -469,6 +486,7 @@ final class Erase extends Edit {
 
   /// What to clear: picked events, heads and spanners, or a range.
   final Selection selection;
+
   /// Whether the time of what is deleted is taken out. See [Ripple].
   final Ripple ripple;
 
@@ -486,8 +504,10 @@ final class SetArticulation extends Edit {
   /// The chord or rest that carries the mark. A rest holds only a fermata, and
   /// adding another mark to one is refused with [InvalidValue].
   final EventRef event;
+
   /// The mark to add or remove.
   final Articulation articulation;
+
   /// Whether the mark is there after the edit.
   final bool present;
 
@@ -504,6 +524,7 @@ final class SetOrnament extends Edit {
   /// The chord that carries the sign. Setting a sign on a rest is refused with
   /// [InvalidValue], and clearing one there changes nothing.
   final EventRef event;
+
   /// The sign to set, or null to clear it.
   final Ornament? ornament;
 
@@ -520,6 +541,7 @@ final class SetTremolo extends Edit {
   /// The chord the strokes cross. Setting strokes on a rest is refused with
   /// [InvalidValue], and clearing them there changes nothing.
   final EventRef event;
+
   /// How many strokes, 0 to 4. Any other count is refused with
   /// [InvalidValue].
   final int strokes;
@@ -536,6 +558,7 @@ final class SetBowing extends Edit {
   /// The chord that carries the bowing. Setting a bowing on a rest is refused
   /// with [InvalidValue], and clearing one there changes nothing.
   final EventRef event;
+
   /// The bow direction to set, or null to clear it.
   final Bowing? bowing;
 
@@ -552,6 +575,7 @@ final class SetBeam extends Edit {
   /// The chord to change. Setting a mode other than [BeamMode.auto] on a rest
   /// is refused with [InvalidValue].
   final EventRef event;
+
   /// The beam mode to set.
   final BeamMode mode;
 
@@ -568,6 +592,7 @@ final class SetFingering extends Edit {
 
   /// The head to mark.
   final NoteRef note;
+
   /// The finger number, 0 for an open string, or null to clear it. A negative
   /// number is refused with [InvalidValue].
   final int? finger;
@@ -583,6 +608,7 @@ final class SetString extends Edit {
 
   /// The head to mark.
   final NoteRef note;
+
   /// The index into the instrument's `strings`, lowest-tuned string first, or
   /// null to clear it. An index the instrument does not have is refused with
   /// [InvalidValue].
@@ -599,6 +625,7 @@ final class SetAccidental extends Edit {
 
   /// The head to change.
   final NoteRef note;
+
   /// When the accidental prints. [AccidentalRequest.auto] leaves it to the key,
   /// bar and tie rules.
   final AccidentalRequest request;
@@ -615,9 +642,11 @@ final class SetLyric extends Edit {
   /// The chord that carries the lyric. Setting a lyric on a rest is refused
   /// with [InvalidValue], and clearing one there changes nothing.
   final EventRef event;
+
   /// The verse number, counted from 1. It must match [Lyric.verse] of [lyric],
   /// or the edit is refused with [InvalidValue].
   final int verse;
+
   /// The syllable to set, or null to clear the verse.
   final Lyric? lyric;
 
@@ -640,8 +669,10 @@ final class SetDirections extends Edit {
 
   /// The staff that holds the directions.
   final StaffId staff;
+
   /// The bar that holds the directions.
   final MeasureId measure;
+
   /// The staff's complete directions for the bar, each at its offset in the
   /// bar. An empty list removes them all.
   final Seq<StaffDirection> directions;
@@ -678,13 +709,17 @@ final class AddSpanner extends Edit {
   /// What the spanner draws: a slur, hairpin, octave line, trill line, tempo
   /// line, pedal line or glissando.
   final SpannerKind kind;
+
   /// The staff the spanner is drawn on.
   final StaffId staff;
+
   /// The voice a slur or glissando joins, voice one when null. Ignored for the
   /// other kinds.
   final VoiceSlot? voice;
+
   /// Where the spanner starts.
   final ScorePoint first;
+
   /// Where the spanner ends.
   final ScorePoint last;
 
@@ -759,8 +794,10 @@ final class SetMeter extends Edit {
 
   /// The first bar that takes the new meter.
   final MeasureId from;
+
   /// The new meter.
   final Meter meter;
+
   /// Whether the music is re-barred or each bar keeps its content. See
   /// [SetMeter].
   final MeterContent content;
@@ -787,6 +824,7 @@ final class SetKey extends Edit {
 
   /// The first bar that takes the new key.
   final MeasureId from;
+
   /// The new key signature.
   final KeySignature key;
 
@@ -809,9 +847,11 @@ final class SetClef extends Edit {
 
   /// The staff that gets the clef.
   final StaffId staff;
+
   /// The bar and offset where the clef takes effect. Offset 0 sets the bar's
   /// starting clef.
   final ScorePoint at;
+
   /// The new clef.
   final Clef clef;
 
@@ -828,6 +868,7 @@ final class SetTempoMarks extends Edit {
 
   /// The bar that holds the marks.
   final MeasureId measure;
+
   /// The bar's complete tempo marks, each at its offset in the bar. An empty
   /// list removes them all.
   final Seq<TempoMark> marks;
@@ -853,6 +894,7 @@ final class InsertMeasures extends Edit {
   /// The bar the new bars go before, or null to append them at the end of the
   /// score.
   final MeasureId? before;
+
   /// How many bars to insert, 1 by default.
   final int count;
 
@@ -880,6 +922,7 @@ final class DeleteMeasures extends Edit {
 
   /// One end of the range, inclusive.
   final MeasureId first;
+
   /// The other end of the range, inclusive.
   final MeasureId last;
 
@@ -894,6 +937,7 @@ final class SetBarline extends Edit {
 
   /// The bar whose closing barline changes.
   final MeasureId measure;
+
   /// The new barline.
   final Barline barline;
 
@@ -909,6 +953,7 @@ final class SetRepeatStart extends Edit {
 
   /// The bar the repeated section starts at.
   final MeasureId measure;
+
   /// Whether the bar starts a repeat after the edit.
   final bool start;
 
@@ -924,6 +969,7 @@ final class SetRepeatEnd extends Edit {
 
   /// The bar the repeated section ends at.
   final MeasureId measure;
+
   /// The repeat and its pass count, or null to clear it.
   final RepeatEnd? end;
 
@@ -939,8 +985,10 @@ final class SetVolta extends Edit {
 
   /// One end of the range, inclusive. The ends may come in either order.
   final MeasureId first;
+
   /// The other end of the range, inclusive.
   final MeasureId last;
+
   /// The ending bracket, or null to clear it from the bars.
   final Volta? volta;
 
@@ -989,6 +1037,7 @@ final class SetNavigation extends Edit {
 
   /// The bar that holds the marks.
   final MeasureId measure;
+
   /// The bar's complete navigation marks. An empty list removes them all.
   final Seq<NavigationMark> marks;
 
@@ -1003,6 +1052,7 @@ final class SetRehearsal extends Edit {
 
   /// The bar the mark sits on.
   final MeasureId measure;
+
   /// The text of the mark, such as "A". Null or empty clears it.
   final String? text;
 
@@ -1031,6 +1081,7 @@ final class SetBarLength extends Edit {
 
   /// The bar to resize.
   final MeasureId measure;
+
   /// The bar's new length, or null to restore the meter's length. It must be
   /// above zero and at most 64 whole notes.
   final Length? length;
@@ -1047,6 +1098,7 @@ final class SetBreak extends Edit {
 
   /// The bar that starts the new system or page.
   final MeasureId measure;
+
   /// The break layout must make before the bar, or null to let layout choose.
   final LayoutBreak? layoutBreak;
 
@@ -1064,6 +1116,7 @@ final class SetKeyDisplay extends Edit {
 
   /// The bar whose key signature display changes.
   final MeasureId measure;
+
   /// How the key signature prints at the bar.
   final SignatureDisplay display;
 
@@ -1079,6 +1132,7 @@ final class SetMeterDisplay extends Edit {
 
   /// The bar whose time signature display changes.
   final MeasureId measure;
+
   /// How the time signature prints at the bar.
   final SignatureDisplay display;
 
@@ -1113,9 +1167,11 @@ final class Paste extends Edit {
 
   /// The music to paste, as `EditSession.copy` made it.
   final ScoreClip clip;
+
   /// Where the clip's start and its top staff land. Each voice of the clip
   /// keeps its own slot.
   final VoicePoint at;
+
   /// What happens when a pasted note runs past a barline. See [Paste].
   final Overfill overfill;
 
@@ -1158,8 +1214,10 @@ final class Transpose extends Edit {
 
   /// The picked heads, or a range whose heads all move.
   final Selection selection;
+
   /// How far the pitches move, and by which kind of step.
   final Transposition by;
+
   /// Whether the keys of the bars a range holds whole move with their
   /// notes. See [Transpose].
   final bool keys;
@@ -1179,6 +1237,7 @@ final class AddPart extends Edit {
 
   /// The instrument, name and staves of the new part.
   final PartTemplate template;
+
   /// The new part's position among the parts, from 0 at the top, or null for
   /// the bottom.
   final int? index;
@@ -1212,6 +1271,7 @@ final class SetPartHidden extends Edit {
 
   /// The part to hide or show.
   final PartId part;
+
   /// Whether the part is hidden after the edit.
   final bool hidden;
 
@@ -1239,6 +1299,7 @@ final class SetInstrument extends Edit {
 
   /// The part to change.
   final PartId part;
+
   /// The instrument, name and staff count the part takes.
   final PartTemplate template;
 
@@ -1286,6 +1347,7 @@ final class WouldSplitTuplet extends EditRefusal {
 
   /// The tuplet the edit would cut.
   final TupletId tuplet;
+
   /// The bar that holds the tuplet.
   final MeasureId measure;
 }
@@ -1308,6 +1370,7 @@ final class WouldCrossBarline extends EditRefusal {
 
   /// The bar the music would run past.
   final MeasureId measure;
+
   /// How much sounding time did not fit.
   final Length excess;
 }
