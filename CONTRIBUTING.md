@@ -25,9 +25,9 @@ The repository is a pub workspace of three packages:
 
 | Folder | Package | Depends on |
 |---|---|---|
-| `packages/khuur_score_model` | The score model, MusicXML and MIDI, and the playback script. Pure Dart. | `xml` |
+| `packages/khuur_score_model` | The score model, MusicXML and MIDI, and the playback script. Pure Dart. | `archive` and `xml` |
 | `packages/khuur_score_layout` | The layout engine. Pure Dart. | `khuur_score_model` |
-| the root | `SheetView`, the painter and `ScorePlayer`. Flutter. | both, and `khuur_synth` |
+| the root | `SheetView`, the painter and `ScorePlayer`. Flutter. | both, `khuur_synth` and `material_ui` |
 
 Keep Flutter out of `packages/`. The compiler enforces it, because neither package depends on Flutter.
 
