@@ -22,6 +22,20 @@ extension SpannerEndsOf on Score {
         this,
         spanner,
       );
+
+  /// The bars, by index from `from` up to the bar `to` it ends in, whose
+  /// events where [spanner] ends can depend on besides that bar: every bar
+  /// from the one before its first, for a slur, glissando or trill line
+  /// that ends in a later bar than it starts. Null for every other spanner,
+  /// whose ends read no bar but the one it ends in and the one before.
+  /// Reads only the indices of the spanner's bars.
+  ({int from, int to})? endsReadBefore(Spanner spanner) {
+    final first = indexOf(spanner.first.measure);
+    final last = indexOf(spanner.last.measure);
+    return spanner.kind.reach == SpannerReach.events && first < last
+        ? (from: first > 0 ? first - 1 : 0, to: last)
+        : null;
+  }
 }
 
 /// Where a spanner starts and stops in one score: the events it attaches

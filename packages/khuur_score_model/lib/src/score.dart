@@ -580,11 +580,12 @@ final class Score {
   /// view reads its own column, both neighbours and the spanners touching it.
   /// So a bar is relaid out when it is new, when it or either neighbour is a
   /// different object than before, or when a spanner covering it was added
-  /// or removed. The event a slur, glissando or trill line of more than one
-  /// bar ends on can depend on every bar from the one before its first
-  /// ([anchorOf]), and the note a glissando ends on depends on the chord it
-  /// starts on, so the bar it ends in is relaid out when any of those is for
-  /// one of the reasons above. A bar relaid out only because such a line ends
+  /// or removed. The ends of a line can read bars before the one it ends
+  /// in: those of a slur, glissando or trill line of more than one bar read
+  /// every bar from the one before its first ([anchorOf]), and the note a
+  /// glissando ends on depends on the chord it starts on. So the bar it ends
+  /// in is relaid out when any bar its ends read is, for one of the reasons
+  /// above. A bar relaid out only because such a line ends
   /// in it holds the same column between the same neighbours as before, so it
   /// relays out no other line's last bar. Every bar is relaid out when the
   /// parts change or when bars that survive change order. [meta] is not
@@ -650,12 +651,10 @@ final class Score {
     if (relayout.isNotEmpty) {
       final changed = {...relayout};
       for (final spanner in spanners) {
-        final first = indexOf(spanner.first.measure);
-        final last = indexOf(spanner.last.measure);
-        if (spanner.kind.reach == SpannerReach.events && first < last) {
-          for (var i = first > 0 ? first - 1 : 0; i < last; i++) {
+        if (endsReadBefore(spanner) case (:final from, :final to)) {
+          for (var i = from; i < to; i++) {
             if (changed.contains(measures[i].id)) {
-              relayout.add(measures[last].id);
+              relayout.add(measures[to].id);
               break;
             }
           }

@@ -121,4 +121,32 @@ void main() {
       );
     });
   });
+
+  group('The bars the ends of a spanner read before its last', () {
+    final score = quarters(bars: 4);
+
+    test('run from the bar before its first for a line over bars', () {
+      expect(
+        score.endsReadBefore(line(score, const Slur(), (1, 0), (3, 0))),
+        (from: 0, to: 3),
+      );
+      expect(
+        score.endsReadBefore(line(score, const TrillLine(), (0, 0), (2, 0))),
+        (from: 0, to: 2),
+      );
+    });
+
+    test('are none for a line in one bar or a line of time', () {
+      expect(
+        score.endsReadBefore(line(score, const Glissando(), (2, 0), (2, 1))),
+        isNull,
+      );
+      expect(
+        score.endsReadBefore(
+          line(score, const Hairpin(crescendo: false), (0, 0), (3, 0)),
+        ),
+        isNull,
+      );
+    });
+  });
 }
