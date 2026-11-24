@@ -692,7 +692,7 @@ void main() {
           bars: 4,
         );
         for (var step = 0; step < 100; step++) {
-          score = randomEdit(score, random);
+          score = randomEditOrMore(score, random);
           final text = scoreToMusicXml(score);
           final where = 'seed $seed, step $step';
           final back = scoreFromMusicXml(text);

@@ -485,12 +485,13 @@ List<Moment> _beatsIn(MeasureColumn column) => [
 ];
 
 /// A tone [staff] takes: a drum of its part's kit, or a pitch.
-Tone _toneFor(Score score, StaffId staff, Random random) {
-  final kit = score.partOf(staff).instrument.drums;
-  return kit.isEmpty
-      ? Pitch.parse(pick(random, ['F4', 'F#4', 'Bb4', 'E5']))
-      : Drum(pick(random, kit).name);
-}
+Tone _toneFor(Score score, StaffId staff, Random random) =>
+    _toneOf(score.partOf(staff).instrument, random);
+
+/// A tone a staff of [instrument] takes.
+Tone _toneOf(Instrument instrument, Random random) => instrument.drums.isEmpty
+    ? Pitch.parse(pick(random, ['F4', 'F#4', 'Bb4', 'E5']))
+    : Drum(pick(random, instrument.drums).name);
 
 /// Text as a composer might type it: Latin, Cyrillic, CJK, empty, and
 /// characters markup must escape.
@@ -540,6 +541,10 @@ SetLyric _lyric(EventRef event, Random random) {
 /// voice of its part, and the music in that time with it. The two share
 /// one case, and value changes go to chords only, so that the walks keep
 /// the music and marks the layout tests count.
+///
+/// It makes no [SetTone], [RemoveNote], [RemoveGraces] or [SetTremolo];
+/// [randomEditOrMore] does. The layout tests count what these walks hold
+/// against floors, and a walk with other edits in it falls under them.
 Score randomEdit(Score score, Random random) {
   final bar = random.nextInt(score.measures.length);
   final id = score.measures[bar].id;
@@ -924,4 +929,31 @@ Score randomEdit(Score score, Random random) {
         ),
       );
   }
+}
+
+/// [randomEdit], or one time in eight one of the edits it leaves out: a
+/// head's new tone, a head removed, the graces taken off a chord that has
+/// some where any does, or a chord's tremolo strokes set.
+Score randomEditOrMore(Score score, Random random) {
+  if (random.nextInt(8) != 0) {
+    return randomEdit(score, random);
+  }
+  final heads = _headsOf(score);
+  final chords = _chordsOf(score);
+  if (heads.isEmpty) {
+    return score;
+  }
+  final head = pick(random, heads);
+  final graced = [
+    for (final (ref, chord) in chords)
+      if (chord.graces.isNotEmpty) ref,
+  ];
+  return edited(score, switch (random.nextInt(4)) {
+    0 => SetTone(head.ref, _toneOf(head.instrument, random)),
+    1 => RemoveNote(head.ref),
+    2 => RemoveGraces(
+      pick(random, graced.isEmpty ? [chords.first.$1] : graced),
+    ),
+    _ => SetTremolo(pick(random, chords).$1, random.nextInt(5)),
+  });
 }
