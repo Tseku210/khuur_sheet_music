@@ -267,11 +267,7 @@ _Result _eraseRippled(
       return _Result(score);
     case ItemSelection(:final items):
       final (:targets, :whole, :trimmed) = _picked(score, items);
-      var now = _retie(score, trimmed, {
-        for (final MapEntry(key: id, value: timed) in targets.entries)
-          if (!whole.contains(id))
-            (score.indexOf(timed.ref.measure), timed.ref.staff),
-      });
+      var now = trimmed;
       var cursor = session.cursor;
       final range = _RangeFollower(score, session.selection);
       final lines = _SectionLines(now);
