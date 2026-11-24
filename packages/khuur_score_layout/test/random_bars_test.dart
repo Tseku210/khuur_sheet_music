@@ -29,7 +29,7 @@ void main() {
       var score = blankScore(parts: const [clarinet, piano, drums], bars: 4);
       for (var step = 0; step < 150; step++) {
         final before = score;
-        score = randomEdit(before, random);
+        score = randomEditOrMore(before, random);
         for (final id in score.changesSince(before).relayout) {
           final where = 'seed $seed, step $step, bar ${score.indexOf(id)}';
           final layout = layoutBar(

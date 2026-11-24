@@ -13,7 +13,7 @@ import '../../../khuur_score_model/test/support.dart';
 import 'fake_measurer.dart';
 
 const seeds = [1, 2, 3, 4, 5, 6, 7, 8];
-const edits = 400;
+const edits = 420;
 const text = FakeMeasurer();
 
 /// Narrow enough at its least to press a system to its rods, where a bar
@@ -36,7 +36,7 @@ int walk(
     var layout = SheetLayout(score, width: width, text: text, style: style);
 
     for (var step = 0; step < edits; step++) {
-      score = randomEdit(score, random);
+      score = randomEditOrMore(score, random);
       if (random.nextInt(3) == 0) {
         final before = score;
         final edit = signatureEdit(score, random);

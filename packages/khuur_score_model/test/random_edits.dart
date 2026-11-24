@@ -543,8 +543,7 @@ SetLyric _lyric(EventRef event, Random random) {
 /// the music and marks the layout tests count.
 ///
 /// It makes no [SetTone], [RemoveNote], [RemoveGraces] or [SetTremolo];
-/// [randomEditOrMore] does. The layout tests count what these walks hold
-/// against floors, and a walk with other edits in it falls under them.
+/// [randomEditOrMore] does, and the walks of both packages take that one.
 Score randomEdit(Score score, Random random) {
   final bar = random.nextInt(score.measures.length);
   final id = score.measures[bar].id;

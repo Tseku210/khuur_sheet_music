@@ -1847,7 +1847,7 @@ void main() {
         );
         for (var step = 0; step < 250; step++) {
           final before = score;
-          score = withOneMoreMark(randomEdit(before, random), random);
+          score = withOneMoreMark(randomEditOrMore(before, random), random);
           scores++;
           for (final id in score.changesSince(before).relayout) {
             final where = 'seed $seed, step $step, bar ${score.indexOf(id)}';
