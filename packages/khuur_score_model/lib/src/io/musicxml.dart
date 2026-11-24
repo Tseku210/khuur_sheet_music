@@ -54,6 +54,7 @@ import '../refs.dart';
 import '../score.dart';
 import '../score_ids.dart';
 import '../seq.dart';
+import '../spanner_ends.dart';
 import '../stable_sort.dart';
 import '../time.dart';
 import '../views.dart';
@@ -939,34 +940,22 @@ final class _Export {
     final staves = score.partOf(spanner.staff).staves;
     final staffIndex = staves.indexWhere((staff) => staff.id == spanner.staff);
     int stream(VoiceSlot voice) => voiceNumber(staffIndex, voice);
-    // An end in a covered bar lands on the copy written there.
-    (TimedEvent, int) anchor({required bool last}) {
-      final timed = written.anchorOf(spanner, last: last)!;
-      return (timed, stream(timed.voice));
-    }
-
     final firstBar = score.indexOf(spanner.first.measure);
     final lastBar = score.indexOf(spanner.last.measure);
     switch (spanner.kind) {
       case Slur() || Glissando() || TrillLine():
-        final (from, fromStream) = anchor(last: false);
-        final (to, toStream) = anchor(last: true);
-        final notes = switch (spanner.kind) {
-          final Glissando kind => kind.notesOn(
-            from.event,
-            to.event,
-            instrument: score.partOf(spanner.staff).instrument,
-          ),
-          _ => (from: null, to: null),
-        };
+        // An end in a covered bar lands on the copy written there.
+        final ends = written.spannerEnds(spanner);
+        final from = ends.startsOn!;
+        final to = ends.endsOn!;
         return (
           spanner: spanner,
-          start: (bar: firstBar, stream: fromStream, at: from.onset),
-          stop: (bar: lastBar, stream: toStream, at: to.onset),
+          start: (bar: firstBar, stream: stream(from.voice), at: from.onset),
+          stop: (bar: lastBar, stream: stream(to.voice), at: to.onset),
           from: from.event.id,
           to: to.event.id,
-          fromNote: notes.from?.id,
-          toNote: notes.to?.id,
+          fromNote: ends.startNote?.id,
+          toNote: ends.endNote?.id,
         );
       case Hairpin() || OctaveLine() || PedalLine() || TempoLine():
         return (
