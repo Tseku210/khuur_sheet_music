@@ -74,6 +74,7 @@ The edits that build most scores are these:
 - `SetClef`, `SetKey` and `SetMeter` change the clef, the key and the meter.
 - `SetBreak(measure, LayoutBreak.system)` starts a new system at a bar.
 - `SetBarLength` makes a bar shorter than its meter, as for a pickup.
+- `SetRepeatEnd(measure, RepeatEnd(3))` ends a repeated section that plays three times. The sheet writes "×3" above the barline. The usual two plays get no count.
 - `SetMeasureRepeat(measure, bars: 1)` puts a repeat sign in a bar, so it plays the bar before it again. `bars: 2` repeats the two bars before it over this bar and the next, and `bars: null` clears the sign. Writing a note into the bar clears it too.
 - `AddSpanner` adds a slur, a hairpin, a pedal line or another line.
 - `SetTie` ties a note to the same tone in the next event. `SetLetRing(note, letRing: true)` gives a note a let-ring tie, which never lands on a note, and `letRing: false` clears it. A note with a plain tie keeps it.
