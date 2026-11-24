@@ -138,18 +138,35 @@ final class SynthOutput implements MidiOutput {
 
   static const int _blocks = Synth.channelCount ~/ 16;
 
+  /// The blocks of 16 channels that a SoundFont has, loaded or loading. A
+  /// load takes its block before it waits for the synth, so loads asked
+  /// for at once never share a block and never take one the synth lacks.
+  final Set<int> _taken = {};
+
   @override
   Future<void> load(SoundFont soundFont) async {
     final synth = await (_opening ??= _openSynth());
     if (_disposed) {
       return;
     }
-    if (_loaded.length == _blocks) {
+    var block = 0;
+    while (_taken.contains(block)) {
+      block++;
+    }
+    if (block == _blocks) {
       throw StateError('An output plays from at most $_blocks SoundFonts.');
     }
-    final font = await synth.load(soundFont);
+    _taken.add(block);
+    final LoadedSoundFont font;
+    try {
+      font = await synth.load(soundFont);
+    } on Object {
+      _taken.remove(block);
+      rethrow;
+    }
     if (!_disposed) {
-      _loaded[soundFont] = (font: font, block: _loaded.length);
+      _taken.remove(_loaded[soundFont]?.block);
+      _loaded[soundFont] = (font: font, block: block);
     }
   }
 
@@ -256,6 +273,7 @@ final class SynthOutput implements MidiOutput {
   void dispose() {
     _disposed = true;
     _loaded.clear();
+    _taken.clear();
     if (_synth case final synth?) {
       unawaited(synth.close());
     }
