@@ -1115,9 +1115,11 @@ List<_Wide> _systemMarks(
   required TextMeasurer text,
 }) {
   final column = view.column;
+  final plays = _playCount(column.repeatEnd);
   if (column.tempos.isEmpty &&
       column.navigation.isEmpty &&
-      column.rehearsal == null) {
+      column.rehearsal == null &&
+      plays == null) {
     return const [];
   }
   final font = style.font;
@@ -1169,6 +1171,14 @@ List<_Wide> _systemMarks(
       );
     }
   }
+  if (plays != null) {
+    add(
+      _Row(font, ink: InkRole.navigation)
+        ..text(plays, style.specOf(TextRole.navigation), text),
+      _Hold.end,
+      slice: times.length - 1,
+    );
+  }
   add(
     _Row(font, ink: InkRole.rehearsal)..text(
       column.rehearsal ?? '',
@@ -1181,11 +1191,20 @@ List<_Wide> _systemMarks(
   return marks;
 }
 
+/// The words over an end repeat that plays more than twice, "×3" for three
+/// times, or null for a plain repeat or none. Twice is what the sign says
+/// alone.
+String? _playCount(RepeatEnd? end) => switch (end) {
+  RepeatEnd(:final times) when times > 2 => '×$times',
+  _ => null,
+};
+
 /// What the bar prints above its top staff, in the order it stacks. Each
 /// tempo mark starts at its slice line, as its words, then its metronome
 /// note, then `= ` and its number. Segno and coda start at [left], the
 /// bar's content start. `ToCoda.label`, `Fine.label` and `Jump.label` end
-/// just before the bar's end. The rehearsal mark starts at [left] in a box,
+/// just before the bar's end, and so does the play count of an end repeat
+/// that plays more than twice. The rehearsal mark starts at [left] in a box,
 /// outside the rest. The items sit on staff 0, against [top]. A mark with
 /// nothing to print draws nothing.
 List<BarItem> systemMarkItems(

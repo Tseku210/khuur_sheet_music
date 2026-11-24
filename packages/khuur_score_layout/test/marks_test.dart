@@ -121,6 +121,7 @@ MeasureView barWith(
   List<TempoMark> tempos = const [],
   List<NavigationMark> navigation = const [],
   String? rehearsal,
+  RepeatEnd? repeatEnd,
   Instrument instrument = piano,
 }) {
   final score = scoreOf([
@@ -133,6 +134,7 @@ MeasureView barWith(
         tempos: Seq(tempos),
         navigation: Seq(navigation),
         rehearsal: () => rehearsal,
+        repeatEnd: () => repeatEnd,
       );
   return viewOf(score.copyWith(measures: Seq([changed])));
 }
@@ -1233,6 +1235,31 @@ void main() {
         expect(-words.bounds.bottom, inInclusiveRange(clear, near));
       });
     }
+
+    test('an end repeat that plays three times says "×3" above the top '
+        'staff at the end of its bar, and one that plays twice says '
+        'nothing', () {
+      final thrice = place(
+        barWith(
+          [chordOf(1, 'A4', value: whole)],
+          repeatEnd: const RepeatEnd(times: 3),
+        ),
+      );
+      final words = textsOf(thrice).single;
+
+      expect(words.text, '×3');
+      expect(words.spec, style.specOf(TextRole.navigation));
+      expect(words.bounds.right, closeTo(thrice.frame.right - 0.5, hair));
+      expect(-words.bounds.bottom, inInclusiveRange(clear, near));
+
+      final twice = place(
+        barWith(
+          [chordOf(1, 'A4', value: whole)],
+          repeatEnd: const RepeatEnd(),
+        ),
+      );
+      expect(textsOf(twice), isEmpty);
+    });
 
     test('system marks stand over the top staff alone', () {
       final score = scoreOf([
