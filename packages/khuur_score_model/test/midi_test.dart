@@ -365,6 +365,26 @@ void main() {
       ]);
     });
 
+    test('writes a score where no bar plays as a file with no notes', () {
+      // Each bar is under a second ending no repeat leads to, so the play
+      // order passes over both.
+      var score = quarters(2);
+      for (final bar in [0, 1]) {
+        score = changeBar(
+          score,
+          bar,
+          (column) => column.copyWith(volta: () => const Volta([2])),
+        );
+      }
+      expect(PlaybackCompiler().compile(score).bars, isEmpty);
+
+      final file = exported(score);
+      expect(file.tracks, hasLength(2));
+      expect(file.tempos, isEmpty);
+      expect(file.allNotes, isEmpty);
+      expect(file.tracks.map((track) => track.last.tick), [0, 0]);
+    });
+
     test('plays a bar under a measure repeat as the bar it repeats', () {
       final session = EditSession.start(quarters(2));
       final score = applied(

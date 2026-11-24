@@ -195,8 +195,12 @@ final class _TempoMap {
     ));
   }
 
-  /// The tick that [seconds] falls nearest.
+  /// The tick that [seconds] falls nearest. It is 0 while the map holds no
+  /// tempo, which is a script that plays no bar, so nothing has a time.
   int tickAt(double seconds) {
+    if (changes.isEmpty) {
+      return 0;
+    }
     var low = 1;
     var high = changes.length;
     while (low < high) {
