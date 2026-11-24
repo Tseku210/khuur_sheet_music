@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:khuur_score_model/khuur_score_model.dart';
+import 'package:khuur_score_model/src/voice_walk.dart' show headOfTone;
 
 import 'support.dart';
 
@@ -74,12 +75,16 @@ T pick<T>(Random random, List<T> options) =>
 /// the chord it starts on or, with a ripple, the chord it ends on.
 /// Throws too when a rippled edit changes the dynamic in force after the bars
 /// it changed, or the clef a note starts in while the note keeps its length.
+/// Throws too when a tie moves, as [_tieMoved] says.
 Score edited(Score score, Edit edit) {
   final outcome = EditSession.start(score).run(edit);
   if (outcome is! Applied) {
     return score;
   }
   final next = outcome.session.score;
+  if (_tieMoved(score, next, edit) case final moved?) {
+    throw StateError('${edit.runtimeType} $moved');
+  }
   final repeated = repeatedIds(next);
   if (repeated.isNotEmpty) {
     throw StateError('${edit.runtimeType} repeats ${repeated.join(', ')}');
@@ -158,6 +163,110 @@ Score edited(Score score, Edit edit) {
     }
   }
   return next;
+}
+
+/// What [edit] did wrong to a tie of [before] in [after], or null.
+///
+/// A tie lands where the views say: on the head of its tone in the next
+/// event of its voice. A head the edit made carries the landing on, so a
+/// tied note the edit cut in two still lands where it did through its new
+/// piece. A tie to no note is not checked, since it joins whatever head of
+/// its tone comes to follow it. After any edit, of the ties that landed:
+/// - none lands on a head the score had before, other than its own;
+/// - none lands on no head;
+/// - no tie is cleared while the head it landed on is still the head of
+///   its tone in the next event, unless the edit declared that loss: it
+///   set the tie, or the chord lost time or had time added across it.
+String? _tieMoved(Score before, Score after, Edit edit) {
+  final was = _tieLandings(before);
+  final now = _tieLandings(after);
+  final old = {
+    for (final (_, chord) in _chordsOf(before))
+      for (final note in chord.notes) note.id,
+  };
+  late final next = _nextOfTone(after);
+  for (final MapEntry(key: from, value: landing) in was.entries) {
+    if (landing == null) {
+      continue;
+    }
+    if (!now.containsKey(from)) {
+      final declared = switch (edit) {
+        SetTie() || SetValue() => true,
+        EnterNote(:final ripple) ||
+        EnterRest(:final ripple) ||
+        Erase(:final ripple) => ripple != Ripple.none,
+        _ => false,
+      };
+      if (!declared && next[from] == landing) {
+        return 'cleared the tie from $from to $landing';
+      }
+      continue;
+    }
+    var to = now[from];
+    final seen = {from};
+    while (to != null && !old.contains(to) && seen.add(to)) {
+      if (!now.containsKey(to)) {
+        break;
+      }
+      to = now[to];
+    }
+    if (to == landing) {
+      continue;
+    }
+    if (to == null) {
+      return 'left the tie from $from without the head $landing it landed on';
+    }
+    if (old.contains(to)) {
+      return 'moved the tie from $from from $landing to $to';
+    }
+  }
+  return null;
+}
+
+/// Where each tie of [score] lands, by the note it starts on, or null for
+/// a tie to no note.
+Map<NoteId, NoteId?> _tieLandings(Score score) => {
+  for (final column in score.measures)
+    for (final staff in score.measureView(column.id).staves)
+      for (final tie in staff.ties) tie.from: tie.to?.note,
+};
+
+/// The head of each note's tone in the next event of its voice, where the
+/// next event starts as the note ends, by the note, on the shown parts.
+Map<NoteId, NoteId> _nextOfTone(Score score) {
+  final next = <NoteId, NoteId>{};
+  for (final staff in score.staves) {
+    if (score.partOf(staff.id).hidden) {
+      continue;
+    }
+    for (final voice in VoiceSlot.values) {
+      final lane = score.laneOf(staff.id, voice).toList();
+      for (var i = 1; i < lane.length; i++) {
+        if (lane[i - 1].event case ChordEvent(:final notes)
+            when _follows(score, lane[i - 1], lane[i])) {
+          for (final note in notes) {
+            if (headOfTone(lane[i].event, note.tone) case final head?) {
+              next[note.id] = head.id;
+            }
+          }
+        }
+      }
+    }
+  }
+  return next;
+}
+
+/// Whether [next] starts where [timed] ends.
+bool _follows(Score score, TimedEvent timed, TimedEvent next) {
+  final bar = score.indexOf(timed.ref.measure);
+  final end = timed.onset + timed.duration;
+  return switch (score.indexOf(next.ref.measure) - bar) {
+    0 => next.onset == end,
+    1 =>
+      next.onset == Moment.zero &&
+          Moment.zero.until(end) == score.measures[bar].length,
+    _ => false,
+  };
 }
 
 /// Whether [edit] removes [spanner] from [score] by picking it: by its id,
