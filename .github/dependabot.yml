@@ -10,6 +10,16 @@ updates:
     groups:
       pub:
         patterns: ["*"]
+  - package-ecosystem: pub
+    directory: /example
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      example:
+        patterns: ["*"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
