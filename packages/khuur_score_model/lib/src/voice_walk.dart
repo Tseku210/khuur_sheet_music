@@ -72,22 +72,8 @@ typedef TimedTuplet = ({
   int depth,
 });
 
-/// [voice]'s tuplets in pre-order: an outer tuplet before the tuplets it
-/// holds.
-Iterable<TimedTuplet> timedTuplets(Voice voice) sync* {
-  for (final step in _walk(voice.items, Moment.zero, Fraction.one, const [])) {
-    if (step.item case final Tuplet tuplet) {
-      yield (
-        tuplet: tuplet,
-        onset: step.onset,
-        span: step.duration,
-        depth: step.tuplets.length,
-      );
-    }
-  }
-}
-
-/// What [timedEvents] and [timedTuplets] give for [voice], from one walk.
+/// What [timedEvents] gives for [voice], and its tuplets in pre-order, an
+/// outer tuplet before the tuplets it holds, from one walk.
 ///
 /// A measure view reads both lists whole, so it walks the voice once here
 /// and builds neither lazily.
