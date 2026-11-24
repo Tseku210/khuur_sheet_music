@@ -393,6 +393,19 @@ final class AddGrace extends Edit {
   String get label => 'Add grace note';
 }
 
+/// Takes every grace chord off [event]. A chord with none, or a rest,
+/// changes nothing. Idempotent.
+final class RemoveGraces extends Edit {
+  /// Takes the graces off [event].
+  const RemoveGraces(this.event);
+
+  /// The principal chord the graces lead into.
+  final EventRef event;
+
+  @override
+  String get label => 'Remove grace notes';
+}
+
 /// Sets or clears the tie from [note] to the same tone in the next event.
 /// Clearing also removes a let-ring tie ([Note.letRing]), and setting
 /// replaces one. Idempotent.
@@ -496,6 +509,23 @@ final class SetOrnament extends Edit {
 
   @override
   String get label => 'Ornament';
+}
+
+/// Sets the single-note tremolo strokes through a chord's stem, 0 to clear
+/// them. Idempotent.
+final class SetTremolo extends Edit {
+  /// Gives [event] [strokes] tremolo strokes.
+  const SetTremolo(this.event, this.strokes);
+
+  /// The chord the strokes cross. Setting strokes on a rest is refused with
+  /// [InvalidValue], and clearing them there changes nothing.
+  final EventRef event;
+  /// How many strokes, 0 to 4. Any other count is refused with
+  /// [InvalidValue].
+  final int strokes;
+
+  @override
+  String get label => 'Tremolo';
 }
 
 /// Sets or clears the bow direction on a chord. Idempotent.

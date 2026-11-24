@@ -18,7 +18,8 @@ enum TextRole {
   /// A rehearsal mark, drawn in its enclosure.
   rehearsal(TextSpec(size: 2.4, bold: true)),
 
-  /// The words of a To Coda, Fine or jump.
+  /// The words of a To Coda, Fine or jump, and the play count over an end
+  /// repeat.
   navigation(TextSpec(size: 2, italic: true)),
 
   /// The label of a volta bracket.

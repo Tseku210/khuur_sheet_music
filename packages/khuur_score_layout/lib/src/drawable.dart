@@ -133,7 +133,8 @@ enum InkRole {
   /// A rehearsal mark and its enclosure.
   rehearsal,
 
-  /// A segno or coda sign, and the words of a To Coda, Fine or jump.
+  /// A segno or coda sign, the words of a To Coda, Fine or jump, and the
+  /// play count over an end repeat.
   navigation,
 
   /// A chord symbol, its accidentals included.

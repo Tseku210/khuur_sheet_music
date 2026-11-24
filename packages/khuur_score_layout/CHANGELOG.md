@@ -1,3 +1,7 @@
+## 0.6.0
+* An end repeat that plays more than twice prints its count, "×3" for three times, above the top staff at the end of its bar, in the navigation text style. A repeat that plays twice prints nothing, as before.
+* Depends on `khuur_score_model` 0.6.0.
+
 ## 0.5.0
 * A slur is fitted over everything under it along its whole length, as MuseScore 4 does, where it was lifted only until the middle half of its curve cleared the notes. A high note, a stem or a beam near either end no longer cuts through it.
 * A system whose bars are wider than the sheet is squeezed to the sheet's width, as MuseScore 4 squeezes a system to fit. It first gives up the clear space between notes, and then scales its bars down until notes may collide. A bar runs past the sheet's right edge only when its widest mark, or its widest note with the part names and brace, the clef, signatures and barlines before it, is wider than the sheet. Every gap shrinks by one factor, so the notes stay in time order. Systems that fit are laid out as before.
