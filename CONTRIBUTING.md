@@ -123,7 +123,7 @@ The types are `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf` and `ci
 
 1. Fork the repository and make a branch from `main`.
 2. Open a pull request into `main`. Fill in the template.
-3. CI runs the checks on the oldest supported Flutter and on the newest stable Flutter. Both jobs must pass.
+3. CI runs the tests on the oldest supported Flutter and on the newest stable Flutter. It also runs the web tests, the scaling gates and the package checks. Every job must pass.
 4. The maintainer reviews the change. Push more commits to the same branch to answer the review.
 5. The maintainer merges the pull request with a merge commit.
 
