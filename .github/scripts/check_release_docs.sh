@@ -6,7 +6,9 @@
 # - the site's Platforms and limits page must name each package's version,
 # - the export table on the Packages page must name every name that a `show`
 #   list in lib/khuur_sheet_music.dart exports, and no other name of the
-#   packages it shows them from.
+#   packages it shows them from,
+# - each full program that a README or the tutorial shows must be a dart
+#   block that equals the region of its file in example/doc_snippets/.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -115,5 +117,55 @@ for name in $own; do
     status=1
   fi
 done
+
+
+# Each full program on a page is a file in example/doc_snippets/, which
+# flutter analyze checks. The page must show the lines between the file's
+# `// #docregion` and `// #enddocregion` as one of its dart blocks.
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+while read -r page snippet; do
+  awk '/^\/\/ #enddocregion$/ { on = 0 } on; /^\/\/ #docregion$/ { on = 1 }' \
+    "$snippet" > "$work/region"
+  if [ ! -s "$work/region" ]; then
+    echo "$snippet has no lines between // #docregion and // #enddocregion."
+    status=1
+    continue
+  fi
+  # Writes the body of each unindented dart block to block.1, block.2, ...
+  rm -f "$work"/block.*
+  awk -v out="$work/block." '
+    on && /^```$/ { on = 0; close(file); next }
+    on { print > file }
+    /^```dart$/ { on = 1; file = out (++count); printf "" > file }
+  ' "$page"
+  closest='' fewest=''
+  for block in "$work"/block.*; do
+    [ -e "$block" ] || continue
+    if cmp -s "$work/region" "$block"; then
+      closest=match
+      break
+    fi
+    differ=$(diff "$work/region" "$block" | grep -c '^[<>]' || true)
+    if [ -z "$fewest" ] || [ "$differ" -lt "$fewest" ]; then
+      fewest=$differ
+      closest=$block
+    fi
+  done
+  if [ "$closest" != match ]; then
+    echo "$page shows no dart block that equals the region of $snippet."
+    if [ -n "$closest" ]; then
+      echo "Its closest block differs so, with < for $snippet and > for $page:"
+      diff "$work/region" "$closest" || true
+    fi
+    status=1
+  fi
+done <<'EOF'
+README.md example/doc_snippets/readme.dart
+packages/khuur_score_model/README.md example/doc_snippets/score_model_readme.dart
+packages/khuur_score_layout/README.md example/doc_snippets/score_layout_readme.dart
+site/src/content/docs/tutorial/first-sheet.mdx example/doc_snippets/first_sheet_show_a_score.dart
+site/src/content/docs/tutorial/first-sheet.mdx example/doc_snippets/first_sheet_finished.dart
+EOF
 
 exit $status

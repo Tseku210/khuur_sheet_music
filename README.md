@@ -56,7 +56,11 @@ void main() {
     );
     if (session.run(edit) case Applied(session: final next)) session = next;
   }
-  runApp(MaterialApp(home: Scaffold(body: SheetView(score: session.score))));
+  runApp(
+    MaterialApp(
+      home: Scaffold(body: SheetView(score: session.score)),
+    ),
+  );
 }
 ```
 

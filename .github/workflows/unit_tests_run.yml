@@ -207,8 +207,10 @@ jobs:
 
       # Fails when a CHANGELOG, the site's tutorial or a reference page names
       # a version other than the pubspec's, or when the export table on the
-      # site's Packages page and the export list of the library differ.
-      - name: Docs match the pubspecs and the export list
+      # site's Packages page and the export list of the library differ, or
+      # when a README or the tutorial shows a full program that differs from
+      # its file in example/doc_snippets/.
+      - name: Docs match the pubspecs, the export list and the snippets
         if: ${{ !cancelled() }}
         run: .github/scripts/check_release_docs.sh
 

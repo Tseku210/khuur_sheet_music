@@ -6,10 +6,11 @@ Flutter package that renders sheet music on a `Canvas` and plays it back over MI
 
 ```bash
 flutter pub get          # also resolves example/
-tool/check.sh            # format, analyze, the four test suites and the player orders below, each from its own directory; exits 1 when one failed
+tool/check.sh            # format, analyze, the docs check, the four test suites and the player orders below, each from its own directory; exits 1 when one failed
 tool/check.sh --full     # also the six benchmarks and the web tests
 dart format --output=none --set-exit-if-changed .   # must change nothing
 flutter analyze          # library, tests, and example; must report no issues
+.github/scripts/check_release_docs.sh   # the docs agree with the pubspecs, the export list and example/doc_snippets/
 flutter test             # the view's, the painter's and the player's tests in test/
 cd packages/khuur_score_model && dart test   # score model tests (not run by flutter test)
 cd packages/khuur_score_model && mkdir -p build && dart compile exe benchmark/playback_benchmark.dart -o build/playback_benchmark && build/playback_benchmark   # playback compile scaling check, compiled; exits 1 when a longer score costs out of step
@@ -34,7 +35,7 @@ cd example && flutter run            # the example app, Android or iOS
 - `lib/src/sheet_view.dart` holds `SheetView` and `SheetController`. The view shows a `Score` as a scrolling list of system tiles over `SheetLayout`, drawn by the one painter in `lib/src/painting.dart`, measured by `lib/src/paragraph_measurer.dart` and coloured by `lib/src/sheet_palette.dart`. The view's own scrolls (`ensureVisible`, a moved cursor, playback) run in `_OwnScroller`, in the part file `lib/src/own_scroller.dart`. The painter draws glyphs as text in `fonts/Bravura.otf` (licence in `fonts/OFL.txt`).
 - `lib/src/score_player.dart` holds `ScorePlayer`. It plays a `khuur_score_model` playback script from one script clock through the `MidiOutput` seam of `lib/src/midi_output.dart`. Its `SynthOutput` plays through FluidSynth from `khuur_synth` (Android and iOS only), one synth for each output, and loads the `SoundFont`s that the app passes in, which are `khuur_synth`'s own.
 - `test/mock/` holds hand-written fakes, `fake_midi_output.dart` and `fake_wall_time.dart`. Tests do not use a mocking package. `test/support/` holds the helpers that draw and write pictures.
-- `example/lib/main.dart` is the example app, one page over `SheetView` and `ScorePlayer`. `example/lib/demo_score.dart` builds its tune. `example/test/` tests both and imports the root's `test/mock/` and `test/support/` by relative path.
+- `example/lib/main.dart` is the example app, one page over `SheetView` and `ScorePlayer`. `example/lib/demo_score.dart` builds its tune. `example/test/` tests both and imports the root's `test/mock/` and `test/support/` by relative path. `example/doc_snippets/` holds each full program that a README or the tutorial shows, between `// #docregion` and `// #enddocregion`, so `flutter analyze` checks it.
 
 ## Conventions
 
@@ -42,5 +43,5 @@ cd example && flutter run            # the example app, Android or iOS
 - Asset paths that code loads at runtime must use the `packages/khuur_sheet_music/` prefix. A bare `fonts/...` or `assets/...` path only resolves inside this package, not in a consuming app.
 - The package bundles no SoundFont, because Flutter ships every package asset to every consuming app. The example app bundles `example/assets/soundfonts/piano.sf2`, FreePats' CC0 Upright Piano KW (full, 57 MB). Git does not track it. `cd example && dart run tool/fetch_soundfont.dart` downloads it and checks its SHA-256.
 - Commit messages use Conventional Commits: `type(scope): description`.
-- A release updates the site's docs in `site/src/content/docs/` in the same pull request as the version raise, as step 2 of "How a release goes out" in `CONTRIBUTING.md` says. `.github/scripts/check_release_docs.sh` runs in CI. It fails when a CHANGELOG, the tutorial, or the site's Packages or Platforms and limits page names a version other than the pubspec's, and when the export table on the Packages page and the `show` lists of `lib/khuur_sheet_music.dart` differ.
+- A release updates the site's docs in `site/src/content/docs/` in the same pull request as the version raise, as step 2 of "How a release goes out" in `CONTRIBUTING.md` says. `.github/scripts/check_release_docs.sh` runs in CI. It fails when a CHANGELOG, the tutorial, or the site's Packages or Platforms and limits page names a version other than the pubspec's, when the export table on the Packages page and the `show` lists of `lib/khuur_sheet_music.dart` differ, and when a README or the tutorial shows a full program that differs from its file in `example/doc_snippets/`.
 - The library is open source and stays general. Khuur is its first consumer, not its target, so nothing Khuur-specific goes in `lib/` or `packages/`. Instruments, marks and examples are general, and Khuur's designs guide scope without being requirements.

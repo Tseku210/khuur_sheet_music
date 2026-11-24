@@ -3,8 +3,9 @@
 # Every check runs even when one before it failed, and the script exits
 # with code 1 at the end when any check failed.
 #
-#   tool/check.sh          the formatter, the analyzer, every test suite and
-#                          every order of up to 7 steps on ScorePlayer
+#   tool/check.sh          the formatter, the analyzer, the docs check, every
+#                          test suite and every order of up to 7 steps on
+#                          ScorePlayer
 #   tool/check.sh --full   also the six benchmarks and the web tests, which
 #                          need Chrome
 set -uo pipefail
@@ -40,6 +41,7 @@ benchmark() {
 
 run 'Format' . dart format --output=none --set-exit-if-changed .
 run 'Analyze' . flutter analyze
+run 'Docs' . .github/scripts/check_release_docs.sh
 run 'Score model tests' packages/khuur_score_model dart test
 run 'Layout engine tests' packages/khuur_score_layout dart test
 run 'Library tests' . flutter test
