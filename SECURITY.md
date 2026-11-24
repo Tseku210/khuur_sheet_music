@@ -16,6 +16,6 @@ Only the maintainer can read the report. The maintainer answers in the advisory,
 
 ## Scope
 
-The library reads MusicXML and MIDI files, which can come from people that an app does not trust. A file that makes the parser or the layout engine crash, hang or use memory without limit is in scope. So is any problem in the code of this repository that an attacker can use.
+The library reads MusicXML files, plain and compressed (`.mxl`), and scores in its own JSON. It writes MusicXML, JSON and MIDI. A file that it reads can come from people that an app does not trust. A file that makes a reader or the layout engine crash, hang or use memory without limit is in scope. So is any problem in the code of this repository that an attacker can use.
 
 Problems in dependencies, for example FluidSynth in `khuur_synth`, belong to those projects. Report them there.
