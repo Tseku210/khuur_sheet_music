@@ -29,6 +29,17 @@ _Result _setTie(Score score, NoteRef note, bool tied) {
   );
 }
 
+_Result _setLetRing(Score score, NoteRef note, bool letRing) {
+  final head = _targetHead(score, note);
+  return _changeNote(
+    score,
+    head,
+    head.note.tie || head.note.letRing == letRing
+        ? head.note
+        : head.note.copyWith(letRing: letRing),
+  );
+}
+
 _Result _setFingering(Score score, NoteRef note, int? finger) {
   if (finger != null) {
     _check(fingerProblem(finger));

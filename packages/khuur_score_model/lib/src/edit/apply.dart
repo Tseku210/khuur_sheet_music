@@ -152,6 +152,11 @@ _Result _apply(Score score, Edit edit, _Ids ids, EditSession session) {
       ids,
     ),
     SetTie(:final note, :final tied) => _setTie(score, note, tied),
+    SetLetRing(:final note, :final letRing) => _setLetRing(
+      score,
+      note,
+      letRing,
+    ),
     Erase(:final selection, ripple: Ripple.none) => _Result(
       _erase(_unspanned(score, selection), selection, ids),
     ),

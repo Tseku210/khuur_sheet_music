@@ -409,6 +409,25 @@ final class SetTie extends Edit {
   String get label => tied ? 'Add tie' : 'Remove tie';
 }
 
+/// Sets or clears the let-ring (laissez vibrer) tie on [note], a short tie
+/// that never lands on a note ([Note.letRing]). A note with a plain tie
+/// keeps it and the edit changes nothing, as in MuseScore 4, even when that
+/// tie has no note to land on. To replace a plain tie, clear it first with
+/// [SetTie]. Idempotent.
+final class SetLetRing extends Edit {
+  /// Marks [note] when [letRing] is true and clears the mark when false.
+  const SetLetRing(this.note, {required this.letRing});
+
+  /// The head the let-ring tie starts on.
+  final NoteRef note;
+  /// Whether the let-ring tie is there after the edit, unless [note] has a
+  /// plain tie.
+  final bool letRing;
+
+  @override
+  String get label => letRing ? 'Add let-ring tie' : 'Remove let-ring tie';
+}
+
 /// Clears what is selected. An event in voice one or in a tuplet becomes a
 /// rest of its value that keeps its id and a fermata, and a bar left with
 /// only plain rests becomes one [MeasureRest]. In voices two to four an

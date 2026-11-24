@@ -440,8 +440,9 @@ List<_Head> _headsOf(Score score) => [
 bool _pitched(_Head head) => head.note is PitchedNote;
 
 /// The edits of one note head, each with the heads it applies to: a drum
-/// head takes only a tie, and only a string instrument's head a string.
-/// [SetAccidental] is listed twice so its four requests each come up.
+/// head takes only a tie or a let-ring tie, and only a string instrument's
+/// head a string. [SetAccidental] is listed twice so its four requests each
+/// come up.
 final List<
   ({bool Function(_Head head) takes, Edit Function(_Head, Random) make})
 >
@@ -449,6 +450,10 @@ _headEdits = [
   (
     takes: (_) => true,
     make: (head, random) => SetTie(head.ref, tied: random.nextInt(4) > 0),
+  ),
+  (
+    takes: (_) => true,
+    make: (head, random) => SetLetRing(head.ref, letRing: random.nextBool()),
   ),
   for (var k = 0; k < 2; k++)
     (
