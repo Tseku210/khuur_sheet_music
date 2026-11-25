@@ -134,8 +134,11 @@ _written(Score before, Score after) {
   final (was, now) = (before.measures, after.measures);
   final gone = <MeasureColumn>[];
   if (was.length == now.length) {
-    for (final bar in now.indexesNotIn(was)) {
+    for (var bar = 0; bar < now.length; bar++) {
       final (old, column) = (was[bar], now[bar]);
+      if (identical(old, column)) {
+        continue;
+      }
       gone.add(old);
       for (final staff in column.staves) {
         if (old.id != column.id ||

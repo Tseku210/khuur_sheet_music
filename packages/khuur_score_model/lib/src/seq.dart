@@ -129,30 +129,6 @@ extension SeqRuns<T> on Seq<T> {
     values.forEach((index, value) => copy[index] = value);
     return Seq(copy);
   }
-
-  /// The indexes at which this sequence and [other], which is as long,
-  /// hold different objects. Runs the two share are passed over whole.
-  Iterable<int> indexesNotIn(Seq<T> other) sync* {
-    if ((_runs, other._runs) case (final mine?, final theirs?)
-        when mine._shift == theirs._shift) {
-      for (var run = 0; run < mine._runs.length; run++) {
-        final (a, b) = (mine._runs[run], theirs._runs[run]);
-        if (!identical(a, b)) {
-          for (var i = 0; i < a.length; i++) {
-            if (!identical(a[i], b[i])) {
-              yield (run << mine._shift) + i;
-            }
-          }
-        }
-      }
-      return;
-    }
-    for (var i = 0; i < length; i++) {
-      if (!identical(this[i], other[i])) {
-        yield i;
-      }
-    }
-  }
 }
 
 /// Items in runs of one length, the last run shorter when the items do not
