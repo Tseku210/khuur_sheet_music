@@ -181,8 +181,9 @@ Score edited(Score score, Edit edit) {
 /// - each that landed on no head lands on none still;
 /// - except that a tie may land on a head the edit made in its own voice.
 /// No tie that landed on a head is cleared while it would still land on
-/// that head, unless the edit declared that loss: it set the tie, or the
-/// chord lost time or had time added across it.
+/// that head, unless the edit declared that loss: it cleared the tie, it
+/// made the chord shorter, or a ripple took time from the chord or added
+/// time across it.
 String? _tieMoved(Score before, Score after, Edit edit) {
   final was = _tieLandings(before);
   final now = _tieLandings(after);
@@ -199,7 +200,13 @@ String? _tieMoved(Score before, Score after, Edit edit) {
   for (final MapEntry(key: from, value: landing) in was.entries) {
     if (!now.containsKey(from)) {
       final declared = switch (edit) {
-        SetTie() || SetValue() => true,
+        SetTie(tied: false) => true,
+        SetValue(:final event, :final value) => switch (before
+            .lookup(event)
+            ?.event) {
+          ChordEvent(value: final old) => value.length < old.length,
+          _ => false,
+        },
         EnterNote(:final ripple) ||
         EnterRest(:final ripple) ||
         Erase(:final ripple) => ripple != Ripple.none,
