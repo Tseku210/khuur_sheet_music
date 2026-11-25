@@ -113,7 +113,7 @@ _Result _enterRippled(
       music: [event],
     ),
   );
-  var entered = _untieInto(rippled.score, at, _tones(event));
+  var entered = _untieDanglingInto(rippled.score, at);
   VoicePoint cursorAt(ScorePoint point) =>
       VoicePoint(staff: at.staff, voice: at.voice, at: point);
   final VoicePoint cursor;

@@ -67,4 +67,47 @@ void main() {
 
     expect(bar(next.score, 0), ['F4/half', 'G4/half']);
   });
+
+  group('a tie into another voice stays when the edit writes in the tie\'s '
+      'own voice where it leads', () {
+    EditSession crossVoice() {
+      var score = fill(blankScore(), 0, [
+        chordOf(1, 'F4', value: NoteValue.half, tie: true),
+        rest(2, NoteValue.half),
+      ]);
+      score = fill(score, 0, [
+        rest(3, NoteValue.half),
+        chordOf(4, 'F4', value: NoteValue.half),
+      ], slot: VoiceSlot.two);
+      return EditSession.start(score);
+    }
+
+    for (final (name, edit) in <(String, Edit Function(VoicePoint))>[
+      (
+        'a note',
+        (at) => EnterNote(at: at, tone: g4, value: NoteValue.quarter),
+      ),
+      ('a rest', (at) => EnterRest(at: at, value: NoteValue.quarter)),
+      (
+        'a tuplet',
+        (at) => EnterTuplet(
+          at: at,
+          ratio: TupletRatio.triplet,
+          unit: NoteValue.eighth,
+        ),
+      ),
+    ]) {
+      test(name, () {
+        final session = crossVoice();
+
+        final next = applied(
+          session.run(edit(point(session.score, 0, at(1, 2)))),
+        );
+
+        final score = next.score;
+        final ties = score.measureView(score.measures[0].id).staves.first.ties;
+        expect([for (final tie in ties) tie.to?.note], [const NoteId(40)]);
+      });
+    }
+  });
 }
