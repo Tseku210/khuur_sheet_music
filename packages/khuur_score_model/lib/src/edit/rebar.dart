@@ -185,7 +185,6 @@ _Section _rebar(
     throw _Refuse(WouldCrossBarline(first.id, longest - length));
   }
   final count = max(_ceil(longest / length), old.length);
-  final total = length * Fraction(count);
   final voices = [
     for (final stream in streams)
       (
@@ -193,8 +192,7 @@ _Section _rebar(
         stream.slot,
         _cut(
           [
-            for (final (item, origin)
-                in (stream..untie(next, padded: stream.length < total)).items)
+            for (final (item, origin) in stream.items)
               (item: item, span: item.span, origin: origin),
           ],
           count,
@@ -399,38 +397,16 @@ final class _Stream {
         items.add((item, column.id));
       }
     }
-    final all = items.length;
     while (items.isNotEmpty && _elastic(items.last.$1)) {
       items.removeLast();
     }
-    trimmed = items.length < all;
   }
 
   final StaffId staff;
   final VoiceSlot slot;
   final List<(VoiceItem, MeasureId)> items = [];
-  late final bool trimmed;
 
   late final Length length = Length.sum(items.map((entry) => entry.$1.span));
-
-  /// Clears each tie of the last event that would end on a different head
-  /// once the section is refilled: the music now meets rests where it met
-  /// [next] ([padded]), or meets [next] where it met rests.
-  void untie(MeasureColumn? next, {required bool padded}) {
-    if (trimmed == padded || next == null) {
-      return;
-    }
-    final opening = openingEvent(next, staff, slot)?.event;
-    if (items.lastOrNull case (final Content item, final origin)
-        when opening is ChordEvent) {
-      final event = _eventsIn(item).last;
-      bool meets(Note note) =>
-          note.tie && headOfTone(opening, note.tone) != null;
-      if (event is ChordEvent && event.notes.any(meets)) {
-        items.last = (_replaceEvent(item, _untied(event, meets)), origin);
-      }
-    }
-  }
 }
 
 /// Whether a re-bar may drop [item] from the end of a section: a gap or a
