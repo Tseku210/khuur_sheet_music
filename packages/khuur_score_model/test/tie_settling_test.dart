@@ -22,6 +22,22 @@ void main() {
       expect(bar(next.score, 0), ['G4/half', 'G4/half']);
     });
 
+    test('goes when an edit of a batch gives its head the tone of the next '
+        'one', () {
+      final session = sessionWith([
+        [
+          chordOf(1, 'F4', value: NoteValue.half, tie: true),
+          chordOf(2, 'G4', value: NoteValue.half),
+        ],
+      ]);
+
+      final next = applied(
+        session.run(Batch([SetTone(headOf(session, 1), g4)])),
+      );
+
+      expect(bar(next.score, 0), ['G4/half', 'G4/half']);
+    });
+
     test('goes when the edit enters its tone in another voice', () {
       final session = sessionWith([
         [
