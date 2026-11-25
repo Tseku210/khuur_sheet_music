@@ -300,8 +300,8 @@ ChordEvent _withLyric(ChordEvent chord, int verse, Lyric? lyric) {
 }
 
 /// Removes [head]. The last head leaves a rest of the chord's value, which
-/// keeps only a fermata of what the chord carried. A tie into the head from
-/// the event before is cleared, as note entry clears one.
+/// keeps only a fermata of what the chord carried. A tie that landed on the
+/// head is cleared.
 Score _removeNote(Score score, _Head head) {
   final (:timed, :chord, :note) = head;
   final left = chord.notes.length > 1
@@ -317,18 +317,7 @@ Score _removeNote(Score score, _Head head) {
             chord.articulations.intersection(restMarks),
           ),
         );
-  final into = _headWhere(
-    _previous(score, timed),
-    (n) => n.tie && n.tone == note.tone,
-  );
-  final untied = into == null
-      ? score
-      : _replace(
-          score,
-          into.timed,
-          _withHead(into.chord, into.note.copyWith(tie: false)),
-        );
-  return _replace(untied, timed, left);
+  return _replace(score, timed, left);
 }
 
 /// Moves [head] and every head tied to it to [tone], keeping each chord in
