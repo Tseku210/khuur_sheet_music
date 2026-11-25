@@ -11,6 +11,7 @@ import 'pitch.dart';
 import 'refs.dart';
 import 'rules.dart';
 import 'seq.dart';
+import 'spanner_ends.dart';
 import 'stable_sort.dart';
 import 'time.dart';
 import 'views.dart';
@@ -452,19 +453,11 @@ final class Score {
   /// Where a spanner of [SpannerReach.time] stops in its last bar: the end
   /// of the voice-one event its last point falls in. The line covers that
   /// event.
-  Moment lineEnd(Spanner spanner) {
-    final last = eventAt(
-      VoicePoint(staff: spanner.staff, voice: VoiceSlot.one, at: spanner.last),
-    )!;
-    return last.onset + last.duration;
-  }
+  Moment lineEnd(Spanner spanner) => spannerEnds(spanner).timeEnd;
 
   /// Where [spanner] stops in its last bar: [lineEnd] for a spanner of
   /// [SpannerReach.time], its last point for one of [SpannerReach.events].
-  Moment endOf(Spanner spanner) => switch (spanner.kind.reach) {
-    SpannerReach.events => spanner.last.offset,
-    SpannerReach.time => lineEnd(spanner),
-  };
+  Moment endOf(Spanner spanner) => spannerEnds(spanner).stop;
 
   /// The event [spanner], of [SpannerReach.events], attaches to at its
   /// first end, or at its last when [last].
@@ -491,131 +484,21 @@ final class Score {
   /// on that rest. Only `AddSpanner` moves the end of a new line from a note
   /// to a chord there.
   TimedEvent? anchorOf(Spanner spanner, {required bool last}) {
-    final at = last ? spanner.last : spanner.first;
-    TimedEvent? sounding(VoiceSlot voice) =>
-        eventAt(VoicePoint(staff: spanner.staff, voice: voice, at: at));
-    switch (spanner.kind) {
-      case Glissando(:final from, :final to):
-        if (last ? to : from case final named?) {
-          for (final slot in VoiceSlot.values) {
-            final timed = sounding(slot);
-            if (timed?.event case ChordEvent(:final notes)
-                when notes.any((note) => note.id == named)) {
-              return timed;
-            }
-          }
-        }
-      case Slur(:final endVoice?) when last:
-        final timed = sounding(endVoice);
-        final start = anchorOf(spanner, last: false);
-        if (timed != null &&
-            timed.event is ChordEvent &&
-            (start == null || _startsAfter(timed, start))) {
-          return timed;
-        }
-      default:
-    }
-    final own = sounding(spanner.voice ?? VoiceSlot.one);
-    if (own != null) {
-      return own;
-    }
-    final one = sounding(VoiceSlot.one);
-    if (!last || one == null) {
-      return one;
-    }
-    final start = anchorOf(spanner, last: false);
-    if (start == null ||
-        !_heldSince(one, start, orWith: spanner.kind is Glissando)) {
-      return one;
-    }
-    for (final slot in VoiceSlot.values.skip(1)) {
-      final timed = sounding(slot);
-      if (timed != null &&
-          timed.onset == at.offset &&
-          timed.event is ChordEvent) {
-        return timed;
-      }
-    }
-    return one;
-  }
-
-  bool _startsAfter(TimedEvent event, TimedEvent other) =>
-      compare(
-        ScorePoint(event.ref.measure, event.onset),
-        ScorePoint(other.ref.measure, other.onset),
-      ) >
-      0;
-
-  /// Whether [held], or an event it is tied from, starts before [start],
-  /// or with it when [orWith]. Not when [start] is itself one of those
-  /// events, as the line then starts on the held note.
-  bool _heldSince(
-    TimedEvent held,
-    TimedEvent start, {
-    required bool orWith,
-  }) {
-    final bar = indexOf(start.ref.measure);
-    for (TimedEvent? part = held; part != null; part = _tiedFrom(part)) {
-      if (part.ref == start.ref) {
-        return false;
-      }
-      final bars = indexOf(part.ref.measure) - bar;
-      final order = bars != 0 ? bars : part.onset.compareTo(start.onset);
-      if (order < 0 || (order == 0 && orWith)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /// The event [part] continues: the one before it in its voice that ends
-  /// where [part] starts and ties a note to every note of [part]. Null when
-  /// [part] starts a note of its own.
-  TimedEvent? _tiedFrom(TimedEvent part) {
-    final before = eventBefore(part);
-    if (before == null) {
-      return null;
-    }
-    final end = before.onset + before.duration;
-    final joined = before.ref.measure == part.ref.measure
-        ? end == part.onset
-        : part.onset.isZero &&
-              end == Moment.zero + column(before.ref.measure).length;
-    if (!joined) {
-      return null;
-    }
-    if ((before.event, part.event)
-        case (
-          ChordEvent(notes: final tied),
-          ChordEvent(:final notes),
-        )
-        when notes.every(
-          (note) => tied.any((from) => from.tie && from.tone == note.tone),
-        )) {
-      return before;
-    }
-    return null;
+    final ends = spannerEnds(spanner);
+    return last ? ends.endsOn : ends.startsOn;
   }
 
   /// Whether [spanner] joins notes but starts and ends on one event.
-  bool isCollapsed(Spanner spanner) =>
-      spanner.kind.joinsNotes &&
-      anchorOf(spanner, last: false)?.event.id ==
-          anchorOf(spanner, last: true)?.event.id;
+  bool isCollapsed(Spanner spanner) => spannerEnds(spanner).collapsed;
 
   /// The notes a glissando [spanner] starts and ends on, by
   /// [Glissando.notesOn] from the events [anchorOf] finds at its ends, or
   /// null where that end is on a rest. Both are null for a spanner that is
   /// not a glissando.
-  ({Note? from, Note? to}) glissandoNotes(Spanner spanner) =>
-      switch (spanner.kind) {
-        final Glissando kind => kind.notesOn(
-          anchorOf(spanner, last: false)?.event,
-          anchorOf(spanner, last: true)?.event,
-          instrument: partOf(spanner.staff).instrument,
-        ),
-        _ => (from: null, to: null),
-      };
+  ({Note? from, Note? to}) glissandoNotes(Spanner spanner) {
+    final ends = spannerEnds(spanner);
+    return (from: ends.startNote, to: ends.endNote);
+  }
 
   /// Everything in effect at a point on a staff.
   ScoreContext contextAt(StaffId staff, ScorePoint at) {
@@ -697,11 +580,12 @@ final class Score {
   /// view reads its own column, both neighbours and the spanners touching it.
   /// So a bar is relaid out when it is new, when it or either neighbour is a
   /// different object than before, or when a spanner covering it was added
-  /// or removed. The event a slur, glissando or trill line of more than one
-  /// bar ends on can depend on every bar from the one before its first
-  /// ([anchorOf]), and the note a glissando ends on depends on the chord it
-  /// starts on, so the bar it ends in is relaid out when any of those is for
-  /// one of the reasons above. A bar relaid out only because such a line ends
+  /// or removed. The ends of a line can read bars before the one it ends
+  /// in: those of a slur, glissando or trill line of more than one bar read
+  /// every bar from the one before its first ([anchorOf]), and the note a
+  /// glissando ends on depends on the chord it starts on. So the bar it ends
+  /// in is relaid out when any bar its ends read is, for one of the reasons
+  /// above. A bar relaid out only because such a line ends
   /// in it holds the same column between the same neighbours as before, so it
   /// relays out no other line's last bar. Every bar is relaid out when the
   /// parts change or when bars that survive change order. [meta] is not
@@ -767,12 +651,10 @@ final class Score {
     if (relayout.isNotEmpty) {
       final changed = {...relayout};
       for (final spanner in spanners) {
-        final first = indexOf(spanner.first.measure);
-        final last = indexOf(spanner.last.measure);
-        if (spanner.kind.reach == SpannerReach.events && first < last) {
-          for (var i = first > 0 ? first - 1 : 0; i < last; i++) {
+        if (endsReadBefore(spanner) case (:final from, :final to)) {
+          for (var i = from; i < to; i++) {
             if (changed.contains(measures[i].id)) {
-              relayout.add(measures[last].id);
+              relayout.add(measures[to].id);
               break;
             }
           }

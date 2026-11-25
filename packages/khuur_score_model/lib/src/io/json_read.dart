@@ -81,7 +81,7 @@ final class _Decoder {
         if (!_savedBeforeTheRule(score, spanner)) {
           spanners[i]['to'].fail(problem);
         }
-      } else if (lostGlissandoNote(score, spanner) == null) {
+      } else if (score.spannerEnds(spanner).lostNote == null) {
         standing.add(spanner);
       }
     }
@@ -825,13 +825,13 @@ final Map<String, SpannerKind Function(_In json)> _kindByName = {
 };
 
 /// Whether [spanner] is a slur or glissando that names no note and ends on
-/// an event of [score] that starts too soon ([endsTooSoon]). A file saved
+/// an event of [score] that starts too soon ([SpannerEnds.endsTooSoon]). A file saved
 /// before 0.5.0 can hold one, so it loads without the spanner.
 bool _savedBeforeTheRule(Score score, Spanner spanner) =>
     switch (spanner.kind) {
       Glissando(:final from, :final to) when from != null || to != null =>
         false,
-      _ => endsTooSoon(score, spanner),
+      _ => score.spannerEnds(spanner).endsTooSoon,
     };
 
 /// The navigation marks written as a bare name, by that name.

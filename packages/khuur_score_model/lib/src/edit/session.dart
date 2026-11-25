@@ -20,6 +20,7 @@ import '../rules.dart';
 import '../score.dart';
 import '../score_ids.dart';
 import '../seq.dart';
+import '../spanner_ends.dart';
 import '../spelling.dart';
 import '../stable_sort.dart';
 import '../time.dart';

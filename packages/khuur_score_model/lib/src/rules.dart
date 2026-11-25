@@ -1,14 +1,14 @@
 /// The rules a stored value keeps. Each function returns why its value
 /// breaks the rule, or null. The edits refuse with that message and the
 /// file readers fail with it at the value's path, so every way into a score
-/// accepts the same values. [lostGlissandoNote] returns a note in place of
-/// a message.
+/// accepts the same values.
 library;
 
 import 'events.dart';
 import 'pitch.dart';
 import 'refs.dart';
 import 'score.dart';
+import 'spanner_ends.dart';
 import 'time.dart';
 
 const _units = {1, 2, 4, 8, 16, 32, 64, 128};
@@ -132,57 +132,17 @@ String? restMarksProblem(Set<Articulation> marks) =>
 
 /// Refuses [spanner] where it cannot stand in [score]: its ends out of
 /// order, or, for one that joins notes, both ends on one event, or an end
-/// on an event that starts too soon ([endsTooSoon]).
-String? spannerProblem(Score score, Spanner spanner) =>
-    spannerOrderProblem(
-      joinsNotes: spanner.kind.joinsNotes,
-      firstBar: score.indexOf(spanner.first.measure),
-      firstOffset: spanner.first.offset,
-      lastBar: score.indexOf(spanner.last.measure),
-      lastOffset: spanner.last.offset,
-    ) ??
-    (_endsOf(score, spanner) == _Ends.allowed ? null : _endsAfterStart);
-
-/// Whether [spanner] joins notes and ends on an event of [score] that starts
-/// too soon. A [Glissando] must end on an event that starts after its start
-/// event. A [Slur] may end on one that starts with its start event, in
-/// another voice. A glissando that has lost a note it names
-/// ([lostGlissandoNote]) never ends too soon.
-bool endsTooSoon(Score score, Spanner spanner) =>
-    _endsOf(score, spanner) == _Ends.tooSoon;
-
-enum _Ends { allowed, onOneEvent, tooSoon }
-
-_Ends _endsOf(Score score, Spanner spanner) {
-  final kind = spanner.kind;
-  if (!kind.joinsNotes) {
-    return _Ends.allowed;
-  }
-  final first = score.anchorOf(spanner, last: false);
-  final last = score.anchorOf(spanner, last: true);
-  if (first?.event.id == last?.event.id) {
-    return _Ends.onOneEvent;
-  }
-  if (first == null || last == null) {
-    return _Ends.allowed;
-  }
-  if (kind is Glissando) {
-    final notes = kind.notesOn(
-      first.event,
-      last.event,
-      instrument: score.partOf(spanner.staff).instrument,
-    );
-    if ((kind.from != null && notes.from?.id != kind.from) ||
-        (kind.to != null && notes.to?.id != kind.to)) {
-      return _Ends.allowed;
-    }
-  }
-  final bars =
-      score.indexOf(last.ref.measure) - score.indexOf(first.ref.measure);
-  final order = bars != 0 ? bars : last.onset.compareTo(first.onset);
-  return order < 0 || (order == 0 && kind is Glissando)
-      ? _Ends.tooSoon
-      : _Ends.allowed;
+/// on an event that starts too soon ([SpannerEnds.endsTooSoon]).
+String? spannerProblem(Score score, Spanner spanner) {
+  final ends = score.spannerEnds(spanner);
+  return spannerOrderProblem(
+        joinsNotes: spanner.kind.joinsNotes,
+        firstBar: score.indexOf(spanner.first.measure),
+        firstOffset: spanner.first.offset,
+        lastBar: score.indexOf(spanner.last.measure),
+        lastOffset: spanner.last.offset,
+      ) ??
+      (ends.collapsed || ends.endsTooSoon ? _endsAfterStart : null);
 }
 
 const _endsAfterStart = 'a slur or glissando ends after it starts';
@@ -200,9 +160,9 @@ Spanner endsHeld(Score score, Spanner spanner) {
   if (!spanner.kind.joinsNotes) {
     return spanner;
   }
-  final first = score.anchorOf(spanner, last: false);
-  final last = score.anchorOf(spanner, last: true);
-  if (first == null || last == null || first.event.id == last.event.id) {
+  final ends = score.spannerEnds(spanner);
+  final SpannerEnds(startsOn: first, endsOn: last) = ends;
+  if (first == null || last == null || ends.collapsed) {
     return spanner;
   }
   var from = spanner.first;
@@ -223,14 +183,9 @@ Spanner endsHeld(Score score, Spanner spanner) {
         );
       }
     case final Glissando line:
-      final notes = line.notesOn(
-        first.event,
-        last.event,
-        instrument: score.partOf(spanner.staff).instrument,
-      );
       kind = Glissando(
-        from: notes.from?.id ?? line.from,
-        to: notes.to?.id ?? line.to,
+        from: ends.startNote?.id ?? line.from,
+        to: ends.endNote?.id ?? line.to,
       );
     default:
   }
@@ -244,21 +199,6 @@ Spanner endsHeld(Score score, Spanner spanner) {
           first: from,
           last: to,
         );
-}
-
-/// The note a glissando [spanner] names that no voice of its staff sounds
-/// at that end of it in [score], or null when each note it names is there.
-NoteId? lostGlissandoNote(Score score, Spanner spanner) {
-  if (spanner.kind case Glissando(from: final first, to: final last)) {
-    final (:from, :to) = score.glissandoNotes(spanner);
-    if (first != null && from?.id != first) {
-      return first;
-    }
-    if (last != null && to?.id != last) {
-      return last;
-    }
-  }
-  return null;
 }
 
 /// A spanner that joins notes ends after it starts; any other ends no

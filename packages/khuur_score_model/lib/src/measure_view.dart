@@ -7,6 +7,7 @@ import 'measure.dart';
 import 'pitch.dart';
 import 'refs.dart';
 import 'score.dart';
+import 'spanner_ends.dart';
 import 'stable_sort.dart';
 import 'time.dart';
 import 'views.dart';
@@ -52,32 +53,18 @@ MeasureView buildMeasureView(Score score, int index) {
 SpannerSegment _segment(Score score, MeasureColumn column, Spanner spanner) {
   final startsHere = spanner.first.measure == column.id;
   final endsHere = spanner.last.measure == column.id;
-  final kind = spanner.kind;
-  final onEvents = kind.reach == SpannerReach.events;
-  final endFollowsStart = endsHere && kind is Glissando;
-  final first = onEvents && (startsHere || endFollowsStart)
-      ? score.anchorOf(spanner, last: false)
-      : null;
-  final last = onEvents && endsHere
-      ? score.anchorOf(spanner, last: true)
-      : null;
-  final notes = kind is Glissando
-      ? kind.notesOn(
-          first?.event,
-          last?.event,
-          instrument: score.partOf(spanner.staff).instrument,
-        )
-      : null;
+  final onEvents = spanner.kind.reach == SpannerReach.events;
+  final ends = score.spannerEnds(spanner);
   return SpannerSegment(
     spanner: spanner,
     from: startsHere ? spanner.first.offset : Moment.zero,
-    to: endsHere ? score.endOf(spanner) : Moment.zero + column.length,
+    to: endsHere ? ends.stop : Moment.zero + column.length,
     startsHere: startsHere,
     endsHere: endsHere,
-    startsOn: startsHere ? first : null,
-    endsOn: last,
-    startNote: startsHere ? notes?.from?.id : null,
-    endNote: notes?.to?.id,
+    startsOn: startsHere && onEvents ? ends.startsOn : null,
+    endsOn: endsHere && onEvents ? ends.endsOn : null,
+    startNote: startsHere ? ends.startNote?.id : null,
+    endNote: endsHere ? ends.endNote?.id : null,
   );
 }
 
