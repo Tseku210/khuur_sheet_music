@@ -432,9 +432,10 @@ final class _BarWrites {
   Score get written => changed ? score.withBars(_written) : score;
 }
 
-/// [head] and every head tied to it, in time order. A tie joins a head to
-/// the head of the same tone in the adjacent event of its voice, as
-/// `measureView` draws it.
+/// [head] and every head tied to it in its voice, in time order. The chain
+/// follows a tie to the head of the same tone in the adjacent event of its
+/// voice, where `measureView` lands it, and ends at a tie that lands in
+/// another voice or on no head.
 List<_Head> _tieChain(Score score, _Head head) {
   final tone = head.note.tone;
   final chain = [head];
