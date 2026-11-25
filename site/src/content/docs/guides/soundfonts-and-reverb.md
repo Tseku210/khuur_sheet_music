@@ -68,7 +68,7 @@ _player.instrumentSoundFonts = {
 };
 ```
 
-A `SynthOutput` plays from at most 16 SoundFonts, because each SoundFont takes 16 of FluidSynth's 256 channels.
+A `SynthOutput` plays from at most 16 SoundFonts, because each SoundFont takes 16 of FluidSynth's 256 channels. A 17th is refused with a `StateError`, whether it loads alone or with others in one `play`.
 
 ## Add reverb
 

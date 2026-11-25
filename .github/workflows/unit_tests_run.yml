@@ -231,20 +231,21 @@ jobs:
         run: flutter pub publish --dry-run
 
       # pana scores a package the way pub.dev does, resolving its dependencies
-      # from pub.dev, where all three packages are published. Each step fails
-      # below 140 of 160 points.
+      # from pub.dev. Each step fails below 140 of 160 points. pana.sh skips a
+      # package whose new sibling version is not published yet, as in a
+      # release pull request.
       - name: Activate pana
         if: ${{ !cancelled() }}
         run: dart pub global activate pana
 
       - name: pana, khuur_score_model
         if: ${{ !cancelled() }}
-        run: dart pub global run pana --no-warning --exit-code-threshold 20 packages/khuur_score_model
+        run: bash .github/scripts/pana.sh packages/khuur_score_model
 
       - name: pana, khuur_score_layout
         if: ${{ !cancelled() }}
-        run: dart pub global run pana --no-warning --exit-code-threshold 20 packages/khuur_score_layout
+        run: bash .github/scripts/pana.sh packages/khuur_score_layout
 
       - name: pana, khuur_sheet_music
         if: ${{ !cancelled() }}
-        run: dart pub global run pana --no-warning --exit-code-threshold 20 .
+        run: bash .github/scripts/pana.sh .
