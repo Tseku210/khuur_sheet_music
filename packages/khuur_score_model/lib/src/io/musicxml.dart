@@ -481,9 +481,13 @@ final class _Export {
     XmlElement style(String type, [String count = '']) => _el(
       'measure-style',
       [
-        _el('measure-repeat', [if (count.isNotEmpty) XmlText(count)], {
-          'type': type,
-        }),
+        _el(
+          'measure-repeat',
+          [if (count.isNotEmpty) XmlText(count)],
+          {
+            'type': type,
+          },
+        ),
       ],
       {'number': number?.toString()},
     );

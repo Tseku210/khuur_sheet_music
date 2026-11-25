@@ -512,10 +512,13 @@ final class HeaderPainter extends CustomPainter {
 
   /// In sheet space.
   final List<Drawable> header;
+
   /// Draws the glyphs and the text. Compared by identity.
   final GlyphPainter glyphs;
+
   /// Gives each drawable the colour of its [InkRole].
   final SheetPalette palette;
+
   /// Maps sheet space to the painter's pixels.
   final SheetScale scale;
 
@@ -561,10 +564,13 @@ final class SystemPainter extends CustomPainter {
 
   /// The bar number at the start of the system, in system space.
   final TextDraw? label;
+
   /// Draws the glyphs and the text. Compared by identity.
   final GlyphPainter glyphs;
+
   /// Gives each drawable the colour of its [InkRole].
   final SheetPalette palette;
+
   /// Maps system space to the tile's pixels.
   final SheetScale scale;
 
@@ -606,15 +612,19 @@ final class HighlightPainter extends CustomPainter {
 
   /// Which system of [layout] this tile shows.
   final int index;
+
   /// What is selected, boxed in the palette's selection style. Compared by
   /// identity.
   final Selection selection;
+
   /// Where playback is. Its playing events get the column. Null draws no
   /// column.
   final ValueListenable<PlaybackPosition?>? playback;
+
   /// Gives the style of the selection and of playback. Its other parts are
   /// not read.
   final SheetPalette palette;
+
   /// Maps system space to the tile's pixels.
   final SheetScale scale;
 
@@ -760,37 +770,67 @@ final class OverlayPainter extends CustomPainter {
 
   /// Which system of [layout] this tile shows.
   final int index;
+
   /// The edit cursor, drawn as a caret in the palette's cursor style. Null
   /// draws no caret.
   final VoicePoint? cursor;
+
   /// A note that is not in the score, as `SheetView.preview` describes.
   /// Null draws none.
   final NotePreview? preview;
+
   /// What is selected. Its items and spanners are drawn again in the
   /// selection's ink, when the palette gives one. Compared by identity.
   final Selection selection;
+
   /// A colour each note or event is drawn again in. Compared by identity.
   final Map<ElementRef, Color> tints;
+
   /// Where playback is. Its playing events take playback's ink, and its
   /// point places the playhead. Null draws neither.
   final ValueListenable<PlaybackPosition?>? playback;
+
   /// Draws the glyphs and the text. Compared by identity.
   final GlyphPainter glyphs;
+
   /// Gives the inks of the selection and of playback, the caret, the
   /// playhead and the preview's colour.
   final SheetPalette palette;
+
   /// Maps system space to the tile's pixels.
   final SheetScale scale;
 
   late final SystemLayout _system = layout.systemAt(index);
 
+  // The system's drawables under each ref or spanner id that owns them, in
+  // the order the system draws them, as `SystemLayout.drawablesOf` answers
+  // for each: a head is under its note and under its note's event, and the
+  // rest of an event under the event. One walk of the system finds them
+  // all, where asking the system for each tint walked it once a tint. A ref
+  // is equal by its event's id and never by its measure, which a change of
+  // meter leaves stale.
+  late final Map<Object, List<Drawable>> _owned = () {
+    final owned = <Object, List<Drawable>>{};
+    for (final drawable in _system.drawables) {
+      switch (drawable.owner) {
+        case ElementOwner(:final ref):
+          (owned[ref] ??= []).add(drawable);
+          if (ref is NoteRef) {
+            (owned[ref.event] ??= []).add(drawable);
+          }
+        case SpannerOwner(:final id):
+          (owned[id] ??= []).add(drawable);
+        case null:
+      }
+    }
+    return owned;
+  }();
+
   // A ref with no drawables here (a hidden staff, another system) draws
   // nothing, so neither the tints nor the playing events need a filter.
-  // The system is asked by the event's id and never by the ref's measure,
-  // which a change of meter leaves stale.
   late final List<(Drawable, Color)> _tinted = [
     for (final MapEntry(key: ref, value: color) in tints.entries)
-      for (final drawable in _system.drawablesOf(ElementOwner(ref)))
+      for (final drawable in _owned[ref] ?? const <Drawable>[])
         (drawable, color),
   ];
 
@@ -799,8 +839,8 @@ final class OverlayPainter extends CustomPainter {
     ItemSelection(:final items, :final spanners)
         when palette.selection.ink != null =>
       [
-        for (final ref in items) ..._system.drawablesOf(ElementOwner(ref)),
-        for (final id in spanners) ..._system.drawablesOf(SpannerOwner(id)),
+        for (final ref in items) ...?_owned[ref],
+        for (final id in spanners) ...?_owned[id],
       ],
     _ => const [],
   };

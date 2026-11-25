@@ -1147,4 +1147,77 @@ void main() {
       expect(sliceTimes(viewOf(score)), [Moment.zero, at(3, 4), at(1, 1)]);
     });
   });
+
+  group('timeSignatureRows', () {
+    // Each row as its step, then its glyphs. A record that holds a list
+    // equals only itself, so the rows are compared as lists.
+    List<List<Object>> rows(Meter meter) => [
+      for (final row in timeSignatureRows(meter)) [row.step, row.glyphs],
+    ];
+
+    test('writes a numeric meter as its count on step 6 over its unit on '
+        'step 2', () {
+      expect(rows(Meter.fourFour), [
+        [
+          6,
+          [Glyph.timeSig4],
+        ],
+        [
+          2,
+          [Glyph.timeSig4],
+        ],
+      ]);
+    });
+
+    test('writes each digit of a count or unit of two digits', () {
+      expect(rows(Meter.simple(12, 8)), [
+        [
+          6,
+          [Glyph.timeSig1, Glyph.timeSig2],
+        ],
+        [
+          2,
+          [Glyph.timeSig8],
+        ],
+      ]);
+      expect(rows(Meter.simple(3, 16)), [
+        [
+          6,
+          [Glyph.timeSig3],
+        ],
+        [
+          2,
+          [Glyph.timeSig1, Glyph.timeSig6],
+        ],
+      ]);
+    });
+
+    test('joins the groups of an additive meter with a plus', () {
+      expect(rows(const Meter([3, 2], 8)), [
+        [
+          6,
+          [Glyph.timeSig3, Glyph.timeSigPlus, Glyph.timeSig2],
+        ],
+        [
+          2,
+          [Glyph.timeSig8],
+        ],
+      ]);
+    });
+
+    test('writes common and cut time as one symbol on the middle line', () {
+      expect(rows(Meter.common), [
+        [
+          4,
+          [Glyph.timeSigCommon],
+        ],
+      ]);
+      expect(rows(Meter.cut), [
+        [
+          4,
+          [Glyph.timeSigCutCommon],
+        ],
+      ]);
+    });
+  });
 }

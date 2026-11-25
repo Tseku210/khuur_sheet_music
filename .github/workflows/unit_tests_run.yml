@@ -38,6 +38,12 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
+      # The formatter's output changes between SDKs, so only the leg on the
+      # oldest supported Flutter checks it.
+      - name: Format
+        if: ${{ !cancelled() && matrix.flutter == 'oldest supported' }}
+        run: dart format --output=none --set-exit-if-changed .
+
       # Each suite runs even when one before it failed, so that one run
       # shows every failure.
       - name: Library unit tests
@@ -58,6 +64,72 @@ jobs:
         if: ${{ !cancelled() }}
         run: flutter test
         working-directory: example
+
+  # Each model benchmark fails on the ratio of two costs that it measures
+  # in the same run, so a slow host does not fail it. The layout benchmark
+  # fails on budgets in absolute time, set on a developer's machine, so it
+  # does not run here.
+  scaling:
+    name: Scaling gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v7
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.5
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Playback benchmark
+        if: ${{ !cancelled() }}
+        working-directory: packages/khuur_score_model
+        run: |
+          mkdir -p build
+          dart compile exe benchmark/playback_benchmark.dart -o build/playback_benchmark
+          build/playback_benchmark
+
+      - name: Erase benchmark
+        if: ${{ !cancelled() }}
+        working-directory: packages/khuur_score_model
+        run: |
+          mkdir -p build
+          dart compile exe benchmark/erase_benchmark.dart -o build/erase_benchmark
+          build/erase_benchmark
+
+      - name: Erase growth benchmark
+        if: ${{ !cancelled() }}
+        working-directory: packages/khuur_score_model
+        run: |
+          mkdir -p build
+          dart compile exe benchmark/erase_growth_benchmark.dart -o build/erase_growth_benchmark
+          build/erase_growth_benchmark
+
+      - name: MusicXML export benchmark
+        if: ${{ !cancelled() }}
+        working-directory: packages/khuur_score_model
+        run: |
+          mkdir -p build
+          dart compile exe benchmark/musicxml_export_benchmark.dart -o build/musicxml_export_benchmark
+          build/musicxml_export_benchmark
+
+      - name: Edit growth benchmark
+        if: ${{ !cancelled() }}
+        working-directory: packages/khuur_score_model
+        run: |
+          mkdir -p build
+          dart compile exe benchmark/edit_growth_benchmark.dart -o build/edit_growth_benchmark
+          build/edit_growth_benchmark
+
+      # Every order of up to 5 steps on ScorePlayer. A local run without the
+      # define checks every order of up to 7.
+      - name: Player orders
+        if: ${{ !cancelled() }}
+        run: flutter test --no-pub verification/score_player/orders_test.dart --dart-define=PLAYER_ORDERS_DEPTH=5
 
   web:
     name: Web
@@ -104,9 +176,10 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      # Fails when a CHANGELOG or the site's tutorial names a version other
-      # than the pubspec's.
-      - name: Docs name the pubspec versions
+      # Fails when a CHANGELOG, the site's tutorial or a reference page names
+      # a version other than the pubspec's, or when the export table on the
+      # site's Packages page and the export list of the library differ.
+      - name: Docs match the pubspecs and the export list
         if: ${{ !cancelled() }}
         run: .github/scripts/check_release_docs.sh
 
@@ -127,11 +200,20 @@ jobs:
         run: flutter pub publish --dry-run
 
       # pana scores a package the way pub.dev does, resolving its dependencies
-      # from pub.dev. Until khuur_score_model is published, the other two
-      # cannot resolve there, so only the model is scored here. Fails below
-      # 140 of 160 points.
+      # from pub.dev, where all three packages are published. Each step fails
+      # below 140 of 160 points.
+      - name: Activate pana
+        if: ${{ !cancelled() }}
+        run: dart pub global activate pana
+
       - name: pana, khuur_score_model
         if: ${{ !cancelled() }}
-        run: |
-          dart pub global activate pana
-          dart pub global run pana --no-warning --exit-code-threshold 20 packages/khuur_score_model
+        run: dart pub global run pana --no-warning --exit-code-threshold 20 packages/khuur_score_model
+
+      - name: pana, khuur_score_layout
+        if: ${{ !cancelled() }}
+        run: dart pub global run pana --no-warning --exit-code-threshold 20 packages/khuur_score_layout
+
+      - name: pana, khuur_sheet_music
+        if: ${{ !cancelled() }}
+        run: dart pub global run pana --no-warning --exit-code-threshold 20 .

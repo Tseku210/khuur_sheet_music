@@ -161,7 +161,9 @@ final class _Reader {
     var tick = 0;
     int? running;
     while (_at < end) {
+      final from = _at;
       tick += vlq();
+      expect(_at - from, lessThanOrEqualTo(4), reason: 'a delta time');
       var status = _bytes[_at];
       if (status == 0xFF) {
         _at++;
@@ -365,6 +367,26 @@ void main() {
       ]);
     });
 
+    test('writes a score where no bar plays as a file with no notes', () {
+      // Each bar is under a second ending no repeat leads to, so the play
+      // order passes over both.
+      var score = quarters(2);
+      for (final bar in [0, 1]) {
+        score = changeBar(
+          score,
+          bar,
+          (column) => column.copyWith(volta: () => const Volta([2])),
+        );
+      }
+      expect(PlaybackCompiler().compile(score).bars, isEmpty);
+
+      final file = exported(score);
+      expect(file.tracks, hasLength(2));
+      expect(file.tempos, isEmpty);
+      expect(file.allNotes, isEmpty);
+      expect(file.tracks.map((track) => track.last.tick), [0, 0]);
+    });
+
     test('plays a bar under a measure repeat as the bar it repeats', () {
       final session = EditSession.start(quarters(2));
       final score = applied(
@@ -392,6 +414,41 @@ void main() {
         for (var beat = 0; beat < 8; beat++) beat * quarter,
       ]);
       expect(file.secondsAt(2 * whole), 7);
+    });
+
+    test('writes a wait longer than one delta time holds as several, and '
+        'keeps every note at its time', () {
+      // The file's slowest tempo is 3.58 quarters a minute, so the second
+      // bar's note starts far more ticks on than one delta time counts.
+      final score = tempoAt(quarters(2), 0, Moment.zero, const Tempo(0.000001));
+      final file = exported(score);
+
+      expect(file.tempos, [(0, 0xFFFFFF)]);
+      expect(
+        [for (final note in file.allNotes) file.secondsAt(note.on)],
+        [
+          for (final note
+              in PlaybackCompiler()
+                  .compile(score)
+                  .notesBetween(
+                    0,
+                    double.infinity,
+                  ))
+            closeTo(note.start, file.tickSecondsAt(0)),
+        ],
+      );
+      expect(file.secondsAt(file.allNotes.last.on), closeTo(4.2e8, 1));
+      expect(file.metas(0x01, 1), isNotEmpty, reason: 'the waits between');
+    });
+
+    test('cuts a wait short past 256 delta times, so no tempo makes a file '
+        'without bound', () {
+      final bytes = scoreToMidi(
+        tempoAt(quarters(1), 0, Moment.zero, const Tempo(1e-12)),
+      );
+
+      expect(MidiFile.read(bytes).allNotes, hasLength(4));
+      expect(bytes.length, lessThan(16 * 1024));
     });
 
     test('a tempo of a dotted beat is in quarters', () {

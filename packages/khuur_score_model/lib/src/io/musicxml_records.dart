@@ -71,6 +71,7 @@ final class DocumentRecord {
   /// The title, subtitle, composer, lyricist and copyright, from `<work>`,
   /// `<movement-title>`, `<credit>` and `<identification>`.
   final ScoreMeta meta;
+
   /// One record per `<part>`, in document order.
   final List<PartRecord> parts;
 
@@ -117,22 +118,29 @@ final class PartRecord {
 
   /// The id minted for the part.
   final PartId id;
+
   /// One id per staff, as many as `<staves>` states, or one.
   final List<StaffId> staves;
+
   /// The `<part-name>`.
   final String name;
+
   /// The `<part-abbreviation>`, or empty.
   final String shortName;
+
   /// The first `<midi-instrument>`'s `<midi-program>`, counted from 0, or 0
   /// when none is given.
   final int program;
+
   /// The first `<midi-instrument>`'s `<midi-bank>`, counted from 0, or 0 when
   /// none is given.
   final int bank;
+
   /// The `<transpose>` stated before the first note of the first bar, or a
   /// unison. It runs from written to sounding pitch, as in MusicXML, and
   /// becomes the part's `Instrument.transposition`.
   final Interval transposition;
+
   /// The open strings that `<staff-tuning>` states, in `line` order, or empty
   /// when the part states none.
   final List<Pitch> strings;
@@ -191,19 +199,26 @@ final class BarRecord {
   /// The first `<time>` of the bar and its element, or null when the bar states
   /// none.
   final ({Meter meter, Source source})? meter;
+
   /// Each `<clef>`, with its staff from 0 and the time it takes effect.
   final List<({int staff, Moment at, Clef clef})> clefs;
+
   /// Dynamics, words and chord symbols, each with its staff from 0.
   final List<({int staff, StaffDirection direction})> directions;
+
   /// The tempo marks a `<metronome>` or a `tempo` attribute of `<sound>`
   /// states.
   final List<TempoMark> tempos;
+
   /// Each `<rehearsal>`, with its text and time.
   final List<({Moment at, String text})> rehearsals;
+
   /// The segno, coda, fine and jump marks, in document order.
   final List<NavigationMark> navigation;
+
   /// What the bar's `<barline>` elements state.
   final BarlineRecord barline;
+
   /// The page or system break a `<print>` in the bar asks for before it, or
   /// null.
   final LayoutBreak? breakBefore;
@@ -230,6 +245,7 @@ final class BarlineRecord {
 
   /// A forward `<repeat>` opens a repeat at this bar.
   final bool repeatStart;
+
   /// The backward `<repeat>` that closes a repeat at this bar, which plays
   /// `times` times, 2 when unstated. Null when there is none.
   final RepeatEnd? repeatEnd;
@@ -285,6 +301,7 @@ sealed class LaneItem {
 
   /// Sounding times in the bar.
   final Moment onset;
+
   /// Where it stops sounding, in whole notes from the bar start.
   final Moment end;
 }
@@ -337,31 +354,42 @@ final class ChordRecord extends EventRecord {
   /// The written value, from `<type>` and `<dot>`, or the value that fits the
   /// duration when the file gives no type.
   final NoteValue value;
+
   /// The notes, in document order.
   final List<NoteRecord> notes = [];
+
   /// The grace chords that lead into it in its voice, in order.
   final List<GraceRecord> graces;
+
   /// The articulations any of its notes state, a `<fermata>` and a `<harmonic>`
   /// included.
   final Set<Articulation> articulations = {};
+
   /// The first ornament a note states, or null. A `trill-mark` beside the start
   /// of a `wavy-line` counts only when that line never stops.
   Ornament? ornament;
+
   /// Whether a note states a `trill-mark` beside the start of a `wavy-line`.
   bool lineSign = false;
+
   /// The alteration of the first `<accidental-mark>` above [ornament] in
   /// its `<ornaments>`, which is where one without a placement goes.
   Alter? ornamentAbove;
+
   /// The alteration of the first `<accidental-mark placement="below">`
   /// after [ornament].
   Alter? ornamentBelow;
+
   /// The first up-bow or down-bow a note states, or null.
   Bowing? bowing;
+
   /// The first `<stem>` of up or down a note states, else auto.
   StemDirection stem = StemDirection.auto;
+
   /// The strokes, 1 to 4, of the first single-note `<tremolo>` a note states,
   /// or 0 for none.
   int tremolo = 0;
+
   /// One lyric per verse. The first note to state a verse decides it.
   final List<Lyric> lyrics = [];
 }
@@ -401,6 +429,7 @@ final class RestRecord extends EventRecord {
 
   /// The `<duration>`, where a rest whose value cannot be written is refused.
   final Source durationSource;
+
   /// The rest carries a `<fermata>`.
   bool fermata = false;
 }
@@ -420,14 +449,18 @@ final class TupletRecord extends LaneItem {
 
   /// The id minted for the tuplet.
   final TupletId id;
+
   /// Actual notes over normal notes, from `<tuplet-actual>` and
   /// `<tuplet-normal>`, else from the notes' `<time-modification>`.
   final TupletRatio ratio;
+
   /// The value the ratio counts in, as the file states it or as the members add
   /// up to.
   final NoteValue unit;
+
   /// Events and nested tuplets, in time order.
   final List<LaneItem> members;
+
   /// From the `bracket` attribute of `<tuplet>`, or auto.
   final TupletBracket bracket;
 }
@@ -440,12 +473,15 @@ final class GraceRecord {
 
   /// The id minted for the grace chord.
   final EventId id;
+
   /// An acciaccatura when the `<grace>` has `slash="yes"`, else an
   /// appoggiatura.
   final GraceKind kind;
+
   /// The written `<type>` and `<dot>`s, or an eighth when the file gives no
   /// type.
   final NoteValue value;
+
   /// The notes, in document order.
   final List<NoteRecord> notes = [];
 }
@@ -456,10 +492,13 @@ sealed class NoteRecord {
 
   /// The id minted for the note.
   final NoteId id;
+
   /// A `<tie>` or `<tied>` of type `start` is on the note.
   bool tieStart = false;
+
   /// A `<tie>` of type `start` is on the note.
   bool tieElementStart = false;
+
   /// A `<tie>` or `<tied>` of type `let-ring` is on the note.
   bool letRing = false;
 }
@@ -482,6 +521,7 @@ final class PitchedRecord extends NoteRecord {
 
   /// From `<notehead>`, normal when it is missing or unknown.
   final NoteHead head;
+
   /// The first `<fingering>` that is a finger number, or null.
   int? fingering;
 
@@ -547,6 +587,7 @@ final class TimeAnchor extends Anchor {
 
   /// The staff, from 0.
   final int staff;
+
   /// The time in the bar, in whole notes from its start.
   Moment at;
 }

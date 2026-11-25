@@ -1568,7 +1568,7 @@ void main() {
           final removes = step % 20 == 19;
           final next = removes
               ? withoutNamedNote(score, random)
-              : randomEdit(score, random);
+              : randomEditOrMore(score, random);
           final kept = {for (final spanner in next.spanners) spanner.id};
           final notes = notesOf(next);
           for (final spanner in score.spanners) {
@@ -1888,7 +1888,7 @@ void main() {
         final random = Random(seed);
         var score = lined();
         for (var step = 0; step < 40; step++) {
-          score = randomEdit(score, random);
+          score = randomEditOrMore(score, random);
           kept += score.spanners
               .where((spanner) => spanner.id.value < 904)
               .length;

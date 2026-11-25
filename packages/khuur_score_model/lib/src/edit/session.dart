@@ -110,12 +110,15 @@ final class EditSession {
 
   /// Whether there is an edit to undo.
   bool get canUndo => _past.isNotEmpty;
+
   /// Whether there is an undone edit to redo. Any edit that changes the score
   /// clears the redo stack.
   bool get canRedo => _future.isNotEmpty;
+
   /// The [Edit.label] of the edit [undo] would revert, or null when there is
   /// none.
   String? get undoLabel => canUndo ? _past.last.label : null;
+
   /// The [Edit.label] of the edit [redo] would restore, or null when there is
   /// none.
   String? get redoLabel => canRedo ? _future.last.label : null;
@@ -539,17 +542,22 @@ enum CursorMove {
   /// To the next event onset in the cursor's voice. Past the last one, to the
   /// start of the next bar.
   nextEvent,
+
   /// To the previous event onset in the cursor's voice, or to the bar start
   /// when that is later. From a bar start, to the last onset in the previous
   /// bar.
   previousEvent,
+
   /// To the start of the next bar.
   nextMeasure,
+
   /// To the start of the cursor's bar, or of the previous bar when the cursor
   /// is already at a bar start.
   previousMeasure,
+
   /// To the nearest shown staff above.
   staffUp,
+
   /// To the nearest shown staff below.
   staffDown,
 }
@@ -591,6 +599,7 @@ final class Refused extends EditOutcome {
   /// The session the edit was run on, unchanged.
   @override
   final EditSession session;
+
   /// Why the edit did not apply.
   final EditRefusal reason;
 }
@@ -677,10 +686,13 @@ final class RangeSelection extends Selection {
 
   /// The start of the range, inclusive.
   final ScorePoint from;
+
   /// The end of the range, exclusive. It may sit at the end of its bar.
   final ScorePoint to;
+
   /// The first staff of the range, in system order.
   final StaffId top;
+
   /// The last staff of the range, inclusive.
   final StaffId bottom;
 

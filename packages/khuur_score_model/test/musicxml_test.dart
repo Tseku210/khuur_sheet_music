@@ -1784,7 +1784,7 @@ void main() {
         final random = Random(seed);
         var score = blankScore(parts: const [morinKhuur, clarinet], bars: 4);
         for (var step = 0; step < 100; step++) {
-          score = randomEdit(score, random);
+          score = randomEditOrMore(score, random);
           final (:children, :bars) = read(exported(score));
           final where = 'seed $seed, step $step';
 

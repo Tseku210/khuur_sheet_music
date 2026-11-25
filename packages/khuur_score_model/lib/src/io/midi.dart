@@ -195,8 +195,12 @@ final class _TempoMap {
     ));
   }
 
-  /// The tick that [seconds] falls nearest.
+  /// The tick that [seconds] falls nearest. It is 0 while the map holds no
+  /// tempo, which is a script that plays no bar, so nothing has a time.
   int tickAt(double seconds) {
+    if (changes.isEmpty) {
+      return 0;
+    }
     var low = 1;
     var high = changes.length;
     while (low < high) {
@@ -293,13 +297,35 @@ final class _Track {
           a.tick != b.tick ? a.tick - b.tick : a.rank.index - b.rank.index,
     )) {
       body
-        ..addAll(_vlq(at - tick))
+        ..addAll(_wait(at - tick))
         ..addAll(bytes);
       tick = at;
     }
-    body.addAll([..._vlq(max(end - tick, 0)), 0xFF, 0x2F, 0]);
+    body.addAll([..._wait(end - tick), 0xFF, 0x2F, 0]);
     return [...ascii.encode('MTrk'), ..._u32(body.length), ...body];
   }
+}
+
+/// The most ticks one delta time counts, which is four bytes of seven bits.
+const _longestDelta = 0x0FFFFFFF;
+
+/// The most delta times one wait is written as. At the slowest tempo a
+/// file states, 16.8 seconds a quarter, they last 38 years.
+const _mostDeltas = 256;
+
+/// The delta time before an event [ticks] after the one before it. A wait
+/// longer than [_longestDelta] is several delta times with an empty text
+/// event after each but the last, so the event keeps its time. The file's
+/// tempo stops at 3.58 quarters a minute and a slower score takes more
+/// ticks instead, so a tempo near none can ask for any wait. One past
+/// [_mostDeltas] delta times is cut to that, and what follows comes early.
+List<int> _wait(int ticks) {
+  var left = ticks.clamp(0, _mostDeltas * _longestDelta);
+  final bytes = <int>[];
+  for (; left > _longestDelta; left -= _longestDelta) {
+    bytes.addAll([..._vlq(_longestDelta), 0xFF, 0x01, 0]);
+  }
+  return bytes..addAll(_vlq(left));
 }
 
 /// [value] as a variable-length quantity: seven bits a byte, most

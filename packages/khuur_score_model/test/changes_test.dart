@@ -261,7 +261,7 @@ void main() {
         var score = blankScore(parts: const [morinKhuur, clarinet], bars: 4);
         for (var step = 0; step < 150; step++) {
           final before = score;
-          score = randomEdit(before, random);
+          score = randomEditOrMore(before, random);
           final changes = score.changesSince(before);
           final beforeIds = barIds(before);
           final afterIds = barIds(score);

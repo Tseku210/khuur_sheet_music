@@ -2200,6 +2200,26 @@ void main() {
       expect(trilled(50), 64);
     });
 
+    test('a trill at a tempo near none plays a bounded count of notes, and '
+        'still ends on the note above', () {
+      final score = changeBar(
+        sessionWith([
+          [ornamented(wholes(1, 'E5'), Ornament.trill)],
+        ]).score,
+        0,
+        tempos(const [TempoMark(offset: Moment.zero, tempo: Tempo(0.001))]),
+      );
+      final watch = Stopwatch()..start();
+      final script = compiled(score);
+      final notes = script.notesBetween(0, double.infinity).toList();
+      watch.stop();
+
+      expect(script.totalSeconds, closeTo(240000, 1e-6));
+      expect(notes, hasLength(1024));
+      expect(notes.last.key, 77);
+      expect(watch.elapsed, lessThan(const Duration(seconds: 1)));
+    });
+
     test('a trill alternates with the note above in the key', () {
       final score = at80([
         [

@@ -84,6 +84,15 @@ DocumentRecord readDocument(XmlElement root) {
       ),
     );
   }
+  final staffBars =
+      readers.fold(0, (staves, reader) => staves + reader.staves.length) *
+      readers.first.measures.length;
+  if (staffBars > _mostStaffBars) {
+    Source(root).refuse(
+      'a score has at most $_mostStaffBars bars over all its staves, '
+      'not $staffBars',
+    );
+  }
   final measures = <MeasureId>[];
   for (final (p, reader) in readers.indexed) {
     for (final (bar, measure) in reader.measures.indexed) {
@@ -254,6 +263,13 @@ final class _PartReader {
     marks: marks,
   );
 }
+
+/// The most bars a score read from a file holds, counted once for each
+/// staff. Every staff holds a bar for each measure, empty or not, so a
+/// file of a few hundred kilobytes that states 99 staves and thousands of
+/// empty measures would take gigabytes to read. The longest orchestral
+/// scores hold well under half of this.
+const _mostStaffBars = 200000;
 
 _PartReader _header(
   XmlElement scorePart,

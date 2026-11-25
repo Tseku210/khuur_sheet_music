@@ -10,7 +10,7 @@ The repository is a pub workspace of three packages, all at version 0.6.0. The r
 | Package | Kind | Holds | Depends on |
 | --- | --- | --- | --- |
 | `khuur_sheet_music` | Flutter | The view, the controller, the palette and the player | `khuur_score_model`, `khuur_score_layout`, `khuur_synth`, `material_ui` |
-| `khuur_score_model` | Pure Dart | The score, its edits, saving and loading, and the playback script | `xml` |
+| `khuur_score_model` | Pure Dart | The score, its edits, saving and loading, and the playback script | `archive`, `xml` |
 | `khuur_score_layout` | Pure Dart | The layout engine, glyphs and hit testing | `khuur_score_model` |
 
 ## khuur_sheet_music
@@ -27,7 +27,7 @@ The import exports the following names.
 | --- | --- |
 | The library itself | `SheetView`, `SheetController`, `EntryHold`, `SheetPalette`, `SheetHighlight`, `SheetLine`, `ScorePlayer`, `PlayerStatus`, `PlaybackPosition`, `MidiOutput`, `SynthOutput`, and the `SmuflFontFamily` extension, which gives `SmuflFont.flutterFamily` |
 | `khuur_score_model` | Every public name |
-| `khuur_score_layout` | `ChordSymbolSpelling`, `ElementOwner`, `EngravingDefaults`, `EngravingStyle`, `Glyph`, `InkRole`, `NotePreview`, `Owner`, `QuarterToneGlyphs`, `SheetHit`, `SignatureHit`, `SignatureKind`, `SmuflFont`, `SpacingPolicy`, `SpannerOwner`, `StringNumbers`, `TextRole`, `TextSpec`, `accidentalGlyph`, `bowingGlyph`, `dynamicGlyph`, `fingeringGlyphs`, `keySignatureSteps`, `noteGlyph`, `restGlyph` |
+| `khuur_score_layout` | `ChordSymbolSpelling`, `ElementOwner`, `EngravingDefaults`, `EngravingStyle`, `Glyph`, `InkRole`, `NotePreview`, `Owner`, `QuarterToneGlyphs`, `SheetHit`, `SignatureHit`, `SignatureKind`, `SmuflFont`, `SpacingPolicy`, `SpannerOwner`, `StringNumbers`, `TextRole`, `TextSpec`, `accidentalGlyph`, `bowingGlyph`, `dynamicGlyph`, `fingeringGlyphs`, `keySignatureSteps`, `noteGlyph`, `restGlyph`, `timeSignatureRows` |
 | `khuur_synth` | `AssetSoundFont`, `AudioOutputFailed`, `AudioSessionPolicy`, `FileSoundFont`, `PresetNotFound`, `Reverb`, `SoundFont`, `SoundFontLoadFailed`, `Synth`, `SynthException`, `SynthUnavailable` |
 
 Two names of the score model clash with names in Flutter. [Name clashes](/khuur_sheet_music/reference/name-clashes/) lists them.

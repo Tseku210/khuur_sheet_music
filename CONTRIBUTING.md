@@ -25,9 +25,9 @@ The repository is a pub workspace of three packages:
 
 | Folder | Package | Depends on |
 |---|---|---|
-| `packages/khuur_score_model` | The score model, MusicXML and MIDI, and the playback script. Pure Dart. | `xml` |
+| `packages/khuur_score_model` | The score model, MusicXML and MIDI, and the playback script. Pure Dart. | `archive` and `xml` |
 | `packages/khuur_score_layout` | The layout engine. Pure Dart. | `khuur_score_model` |
-| the root | `SheetView`, the painter and `ScorePlayer`. Flutter. | both, and `khuur_synth` |
+| the root | `SheetView`, the painter and `ScorePlayer`. Flutter. | both, `khuur_synth` and `material_ui` |
 
 Keep Flutter out of `packages/`. The compiler enforces it, because neither package depends on Flutter.
 
@@ -91,6 +91,15 @@ dart compile exe benchmark/musicxml_export_benchmark.dart -o build/musicxml_expo
 build/musicxml_export_benchmark
 ```
 
+After a change to an edit or to the edit session, also run the edit benchmark. It enters one note in scores of two lengths, overwriting and rippling. It exits with code 1 when a score four times as long costs more than eight times as much.
+
+```bash
+cd packages/khuur_score_model
+mkdir -p build
+dart compile exe benchmark/edit_growth_benchmark.dart -o build/edit_growth_benchmark
+build/edit_growth_benchmark
+```
+
 The glyph table `packages/khuur_score_layout/lib/src/bravura.g.dart` is generated. Do not edit it by hand. Change `tool/bravura_metadata.json` or the generator, then run `dart run tool/generate_bravura.dart` in `packages/khuur_score_layout`.
 
 The pictures of sheets on the docs site and in the README are generated too. After a change to what the sheet draws, or to the sample code on a page with a picture, draw them again and commit the files that change.
@@ -123,7 +132,7 @@ The types are `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf` and `ci
 
 1. Fork the repository and make a branch from `main`.
 2. Open a pull request into `main`. Fill in the template.
-3. CI runs the checks on the oldest supported Flutter and on the newest stable Flutter. Both jobs must pass.
+3. CI runs the tests on the oldest supported Flutter and on the newest stable Flutter. It also runs the web tests, the scaling gates and the package checks. Every job must pass.
 4. The maintainer reviews the change. Push more commits to the same branch to answer the review.
 5. The maintainer merges the pull request with a merge commit.
 
@@ -134,7 +143,7 @@ The types are `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf` and `ci
 The maintainer releases each package on its own. A pushed tag publishes it to pub.dev through `.github/workflows/publish.yml`.
 
 1. In a pull request, raise the `version` in the package's `pubspec.yaml` and add its entry to the package's `CHANGELOG.md`. If the package needs a new version of another package of this repository, release that one first and raise the dependency.
-2. In the same pull request, update the site in `site/src/content/docs/` for every change in the CHANGELOG entry that a user of the package would notice, such as a new or changed edit, widget or option, or a change in how a score sounds or is drawn. For a new minor version, raise the `khuur_sheet_music` version that the tutorial installs. CI checks that each CHANGELOG and the tutorial name the pubspec's version, with `.github/scripts/check_release_docs.sh`.
+2. In the same pull request, update the site in `site/src/content/docs/` for every change in the CHANGELOG entry that a user of the package would notice, such as a new or changed edit, widget or option, or a change in how a score sounds or is drawn. For a new minor version, raise the `khuur_sheet_music` version that the tutorial installs. Raise the versions on the Packages and Platforms and limits pages under `reference/` too. CI checks that each CHANGELOG, the tutorial and those two pages name the pubspec's version, with `.github/scripts/check_release_docs.sh`.
 3. Merge the pull request.
 4. Tag the merge commit on `main` and push the tag. The tag names the package and the new version.
 

@@ -1318,9 +1318,13 @@ void main() {
 
       final glyphs = [
         for (var i = 0; i < layout.systemCount; i++)
-          ...layout.systemAt(i).drawables.whereType<GlyphDraw>().map(
-            (glyph) => glyph.glyph,
-          ),
+          ...layout
+              .systemAt(i)
+              .drawables
+              .whereType<GlyphDraw>()
+              .map(
+                (glyph) => glyph.glyph,
+              ),
       ];
       expect(glyphs.where((g) => g == Glyph.repeat1Bar), hasLength(2));
       expect(glyphs.where((g) => g == Glyph.repeat2Bars), hasLength(2));
