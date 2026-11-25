@@ -1210,7 +1210,8 @@ void main() {
       );
     });
 
-    test('a tie stays in its staff and voice', () {
+    test('a tie lands on its tone in another voice of its staff, and never '
+        'in another staff', () {
       var score = blankScore(parts: const [piano], bars: 1);
       score = fill(score, 0, [
         chordOf(1, 'C4', tie: true),
@@ -1228,7 +1229,7 @@ void main() {
         rest(7, NoteValue.half),
       ], staff: 1);
 
-      expect([for (final n in notes(compiled(score))) n.$5], [1, 4, 6]);
+      expect([for (final n in notes(compiled(score))) n.$5], [1, 6]);
     });
 
     test('a tie that meets a gap, a rest or another pitch lets go', () {

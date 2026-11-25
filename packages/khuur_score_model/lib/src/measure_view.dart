@@ -117,16 +117,13 @@ StaffView _staffView(
 
   final tiedIn = [
     if (previous != null)
-      for (final voice in previous.staff(id).voices)
-        if (lastEvent(voice) case final ChordEvent chord when _tied(chord))
-          if (timedEvents(voice, measure: previous.id, staff: id).last
-              case final last
-              when last.onset + last.duration == Moment.zero + previous.length)
-            for (final (_, to) in _tieEnds(
-              chord,
-              openingEvent(column, id, voice.slot),
-            ))
-              ?to?.note,
+      for (final (slot, chord) in _tiedAtEnd(previous, id))
+        for (final (_, to) in _tieEnds(
+          chord,
+          slot,
+          _aroundBarline(previous, column, id),
+        ))
+          ?to?.note,
   ];
 
   return StaffView(
@@ -160,27 +157,78 @@ StaffView _staffView(
 bool _tied(ChordEvent chord) =>
     chord.notes.any((note) => note.tie || note.letRing);
 
-/// Each tied note of [chord], with the note of the same tone in [target]
-/// that the tie lands on, or null when none matches.
-List<(Note, NoteRef?)> _tieEnds(ChordEvent chord, TimedEvent? target) {
-  NoteRef? landing(Note tied) {
-    if (target != null) {
-      if (headOfTone(target.event, tied.tone) case final note?) {
-        return NoteRef(target.ref, note.id);
+/// Each tied note of [chord], a chord of voice [from], with the head it
+/// lands on among [voices], the staff's voices where the chord ends
+/// ([tieLanding]), or null when it lands on none or lets ring.
+List<(Note, NoteRef?)> _tieEnds(
+  ChordEvent chord,
+  VoiceSlot from,
+  List<VoiceAround> voices,
+) => [
+  for (final note in chord.notes)
+    if (note.tie)
+      (note, tieLandingAround(note, from, voices))
+    else if (note.letRing)
+      (note, null),
+];
+
+/// The chords that end [column] on [staff] with a tie or a let-ring tie,
+/// each with its voice.
+Iterable<(VoiceSlot, ChordEvent)> _tiedAtEnd(
+  MeasureColumn column,
+  StaffId staff,
+) sync* {
+  for (final voice in column.staff(staff).voices) {
+    if (lastEvent(voice) case final ChordEvent chord when _tied(chord)) {
+      final last = timedEvents(voice, measure: column.id, staff: staff).last;
+      if (last.onset + last.duration == Moment.zero + column.length) {
+        yield (voice.slot, chord);
       }
     }
-    return null;
   }
+}
 
+/// The voices of [staff] at the barline between [column] and [next]: the
+/// events that end [column] and those that open [next].
+List<VoiceAround> _aroundBarline(
+  MeasureColumn column,
+  MeasureColumn next,
+  StaffId staff,
+) {
+  final barEnd = Moment.zero + column.length;
+  final ending = <VoiceSlot, TimedEvent>{
+    for (final voice in column.staff(staff).voices)
+      if (timedEvents(voice, measure: column.id, staff: staff).lastOrNull
+          case final last? when last.onset + last.duration == barEnd)
+        voice.slot: last,
+  };
   return [
-    for (final note in chord.notes)
-      if (note.tie) (note, landing(note)) else if (note.letRing) (note, null),
+    for (final voice in next.staff(staff).voices)
+      (
+        slot: voice.slot,
+        ending: ending[voice.slot],
+        starting: openingEvent(next, staff, voice.slot),
+      ),
   ];
 }
 
-/// A tie lands on the next event of its voice when that event starts where
-/// the tied one ends, or on the voice's opening event in the next bar when
-/// the tied one ends this bar.
+/// The voices of [lanes] at [at], inside their bar.
+List<VoiceAround> _aroundInside(
+  List<(Voice, List<TimedEvent>)> lanes,
+  Moment at,
+) => [
+  for (final (voice, events) in lanes)
+    (
+      slot: voice.slot,
+      ending: events
+          .where((e) => e.onset < at && e.onset + e.duration == at)
+          .firstOrNull,
+      starting: events.where((e) => e.onset == at).firstOrNull,
+    ),
+];
+
+/// A tie lands where [tieLanding] says, inside the bar or, from a note that
+/// ends the bar, in the next one.
 List<TieView> _ties(
   List<(Voice, List<TimedEvent>)> lanes,
   MeasureColumn column,
@@ -190,15 +238,16 @@ List<TieView> _ties(
   final barEnd = Moment.zero + column.length;
   final ties = <TieView>[];
   for (final (voice, events) in lanes) {
-    for (final (i, timed) in events.indexed) {
+    for (final timed in events) {
       if (timed.event case final ChordEvent chord when _tied(chord)) {
         final end = timed.onset + timed.duration;
-        final following = events.elementAtOrNull(i + 1);
         final crosses = end == barEnd;
-        final target = crosses
-            ? (next == null ? null : openingEvent(next, id, voice.slot))
-            : (following?.onset == end ? following : null);
-        for (final (from, to) in _tieEnds(chord, target)) {
+        final voices = crosses
+            ? (next == null
+                  ? const <VoiceAround>[]
+                  : _aroundBarline(column, next, id))
+            : _aroundInside(lanes, end);
+        for (final (from, to) in _tieEnds(chord, voice.slot, voices)) {
           ties.add(
             TieView(
               from: from.id,

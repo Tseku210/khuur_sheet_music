@@ -159,7 +159,7 @@ TimedEvent? openingEvent(MeasureColumn column, StaffId staff, VoiceSlot slot) {
 
 /// The head of [event] with [tone], or null when [event] is null, a rest,
 /// or has no head of that tone. A tie ends on this head of the next event
-/// of its voice.
+/// of its voice, or of an event of another voice ([tieLanding]).
 Note? headOfTone(Event? event, Tone tone) {
   if (event case ChordEvent(:final notes)) {
     for (final note in notes) {
@@ -170,3 +170,57 @@ Note? headOfTone(Event? event, Tone tone) {
   }
   return null;
 }
+
+/// A head a tie could land on where it ends: the head, the voice that
+/// holds it, and whether a tie from that voice's own previous event lands
+/// on it.
+typedef TieHead<T> = ({VoiceSlot slot, T head, bool tiedInVoice});
+
+/// The head that a tie from voice [from] lands on. [heads] are the heads of
+/// the tie's tone in the events of its staff that start where the tied note
+/// ends, at most one a voice. The head in [from] wins. Failing that, the tie
+/// lands on the head of the lowest other voice that no tie of its own voice
+/// lands on, as MusicXML lets a tie end in another voice. Null when no head
+/// is left, and the tie lands on no note.
+///
+/// This is the one rule of where a tie ends. The view, playback, the
+/// MusicXML import and the edits each gather [heads] from what they hold.
+T? tieLanding<T>(VoiceSlot from, Iterable<TieHead<T>> heads) {
+  T? other;
+  VoiceSlot? lowest;
+  for (final (:slot, :head, :tiedInVoice) in heads) {
+    if (slot == from) {
+      return head;
+    }
+    if (!tiedInVoice && (lowest == null || slot.index < lowest.index)) {
+      other = head;
+      lowest = slot;
+    }
+  }
+  return other;
+}
+
+/// One voice of a staff at a moment: its event that ends there and its event
+/// that starts there, either of which may be absent.
+typedef VoiceAround = ({
+  VoiceSlot slot,
+  TimedEvent? ending,
+  TimedEvent? starting,
+});
+
+/// The head that [tied], a tied note of voice [from], lands on, given
+/// [voices], the voices of its staff where the tie ends ([tieLanding]).
+NoteRef? tieLandingAround(
+  Note tied,
+  VoiceSlot from,
+  Iterable<VoiceAround> voices,
+) => tieLanding(from, [
+  for (final (:slot, :ending, :starting) in voices)
+    if (starting case TimedEvent(:final ref, :final event))
+      if (headOfTone(event, tied.tone) case final head?)
+        (
+          slot: slot,
+          head: NoteRef(ref, head.id),
+          tiedInVoice: headOfTone(ending?.event, tied.tone)?.tie ?? false,
+        ),
+]);

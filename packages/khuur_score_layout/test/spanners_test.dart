@@ -216,6 +216,31 @@ void main() {
       );
     });
 
+    test('a tie into another voice of its staff is one curve from its head '
+        'to the head of that voice', () {
+      final score = scoreFromMusicXml(tieIntoVoiceTwo);
+      final system = sheetOf(score).systemAt(0);
+      final tie = curvesOf(system).single;
+      final [from, to] = [
+        for (final voice in score.measures.first.staves.first.voices)
+          for (final item in voice.items)
+            if (item case ChordEvent(:final id, :final notes)
+                when notes.single.tone == Pitch.parse('C5'))
+              headOf(
+                system,
+                NoteRef(eventRef(score, 0, id.value), notes.single.id),
+              ),
+      ];
+
+      expect(tie.start.x, greaterThanOrEqualTo(from.right));
+      expect(tie.end.x, lessThanOrEqualTo(to.left));
+      expect(
+        tie.end.x - tie.start.x,
+        greaterThan(letRingLength),
+        reason: 'the tie reaches the other head, not a let-ring stub',
+      );
+    });
+
     test(
       'a let-ring tie is letRingLength long and fits before the barline',
       () {

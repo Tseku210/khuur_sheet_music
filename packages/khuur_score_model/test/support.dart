@@ -426,3 +426,25 @@ void expectHeard(Score actual, Score expected, {String? reason}) {
     );
   }
 }
+
+/// One flute bar of MusicXML in which voice one ties a half C5 into a half
+/// C5 of voice two and goes on to D5, while voice two rests before its C5.
+const String tieIntoVoiceTwo =
+    '<?xml version="1.0" encoding="UTF-8"?>'
+    '<score-partwise version="4.0"><part-list><score-part id="P1">'
+    '<part-name>Flute</part-name></score-part></part-list><part id="P1">'
+    '<measure number="1"><attributes><divisions>1</divisions>'
+    '<time><beats>4</beats><beat-type>4</beat-type></time>'
+    '<clef><sign>G</sign><line>2</line></clef></attributes>'
+    '<note><pitch><step>C</step><octave>5</octave></pitch>'
+    '<duration>2</duration><tie type="start"/><voice>1</voice>'
+    '<type>half</type><notations><tied type="start"/></notations></note>'
+    '<note><pitch><step>D</step><octave>5</octave></pitch>'
+    '<duration>2</duration><voice>1</voice><type>half</type></note>'
+    '<backup><duration>4</duration></backup>'
+    '<note><rest/><duration>2</duration><voice>2</voice>'
+    '<type>half</type></note>'
+    '<note><pitch><step>C</step><octave>5</octave></pitch>'
+    '<duration>2</duration><tie type="stop"/><voice>2</voice>'
+    '<type>half</type><notations><tied type="stop"/></notations></note>'
+    '</measure></part></score-partwise>';
