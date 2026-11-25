@@ -35,6 +35,24 @@ void main() {
       expect(bar(next.score, 0), ['F4/half', 'rest/half']);
     });
 
+    test('goes when the edit adds its tone to a chord in another voice', () {
+      var score = fill(blankScore(), 0, [
+        chordOf(1, 'F4', value: NoteValue.half, tie: true),
+        rest(2, NoteValue.half),
+      ]);
+      score = fill(score, 0, [
+        rest(3, NoteValue.half),
+        chordOf(4, 'G4', value: NoteValue.half),
+      ], slot: VoiceSlot.two);
+      final session = EditSession.start(score);
+
+      final next = applied(
+        session.run(AddToChord(event: eventRef(session, 4), tone: f4)),
+      );
+
+      expect(bar(next.score, 0), ['F4/half', 'rest/half']);
+    });
+
     test('stays when the edit enters its tone in its own voice', () {
       final session = sessionWith([
         [
@@ -47,6 +65,44 @@ void main() {
 
       expect(bar(next.score, 0), ['F4/half~', 'F4/quarter', 'rest/quarter']);
     });
+  });
+
+  group('a tie into another voice goes when the head it landed on', () {
+    EditSession crossVoice() {
+      var score = fill(blankScore(), 0, [
+        chordOf(1, 'F4', value: NoteValue.half, tie: true),
+        rest(2, NoteValue.half),
+      ]);
+      score = fill(score, 0, [
+        rest(3, NoteValue.half),
+        chordOf(4, 'F4', value: NoteValue.half),
+      ], slot: VoiceSlot.two);
+      return EditSession.start(score);
+    }
+
+    for (final (name, edit) in <(String, Edit Function(EditSession))>[
+      ('is removed', (session) => RemoveNote(headOf(session, 4))),
+      (
+        'is erased',
+        (session) => Erase(Selection.event(eventRef(session, 4))),
+      ),
+      (
+        'is written over',
+        (session) => EnterNote(
+          at: point(session.score, 0, at(1, 2), voice: VoiceSlot.two),
+          tone: g4,
+          value: NoteValue.half,
+        ),
+      ),
+    ]) {
+      test(name, () {
+        final session = crossVoice();
+
+        final next = applied(session.run(edit(session)));
+
+        expect(bar(next.score, 0), ['F4/half', 'rest/half']);
+      });
+    }
   });
 
   test('a tie into another voice goes when the edit changes the tone of '
