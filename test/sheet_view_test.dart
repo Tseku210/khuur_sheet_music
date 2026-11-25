@@ -240,6 +240,13 @@ List<Layer> picturesOf<T extends CustomPainter>(WidgetTester tester) => [
   for (final painted in paintedIn<T>(tester)) painted.picture,
 ];
 
+/// The picture each tile in view holds for its overlay, by the system the
+/// tile shows.
+Map<int, Layer> overlaysOf(WidgetTester tester) => {
+  for (final painted in paintedIn<OverlayPainter>(tester))
+    painted.painter.index: painted.picture,
+};
+
 RenderRepaintBoundary _boundaryOf(RenderObject object) {
   var boundary = object.parent!;
   while (boundary is! RenderRepaintBoundary) {
@@ -348,9 +355,9 @@ void main() {
   setUpAll(() => loadBravura(bravuraPainter()));
 
   testWidgets(
-    'a playback position, a cursor, a selection, a tint and an edit below '
-    'the view repaint the overlays over the same system pictures, and a '
-    'scroll builds nothing',
+    'a playback position, a cursor, a selection and a tint each repaint '
+    'the overlay of the tile that shows it over the same system pictures, '
+    'as an edit below the view keeps them, and a scroll builds nothing',
     (tester) async {
       var score = tune();
       Selection selection = const NoSelection();
@@ -371,14 +378,16 @@ void main() {
       expect(shown(tester).style.barNumbers, isTrue);
       final title = picturesOf<HeaderPainter>(tester).single;
       final systems = picturesOf<SystemPainter>(tester);
-      var overlays = picturesOf<OverlayPainter>(tester);
       expect(systems.length, greaterThan(1));
+      var overlays = overlaysOf(tester);
       expect(overlays, hasLength(systems.length));
 
-      void expectOnlyOverlaysPainted(String after) {
+      /// Expects the header and every system to keep its picture, and the
+      /// overlay of the tile that shows bar [bar] to be painted again.
+      void expectSameSystems(String after, {int? bar}) {
         final systemsNow = picturesOf<SystemPainter>(tester);
-        final overlaysNow = picturesOf<OverlayPainter>(tester);
-        expect(overlaysNow, hasLength(overlays.length), reason: after);
+        final overlaysNow = overlaysOf(tester);
+        expect(overlaysNow.keys, overlays.keys, reason: after);
         expect(
           picturesOf<HeaderPainter>(tester).single,
           same(title),
@@ -387,11 +396,12 @@ void main() {
         for (final (tile, picture) in systemsNow.indexed) {
           expect(picture, same(systems[tile]), reason: 'system $tile, $after');
         }
-        for (final (tile, picture) in overlaysNow.indexed) {
+        if (bar != null) {
+          final tile = shown(tester).systemOf(score.measures[bar].id)!;
           expect(
-            picture,
+            overlaysNow[tile],
             isNot(same(overlays[tile])),
-            reason: 'overlay $tile, $after',
+            reason: 'the overlay of bar $bar, $after',
           );
         }
         overlays = overlaysNow;
@@ -399,18 +409,18 @@ void main() {
 
       playback.value = positionIn(score, 1);
       await tester.pump();
-      expectOnlyOverlaysPainted('after a playback position');
+      expectSameSystems('after a playback position', bar: 1);
 
       await tester.pumpWidget(view(2));
-      expectOnlyOverlaysPainted('after a cursor');
+      expectSameSystems('after a cursor', bar: 2);
 
       selection = Selection.event(headOf(score, 1, 0).event);
       await tester.pumpWidget(view(2));
-      expectOnlyOverlaysPainted('after a selection');
+      expectSameSystems('after a selection', bar: 1);
 
       tints = {headOf(score, 1, 0): const Color(0xFFFF8800)};
       await tester.pumpWidget(view(2));
-      expectOnlyOverlaysPainted('after a tint');
+      expectSameSystems('after a tint', bar: 1);
 
       final layout = shown(tester);
       final labels = [
@@ -427,7 +437,7 @@ void main() {
           expect(painter.label, label, reason: 'tile $tile');
         }
       }
-      expectOnlyOverlaysPainted('after an edit below the view');
+      expectSameSystems('after an edit below the view');
       expect(scrollOf(tester).pixels, 0);
 
       final scrollView = tester.widget(find.byType(CustomScrollView));
@@ -3046,8 +3056,8 @@ void main() {
   );
 
   testWidgets(
-    'a playback tick repaints the overlays and does not walk the tints '
-    'again',
+    'a playback tick that plays a new note repaints the overlay of the '
+    'tile that plays it, and does not walk the tints again',
     (tester) async {
       final score = tune();
       final tints = WalkedTints({
@@ -3062,20 +3072,92 @@ void main() {
       final walks = tints.walks;
       expect(walks, greaterThan(0), reason: 'the first paint reads the tints');
 
-      var overlays = picturesOf<OverlayPainter>(tester);
+      var overlays = overlaysOf(tester);
       expect(overlays.length, greaterThan(1));
-      for (final through in [0.1, 0.3, 0.5, 0.7]) {
+      final playing = shown(tester).systemOf(score.measures[1].id)!;
+      // One tick in each quarter of the bar, which is a note each.
+      for (final through in [0.1, 0.3, 0.6, 0.8]) {
         playback.value = positionIn(score, 1, through: through);
         await tester.pump();
-        final painted = picturesOf<OverlayPainter>(tester);
-        for (final (tile, picture) in painted.indexed) {
-          expect(picture, isNot(same(overlays[tile])), reason: 'overlay $tile');
-        }
+        final painted = overlaysOf(tester);
+        expect(
+          painted[playing],
+          isNot(same(overlays[playing])),
+          reason: 'the playing tile, $through of the way through the bar',
+        );
         overlays = painted;
       }
       expect(tints.walks, walks);
     },
   );
+
+  for (final (name, palette) in const <(String, SheetPalette?)>[
+    ('a box under the playing notes', null),
+    ('the playing notes inked and a playhead', inked),
+  ]) {
+    testWidgets('a playback tick paints only the tiles where it shows '
+        'something new, with $name', (tester) async {
+      final score = tune();
+      final playback = ValueNotifier<PlaybackPosition?>(null);
+      addTearDown(playback.dispose);
+      await tester.pumpWidget(
+        host(SheetView(score: score, playback: playback, palette: palette)),
+      );
+      final layout = shown(tester);
+      int tileOfBar(int bar) => layout.systemOf(score.measures[bar].id)!;
+      final first = tileOfBar(0);
+      final next = score.measures.indexed
+          .firstWhere((bar) => layout.systemOf(bar.$2.id) == first + 1)
+          .$1;
+      var overlays = overlaysOf(tester);
+      expect(overlays.keys, containsAll([first, first + 1, first + 2]));
+
+      Future<void> expectPainted(
+        Set<int> tiles,
+        PlaybackPosition? position, {
+        required String at,
+      }) async {
+        playback.value = position;
+        await tester.pump();
+        final now = overlaysOf(tester);
+        expect(
+          {
+            for (final MapEntry(key: tile, value: picture) in now.entries)
+              if (!identical(picture, overlays[tile])) tile,
+          },
+          tiles,
+          reason: at,
+        );
+        overlays = now;
+      }
+
+      // A playhead with a width moves on every tick, and one without is
+      // not drawn.
+      final moving = {if (palette != null) first};
+      await expectPainted(
+        {first},
+        positionIn(score, 0, through: 0.05),
+        at: 'the first note of a bar',
+      );
+      await expectPainted(
+        moving,
+        positionIn(score, 0, through: 0.15),
+        at: 'later in that note',
+      );
+      await expectPainted(
+        {first},
+        positionIn(score, 0, through: 0.3),
+        at: 'the next note',
+      );
+      await expectPainted(
+        {first, first + 1},
+        positionIn(score, next, through: 0.05),
+        at: 'a note of the next system',
+      );
+      await expectPainted({first + 1}, null, at: 'the end');
+      await expectPainted({}, null, at: 'the end again');
+    });
+  }
 
   testWidgets('a new style lays the whole sheet out again', (tester) async {
     final score = tune();
@@ -3096,6 +3178,34 @@ void main() {
     );
     expect(labels(), isEmpty);
   });
+
+  testWidgets(
+    'a new style and a view that goes each free the paragraphs of the '
+    'glyph painter they leave',
+    (tester) async {
+      final score = tune();
+      GlyphPainter glyphs() => paintersOf<SystemPainter>(tester).first.glyphs;
+      await tester.pumpWidget(host(SheetView(score: score)));
+      final first = glyphs();
+      expect(first.kept, greaterThan(0));
+
+      await tester.pumpWidget(
+        host(
+          SheetView(
+            score: score,
+            style: const EngravingStyle(barNumbers: false),
+          ),
+        ),
+      );
+      final second = glyphs();
+      expect(second, isNot(same(first)));
+      expect(first.kept, 0);
+      expect(second.kept, greaterThan(0));
+
+      await tester.pumpWidget(const SizedBox());
+      expect(second.kept, 0);
+    },
+  );
 
   testWidgets(
     'a text font that loads after the first layout replaces the layout '

@@ -219,8 +219,7 @@ Score _insertMeasures(Score score, int index, int count, _Ids ids) {
           .insertAllAt(0, bars),
     );
   }
-  final untied = _untieAt(score, index - 1, _barEnd(like), null);
-  return untied.copyWith(measures: untied.measures.insertAllAt(index, bars));
+  return score.copyWith(measures: score.measures.insertAllAt(index, bars));
 }
 
 /// [marks] split into those at the bar's start and the rest.
@@ -238,20 +237,17 @@ Score _deleteMeasures(Score score, int start, int end, _Ids ids) {
     throw const _Refuse(WouldEmptyScore());
   }
   final next = end < measures.length ? measures[end] : null;
-  final untied = start == 0
-      ? score
-      : _untieAt(score, start - 1, _barEnd(measures[start - 1]), next);
   final gone = {for (var i = start; i < end; i++) measures[i].id};
   final resume = next == null ? null : ScorePoint(next.id, Moment.zero);
-  final before = start == 0 ? null : untied.measures[start - 1];
-  final cut = untied.copyWith(
-    measures: untied.measures.replaceRange(start, end, const []),
+  final before = start == 0 ? null : score.measures[start - 1];
+  final cut = score.copyWith(
+    measures: score.measures.replaceRange(start, end, const []),
     spanners: const Seq.empty(),
   );
   final moved = cut.copyWith(
     spanners: _moveSpanners(
       cut,
-      untied.spanners,
+      score.spanners,
       first: (spanner) =>
           gone.contains(spanner.first.measure) ? resume : spanner.first,
       last: (spanner) => !gone.contains(spanner.last.measure)
@@ -261,8 +257,8 @@ Score _deleteMeasures(Score score, int start, int end, _Ids ids) {
           : _lastOnset(before, spanner),
     ),
   );
-  final played = PlayedTempo(untied);
-  final lined = _keepTempoLines(moved, untied, played, start, end, ids);
+  final played = PlayedTempo(score);
+  final lined = _keepTempoLines(moved, score, played, start, end, ids);
   return next == null ? lined : _keepTempo(lined, start, played, measures, end);
 }
 
@@ -431,20 +427,15 @@ Score _setBarLength(Score score, int index, Length? length, _Ids ids) {
       ),
     );
   }
-  final shorter = newEnd < oldEnd;
   final next = index + 1 < score.measures.length
       ? score.measures[index + 1]
       : null;
-  final untied = shorter
-      ? _untieAt(score, index, newEnd, next)
-      : _untieAt(score, index, oldEnd, null);
-  final bar = untied.measures[index];
-  final grid = BeatGrid.meter(bar.meter);
-  final resized = bar.copyWith(
+  final grid = BeatGrid.meter(column.meter);
+  final resized = column.copyWith(
     irregularLength: () => irregular,
-    tempos: Seq(bar.tempos.where((t) => t.offset < newEnd)),
+    tempos: Seq(column.tempos.where((t) => t.offset < newEnd)),
     staves: Seq([
-      for (final staff in bar.staves)
+      for (final staff in column.staves)
         staff.voices.fold(
           staff.copyWith(
             clefChanges: Seq(staff.clefChanges.where((c) => c.offset < newEnd)),
@@ -453,18 +444,18 @@ Score _setBarLength(Score score, int index, Length? length, _Ids ids) {
           (resizing, voice) => resizing.withVoice(
             Voice(
               slot: voice.slot,
-              items: Seq(_resize(voice, bar.id, oldEnd, newEnd, grid, ids)),
+              items: Seq(_resize(voice, column.id, oldEnd, newEnd, grid, ids)),
             ),
           ),
         ),
     ]),
   );
   bool removed(ScorePoint point) =>
-      point.measure == bar.id && point.offset >= newEnd;
+      point.measure == column.id && point.offset >= newEnd;
   ScorePoint onItsNote(Spanner spanner, {required bool last}) {
     final point = last ? spanner.last : spanner.first;
-    return point.measure == bar.id
-        ? _onItsNote(untied, spanner, last: last)
+    return point.measure == column.id
+        ? _onItsNote(score, spanner, last: last)
         : point;
   }
 
@@ -474,14 +465,14 @@ Score _setBarLength(Score score, int index, Length? length, _Ids ids) {
           removed(onItsNote(spanner, last: true)));
 
   final resume = next == null ? null : ScorePoint(next.id, Moment.zero);
-  final cut = untied.copyWith(
-    measures: untied.measures.replaceAt(index, resized),
+  final cut = score.copyWith(
+    measures: score.measures.replaceAt(index, resized),
     spanners: const Seq.empty(),
   );
   return cut.copyWith(
     spanners: _moveSpanners(
       cut,
-      untied.spanners,
+      score.spanners,
       first: (spanner) {
         final first = onItsNote(spanner, last: false);
         return unnoted(spanner)
@@ -555,52 +546,6 @@ List<VoiceItem> _resize(
       if (gaps) Gap(added) else ..._rests(grid, oldEnd, added, ids),
     ],
   };
-}
-
-/// [score] with the ties of bar [index] cleared that would end on a
-/// different head once its music from [from] on is followed by the opening
-/// of [next], or by rests when [next] is null. A tie that ends on no head,
-/// and still won't, stays, and so does a [Note.letRing] tie.
-Score _untieAt(Score score, int index, Moment from, MeasureColumn? next) {
-  final column = score.measures[index];
-  var untied = column;
-  for (final staff in column.staves) {
-    for (final voice in staff.voices) {
-      final following = next == null
-          ? null
-          : openingEvent(next, staff.staff, voice.slot);
-      var items = voice.items;
-      for (final timed in timedEvents(
-        voice,
-        measure: column.id,
-        staff: staff.staff,
-      )) {
-        final event = timed.event;
-        if (event is! ChordEvent || timed.onset + timed.duration < from) {
-          continue;
-        }
-        final now = _next(score, timed);
-        bool moves(Note note) => _tieMoves(note, now, following);
-        if (event.notes.any(moves)) {
-          final replacement = _untied(event, moves);
-          items = Seq([
-            for (final item in items)
-              item is Content ? _replaceEvent(item, replacement) : item,
-          ]);
-        }
-      }
-      if (!identical(items, voice.items)) {
-        untied = untied.withStaff(
-          untied
-              .staff(staff.staff)
-              .withVoice(Voice(slot: voice.slot, items: items)),
-        );
-      }
-    }
-  }
-  return identical(untied, column)
-      ? score
-      : score.copyWith(measures: score.measures.replaceAt(index, untied));
 }
 
 /// [spanners] with their ends where [first] and [last] put them among the

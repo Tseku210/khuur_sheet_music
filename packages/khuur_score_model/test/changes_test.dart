@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:khuur_score_model/khuur_score_model.dart';
+import 'package:khuur_score_model/src/score.dart' show BarRuns;
 import 'package:test/test.dart';
 
 import 'random_edits.dart';
@@ -253,6 +254,78 @@ void main() {
       expect(drawsDifferently(slurred, moved, m[2].id), isTrue);
       expect(changes.relayout, bars(moved, [0, 1, 2, 3, 4]));
       expect(changes.reflow, isTrue);
+    });
+
+    test('relays out only around the section a rippled erase moves music '
+        'in, and keeps every other bar the same object', () {
+      final plain = blankScore(bars: 40);
+      var session = EditSession.start(
+        plain.copyWith(
+          measures: Seq([
+            for (final (bar, column) in plain.measures.indexed)
+              bar > 0 && bar % 8 == 0
+                  ? column.copyWith(rehearsal: () => '$bar')
+                  : column,
+          ]),
+        ),
+      );
+      for (final bar in [10, 11, 13, 30]) {
+        session = enterAt(session, bar, Moment.zero);
+      }
+      final before = session.score;
+      final staff = before.staves.first.id;
+      final erases = {
+        'an item': Erase(
+          ItemSelection(Seq([before.locate(firstEvent(before, 10).id)!])),
+          ripple: Ripple.part,
+        ),
+        'a range': Erase(
+          RangeSelection(
+            from: pointAt(before, 10, Moment.zero),
+            to: pointAt(before, 10, Moment.zero + NoteValue.quarter.length),
+            top: staff,
+            bottom: staff,
+          ),
+          ripple: Ripple.part,
+        ),
+      };
+      for (final MapEntry(key: what, value: erase) in erases.entries) {
+        final after = applied(session.run(erase)).score;
+        final changes = after.changesSince(before);
+        final changed = {
+          for (var bar = 0; bar < 40; bar++)
+            if (!identical(after.measures[bar], before.measures[bar])) bar,
+        };
+
+        expect(changed, containsAll([10, 11, 13]), reason: what);
+        expect(
+          changed.every((bar) => bar >= 8 && bar < 16),
+          isTrue,
+          reason: what,
+        );
+        expect(
+          changes.relayout,
+          containsAll(bars(after, [...changed])),
+          reason: what,
+        );
+        expect(
+          changes.relayout,
+          everyElement(isIn(bars(after, [for (var i = 7; i <= 16; i++) i]))),
+          reason: what,
+        );
+        expect(changes.removed, isEmpty, reason: what);
+        for (final (now, was) in [
+          (after.inRuns, before),
+          (after, before.inRuns),
+          (after.inRuns, before.inRuns),
+        ]) {
+          final held = now.changesSince(was);
+
+          expect(held.relayout, changes.relayout, reason: what);
+          expect(held.removed, changes.removed, reason: what);
+          expect(held.reflow, changes.reflow, reason: what);
+        }
+      }
     });
 
     test('never misses a bar that draws differently', () {

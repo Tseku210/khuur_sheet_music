@@ -165,9 +165,9 @@ _LaneWrite _overwrite(
 }
 
 /// Enters [event] at [at] as new music. A chord that sounds across [at] is
-/// [_Loss.shortened]. A tie from a chord that ends at [at] keeps only the
-/// tones [event] starts with, [event] is selected, and the cursor moves
-/// past it. When [event] ends the score, the cursor moves into a new bar
+/// [_Loss.shortened]. A tie from a chord that ends at [at] stays when it
+/// lands on a head of [event] or on the head of another voice it landed on
+/// before, [event] is selected, and the cursor moves past it. When [event] ends the score, the cursor moves into a new bar
 /// with [appendBar], and stays at [at] without it.
 _Result _enter(
   Score score,
@@ -187,7 +187,7 @@ _Result _enter(
     ids,
     overfill,
   );
-  var entered = _untieInto(write.score, at, _tones(event));
+  var entered = _untieDanglingInto(write.score, at);
   var end = write.end;
   final bar = entered.column(end.at.measure);
   if (end.at.offset == _barEnd(bar)) {
@@ -214,10 +214,22 @@ Score _untieInto(Score score, VoicePoint at, Set<Tone> kept) {
   return score.copyWith(measures: Seq(lane.columns));
 }
 
-Set<Tone> _tones(Event event) => switch (event) {
-  ChordEvent(:final notes) => {for (final note in notes) note.tone},
-  _ => const {},
-};
+/// [score] with each tie into [at] that lands on no head cleared, for new
+/// music written at [at] in its voice. The tie pass after the edit settles
+/// a tie that lands on a head, in this voice or another.
+Score _untieDanglingInto(Score score, VoicePoint at) {
+  final into = switch (score.eventAt(at)) {
+    final written? => _previous(score, written),
+    null => null,
+  };
+  if (into case TimedEvent(event: final ChordEvent chord)) {
+    bool dangles(Note note) => note.tie && _landing(score, into, note) == null;
+    if (chord.notes.any(dangles)) {
+      return _replace(score, into, _untied(chord, dangles));
+    }
+  }
+  return score;
+}
 
 Iterable<Event> _eventsIn(Content item) sync* {
   switch (item) {

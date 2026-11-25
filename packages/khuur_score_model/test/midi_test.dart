@@ -441,14 +441,77 @@ void main() {
       expect(file.metas(0x01, 1), isNotEmpty, reason: 'the waits between');
     });
 
-    test('cuts a wait short past 256 delta times, so no tempo makes a file '
-        'without bound', () {
-      final bytes = scoreToMidi(
-        tempoAt(quarters(1), 0, Moment.zero, const Tempo(1e-12)),
+    test('keeps the notes after a tempo near none at their times, however '
+        'fast the tempo after it', () {
+      // A quarter of the slow bar lasts 3e7 seconds, 347 days. Counted in
+      // the ticks of the fast bar after it, that wait is more delta times
+      // than one wait is written as.
+      final score = tempoAt(
+        tempoAt(quarters(2), 0, Moment.zero, const Tempo(0.000002)),
+        1,
+        Moment.zero,
+        const Tempo(240),
       );
+      final file = exported(score);
+      final played = PlaybackCompiler()
+          .compile(score)
+          .notesBetween(0, double.infinity)
+          .toList();
 
-      expect(MidiFile.read(bytes).allNotes, hasLength(4));
-      expect(bytes.length, lessThan(16 * 1024));
+      expect(
+        [for (final note in file.allNotes) file.secondsAt(note.on)],
+        [for (final note in played) closeTo(note.start, 0.02)],
+      );
+      expect(played.last.start, closeTo(1.2e8 + 0.75, 1e-3));
+    });
+
+    test('keeps two parts in step where one holds a note for longer than a '
+        'wait is written as', () {
+      // A quarter lasts 5e8 seconds, 16 years, and the whole note 63, which
+      // is more than the 38 years one wait is written as.
+      var score = quarters(2, parts: const [morinKhuur, clarinet]);
+      for (final bar in [0, 1]) {
+        score = fill(score, bar, [
+          chordOf(5 + bar, 'G4', value: NoteValue.whole),
+        ], staff: 1);
+      }
+      score = tempoAt(score, 0, Moment.zero, const Tempo(0.00000012));
+      final file = exported(score);
+
+      expect(file.notes(2).last.on, file.notes(1)[4].on);
+      expect(file.secondsAt(file.notes(2).last.on), closeTo(2e9, 1));
+    });
+
+    test('cuts a silence of every track short past 256 delta times, so no '
+        'tempo makes a file without bound', () {
+      Uint8List written(double bpm) => scoreToMidi(
+        tempoAt(
+          quarters(1, parts: const [morinKhuur, clarinet]),
+          0,
+          Moment.zero,
+          Tempo(bpm),
+        ),
+      );
+      for (final bpm in [1e-12, 1e-30, 1e-300]) {
+        final bytes = written(bpm);
+
+        expect(MidiFile.read(bytes).allNotes, hasLength(4), reason: '$bpm');
+        expect(bytes.length, lessThan(64 * 1024), reason: '$bpm');
+      }
+      // Each note sounds for longer than a wait is written as, and so does
+      // the silence before the next.
+      const longest = 256 * 0x0FFFFFFF;
+      final file = MidiFile.read(written(1e-12));
+      expect(
+        [for (final note in file.notes(1)) (note.on, note.off)],
+        [
+          for (var beat = 0; beat < 4; beat++)
+            (2 * beat * longest, (2 * beat + 1) * longest),
+        ],
+      );
+      expect(file.tracks.map((track) => track.last.tick).toSet(), {
+        8 * longest,
+      }, reason: 'the silent track ends with the others');
     });
 
     test('a tempo of a dotted beat is in quarters', () {

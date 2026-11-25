@@ -11,6 +11,7 @@ import '../score.dart';
 import '../seq.dart';
 import '../stable_sort.dart';
 import '../time.dart';
+import '../voice_walk.dart';
 import 'musicxml_names.dart';
 import 'musicxml_records.dart';
 import 'musicxml_spanners.dart';
@@ -489,7 +490,7 @@ final class _Voices {
   ChordEvent _chord(ChordRecord chord, LaneRecord lane) => ChordEvent(
     id: chord.id,
     value: chord.value,
-    notes: Seq(_notes(chord.notes, tiesTo: _tieTarget(chord, lane))),
+    notes: Seq(_notes(chord.notes, lands: _landsAfter(chord, lane))),
     articulations: chord.articulations,
     ornament: chord.ornament,
     ornamentAbove: chord.ornamentAbove,
@@ -501,7 +502,7 @@ final class _Voices {
           id: grace.id,
           kind: grace.kind,
           value: grace.value,
-          notes: Seq(_notes(grace.notes, tiesTo: const [])),
+          notes: Seq(_notes(grace.notes, lands: (_) => false)),
         ),
     ]),
     stem: chord.stem,
@@ -511,38 +512,64 @@ final class _Voices {
     ),
   );
 
-  /// The notes of the event the model ties [chord] to: the next event of
-  /// its voice when that starts where the chord ends, or the event that
-  /// opens the voice in the next bar when the chord ends its bar.
-  List<NoteRecord> _tieTarget(ChordRecord chord, LaneRecord lane) {
-    final EventRecord? target;
-    if (chord.end == end) {
-      final bars = part.bars;
-      target = bar + 1 < bars.length
-          ? eventsIn(
-              bars[bar + 1].lanes
-                  .where(
-                    (next) =>
-                        next.staff == lane.staff && next.slot == lane.slot,
-                  )
-                  .expand((next) => next.items),
-            ).where((event) => event.onset.isZero).firstOrNull
-          : null;
-    } else {
-      target = lane.startingAt[chord.end];
+  /// Whether a tie from a note of [chord] would land on a head where the
+  /// chord ends, by the model's rule ([tieLanding]): in the chord's voice,
+  /// or else in another voice of its staff, inside the bar or at the start
+  /// of the next when the chord ends its bar.
+  bool Function(NoteRecord record) _landsAfter(
+    ChordRecord chord,
+    LaneRecord lane,
+  ) {
+    final bars = part.bars;
+    final crosses = chord.end == end;
+    if (crosses && bar + 1 >= bars.length) {
+      return (_) => false;
     }
-    return target is ChordRecord ? target.notes : const [];
+    final at = crosses ? Moment.zero : chord.end;
+    final staff = [
+      for (final other in bars[crosses ? bar + 1 : bar].lanes)
+        if (other.staff == lane.staff) other,
+    ];
+    final here = [
+      for (final other in bars[bar].lanes)
+        if (other.staff == lane.staff) other,
+    ];
+    bool tiedInVoice(VoiceSlot slot, NoteRecord record) => here.any(
+      (other) =>
+          other.slot == slot &&
+          eventsIn(other.items).any(
+            (event) =>
+                event is ChordRecord &&
+                event.end == chord.end &&
+                event.notes.any(
+                  (note) =>
+                      sameTone(note, record) &&
+                      _tieMarks(note, lands: true).tie,
+                ),
+          ),
+    );
+    return (record) =>
+        tieLanding(lane.slot, [
+          for (final other in staff)
+            if (other.startingAt[at] case final ChordRecord starting)
+              if (starting.notes.any((note) => sameTone(note, record)))
+                (
+                  slot: other.slot,
+                  head: other,
+                  tiedInVoice: tiedInVoice(other.slot, record),
+                ),
+        ]) !=
+        null;
   }
 
   /// [records] as notes in the order the model keeps a chord's, each tone
-  /// once. A tie that starts is kept when one of [tiesTo] has its tone.
+  /// once. A tie that starts is kept when it [lands] on a head.
   List<Note> _notes(
     List<NoteRecord> records, {
-    required List<NoteRecord> tiesTo,
+    required bool Function(NoteRecord record) lands,
   }) {
     final notes = stableSorted([
-      for (final record in records)
-        _note(record, lands: tiesTo.any((to) => sameTone(to, record))),
+      for (final record in records) _note(record, lands: lands(record)),
     ], (a, b) => a.tone.compareTo(b.tone));
     final kept = <Note>[];
     for (final note in notes) {

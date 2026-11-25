@@ -415,7 +415,7 @@ final class _BarWrites {
   final Score score;
   final _written = <int, MeasureColumn>{};
 
-  MeasureColumn operator [](int bar) => _written[bar] ?? score.barAt(bar);
+  MeasureColumn operator [](int bar) => _written[bar] ?? score.measures[bar];
 
   void operator []=(int bar, MeasureColumn column) => _written[bar] = column;
 
@@ -432,9 +432,10 @@ final class _BarWrites {
   Score get written => changed ? score.withBars(_written) : score;
 }
 
-/// [head] and every head tied to it, in time order. A tie joins a head to
-/// the head of the same tone in the adjacent event of its voice, as
-/// `measureView` draws it.
+/// [head] and every head tied to it in its voice, in time order. The chain
+/// follows a tie to the head of the same tone in the adjacent event of its
+/// voice, where `measureView` lands it, and ends at a tie that lands in
+/// another voice or on no head.
 List<_Head> _tieChain(Score score, _Head head) {
   final tone = head.note.tone;
   final chain = [head];
@@ -481,9 +482,9 @@ TimedEvent? _previous(Score score, TimedEvent timed) {
       return null;
     }
     index--;
-    end = _barEnd(score.barAt(index));
+    end = _barEnd(score.measures[index]);
   }
-  final column = score.barAt(index);
+  final column = score.measures[index];
   final voice = column.staff(timed.ref.staff).voice(timed.voice);
   if (voice == null) {
     return null;
@@ -581,7 +582,7 @@ Score _untieWhere(
 ) {
   final untied = _BarWrites(after);
   for (final (bar, staff) in lanes) {
-    final column = after.barAt(bar);
+    final column = after.measures[bar];
     for (final voice in column.staff(staff).voices) {
       for (final timed in timedEvents(
         voice,

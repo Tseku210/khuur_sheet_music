@@ -288,4 +288,63 @@ void main() {
     );
     rig.output.dispose();
   });
+
+  test('17 SoundFonts loaded at once load 16, each on channels the synth '
+      'has', () async {
+    final rig = Rig();
+    final output = rig.output;
+    final fonts = [for (var i = 0; i < 17; i++) FileSoundFont('/fonts/$i.sf2')];
+    final refused = <SoundFont>[];
+    await Future.wait([
+      for (final font in fonts)
+        output
+            .load(font)
+            .then<void>(
+              (_) {},
+              onError: (Object error) {
+                expect(error, isStateError);
+                refused.add(font);
+              },
+            ),
+    ]);
+    expect(refused, [fonts.last]);
+    rig.take();
+    for (final font in fonts.take(16)) {
+      await output.program(soundFont: font, channel: 0, program: 0, bank: 0);
+    }
+    await pumpEventQueue();
+    expect(
+      [
+        for (final event in rig.take())
+          if (event case Selected(:final channel)) channel,
+      ],
+      [for (var block = 0; block < 16; block++) block * 16],
+    );
+    output.dispose();
+  });
+
+  test(
+    'a SoundFont that fails to load leaves its channels to the next',
+    () async {
+      final rig = Rig()
+        ..presets = (source) => source == reed
+            ? throw StateError('no such file')
+            : const [Preset(bank: 0, program: 0, name: '')];
+      final output = rig.output;
+      await expectLater(output.load(reed), throwsStateError);
+      await output.load(piano);
+      rig.take();
+      await output.program(soundFont: piano, channel: 3, program: 0, bank: 0);
+      expect(
+        rig.take().first,
+        const Selected(
+          channel: 3,
+          source: piano,
+          bank: 0,
+          program: 0,
+        ),
+      );
+      output.dispose();
+    },
+  );
 }

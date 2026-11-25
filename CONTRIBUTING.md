@@ -33,18 +33,32 @@ Keep Flutter out of `packages/`. The compiler enforces it, because neither packa
 
 ## Run the checks
 
-Run these from the repository root before you push. `flutter test` at the root does not run the tests of the two packages or of the example, so run all of them.
+Run `tool/check.sh` from the repository root before you push. It runs every check even when one fails, and it exits with code 1 when any check failed.
 
 ```bash
-flutter analyze
-flutter test
-(cd packages/khuur_score_model && dart test)
-(cd packages/khuur_score_layout && dart test)
-(cd example && flutter test)
-flutter test --platform chrome test/web
+tool/check.sh
 ```
 
-The last line runs the web tests in Chrome, so it needs Chrome installed. `flutter analyze` must report no issues. The lints come from `pedantic_mono`.
+The script runs these commands, each from its own directory. `flutter test` at the root runs only the tests in `test/`, so the script also runs the two packages' tests, the example's tests and the check in `verification/`.
+
+```bash
+dart format --output=none --set-exit-if-changed .
+flutter analyze
+.github/scripts/check_release_docs.sh
+(cd packages/khuur_score_model && dart test)
+(cd packages/khuur_score_layout && dart test)
+flutter test
+(cd example && flutter test)
+flutter test verification/score_player/orders_test.dart
+```
+
+`flutter analyze` must report no issues. The lints come from `pedantic_mono`. `check_release_docs.sh` checks that the docs name the pubspecs' versions and the library's exports, and that each code sample in `example/doc_snippets/` matches its page. The last line replays every order of up to 7 steps on `ScorePlayer` and checks each order against the player's promises.
+
+`tool/check.sh --full` also runs the six benchmarks that follow and the web tests. The web tests run in Chrome, so they need Chrome installed.
+
+```bash
+flutter test --platform chrome test/web
+```
 
 After a change to the layout engine, also run the layout benchmark. It exits with code 1 when a layout is over its budget.
 
@@ -115,6 +129,7 @@ The script builds each picture's score as the code on its page does. It writes t
 
 - Add or change tests for every change in behaviour. Test what a user of the API can observe, not the internals. The tests use hand-written fakes from `test/mock/`, not a mocking package.
 - Document every new public member with a `///` comment.
+- A full program that a README or the tutorial shows is also a file in `example/doc_snippets/`, where `flutter analyze` checks it. Change the page's block and the code between the file's `// #docregion` and `// #enddocregion` together. `.github/scripts/check_release_docs.sh` fails when they differ and prints the lines that differ.
 - Asset paths that code loads at runtime start with `packages/khuur_sheet_music/`. A bare `fonts/...` path works only inside this repository.
 - For a change that users of the package can notice, add a bullet to the top section of `CHANGELOG.md`. Mark a breaking change with `**Breaking:**` and show how to migrate.
 
@@ -132,7 +147,7 @@ The types are `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `perf` and `ci
 
 1. Fork the repository and make a branch from `main`.
 2. Open a pull request into `main`. Fill in the template.
-3. CI runs the tests on the oldest supported Flutter and on the newest stable Flutter. It also runs the web tests, the scaling gates and the package checks. Every job must pass.
+3. CI runs the tests on the oldest supported Flutter and on the newest stable Flutter. It also runs the web tests, the scaling gates, an Android build of the example app and the package checks. Every job must pass.
 4. The maintainer reviews the change. Push more commits to the same branch to answer the review.
 5. The maintainer merges the pull request with a merge commit.
 

@@ -42,6 +42,7 @@ part 'rebar.dart';
 part 'ripple.dart';
 part 'rhythm.dart';
 part 'shift.dart';
+part 'ties.dart';
 part 'transpose.dart';
 
 /// An immutable editing session: the current score, where the cursor is,
@@ -183,7 +184,13 @@ final class EditSession {
     final result = _apply(held, edit, ids, this);
     final next = identical(result.score, held) || identical(result.score, score)
         ? score
-        : _withFittingSpanners(_withStandingMeasureRepeats(result.score));
+        : _withFittingSpanners(
+            _withStandingMeasureRepeats(
+              edit is Batch
+                  ? result.score
+                  : _withTiesSettled(held, result.score),
+            ),
+          );
     return EditSession._(
       next,
       result.cursor ?? _revalidateCursor(cursor, score, next),
@@ -387,11 +394,11 @@ final class EditSession {
 /// length.
 ScorePoint? _normalize(Score score, ScorePoint point) {
   final index = score.indexOf(point.measure);
-  if (point.offset < _barEnd(score.barAt(index))) {
+  if (point.offset < _barEnd(score.measures[index])) {
     return point;
   }
-  return index + 1 < score.barCount
-      ? ScorePoint(score.barAt(index + 1).id, Moment.zero)
+  return index + 1 < score.measures.length
+      ? ScorePoint(score.measures[index + 1].id, Moment.zero)
       : null;
 }
 

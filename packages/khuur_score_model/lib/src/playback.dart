@@ -222,10 +222,10 @@ final class PlaybackCompiler {
         from: from,
         to: to,
         clock: clock,
-        heard: [
+        heard: _inTimeOrder([
           for (final chord in fragment.chords)
             if (plays(chord.timed)) chord,
-        ],
+        ]),
         playing: fragment.events.where(plays).toList(),
       );
       timeline.add(bar);
@@ -236,6 +236,71 @@ final class PlaybackCompiler {
       }
       (int, Moment) tiedOn(Moment end) =>
           end == Moment.zero + column.length ? (k + 1, Moment.zero) : (k, end);
+      // The voice of [staff] whose head of [tone] at [at] of this window a
+      // tie from [voice] lands on ([tieLanding]), or [voice] when none is.
+      // [tiedInVoice] says whether a voice's own tie lands on its head.
+      VoiceSlot landsIn(
+        StaffId staff,
+        VoiceSlot voice,
+        Tone tone,
+        Moment at,
+        bool Function(VoiceSlot slot) tiedInVoice,
+      ) =>
+          tieLanding(voice, [
+            for (final other in bar.heard)
+              if (other.timed
+                  case TimedEvent(
+                    :final onset,
+                    voice: final slot,
+                    ref: EventRef(staff: final on),
+                  )
+                  when on == staff &&
+                      onset == at &&
+                      headOfTone(other.event, tone) != null)
+                (slot: slot, head: slot, tiedInVoice: tiedInVoice(slot)),
+          ]) ??
+          voice;
+      // A voice's chord that ends at [at] ties [tone] on.
+      bool Function(VoiceSlot slot) tiesAt(
+        StaffId staff,
+        Tone tone,
+        Moment at,
+      ) =>
+          (slot) => bar.heard.any(
+            (other) =>
+                other.timed.ref.staff == staff &&
+                other.timed.voice == slot &&
+                other.timed.onset + other.timed.duration == at &&
+                (headOfTone(other.event, tone)?.tie ?? false),
+          );
+      // The tie into this window waits, from the bar before, in the lane
+      // of its own voice. It moves to the voice it lands in.
+      VoiceSlot landsAtStart(
+        StaffId staff,
+        VoiceSlot voice,
+        Tone tone,
+        bool Function(VoiceSlot slot) tiedInVoice,
+      ) => landsIn(staff, voice, tone, Moment.zero, tiedInVoice);
+      _landAcrossVoices(ties, (tie) => tie.$2, (k, Moment.zero), landsAtStart);
+      _landAcrossVoices(
+        trilledTies,
+        (tie) => tie.$1,
+        (k, Moment.zero),
+        landsAtStart,
+      );
+      // The lane a tie from [voice] that goes on at [on] waits in.
+      (StaffId, VoiceSlot, Tone) laneOn(
+        StaffId staff,
+        VoiceSlot voice,
+        Tone tone,
+        (int, Moment) on,
+      ) => (
+        staff,
+        on.$1 == k
+            ? landsIn(staff, voice, tone, on.$2, tiesAt(staff, tone, on.$2))
+            : voice,
+        tone,
+      );
       for (final chord in bar.heard) {
         final TimedEvent(:onset, :voice, ref: EventRef(:staff)) = chord.timed;
         final (:channel, :instrument, :loudness, :swells) = sounds[staff]!;
@@ -268,10 +333,8 @@ final class PlaybackCompiler {
                 continued.contains(true);
         for (final note in chord.event.notes) {
           if (note.tie) {
-            trilledTies[(staff, voice, note.tone)] = (
-              tiedOn(onset + chord.timed.duration),
-              trilled,
-            );
+            final on = tiedOn(onset + chord.timed.duration);
+            trilledTies[laneOn(staff, voice, note.tone, on)] = (on, trilled);
           }
         }
         final slurred = switch (slurs[(staff, voice)]?.reachFrom(written)) {
@@ -343,7 +406,8 @@ final class PlaybackCompiler {
             sounding.add(note);
           }
           if (attack.note.tie) {
-            ties[lane] = (note, tiedOn(attack.onset + attack.length));
+            final on = tiedOn(attack.onset + attack.length);
+            ties[laneOn(staff, voice, attack.note.tone, on)] = (note, on);
           }
         }
       }
@@ -1222,4 +1286,68 @@ int _partition(int length, bool Function(int i) reached) {
     }
   }
   return low;
+}
+
+/// [chords] with each staff's chords in time order. A staff's voices keep
+/// their order at one time, and the staves keep theirs, so a tie into
+/// another voice of its staff is waiting by the time its head plays.
+List<_Chord> _inTimeOrder(List<_Chord> chords) {
+  final ordered = <_Chord>[];
+  for (var from = 0; from < chords.length;) {
+    final staff = chords[from].timed.ref.staff;
+    var to = from + 1;
+    while (to < chords.length && chords[to].timed.ref.staff == staff) {
+      to++;
+    }
+    ordered.addAll(
+      stableSorted(
+        chords.sublist(from, to),
+        (a, b) => a.timed.onset.compareTo(b.timed.onset),
+      ),
+    );
+    from = to;
+  }
+  return ordered;
+}
+
+/// Moves each tie of [waiting] that [goesOn] at [at] to the lane of the voice
+/// it lands in there, by [landsIn], which is told whether a voice's own tie
+/// lands on its head.
+void _landAcrossVoices<T>(
+  Map<(StaffId, VoiceSlot, Tone), T> waiting,
+  (int, Moment) Function(T tie) goesOn,
+  (int, Moment) at,
+  VoiceSlot Function(
+    StaffId staff,
+    VoiceSlot voice,
+    Tone tone,
+    bool Function(VoiceSlot slot) tiedInVoice,
+  )
+  landsIn,
+) {
+  if (waiting.isEmpty) {
+    return;
+  }
+  final arriving = [
+    for (final MapEntry(:key, :value) in waiting.entries)
+      if (goesOn(value) == at) key,
+  ];
+  final moves = <((StaffId, VoiceSlot, Tone), VoiceSlot)>[];
+  for (final lane in arriving) {
+    final (staff, voice, tone) = lane;
+    final lands = landsIn(
+      staff,
+      voice,
+      tone,
+      (slot) => arriving.contains((staff, slot, tone)),
+    );
+    if (lands != voice) {
+      moves.add((lane, lands));
+    }
+  }
+  for (final ((staff, voice, tone), lands) in moves) {
+    if (waiting.remove((staff, voice, tone)) case final T tie) {
+      waiting[(staff, lands, tone)] = tie;
+    }
+  }
 }

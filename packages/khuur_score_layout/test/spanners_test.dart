@@ -216,6 +216,31 @@ void main() {
       );
     });
 
+    test('a tie into another voice of its staff is one curve from its head '
+        'to the head of that voice', () {
+      final score = scoreFromMusicXml(tieIntoVoiceTwo);
+      final system = sheetOf(score).systemAt(0);
+      final tie = curvesOf(system).single;
+      final [from, to] = [
+        for (final voice in score.measures.first.staves.first.voices)
+          for (final item in voice.items)
+            if (item case ChordEvent(:final id, :final notes)
+                when notes.single.tone == Pitch.parse('C5'))
+              headOf(
+                system,
+                NoteRef(eventRef(score, 0, id.value), notes.single.id),
+              ),
+      ];
+
+      expect(tie.start.x, greaterThanOrEqualTo(from.right));
+      expect(tie.end.x, lessThanOrEqualTo(to.left));
+      expect(
+        tie.end.x - tie.start.x,
+        greaterThan(letRingLength),
+        reason: 'the tie reaches the other head, not a let-ring stub',
+      );
+    });
+
     test(
       'a let-ring tie is letRingLength long and fits before the barline',
       () {
@@ -1623,8 +1648,35 @@ void main() {
       for (final seed in [1, 2, 3, 4]) {
         final random = Random(seed);
         var score = blankScore(parts: const [clarinet, piano, drums], bars: 24);
+        // The event in the spanner's voice at that end of it, or for a
+        // glissando that names a note there, the chord of any voice that
+        // holds the note.
+        TimedEvent? anchorAt(Spanner spanner, {required bool last}) {
+          final at = last ? spanner.last : spanner.first;
+          final named = switch (spanner.kind) {
+            Glissando(:final from, :final to) => last ? to : from,
+            _ => null,
+          };
+          final own = spanner.voice ?? VoiceSlot.one;
+          final events = [
+            for (final voice in VoiceSlot.values)
+              score.anchorAt(spanner.staff, voice, at),
+          ];
+          return events.nonNulls
+                  .where(
+                    (timed) => switch (timed.event) {
+                      ChordEvent(:final notes) => notes.any(
+                        (note) => note.id == named,
+                      ),
+                      _ => false,
+                    },
+                  )
+                  .firstOrNull ??
+              events[VoiceSlot.values.indexOf(own)];
+        }
+
         for (var step = 0; step < 200; step++) {
-          score = randomEdit(score, random);
+          score = randomEditOrMore(score, random);
           for (final measure in score.measures) {
             final view = score.measureView(measure.id);
             for (final segment in view.spanners) {
@@ -1636,18 +1688,13 @@ void main() {
                 continue;
               }
               compared++;
-              final voice = spanner.voice ?? VoiceSlot.one;
               final start = pieceStart(segment);
               final end = pieceEnd(segment, measure.length);
               final reason = 'seed $seed step $step ${spanner.kind}';
               if (!segment.startsHere) {
                 expect(start, (at: Moment.zero, event: null), reason: reason);
               } else if (spanner.kind.joinsNotes || spanner.kind is TrillLine) {
-                final anchor = score.anchorAt(
-                  spanner.staff,
-                  voice,
-                  spanner.first,
-                );
+                final anchor = anchorAt(spanner, last: false);
                 expect(start.event, anchor?.event.id, reason: reason);
                 expect(start.at, anchor?.onset, reason: reason);
               } else {
@@ -1662,11 +1709,7 @@ void main() {
                   event: null,
                 ), reason: reason);
               } else if (spanner.kind.joinsNotes || spanner.kind is TrillLine) {
-                final anchor = score.anchorAt(
-                  spanner.staff,
-                  voice,
-                  spanner.last,
-                );
+                final anchor = anchorAt(spanner, last: true);
                 expect(end.event, anchor?.event.id, reason: reason);
                 expect(end.at, anchor?.onset, reason: reason);
               } else {

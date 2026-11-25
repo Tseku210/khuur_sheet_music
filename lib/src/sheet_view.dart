@@ -659,7 +659,7 @@ class _SheetViewState extends State<SheetView> {
     }
     if (oldWidget.style != widget.style) {
       _stale = true;
-      _glyphs = GlyphPainter(widget.style.font);
+      _replaceGlyphs();
     }
     if (oldWidget.tapGrid != widget.tapGrid) {
       // The controller's listeners may rebuild, which a build does not
@@ -722,8 +722,15 @@ class _SheetViewState extends State<SheetView> {
       _measurer = fresh;
       _stale = true;
     }
-    _glyphs = GlyphPainter(widget.style.font);
+    _replaceGlyphs();
   });
+
+  /// Every tile is built again with the new painter before the next paint,
+  /// so nothing paints with the old one once its paragraphs are freed.
+  void _replaceGlyphs() {
+    _glyphs.dispose();
+    _glyphs = GlyphPainter(widget.style.font);
+  }
 
   /// Brings the playhead's system to the top of the view when the playhead
   /// enters it and it is not wholly in view. The playhead enters a system
@@ -1038,6 +1045,7 @@ class _SheetViewState extends State<SheetView> {
     _detach(_controller);
     _ownController?.dispose();
     _scroll.dispose();
+    _glyphs.dispose();
     super.dispose();
   }
 }

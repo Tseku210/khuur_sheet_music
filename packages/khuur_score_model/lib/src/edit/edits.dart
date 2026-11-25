@@ -295,8 +295,10 @@ final class RemoveNote extends Edit {
 }
 
 /// Changes what one head plays, its pitch or its drum. If the note is part
-/// of a tie chain, the whole chain changes so the tie stays valid. The tone
-/// must suit the staff, as for [EnterNote].
+/// of a tie chain in its voice, the whole chain changes so the tie stays
+/// valid. A tie between the chain and another voice is cleared, and so is
+/// a tie that ended on no head and would now end on one. The tone must
+/// suit the staff, as for [EnterNote].
 final class SetTone extends Edit {
   /// Makes [note] play [tone].
   const SetTone(this.note, this.tone);
@@ -881,8 +883,9 @@ final class SetTempoMarks extends Edit {
 /// bars copy meter, key and closing clefs from the bar before the insertion
 /// point (the first bar's opening clefs at the start) and hold one
 /// [MeasureRest] per staff. A bar inserted inside a volta joins it. Spanners
-/// that cross the insertion point stretch over the new bars. A tie into the
-/// bar at the insertion point is cleared, since it would lead into rests.
+/// that cross the insertion point stretch over the new bars. A tie that
+/// ended on a head of the bar at the insertion point is cleared, since it
+/// would lead into rests.
 /// At the start, the first bar's opening tempo marks move to the first new
 /// bar, so every old bar starts under the tempo mark it started under.
 /// Refused with
@@ -1189,8 +1192,8 @@ final class Paste extends Edit {
 /// leaves them. Such a note needs no accidental, so the accidental it asked
 /// for and the accidentals of its ornament are taken off. Drum notes, which
 /// have no pitch, and picked spanners are left alone. A tie left leading
-/// onto a head it did not reach before is cleared. The cursor and selection
-/// stay.
+/// onto a head it did not reach before, or no longer onto the head it
+/// reached, is cleared. The cursor and selection stay.
 ///
 /// Key signatures are left alone unless [keys] is set. Then an interval or
 /// a chromatic transposition of a range also moves the key of each bar the

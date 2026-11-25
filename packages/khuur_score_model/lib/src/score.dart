@@ -93,23 +93,13 @@ final class Score {
     this._places, {
     required this.meta,
     required this.parts,
-    required Seq<MeasureColumn>? measures,
+    required this.measures,
     required this.spanners,
-    _Runs? runs,
-  }) : _flat = measures,
-       _runs = runs,
+  }) : assert(parts.isNotEmpty, 'a score has at least one part'),
+       assert(measures.isNotEmpty, 'a score has at least one measure'),
        assert(
-         (measures == null) != (runs == null),
-         'a score holds its bars in one list or in runs, not both',
-       ),
-       assert(parts.isNotEmpty, 'a score has at least one part'),
-       assert(
-         (measures ?? runs!.flat).isNotEmpty,
-         'a score has at least one measure',
-       ),
-       assert(
-         _shapeProblem(parts, measures ?? runs!.flat, spanners) == null,
-         _shapeProblem(parts, measures ?? runs!.flat, spanners),
+         _shapeProblem(parts, measures, spanners) == null,
+         _shapeProblem(parts, measures, spanners),
        );
 
   /// A score with [parts], [measureCount] empty bars of [meter] in [key], and
@@ -185,16 +175,7 @@ final class Score {
 
   /// The global, ordered list of bars. Bar *numbers* are derived from
   /// position; bar *identity* is [MeasureColumn.id].
-  Seq<MeasureColumn> get measures {
-    assert(_runs == null, 'a score in runs is read bar by bar');
-    return _flat ?? _runs!.flat;
-  }
-
-  /// The bars as one list, or null when the score holds them in [_runs].
-  final Seq<MeasureColumn>? _flat;
-
-  /// The bars in runs, in a score where [_flat] is null.
-  final _Runs? _runs;
+  final Seq<MeasureColumn> measures;
 
   /// Cross-bar marks, in no particular order.
   final Seq<Spanner> spanners;
@@ -206,12 +187,13 @@ final class Score {
     Seq<MeasureColumn>? measures,
     Seq<Spanner>? spanners,
   }) => Score._(
-    measures == null || identical(measures, _flat) ? _places : _Places(),
+    measures == null || identical(measures, this.measures)
+        ? _places
+        : _Places(),
     meta: meta ?? this.meta,
     parts: parts ?? this.parts,
-    measures: measures ?? _flat,
+    measures: measures ?? this.measures,
     spanners: spanners ?? this.spanners,
-    runs: measures == null ? _runs : null,
   );
 
   /// Staves in system order: parts top to bottom, then each part's staves
@@ -225,7 +207,7 @@ final class Score {
   final _Places _places;
 
   Map<MeasureId, int> get _indexById => _places.byId ??= {
-    for (var i = 0; i < barCount; i++) barAt(i).id: i,
+    for (var i = 0; i < measures.length; i++) measures[i].id: i,
   };
 
   /// Position of [id] in [measures]. Throws if [id] is not in this score.
@@ -240,12 +222,12 @@ final class Score {
   /// than its meter is a pickup and is numbered 0, so the bar after it is 1.
   /// Throws if [id] is not in this score.
   int barNumberOf(MeasureId id) {
-    final first = barAt(0);
+    final first = measures[0];
     return indexOf(id) + (first.length < first.meter.length ? 0 : 1);
   }
 
   /// Bar [id]. Throws if [id] is not in this score.
-  MeasureColumn column(MeasureId id) => barAt(indexOf(id));
+  MeasureColumn column(MeasureId id) => measures[indexOf(id)];
 
   /// The part that holds [staff]. Throws if no part does.
   Part partOf(StaffId staff) {
@@ -299,7 +281,7 @@ final class Score {
     if (index == null) {
       return null;
     }
-    return barAt(index).staves.where((s) => s.staff == staff).firstOrNull;
+    return measures[index].staves.where((s) => s.staff == staff).firstOrNull;
   }
 
   /// Where [id] lives in this score, or null when it does not exist.
@@ -311,12 +293,12 @@ final class Score {
   EventRef? locate(EventId id) => _refById[id];
 
   late final Map<EventId, EventRef> _refById = {
-    for (var bar = 0; bar < barCount; bar++)
-      for (final staff in barAt(bar).staves)
+    for (var bar = 0; bar < measures.length; bar++)
+      for (final staff in measures[bar].staves)
         for (final voice in staff.voices)
           for (final timed in timedEvents(
             voice,
-            measure: barAt(bar).id,
+            measure: measures[bar].id,
             staff: staff.staff,
           ))
             timed.event.id: timed.ref,
@@ -342,8 +324,8 @@ final class Score {
   /// building a [measureView] per bar. Throws if [staff] is not in this
   /// score.
   Iterable<TimedEvent> laneOf(StaffId staff, VoiceSlot voice) sync* {
-    for (var bar = 0; bar < barCount; bar++) {
-      final column = barAt(bar);
+    for (var bar = 0; bar < measures.length; bar++) {
+      final column = measures[bar];
       if (column.staff(staff).voice(voice) case final lane?) {
         yield* timedEvents(lane, measure: column.id, staff: staff);
       }
@@ -384,10 +366,10 @@ final class Score {
   /// The events of the voice and staff of [like] in the bar at index [bar],
   /// or nothing where this score has no such bar or the bar no such voice.
   Iterable<TimedEvent> _voiceEvents(int bar, TimedEvent like) sync* {
-    if (bar < 0 || bar >= barCount) {
+    if (bar < 0 || bar >= measures.length) {
       return;
     }
-    final column = barAt(bar);
+    final column = measures[bar];
     if (column.staff(like.ref.staff).voice(like.voice) case final lane?) {
       yield* timedEvents(lane, measure: column.id, staff: like.ref.staff);
     }
@@ -414,7 +396,7 @@ final class Score {
     ScorePoint to,
   ) sync* {
     for (var bar = indexOf(from.measure); bar <= indexOf(to.measure); bar++) {
-      final column = barAt(bar);
+      final column = measures[bar];
       if (column.staff(staff).voice(voice) case final lane?) {
         for (final timed in timedEvents(
           lane,
@@ -503,7 +485,7 @@ final class Score {
   /// Everything in effect at a point on a staff.
   ScoreContext contextAt(StaffId staff, ScorePoint at) {
     final index = indexOf(at.measure);
-    final column = barAt(index);
+    final column = measures[index];
     final octaveLine = spannersTouching(at.measure)
         .where(
           (s) =>
@@ -527,7 +509,7 @@ final class Score {
 
   Tempo _tempoAt(int index, Moment offset) {
     for (var i = index; i >= 0; i--) {
-      final mark = barAt(i).tempos
+      final mark = measures[i].tempos
           .where((mark) => i < index || mark.offset <= offset)
           .lastOrNull;
       if (mark != null) {
@@ -665,7 +647,7 @@ final class Score {
   }
 
   MeasureColumn? _columnAt(int index) =>
-      index >= 0 && index < barCount ? barAt(index) : null;
+      index >= 0 && index < measures.length ? measures[index] : null;
 
   List<MeasureId> _covered(Spanner spanner) => [
     for (
@@ -673,14 +655,14 @@ final class Score {
       i <= indexOf(spanner.last.measure);
       i++
     )
-      barAt(i).id,
+      measures[i].id,
   ];
 
   /// The spanners touching each bar, by the bar's index, in the order of
   /// [spanners]. Null for a bar that none touches. Built on first use, so a
   /// score pays for it once, however many bars are then viewed.
   late final List<List<Spanner>?> _spannersByBar = () {
-    final byBar = List<List<Spanner>?>.filled(barCount, null);
+    final byBar = List<List<Spanner>?>.filled(measures.length, null);
     for (final spanner in spanners) {
       final last = indexOf(spanner.last.measure);
       for (var i = indexOf(spanner.first.measure); i <= last; i++) {
@@ -702,110 +684,44 @@ final class _Places {
   Map<MeasureId, int>? byId;
 }
 
-/// The bars of a score in runs of one length, the last run shorter when
-/// the bars do not fill it.
-final class _Runs {
-  _Runs._(this._runs, this._shift, this.length);
-
-  /// [bars] in runs about as long as the list of runs.
-  factory _Runs.of(Seq<MeasureColumn> bars) {
-    final shift = bars.length.bitLength ~/ 2;
-    final size = 1 << shift;
-    return _Runs._(
-      [
-        for (var start = 0; start < bars.length; start += size)
-          [
-            for (var i = start; i < start + size && i < bars.length; i++)
-              bars[i],
-          ],
-      ],
-      shift,
-      bars.length,
-    );
-  }
-
-  final List<List<MeasureColumn>> _runs;
-  final int _shift;
-
-  /// How many bars the runs hold.
-  final int length;
-
-  MeasureColumn operator [](int index) =>
-      _runs[index >> _shift][index & ((1 << _shift) - 1)];
-
-  /// The runs with each bar of [bars] in place of the bar at its index.
-  _Runs replacing(Map<int, MeasureColumn> bars) {
-    final runs = List.of(_runs);
-    for (final MapEntry(key: index, value: bar) in bars.entries) {
-      final run = index >> _shift;
-      if (identical(runs[run], _runs[run])) {
-        runs[run] = List.of(_runs[run]);
-      }
-      runs[run][index & ((1 << _shift) - 1)] = bar;
-    }
-    return _Runs._(runs, _shift, length);
-  }
-
-  Seq<MeasureColumn> get flat => Seq(_runs.expand((run) => run));
-}
-
-/// How the edit engine reads and replaces the bars of a score, whether it
-/// holds them in one list or in runs. The library does not export this.
+/// How the edit engine reads and replaces the bars of a score. The library
+/// does not export this.
 extension BarRuns on Score {
-  /// The bar at [index], as `measures[index]`.
-  MeasureColumn barAt(int index) => switch (_runs) {
-    final runs? => runs[index],
-    null => _flat![index],
-  };
-
   /// The event [ref] names when the bar it names holds it, and null when
   /// that bar does not hold it, where [lookup] goes on to read every bar.
   TimedEvent? inItsBar(EventRef ref) => _find(ref);
 
-  /// How many bars the score has, as `measures.length`.
-  int get barCount => _runs?.length ?? _flat!.length;
-
   /// This score with its bars in runs, so that [withBars] copies only the
   /// runs it writes.
-  Score get inRuns => _runs != null ? this : _holding(null, _Runs.of(_flat!));
+  Score get inRuns => _holding(measures.inRuns);
 
-  /// This score with its bars in one list.
-  Score get flat => _runs == null ? this : _holding(_runs.flat, null);
+  /// This score with its bars in one list, which reads faster than runs.
+  Score get flat => _holding(measures.flat);
 
-  /// This score with the same bars held as [flat] or as [runs].
-  Score _holding(Seq<MeasureColumn>? flat, _Runs? runs) => Score._(
-    _places,
-    meta: meta,
-    parts: parts,
-    measures: flat,
-    spanners: spanners,
-    runs: runs,
-  );
+  /// This score with [bars], the same bars held another way, sharing its
+  /// index of bars by id.
+  Score _holding(Seq<MeasureColumn> bars) => identical(bars, measures)
+      ? this
+      : Score._(
+          _places,
+          meta: meta,
+          parts: parts,
+          measures: bars,
+          spanners: spanners,
+        );
 
   /// This score with each bar of [bars] in place of the bar at its index.
   /// When every new bar has the id of the bar it replaces, the copy shares
   /// the score's index of bars by id. A score in runs stays in runs.
-  Score withBars(Map<int, MeasureColumn> bars) {
-    final runs = _runs;
-    final Seq<MeasureColumn>? flat;
-    if (runs == null) {
-      final list = List.of(_flat!);
-      bars.forEach((index, bar) => list[index] = bar);
-      flat = Seq(list);
-    } else {
-      flat = null;
-    }
-    return Score._(
-      bars.entries.every((bar) => bar.value.id == barAt(bar.key).id)
-          ? _places
-          : _Places(),
-      meta: meta,
-      parts: parts,
-      measures: flat,
-      spanners: spanners,
-      runs: runs?.replacing(bars),
-    );
-  }
+  Score withBars(Map<int, MeasureColumn> bars) => Score._(
+    bars.entries.every((bar) => bar.value.id == measures[bar.key].id)
+        ? _places
+        : _Places(),
+    meta: meta,
+    parts: parts,
+    measures: measures.replacingEach(bars),
+    spanners: spanners,
+  );
 }
 
 /// The title and credits of a score. An empty string means the score has

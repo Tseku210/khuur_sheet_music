@@ -2997,7 +2997,7 @@ void main() {
       expect(items(score, 0), ['3:2[C5/quarter, D5/eighth]', 'E5/quarter']);
     });
 
-    test('keeps a tie only where the model can end it', () {
+    test('keeps a tie that ends on its tone in another voice', () {
       final score = imported(
         flute([
           [
@@ -3028,7 +3028,37 @@ void main() {
         ]),
       );
 
-      expect(items(score, 0), ['C5/half', 'D5/quarter', 'E5/quarter~lv']);
+      expect(items(score, 0), ['C5/half~', 'D5/quarter', 'E5/quarter~lv']);
+    });
+
+    group('a tie from voice one into voice two of its staff', () {
+      test('plays the two notes as one', () {
+        final [(cStart, c, cKey, _), (dStart, d, dKey, _)] = heard(
+          imported(tieIntoVoiceTwo),
+        );
+
+        expect((cStart, cKey, dKey), (0, 72, 74));
+        expect(c, closeTo(2 * d, 2), reason: 'the C5 lasts the whole bar');
+        expect(dStart, closeTo(d, 12), reason: 'the D5 starts halfway');
+      });
+
+      test('is written back with its stop on the head of voice two', () {
+        final notes = XmlDocument.parse(
+          scoreToMusicXml(scoreFromMusicXml(tieIntoVoiceTwo)),
+        ).findAllElements('note');
+        String? tieOf(String voice) => notes
+            .where(
+              (note) =>
+                  note.getElement('voice')?.innerText == voice &&
+                  note.getElement('pitch')?.getElement('step')?.innerText ==
+                      'C',
+            )
+            .single
+            .getElement('tie')
+            ?.getAttribute('type');
+
+        expect([tieOf('1'), tieOf('2')], ['start', 'stop']);
+      });
     });
 
     group('a let-ring tie before a note of its pitch', () {

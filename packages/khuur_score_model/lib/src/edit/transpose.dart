@@ -154,12 +154,7 @@ _Result _transpose(
       ),
     );
   }
-  return _Result(
-    _retie(score, transposed, {
-      for (final timed in touched.values)
-        (score.indexOf(timed.ref.measure), timed.ref.staff),
-    }),
-  );
+  return _Result(transposed);
 }
 
 /// [to], the moved [from], with the accidentals of its ornament moved as

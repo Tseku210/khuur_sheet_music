@@ -42,7 +42,7 @@ void main() {
 
         for (var step = 0; step < edits; step++) {
           final before = score;
-          score = randomEdit(before, random);
+          score = randomEditOrMore(before, random);
           if (random.nextInt(3) == 0) {
             final edit = signatureEdit(score, random);
             final was = score;

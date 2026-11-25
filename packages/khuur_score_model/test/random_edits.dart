@@ -1,6 +1,13 @@
 import 'dart:math';
 
 import 'package:khuur_score_model/khuur_score_model.dart';
+import 'package:khuur_score_model/src/voice_walk.dart'
+    show
+        VoiceAround,
+        tieLandingAround,
+        timedEvents,
+        voicesAtBarline,
+        voicesInside;
 
 import 'support.dart';
 
@@ -74,12 +81,16 @@ T pick<T>(Random random, List<T> options) =>
 /// the chord it starts on or, with a ripple, the chord it ends on.
 /// Throws too when a rippled edit changes the dynamic in force after the bars
 /// it changed, or the clef a note starts in while the note keeps its length.
+/// Throws too when a tie moves, as [_tieMoved] says.
 Score edited(Score score, Edit edit) {
   final outcome = EditSession.start(score).run(edit);
   if (outcome is! Applied) {
     return score;
   }
   final next = outcome.session.score;
+  if (_tieMoved(score, next, edit) case final moved?) {
+    throw StateError('${edit.runtimeType} $moved');
+  }
   final repeated = repeatedIds(next);
   if (repeated.isNotEmpty) {
     throw StateError('${edit.runtimeType} repeats ${repeated.join(', ')}');
@@ -158,6 +169,136 @@ Score edited(Score score, Edit edit) {
     }
   }
   return next;
+}
+
+/// What [edit] did wrong to a tie of [before] in [after], or null.
+///
+/// A tie lands where the views say ([tieLandingAround]). A tied head the
+/// edit made in the tie's voice carries the landing on, so a tied note the
+/// edit cut in two still lands where it did through its new piece. After
+/// any edit, of the ties that are left:
+/// - each that landed on a head lands on it still;
+/// - each that landed on no head lands on none still;
+/// - except that a tie may land on a head the edit made in its own voice.
+/// No tie that landed on a head is cleared while it would still land on
+/// that head, unless the edit declared that loss: it cleared the tie, it
+/// made the chord shorter, or a ripple took time from the chord or added
+/// time across it.
+String? _tieMoved(Score before, Score after, Edit edit) {
+  final was = _tieLandings(before);
+  final now = _tieLandings(after);
+  final old = {
+    for (final (_, chord) in _chordsOf(before))
+      for (final note in chord.notes) note.id,
+  };
+  final voices = {
+    for (final (ref, chord) in _chordsOf(after))
+      for (final note in chord.notes)
+        note.id: (ref.staff, after.lookup(ref)!.voice),
+  };
+  late final wouldLand = _landingsIfTied(after);
+  for (final MapEntry(key: from, value: landing) in was.entries) {
+    if (!now.containsKey(from)) {
+      final declared = switch (edit) {
+        SetTie(tied: false) => true,
+        SetValue(:final event, :final value) => switch (before
+            .lookup(event)
+            ?.event) {
+          ChordEvent(value: final old) => value.length < old.length,
+          _ => false,
+        },
+        EnterNote(:final ripple) ||
+        EnterRest(:final ripple) ||
+        Erase(:final ripple) => ripple != Ripple.none,
+        _ => false,
+      };
+      if (landing != null && !declared && wouldLand[from] == landing) {
+        return 'cleared the tie from $from to $landing';
+      }
+      continue;
+    }
+    bool made(NoteId at, NoteId to) =>
+        !old.contains(to) && voices[to] == voices[at];
+    var at = from;
+    var to = now[from];
+    final seen = {from};
+    while (to != null && made(at, to) && now.containsKey(to) && seen.add(to)) {
+      at = to;
+      to = now[to];
+    }
+    if (to == landing || (to != null && made(at, to))) {
+      continue;
+    }
+    if (landing == null) {
+      return 'tied $from, which landed on no head, to $to';
+    }
+    if (to == null) {
+      return 'left the tie from $from without the head $landing it landed on';
+    }
+    return 'moved the tie from $from from $landing to $to';
+  }
+  return null;
+}
+
+/// Where each tie of [score] lands, by the note it starts on, or null for
+/// a tie to no note. A head that lets ring has no tie here.
+Map<NoteId, NoteId?> _tieLandings(Score score) {
+  final tied = {
+    for (final (_, chord) in _chordsOf(score))
+      for (final note in chord.notes)
+        if (note.tie) note.id,
+  };
+  return {
+    for (final column in score.measures)
+      for (final staff in score.measureView(column.id).staves)
+        for (final tie in staff.ties)
+          if (tied.contains(tie.from)) tie.from: tie.to?.note,
+  };
+}
+
+/// Where a tie from each note of [score] would land if the note had one,
+/// by the note, on the shown parts.
+Map<NoteId, NoteId?> _landingsIfTied(Score score) {
+  final landings = <NoteId, NoteId?>{};
+  for (var bar = 0; bar < score.measures.length; bar++) {
+    final column = score.measures[bar];
+    for (final measure in column.staves) {
+      final staff = measure.staff;
+      if (score.partOf(staff).hidden) {
+        continue;
+      }
+      final lanes = [
+        for (final voice in measure.voices)
+          (
+            voice,
+            timedEvents(voice, measure: column.id, staff: staff).toList(),
+          ),
+      ];
+      for (final (voice, events) in lanes) {
+        for (final timed in events) {
+          if (timed.event case ChordEvent(:final notes)) {
+            final end = timed.onset + timed.duration;
+            final List<VoiceAround> around;
+            if (end == Moment.zero + column.length) {
+              around = bar + 1 < score.measures.length
+                  ? voicesAtBarline(column, score.measures[bar + 1], staff)
+                  : const [];
+            } else {
+              around = voicesInside(lanes, end);
+            }
+            for (final note in notes) {
+              landings[note.id] = tieLandingAround(
+                note,
+                voice.slot,
+                around,
+              )?.note;
+            }
+          }
+        }
+      }
+    }
+  }
+  return landings;
 }
 
 /// Whether [edit] removes [spanner] from [score] by picking it: by its id,
@@ -543,8 +684,7 @@ SetLyric _lyric(EventRef event, Random random) {
 /// the music and marks the layout tests count.
 ///
 /// It makes no [SetTone], [RemoveNote], [RemoveGraces] or [SetTremolo];
-/// [randomEditOrMore] does. The layout tests count what these walks hold
-/// against floors, and a walk with other edits in it falls under them.
+/// [randomEditOrMore] does, and the walks of both packages take that one.
 Score randomEdit(Score score, Random random) {
   final bar = random.nextInt(score.measures.length);
   final id = score.measures[bar].id;

@@ -19,7 +19,11 @@ final class InjectedFailure implements Exception {
 final class Violation {
   const Violation(this.property, this.detail);
 
-  /// One of the property names in `README.md` of the skill.
+  /// The name of the broken promise. [ContractOutput] checks the output's
+  /// calls against `output-contract`, `one-strike-per-key`,
+  /// `off-matches-on` and `notes-only-while-playing`. `world.dart` checks
+  /// the player after each step against the others, such as `no-throw`,
+  /// `silent-unless-playing` and `released-on-time`.
   final String property;
   final String detail;
 
