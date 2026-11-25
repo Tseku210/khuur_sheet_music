@@ -1120,16 +1120,13 @@ bool _sameBy<T>(Iterable<T> a, Iterable<T> b, bool Function(T, T) same) {
   return true;
 }
 
-/// [after] without the ties on [staves], in bars [from] up to [to], that a
-/// ripple of the bars [section] of [before] sent somewhere else. A tie
-/// stays while it ends on the event it ended on before, on the next piece
-/// of its own note, or on a new note of its tone, and while it ends on no
-/// head where it ended on none. A tie into another note goes when either
-/// note [lostItsStart], as it was in [before]. MuseScore 4 takes such a
-/// note out and writes it again, and only a tie that ends on no head comes
-/// back with it. [origins] names the event each new piece came from.
-/// [_retie] cannot do this, because it looks every event up in [before] by
-/// its id, and the pieces a ripple cuts have new ids.
+/// [after] without the ties on [staves], in bars [from] up to [to], that
+/// the ripple of the bars [section] of [before] takes as it cuts a note.
+/// A tie into another note goes when either note [lostItsStart], as it was
+/// in [before]. MuseScore 4 takes such a note out and writes it again, and
+/// only a tie that ends on no head comes back with it. The tie pass after
+/// the edit settles every other tie. [origins] names the event each new
+/// piece came from, since the pieces a ripple cuts have new ids.
 Score _retied(
   Score before,
   Score after,
@@ -1182,20 +1179,17 @@ Score _retied(
       return false;
     }
     final ahead = _headOfTone(_next(after, timed), note.tone);
-    final behind = _headOfTone(_next(before, old), note.tone);
     if (ahead == null) {
-      return behind != null;
+      return false;
     }
-    final target = source(ahead.timed.event.id);
-    if (target == old.event.id) {
+    if (source(ahead.timed.event.id) == old.event.id) {
       return false;
     }
     if (lostItsStart(old)) {
       return true;
     }
     final next = was(ahead.timed);
-    return next != null &&
-        (target != behind?.timed.event.id || lostItsStart(next));
+    return next != null && lostItsStart(next);
   }
 
   return _untieWhere(after, [
