@@ -77,10 +77,12 @@ The edits that build most scores are these:
 - `SetRepeatEnd(measure, RepeatEnd(times: 3))` ends a repeated section that plays three times. The sheet writes "×3" above the barline. The usual two plays get no count.
 - `SetMeasureRepeat(measure, bars: 1)` puts a repeat sign in a bar, so it plays the bar before it again. `bars: 2` repeats the two bars before it over this bar and the next, and `bars: null` clears the sign. Writing a note into the bar clears it too.
 - `AddSpanner` adds a slur, a hairpin, a pedal line or another line.
-- `SetTie` ties a note to the same tone in the next event. `SetLetRing(note, letRing: true)` gives a note a let-ring tie, which never lands on a note, and `letRing: false` clears it. A note with a plain tie keeps it.
+- `SetTie` ties a note to the same tone in the next event of its voice. Where that event has none, the tie ends on that tone in another voice of its staff. `SetLetRing(note, letRing: true)` gives a note a let-ring tie, which never lands on a note, and `letRing: false` clears it. A note with a plain tie keeps it.
 - `AddGrace` puts a grace note before a chord, and `RemoveGraces` takes every grace off it.
 - `SetTremolo(event, 3)` draws three tremolo strokes through a chord's stem, and `0` clears them.
 - `Batch` runs a list of edits as one undo step. If one of them is refused, the batch is refused and the score does not change.
+
+After every edit, a tie in the music the edit wrote keeps its mark only while it lands where it did, on the same head, or on no head when it landed on none. A tie that now lands on a note the edit entered in its own voice stays. So a tie into another voice goes when the head it lands on is removed, erased, written over or given another tone. A tie to no note goes when `SetTone` gives the tied note the tone of the next one. It also goes when an entry or `AddToChord` puts the tie's tone in another voice where the tie ends.
 
 The ids of bars and staves come from the score.
 

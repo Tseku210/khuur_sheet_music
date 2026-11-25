@@ -25,7 +25,7 @@ final score = scoreFromMusicXml(
 );
 ```
 
-`scoreFromMusicXml` reads a `score-partwise` document. It reads everything that `scoreToMusicXml` writes, and the common notation of files from other programs. What the model has no place for is left out. It takes the text of the document. To open a compressed `.mxl` file, pass its bytes to `scoreFromMusicXmlBytes`.
+`scoreFromMusicXml` reads a `score-partwise` document. It reads everything that `scoreToMusicXml` writes, and the common notation of files from other programs. What the model has no place for is left out. A tie that ends in another voice of its staff is kept, as MusicXML allows. `scoreFromMusicXml` takes the text of the document. To open a compressed `.mxl` file, pass its bytes to `scoreFromMusicXmlBytes`.
 
 ### Read the bytes of a `.mxl` or `.musicxml` file
 
@@ -76,6 +76,7 @@ Import refuses these files, among others:
 - A note in a tuplet whose duration is a division or more from its written value.
 - A note that overlaps the note before it in its voice.
 - A tuplet that never stops in its bar.
+- A score of more than 200000 bars over its staves, counted as the staves of every part times the measures. Each staff holds a bar for every measure, empty or not, so a small file could otherwise take gigabytes to read.
 
 A score that import returns always saves, because import saves and loads its own result before it returns it.
 
@@ -110,6 +111,7 @@ The file holds what `ScorePlayer` plays, so repeats, endings, jumps, ties, slurs
 - A quarter tone is a pitch bend before the note, with the bend range set to two semitones.
 - The pedal is in the lengths of the notes it holds, and not a controller.
 - Each track sets its channel's expression, controller 11, at its start and wherever it changes, so a held note of a part that swells follows a hairpin. A part that swells keeps its soft levels in controller 11 and strikes them at velocity 84, so a tool that reads dynamics from velocity alone sees them flat. MuseScore's own export keeps the level on velocity instead.
+- A stretch slower than MIDI's slowest tempo, about 3.58 quarters a minute, is written at that tempo over more ticks, so the notes after it keep their times. A silence longer than 256 of MIDI's longest delta times is cut short in every track alike.
 - A bank under 128 is written as a bank select. A larger bank, such as the drum bank 128 of a SoundFont, is left to the channel.
 
 The package does not read MIDI files.

@@ -1,3 +1,18 @@
+## 0.7.0
+* `ScorePlayer.play` takes `paused`. With `paused: true` the player loads the SoundFonts, sets the programs and compiles the score, and then waits at `startAt` with `status` at `PlayerStatus.paused`. Nothing sounds until `resume`, and playback then runs at once from the start point. An app starts a score this way in step with something else, such as a count-in on another player, with no load or compile between the two.
+* `SynthOutput` refuses a 17th SoundFont with the same `StateError` whether the loads come one by one or at once, as the loads of one `play` do. Before, loads asked for at once all passed the count, and the 17th SoundFont got channels the synth lacks.
+* `SheetView` frees the cached text of a glyph painter it replaces, for a new style or a font that loads late, and of its last one when the view goes. Before, each replaced painter left up to 2048 paragraphs to the garbage collector, which does not see their native size.
+* A playback frame repaints only the tiles whose playing events or drawn playhead it changes. With the theme's palette, whose playhead has no width, a tile repaints only when a note starts or ends on it. On a 200-bar tune at 60 frames a second, the tiles painted a frame fell from 3.98 to 0.03.
+* A tile with many tints or selected items paints faster, because it finds their ink in one walk of its drawables.
+* A tie whose next event in its own voice has no head of its tone lands on that tone in another voice of its staff. `SheetView` draws the tie into that voice, `ScorePlayer` and `scoreToMidi` play the two notes as one, and `scoreFromMusicXml` keeps such a tie, from `khuur_score_model` 0.7.0 and `khuur_score_layout` 0.7.0. A saved tie that had no head in its own voice may now show and play into another voice.
+* After every edit, a tie in the music the edit wrote keeps its mark only while it lands where it did, from `khuur_score_model` 0.7.0. So a tie into another voice goes when the head it lands on is removed or given another tone, and a tie to no note goes when an edit would make it land on a head.
+* `scoreToMidi` exports a score whose play order holds no bar, where it threw a `RangeError`, from `khuur_score_model` 0.7.0.
+* `scoreToMidi` writes a file that MIDI readers take at any tempo, from `khuur_score_model` 0.7.0.
+* One chord's trill plays at most 1024 notes, from `khuur_score_model` 0.7.0.
+* `scoreFromMusicXml` refuses a file of more than 200000 bars over its staves, from `khuur_score_model` 0.7.0.
+* One `EnterNote` on a long score costs less, from `khuur_score_model` 0.7.0.
+* Depends on `khuur_score_model` 0.7.0 and `khuur_score_layout` 0.7.0.
+
 ## 0.6.0
 * **Breaking:** `Edit` gains `SetTremolo` and `RemoveGraces`, so an app that switches over every edit adds cases for them, from `khuur_score_model` 0.6.0.
 * `SetTremolo(event, strokes)` sets the tremolo strokes through a chord's stem, and `RemoveGraces(event)` takes the grace notes off a chord, from `khuur_score_model` 0.6.0.

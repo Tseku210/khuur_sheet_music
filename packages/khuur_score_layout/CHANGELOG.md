@@ -1,3 +1,7 @@
+## 0.7.0
+* A tie into another voice of its staff is drawn as one curve to that voice's head, as `khuur_score_model` 0.7.0 lands it there. A saved tie that had no head in its own voice drew as a short tie, and may now draw into another voice.
+* Depends on `khuur_score_model` 0.7.0.
+
 ## 0.6.0
 * An end repeat that plays more than twice prints its count, "×3" for three times, above the top staff at the end of its bar, in the navigation text style. A repeat that plays twice prints nothing, as before.
 * Depends on `khuur_score_model` 0.6.0.

@@ -25,9 +25,9 @@ On the web the library builds with both compilers, dart2js and dart2wasm. CI bui
 
 | Package | Version | Dart | Flutter |
 | --- | --- | --- | --- |
-| `khuur_sheet_music` | 0.6.0 | 3.13 | 3.47.5 |
-| `khuur_score_model` | 0.6.0 | 3.13 | Not used |
-| `khuur_score_layout` | 0.6.0 | 3.13 | Not used |
+| `khuur_sheet_music` | 0.7.0 | 3.13 | 3.47.5 |
+| `khuur_score_model` | 0.7.0 | 3.13 | Not used |
+| `khuur_score_layout` | 0.7.0 | 3.13 | Not used |
 
 `khuur_sheet_music` depends on `khuur_synth` 0.2.0 or a later 0.2 release, and on `material_ui` 1.11.0 or a later 1.x release. An app made with `flutter create` on Flutter 3.47.5 meets the Android and iOS floors of `khuur_synth` with no change.
 
@@ -43,5 +43,7 @@ On the web the library builds with both compilers, dart2js and dart2wasm. CI bui
 - `ScoreMeta.copyright` is not printed on the sheet.
 - The sheet takes its colours from the `Theme` of `material_ui`. Under a `MaterialApp` of `package:flutter/material.dart` it finds no theme and draws in the light default colours.
 - The package bundles no SoundFont. The app supplies every SoundFont it plays.
-- Each SoundFont takes 16 of FluidSynth's 256 channels, so one `SynthOutput` plays from at most 16 SoundFonts.
+- Each SoundFont takes 16 of FluidSynth's 256 channels, so one `SynthOutput` plays from at most 16 SoundFonts. A 17th is refused with a `StateError`.
+- One chord's trill plays at most 1024 notes. A chord longer than those notes fill at the usual speed, about 77 seconds, plays them slower.
+- MusicXML import refuses a score of more than 200000 bars over its staves, counted as the staves of every part times the measures.
 - On iOS only SF2 files load. FluidSynth's iOS build has no SF3 support.

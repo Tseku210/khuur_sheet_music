@@ -92,6 +92,29 @@ await _player.play(session.score, startAt: session.cursor.at);
 
 In a score with repeats, playback starts where the play order first reaches that point.
 
+## Start in step with something else
+
+To start the score the moment something else ends, such as a count-in on another player, pass `paused: true`. The player loads the SoundFonts, sets the programs and compiles the score. Then it waits at `startAt` with the status at `PlayerStatus.paused`. The position holds the start point, so the sheet marks where the score starts. Call `resume` when the score is to start. Playback then runs at once from the start point.
+
+This example plays a count-in on a second `ScorePlayer`, `_counter`, and starts the score when the count-in ends. `countIn` is a `Score` that holds the count-in bars. Each player creates its own ticker, so a state with a second player mixes in `TickerProviderStateMixin`.
+
+```dart
+void counted() {
+  if (_counter.status.value == PlayerStatus.idle) {
+    _counter.status.removeListener(counted);
+    _player.resume();
+  }
+}
+
+await _player.play(session.score, startAt: session.cursor.at, paused: true);
+_counter.status.addListener(counted);
+await _counter.play(countIn);
+```
+
+If the app calls `play` only when the count-in ends, the loads and the compile fall between the two, and the user can hear the gap. A `tempoScale` set while the player waits applies from the resume. A `stop` or a new `play` while it waits replaces it, as it replaces any play.
+
+The listener starts the score whenever the count-in goes idle, also when the count-in is stopped or fails. So stop both players together.
+
 ## Change the tempo
 
 Set `tempoScale`, the speed against the written tempo. A value of 1 plays as written, and 0.5 plays at half speed. The new speed applies at once, also while the score plays, and the position does not jump.
@@ -150,7 +173,7 @@ The player plays the score it was given when `play` was called. To hear an edit,
 
 ## Handle a failure
 
-The future of `play` completes once playback has started. It fails when a SoundFont does not load or a program cannot be set, and the player is then idle. The next `play` tries the failed SoundFont again.
+The future of `play` completes once playback has started, or, with `paused: true`, once the player waits at the start point. It fails when a SoundFont does not load or a program cannot be set, and the player is then idle. The next `play` tries the failed SoundFont again.
 
 ```dart
 try {
