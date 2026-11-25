@@ -68,14 +68,7 @@ Score _setValue(Score score, TimedEvent timed, NoteValue value, _Ids ids) {
     ids,
     Overfill.splitAndTie,
   );
-  final last = write.score.lookup(write.last)!;
-  final chord = last.event;
-  final before = _next(score, timed);
-  final after = _next(write.score, last);
-  bool moves(Note note) => _tieMoves(note, before, after);
-  return chord is ChordEvent && chord.notes.any(moves)
-      ? _replace(write.score, last, _untied(chord, moves))
-      : write.score;
+  return write.score;
 }
 
 /// What an edit takes from a chord whose time it changes.
