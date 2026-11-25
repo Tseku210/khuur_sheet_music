@@ -569,12 +569,9 @@ _Rippled _ripple(
       ),
   };
   final grown = count > old.length;
-  final untied = grown
-      ? _untieAt(score, b - 1, _barEnd(closing), null).measures[b - 1]
-      : closing;
   final bars = _rippledBars(
     old,
-    untied,
+    closing,
     cut,
     count,
     ids,

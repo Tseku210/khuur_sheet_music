@@ -115,7 +115,8 @@ typedef _Tied = ({TimedEvent timed, Note note});
 
 /// What an edit of [before] into [after] wrote: its lanes, the (bar
 /// index, staff) lanes of [after] whose staff measure [before] did not
-/// hold there, and the lane before each, and a lookup that finds a head of
+/// hold there, the lane before each, and the bar before any bars the edit
+/// put in or took out, and a lookup that finds a head of
 /// [after] in [before], or answers null for a head the edit made.
 ({
   Set<(int, StaffId)> lanes,
@@ -160,6 +161,11 @@ _written(Score before, Score after) {
     for (var bar = start; bar < now.length - end; bar++) {
       for (final staff in now[bar].staves) {
         write(bar, staff.staff);
+      }
+    }
+    if (start > 0) {
+      for (final staff in now[start - 1].staves) {
+        lanes.add((start - 1, staff.staff));
       }
     }
   }
