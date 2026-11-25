@@ -127,17 +127,25 @@ final class ScorePlayer {
   /// sets each part's program from it, with [status] at
   /// [PlayerStatus.loading] meanwhile.
   ///
-  /// The future completes when playback has started, or when a later
-  /// [play], [stop] or [dispose] took its place. It fails when a SoundFont
-  /// cannot be loaded or a program cannot be set, and the player is then
-  /// idle. The next call loads again each SoundFont that failed. It fails
-  /// before anything changes when [options] names a point that is not in
-  /// [score].
+  /// With [paused], the player does all of this and then waits at the
+  /// start point with [status] at [PlayerStatus.paused] and [position]
+  /// there. Nothing sounds until [resume], and playback then runs at once
+  /// from the start point. An app starts the score this way in step with
+  /// something else, such as a count-in on another player, so that no load
+  /// or compile falls between the two.
+  ///
+  /// The future completes when playback has started, or when the player
+  /// waits paused, or when a later [play], [stop] or [dispose] took its
+  /// place. It fails when a SoundFont cannot be loaded or a program cannot
+  /// be set, and the player is then idle. The next call loads again each
+  /// SoundFont that failed. It fails before anything changes when
+  /// [options] names a point that is not in [score].
   Future<void> play(
     Score score, {
     ScorePoint? startAt,
     PlaybackOptions options = const PlaybackOptions(),
     bool loop = false,
+    bool paused = false,
   }) async {
     final script = _compiler.compile(score, options);
     final ofPart = {
@@ -187,9 +195,19 @@ final class ScorePlayer {
           (soundFont: ofPart[part]!, channel: channel, expression: expression),
       ],
       loop: loop && script.totalSeconds > 0,
-      clock: _ScriptClock(wall: _now(), seconds: from, scale: _tempoScale),
+      clock: _ScriptClock(
+        wall: _now(),
+        seconds: from,
+        scale: paused ? 0 : _tempoScale,
+      ),
       unsent: notes.length - script.notesBetween(from, double.infinity).length,
     );
+    if (paused) {
+      _express(run, from);
+      _enter(_Paused(run));
+      _publish(run);
+      return;
+    }
     final playing = _Playing(run);
     _ticker.start();
     _enter(playing);
@@ -214,7 +232,8 @@ final class ScorePlayer {
     }
   }
 
-  /// Plays on from where [pause] left off. Does nothing unless paused.
+  /// Plays on from where [pause] left off, or starts a [play] that waits
+  /// paused at its start point. Does nothing unless paused.
   void resume() {
     if (_phase case _Paused(:final run)) {
       run.clock = run.clock.rescaled(_now(), _tempoScale);
@@ -466,8 +485,8 @@ final class _Idle extends _Phase {
 }
 
 /// One [ScorePlayer.play] call waiting for the SoundFonts and the programs.
-/// The call starts playback only if this is still the phase when they are
-/// ready, so any phase entered meanwhile withdraws it.
+/// The call starts playback, or waits paused, only if this is still the
+/// phase when they are ready, so any phase entered meanwhile withdraws it.
 final class _Loading extends _Phase {
   @override
   PlayerStatus get status => PlayerStatus.loading;
@@ -514,7 +533,8 @@ final class _Run {
   final List<({SoundFont soundFont, int channel, Expression expression})>
   expressions;
 
-  /// Empty when the run starts, so its first wake sets every channel.
+  /// Empty when the run starts, so its first wake, or a paused start, sets
+  /// every channel.
   final Map<({SoundFont soundFont, int channel}), int> expressed = {};
 
   double expressedAt = 0;
@@ -579,7 +599,8 @@ enum PlayerStatus {
   /// Notes are being sent.
   playing,
 
-  /// Held by [ScorePlayer.pause] until [ScorePlayer.resume].
+  /// Held by [ScorePlayer.pause], or by a [ScorePlayer.play] that starts
+  /// paused, until [ScorePlayer.resume].
   paused,
 }
 

@@ -1144,6 +1144,25 @@ void main() {
       );
     });
 
+    testPlayer('a paused play sets the value where it waits', (
+      tester,
+      rig,
+    ) async {
+      final score = swell();
+      await rig.player.play(
+        score,
+        startAt: pointAt(score, 0, at(1, 2)),
+        paused: true,
+      );
+
+      expect(
+        [
+          for (final e in rig.midi.expressions) (e.afterOns, e.value),
+        ],
+        [(0, curve.at(2))],
+      );
+    });
+
     testPlayer('a pause keeps the value at the paused second, and a loop '
         'sets the value its start holds', (tester, rig) async {
       await rig.player.play(swell(), loop: true);
@@ -1440,6 +1459,101 @@ void main() {
       await tester.pump(second * 4);
 
       expect(rig.midi.log, ['0.000 load', '0.000 dispose']);
+    });
+  });
+
+  group('play paused', () {
+    testPlayer(
+      'waits at startAt, and nothing sounds while the clock moves on',
+      (tester, rig) async {
+        final score = tune();
+        await rig.player.play(
+          score,
+          startAt: pointAt(score, 0, at(1, 2)),
+          paused: true,
+        );
+        expect(rig.status, PlayerStatus.paused);
+        expect(rig.seconds, 2);
+
+        await tester.pump(second * 10);
+        expect(rig.seconds, 2);
+        expect(rig.midi.ons, isEmpty);
+        expect(rig.statuses, [PlayerStatus.loading, PlayerStatus.paused]);
+        expect(tester.binding.transientCallbackCount, 0);
+      },
+    );
+
+    testPlayer('resume sounds the note at startAt at once', (
+      tester,
+      rig,
+    ) async {
+      final score = tune();
+      await rig.player.play(
+        score,
+        startAt: pointAt(score, 0, at(1, 2)),
+        paused: true,
+      );
+      await tester.pump(second * 3);
+      rig.player.resume();
+      await tester.pump(Duration.zero);
+      expect(rig.ons, [(3.0, 64)]);
+
+      await tester.pump(second * 2);
+      expect(rig.ons, [(3.0, 64), (4.0, 65)]);
+      expect(rig.status, PlayerStatus.idle);
+    });
+
+    testPlayer('a tempoScale set while it waits holds once it resumes', (
+      tester,
+      rig,
+    ) async {
+      await rig.player.play(tune(), paused: true);
+      rig.player.tempoScale = 0.5;
+      await tester.pump(second);
+      rig.player.resume();
+      await tester.pump(second * 4);
+
+      expect(rig.ons, [(1.0, 60), (3.0, 62), (5.0, 64)]);
+    });
+
+    testPlayer('stop while it waits goes idle and sounds nothing', (
+      tester,
+      rig,
+    ) async {
+      await rig.player.play(tune(), paused: true);
+      rig.player.stop();
+      await tester.pump(second * 4);
+
+      expect(rig.status, PlayerStatus.idle);
+      expect(rig.position, isNull);
+      expect(rig.midi.ons, isEmpty);
+      expect(
+        rig.statuses,
+        [PlayerStatus.loading, PlayerStatus.paused, PlayerStatus.idle],
+      );
+    });
+
+    testPlayer('a newer play while it loads starts only the newer call', (
+      tester,
+      rig,
+    ) async {
+      final gate = rig.midi.loadGate = Completer();
+      final score = tune();
+      final cued = rig.player.play(score, paused: true);
+      final later = rig.player.play(
+        score,
+        startAt: pointAt(score, 0, at(1, 2)),
+      );
+      gate.complete();
+      await cued;
+      await later;
+
+      expect(rig.midi.log, [
+        '0.000 load',
+        '0.000 program 0 = 0/0',
+        '0.000 on 0:64',
+      ]);
+      expect(rig.statuses, [PlayerStatus.loading, PlayerStatus.playing]);
     });
   });
 

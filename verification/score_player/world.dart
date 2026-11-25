@@ -28,6 +28,7 @@ const stepTime = Duration(milliseconds: 500);
 enum Step {
   playA('play the restrike tune'),
   playD('play the duet, looping, from its second beat'),
+  cueA('play the restrike tune paused at its start'),
   pause('pause'),
   resume('resume'),
   stop('stop'),
@@ -141,6 +142,11 @@ final class Tune {
   late final Map<StaffId, SoundFont> soundFonts;
   late final List<PlaybackNote> notes;
 
+  double get startSeconds => switch (startAt) {
+    final point? => script.secondsAt(point) ?? 0,
+    null => 0,
+  };
+
   /// Whether a note of this tune holds [voice] at script second [seconds].
   bool holds(HeldKey voice, double seconds) => notes.any(
     (note) =>
@@ -232,6 +238,12 @@ final class World {
   /// position may then lag the second the player paused at, since it is
   /// not published past the script's end.
   bool pausedLate = false;
+
+  bool cued = false;
+
+  /// Whether a waiting cue was resumed in the step just taken. Nothing
+  /// publishes while it waits, so its clock shows in the frame after.
+  bool resumedCue = false;
   bool disposed = false;
 
   /// What this world reached that the search must reach somewhere, so that
@@ -271,6 +283,7 @@ final class World {
       Step.onPositionPlayA => armed == null,
       Step.playA ||
       Step.playD ||
+      Step.cueA ||
       Step.tempo ||
       Step.wait ||
       Step.dispose => true,
@@ -283,6 +296,9 @@ final class World {
     switch (step) {
       case Step.wait:
         final before = status;
+        if (_cueWaiting) {
+          reached.add('time passed as a cue waits');
+        }
         await tester.pump(stepTime);
         if (before == PlayerStatus.playing && status == PlayerStatus.idle) {
           reached.add('playback ended by itself');
@@ -298,6 +314,9 @@ final class World {
       case Step.loadFails:
         final pending = output.pendingLoads.removeAt(0);
         reached.add('${_age(pending)} load failed');
+        if (_cueLoading && _age(pending) == 'latest') {
+          reached.add('a cue load failed');
+        }
         pending.completer.completeError(const InjectedFailure('load'));
       case Step.programsOk:
         for (final pending in output.pendingPrograms) {
@@ -307,6 +326,9 @@ final class World {
       case Step.programFails:
         final pending = output.pendingPrograms.removeAt(0);
         reached.add('${_age(pending)} program failed');
+        if (_cueLoading && _age(pending) == 'latest') {
+          reached.add('a cue program failed');
+        }
         pending.completer.completeError(const InjectedFailure('program'));
       case Step.onStatusPause ||
           Step.onStatusResume ||
@@ -321,6 +343,7 @@ final class World {
         disposed = true;
       case Step.playA ||
           Step.playD ||
+          Step.cueA ||
           Step.pause ||
           Step.resume ||
           Step.stop ||
@@ -339,16 +362,27 @@ final class World {
         _play(restrike);
       case Step.playD:
         _play(looping);
+      case Step.cueA:
+        _play(restrike, paused: true);
       case Step.pause || Step.onStatusPause:
         if (status == PlayerStatus.playing) {
           pausedLate = _overdue;
         }
         player.pause();
       case Step.resume || Step.onStatusResume:
+        if (_cueWaiting) {
+          reached.add('a cue resumed');
+          cued = false;
+          resumedCue = true;
+        }
         player.resume();
       case Step.stop || Step.onStatusStop || Step.onPositionStop:
+        _withdrawingCue();
         player.stop();
       case Step.tempo || Step.onStatusTempo:
+        if (_cueWaiting) {
+          reached.add('tempoScale switched as a cue waits');
+        }
         player.tempoScale = player.tempoScale == 1 ? 0.5 : 1;
       case _:
         throw StateError('$step is not a call of the app');
@@ -358,11 +392,28 @@ final class World {
   String _age(Pending pending) =>
       pending.play == playCalls ? 'latest' : 'stale';
 
-  void _play(Tune tune) {
+  bool get _cueLoading => cued && status == PlayerStatus.loading;
+
+  bool get _cueWaiting => cued && status == PlayerStatus.paused;
+
+  void _withdrawingCue() {
+    if (_cueLoading) {
+      reached.add('a cue withdrawn while loading');
+    }
+  }
+
+  void _play(Tune tune, {bool paused = false}) {
+    _withdrawingCue();
     playCalls++;
     latest = tune;
+    cued = paused;
     player
-        .play(tune.score, startAt: tune.startAt, loop: tune.loop)
+        .play(
+          tune.score,
+          startAt: tune.startAt,
+          loop: tune.loop,
+          paused: paused,
+        )
         .then(
           (_) {},
           onError: (Object error) {
@@ -398,7 +449,7 @@ final class World {
     }
     if (armed case final step? when step.name.startsWith('onStatus')) {
       armed = null;
-      reached.add('${step.name} while ${status.name}');
+      _reachedByListener(step);
       _call(() => _app(step));
     }
   }
@@ -406,8 +457,15 @@ final class World {
   void _onPosition() {
     if (armed case final step? when step.name.startsWith('onPosition')) {
       armed = null;
-      reached.add('${step.name} while ${status.name}');
+      _reachedByListener(step);
       _call(() => _app(step));
+    }
+  }
+
+  void _reachedByListener(Step step) {
+    reached.add('${step.name} while ${status.name}');
+    if (_cueWaiting) {
+      reached.add('${step.name} as a cue waits');
     }
   }
 
@@ -459,7 +517,29 @@ final class World {
       );
     }
     final seconds = player.position.value?.seconds;
-    final paused = status == PlayerStatus.paused && !pausedLate;
+    if (_cueWaiting) {
+      reached.add('settled paused by a cue');
+      if (seconds != latest!.startSeconds) {
+        output.violate(
+          'cue-holds-start',
+          'a cue of ${latest!.name} waits at script second $seconds, not '
+              'at its start ${latest!.startSeconds}',
+        );
+      }
+    }
+    if (resumedCue) {
+      resumedCue = false;
+      if ((playing || status == PlayerStatus.paused) &&
+          seconds != latest!.startSeconds) {
+        output.violate(
+          'cue-holds-start',
+          'a cue of ${latest!.name} resumed at script second $seconds, not '
+              'at its start ${latest!.startSeconds}',
+        );
+      }
+    }
+    final paused =
+        status == PlayerStatus.paused && (_cueWaiting || !pausedLate);
     if ((playing && !_overdue || paused) && seconds != null) {
       for (final ChannelSetup(:part, :channel, :expression)
           in latest!.script.channels) {
@@ -508,6 +588,7 @@ final class World {
       if (disposed) 'disposed',
       status.name,
       if (status != PlayerStatus.idle) 'run ${latest?.name}',
+      if (cued && status != PlayerStatus.idle) 'cued',
       'tempo ${player.tempoScale}',
       'at ${position?.seconds.toStringAsFixed(6)}',
       'held ${_keys(output.held)}',
@@ -596,6 +677,17 @@ const mustReach = {
   'onStatusTempo while playing',
   'onPositionStop while playing',
   'onPositionPlayA while playing',
+  'settled paused by a cue',
+  'a cue withdrawn while loading',
+  'a cue load failed',
+  'a cue program failed',
+  'a cue resumed',
+  'time passed as a cue waits',
+  'tempoScale switched as a cue waits',
+  'onStatusResume as a cue waits',
+  'onStatusStop as a cue waits',
+  'onStatusPlayA as a cue waits',
+  'onPositionStop as a cue waits',
 };
 
 String _keys(Iterable<HeldKey> keys) => [
