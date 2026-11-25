@@ -208,6 +208,45 @@ typedef VoiceAround = ({
   TimedEvent? starting,
 });
 
+/// The voices of [staff] at the barline between [column] and [next]: the
+/// events that end [column] and those that open [next].
+List<VoiceAround> voicesAtBarline(
+  MeasureColumn column,
+  MeasureColumn next,
+  StaffId staff,
+) {
+  final barEnd = Moment.zero + column.length;
+  final ending = <VoiceSlot, TimedEvent>{
+    for (final voice in column.staff(staff).voices)
+      if (timedEvents(voice, measure: column.id, staff: staff).lastOrNull
+          case final last? when last.onset + last.duration == barEnd)
+        voice.slot: last,
+  };
+  return [
+    for (final voice in next.staff(staff).voices)
+      (
+        slot: voice.slot,
+        ending: ending[voice.slot],
+        starting: openingEvent(next, staff, voice.slot),
+      ),
+  ];
+}
+
+/// The voices of [lanes] at [at], inside their bar.
+List<VoiceAround> voicesInside(
+  List<(Voice, List<TimedEvent>)> lanes,
+  Moment at,
+) => [
+  for (final (voice, events) in lanes)
+    (
+      slot: voice.slot,
+      ending: events
+          .where((e) => e.onset < at && e.onset + e.duration == at)
+          .firstOrNull,
+      starting: events.where((e) => e.onset == at).firstOrNull,
+    ),
+];
+
 /// The head that [tied], a tied note of voice [from], lands on, given
 /// [voices], the voices of its staff where the tie ends ([tieLanding]).
 NoteRef? tieLandingAround(

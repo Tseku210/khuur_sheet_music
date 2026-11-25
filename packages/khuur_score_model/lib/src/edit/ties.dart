@@ -1,101 +1,197 @@
 part of 'session.dart';
 
-/// [after], an edit of [before], without the ties the edit moved: a tie
-/// that landed on a head and now lands on none, or on another head that
-/// [before] had. A tie on a head the edit made, a tie that landed on no
-/// head, and a tie that lands on a head the edit made keep their marks;
-/// an edit that means to drop one of those drops it itself.
-///
-/// Only the lanes whose staff measures the edit wrote, or whose next bar
-/// it changed, and the bars before them, are looked at.
+/// [after], an edit of [before], without the ties the edit moved. Each tie
+/// [before] had in a lane the edit wrote keeps its mark only while it lands
+/// where it did: on the same head, or on no head where it landed on none.
+/// A tie that now lands on a head the edit made in the tie's own voice
+/// keeps its mark too, since that head is the edit's own, as a note it
+/// entered of the tie's tone. A tie lands where [tieLanding] says, and a
+/// tie that lands on a tied head the edit made, such as the next piece of
+/// a chord the edit cut in two, lands where that head's tie lands. The
+/// last tie of such a chain is the one cleared. A tie the edit set or
+/// made is its own and is left alone.
 Score _withTiesSettled(Score before, Score after) {
   if (identical(before, after) || identical(before.measures, after.measures)) {
     return after;
   }
-  bool moves(TimedEvent timed, ChordEvent chord, Note note) {
-    final old = _sameBar(before, timed.ref);
-    final was = _headWhere(old, (n) => n.id == note.id)?.note;
-    if (was == null || !was.tie) {
-      return false;
+  final written = _written(before, after);
+  final clears = <NoteId>{};
+  _forEachTie(after, written.lanes, (timed, note) {
+    final old = written.headOf(timed, note.id);
+    if (old == null || !old.note.tie) {
+      return;
     }
-    final landed = _headOfTone(_next(before, old!), was.tone);
-    if (landed == null) {
-      return false;
-    }
-    final lands = _headOfTone(_next(after, timed), note.tone);
-    if (lands == null) {
-      return true;
-    }
-    return lands.note.id != landed.note.id &&
-        _headWhere(
-              _sameBar(before, lands.timed.ref),
-              (n) => n.id == lands.note.id,
-            ) !=
-            null;
-  }
-
-  return _untieWhere(after, _writtenLanes(before, after), moves);
-}
-
-/// The (bar index, staff) lanes of [after] whose staff measure is not the
-/// one [before] had in that bar, or whose bar is followed by another bar
-/// than it was, and the lane before each.
-Set<(int, StaffId)> _writtenLanes(Score before, Score after) {
-  final lanes = <(int, StaffId)>{};
-  final bars = after.measures;
-  for (var bar = 0; bar < bars.length; bar++) {
-    final column = bars[bar];
-    final was = before.contains(column.id) ? before.indexOf(column.id) : null;
-    final kept = was != null && _nextId(before, was) == _nextId(after, bar)
-        ? before.measures[was]
-        : null;
-    for (final staff in column.staves) {
-      if (kept != null && identical(staff, _measureOf(kept, staff.staff))) {
+    final landed = _landing(before, old.timed, old.note)?.note.id;
+    var tied = (timed: timed, note: note);
+    final seen = {note.id};
+    while (true) {
+      final lands = _landing(after, tied.timed, tied.note);
+      final keeps = switch (lands) {
+        null => landed == null,
+        _ when written.headOf(lands.timed, lands.note.id) != null =>
+          lands.note.id == landed,
+        _ when lands.timed.voice != tied.timed.voice => false,
+        _ when lands.note.tie && seen.add(lands.note.id) => null,
+        _ => true,
+      };
+      if (keeps == null) {
+        tied = (timed: lands!.timed, note: lands.note);
         continue;
       }
-      lanes.add((bar, staff.staff));
-      if (bar > 0) {
-        lanes.add((bar - 1, staff.staff));
+      if (!keeps) {
+        clears.add(tied.note.id);
+      }
+      return;
+    }
+  });
+  return clears.isEmpty
+      ? after
+      : _untieWhere(
+          after,
+          written.lanes,
+          (_, _, note) => clears.contains(note.id),
+        );
+}
+
+/// Calls [visit] with each tied head of [score] in [lanes].
+void _forEachTie(
+  Score score,
+  Iterable<(int bar, StaffId staff)> lanes,
+  void Function(TimedEvent timed, Note note) visit,
+) {
+  for (final (bar, staff) in lanes) {
+    final column = score.measures[bar];
+    for (final voice in column.staff(staff).voices) {
+      for (final timed in timedEvents(
+        voice,
+        measure: column.id,
+        staff: staff,
+      )) {
+        if (timed.event case ChordEvent(:final notes)) {
+          for (final note in notes) {
+            if (note.tie) {
+              visit(timed, note);
+            }
+          }
+        }
       }
     }
   }
-  return lanes;
 }
 
-/// The id of the bar after bar [bar] of [score], or null at the end.
-MeasureId? _nextId(Score score, int bar) =>
-    bar + 1 < score.measures.length ? score.measures[bar + 1].id : null;
+/// The head that a tie from [note] of [timed] lands on in [score], as
+/// [tieLanding] says, or null when it lands on none.
+_Head? _landing(Score score, TimedEvent timed, Note note) {
+  final bar = score.indexOf(timed.ref.measure);
+  final column = score.measures[bar];
+  final staff = timed.ref.staff;
+  final end = timed.onset + timed.duration;
+  final List<VoiceAround> voices;
+  if (end == _barEnd(column)) {
+    if (bar + 1 == score.measures.length) {
+      return null;
+    }
+    voices = voicesAtBarline(column, score.measures[bar + 1], staff);
+  } else {
+    voices = voicesInside([
+      for (final voice in column.staff(staff).voices)
+        (voice, timedEvents(voice, measure: column.id, staff: staff).toList()),
+    ], end);
+  }
+  final to = tieLandingAround(note, timed.voice, voices);
+  if (to == null) {
+    return null;
+  }
+  for (final (:starting, slot: _, ending: _) in voices) {
+    if (starting != null && starting.ref == to.event) {
+      return _headWhere(starting, (head) => head.id == to.note);
+    }
+  }
+  return null;
+}
+
+/// A head of a score as an edit found it.
+typedef _Tied = ({TimedEvent timed, Note note});
+
+/// What an edit of [before] into [after] wrote: its lanes, the (bar
+/// index, staff) lanes of [after] whose staff measure [before] did not
+/// hold there, and the lane before each, and a lookup that finds a head of
+/// [after] in [before], or answers null for a head the edit made.
+({
+  Set<(int, StaffId)> lanes,
+  _Tied? Function(TimedEvent timed, NoteId note) headOf,
+})
+_written(Score before, Score after) {
+  final lanes = <(int, StaffId)>{};
+  void write(int bar, StaffId staff) {
+    lanes.add((bar, staff));
+    if (bar > 0) {
+      lanes.add((bar - 1, staff));
+    }
+  }
+
+  final (was, now) = (before.measures, after.measures);
+  final gone = <MeasureColumn>[];
+  if (was.length == now.length) {
+    for (final bar in now.indexesNotIn(was)) {
+      final (old, column) = (was[bar], now[bar]);
+      gone.add(old);
+      for (final staff in column.staves) {
+        if (old.id != column.id ||
+            !identical(staff, _measureOf(old, staff.staff))) {
+          write(bar, staff.staff);
+        }
+      }
+    }
+  } else {
+    final shorter = min(was.length, now.length);
+    var start = 0;
+    while (start < shorter && identical(was[start], now[start])) {
+      start++;
+    }
+    var end = 0;
+    while (end < shorter - start &&
+        identical(was[was.length - 1 - end], now[now.length - 1 - end])) {
+      end++;
+    }
+    gone.addAll([
+      for (var bar = start; bar < was.length - end; bar++) was[bar],
+    ]);
+    for (var bar = start; bar < now.length - end; bar++) {
+      for (final staff in now[bar].staves) {
+        write(bar, staff.staff);
+      }
+    }
+  }
+  Map<NoteId, _Tied>? moved;
+  return (
+    lanes: lanes,
+    headOf: (timed, note) {
+      if (_headWhere(before.inItsBar(timed.ref), (n) => n.id == note)
+          case final head?) {
+        return (timed: head.timed, note: head.note);
+      }
+      return (moved ??= {
+        for (final column in gone)
+          for (final staff in column.staves)
+            for (final voice in staff.voices)
+              for (final timed in timedEvents(
+                voice,
+                measure: column.id,
+                staff: staff.staff,
+              ))
+                if (timed.event case ChordEvent(:final notes))
+                  for (final note in notes) note.id: (timed: timed, note: note),
+      })[note];
+    },
+  );
+}
 
 /// [column]'s measure of [staff], or null when it has none.
 StaffMeasure? _measureOf(MeasureColumn column, StaffId staff) {
   for (final measure in column.staves) {
     if (measure.staff == staff) {
       return measure;
-    }
-  }
-  return null;
-}
-
-/// The event of [score] that [ref] names, found only in [ref]'s own bar,
-/// or null when that bar or the event is not there.
-TimedEvent? _sameBar(Score score, EventRef ref) {
-  if (!score.contains(ref.measure)) {
-    return null;
-  }
-  final column = score.column(ref.measure);
-  final staff = _measureOf(column, ref.staff);
-  if (staff == null) {
-    return null;
-  }
-  for (final voice in staff.voices) {
-    for (final timed in timedEvents(
-      voice,
-      measure: column.id,
-      staff: ref.staff,
-    )) {
-      if (timed.event.id == ref.id) {
-        return timed;
-      }
     }
   }
   return null;

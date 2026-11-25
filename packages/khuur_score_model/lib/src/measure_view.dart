@@ -121,7 +121,7 @@ StaffView _staffView(
         for (final (_, to) in _tieEnds(
           chord,
           slot,
-          _aroundBarline(previous, column, id),
+          voicesAtBarline(previous, column, id),
         ))
           ?to?.note,
   ];
@@ -188,45 +188,6 @@ Iterable<(VoiceSlot, ChordEvent)> _tiedAtEnd(
   }
 }
 
-/// The voices of [staff] at the barline between [column] and [next]: the
-/// events that end [column] and those that open [next].
-List<VoiceAround> _aroundBarline(
-  MeasureColumn column,
-  MeasureColumn next,
-  StaffId staff,
-) {
-  final barEnd = Moment.zero + column.length;
-  final ending = <VoiceSlot, TimedEvent>{
-    for (final voice in column.staff(staff).voices)
-      if (timedEvents(voice, measure: column.id, staff: staff).lastOrNull
-          case final last? when last.onset + last.duration == barEnd)
-        voice.slot: last,
-  };
-  return [
-    for (final voice in next.staff(staff).voices)
-      (
-        slot: voice.slot,
-        ending: ending[voice.slot],
-        starting: openingEvent(next, staff, voice.slot),
-      ),
-  ];
-}
-
-/// The voices of [lanes] at [at], inside their bar.
-List<VoiceAround> _aroundInside(
-  List<(Voice, List<TimedEvent>)> lanes,
-  Moment at,
-) => [
-  for (final (voice, events) in lanes)
-    (
-      slot: voice.slot,
-      ending: events
-          .where((e) => e.onset < at && e.onset + e.duration == at)
-          .firstOrNull,
-      starting: events.where((e) => e.onset == at).firstOrNull,
-    ),
-];
-
 /// A tie lands where [tieLanding] says, inside the bar or, from a note that
 /// ends the bar, in the next one.
 List<TieView> _ties(
@@ -245,8 +206,8 @@ List<TieView> _ties(
         final voices = crosses
             ? (next == null
                   ? const <VoiceAround>[]
-                  : _aroundBarline(column, next, id))
-            : _aroundInside(lanes, end);
+                  : voicesAtBarline(column, next, id))
+            : voicesInside(lanes, end);
         for (final (from, to) in _tieEnds(chord, voice.slot, voices)) {
           ties.add(
             TieView(

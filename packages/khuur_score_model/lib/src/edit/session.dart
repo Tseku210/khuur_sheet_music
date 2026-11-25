@@ -186,7 +186,9 @@ final class EditSession {
         ? score
         : _withFittingSpanners(
             _withStandingMeasureRepeats(
-              _withTiesSettled(held, result.score),
+              edit is Batch
+                  ? result.score
+                  : _withTiesSettled(held, result.score),
             ),
           );
     return EditSession._(
